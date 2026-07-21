@@ -1,0 +1,9 @@
+# Frame inventory
+
+| Figma source                  | Frame / node                                    | Application scope                                            | Design status                                                                                                       |
+| ----------------------------- | ----------------------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------- |
+| TailAdmin Community           | Analytics Dashboard `17:577`                    | App shell, cards, tables, controls, charts                   | Previously inspected; translated into the shared TailAdmin token system                                             |
+| NEATLAB Super Admin Reference | Super Admin reference `23499:120079`            | Super Admin overview and platform information hierarchy      | Previously inspected hierarchy; Phase 2 platform screens, including tenant/audit flows, pending visual verification |
+| Mint Workforce                | Workforce reference `107:5089`                  | Employee, manager, and capacity workflow hierarchy           | Structured context previously retrieved; screenshot unavailable; pending visual verification                        |
+| Dashlab Reports               | Reports reference `601:3646`                    | Reporting chart composition                                  | Unavailable because Figma MCP is rate limited; pending verification                                                 |
+| CRM reference                 | Previously supplied client-management reference | Client list, details, contacts, engagements, and work groups | Pending Figma verification; TailAdmin tokens retained                                                               |
