@@ -1,4 +1,4 @@
-# Acme Operations
+# SaaS Demo
 
 Multi-tenant operations UI built with Next.js App Router, strict TypeScript, Tailwind, Radix-backed shadcn-compatible primitives, TanStack Query/Table, RHF/Zod, Zustand, Motion, and Recharts.
 
