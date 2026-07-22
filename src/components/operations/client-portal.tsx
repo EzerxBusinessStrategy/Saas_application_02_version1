@@ -1,15 +1,19 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { CircleHelp, FileText, Landmark, ListChecks } from "lucide-react";
+import { FileText, Landmark, ListChecks } from "lucide-react";
 import { getOperationalWorkspace } from "@/features/operations/api/operations-api";
+import {
+  ClientDeliverables,
+  ClientOnboarding,
+} from "@/components/operations/gamification-workflows";
+import { SupportTicketWorkspace } from "@/components/operations/support-ticket-workspace";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ErrorState } from "@/components/shared/error-state";
 import { LoadingState } from "@/components/shared/loading-state";
 import { MetricCard } from "@/components/shared/metric-card";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatusBadge } from "@/components/shared/status-badge";
-import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -17,6 +21,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import type { ClientRequest } from "@/types/operations";
 
 const rupees = new Intl.NumberFormat("en-IN", {
   style: "currency",
@@ -32,7 +37,9 @@ export function ClientPortal({
     | "requests"
     | "support"
     | "notifications"
-    | "profile";
+    | "profile"
+    | "onboarding"
+    | "deliverables";
 }) {
   const query = useQuery({
     queryKey: ["client-portal"],
@@ -48,13 +55,10 @@ export function ClientPortal({
       />
     );
   const data = query.data;
-  if (section === "requests" || section === "support")
-    return (
-      <ClientRequests
-        support={section === "support"}
-        requests={data.requests}
-      />
-    );
+  if (section === "onboarding") return <ClientOnboarding />;
+  if (section === "deliverables") return <ClientDeliverables />;
+  if (section === "support") return <SupportTicketWorkspace workspace="client" />;
+  if (section === "requests") return <ClientRequests requests={data.requests} />;
   if (section === "services")
     return <ClientServices tasks={data.tasks} milestones={data.milestones} />;
   if (section === "notifications" || section === "profile")
@@ -210,37 +214,13 @@ function ClientServices({
     </Card>
   );
 }
-function ClientRequests({
-  support,
-  requests,
-}: {
-  support: boolean;
-  requests: Array<{
-    id: string;
-    title: string;
-    status: "open" | "in-progress" | "resolved";
-    updatedOn: string;
-    owner: string;
-  }>;
-}) {
+function ClientRequests({ requests }: { requests: ClientRequest[] }) {
   return (
     <div className="flex flex-col gap-[30px]">
       <PageHeader
         eyebrow="Client portal"
-        title={support ? "Support" : "Requests"}
-        description={
-          support
-            ? "Request help with your authorised service delivery."
-            : "Track requests for your client account only."
-        }
-        actions={
-          support ? (
-            <Button>
-              <CircleHelp data-icon="inline-start" />
-              Create support request
-            </Button>
-          ) : undefined
-        }
+        title="Requests"
+        description="Track requests for your client account only."
       />
       <Card>
         <CardContent className="pt-[30px]">

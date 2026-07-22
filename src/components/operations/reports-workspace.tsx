@@ -14,6 +14,11 @@ import {
 } from "recharts";
 import { getOperationalWorkspace } from "@/features/operations/api/operations-api";
 import { ChartCard } from "@/components/dashboard/chart-card";
+import {
+  chartAxisTick,
+  chartTooltipCursor,
+  ChartTooltipContent,
+} from "@/components/dashboard/chart-tooltip";
 import { ErrorState } from "@/components/shared/error-state";
 import { LoadingState } from "@/components/shared/loading-state";
 import { PageHeader } from "@/components/shared/page-header";
@@ -72,14 +77,23 @@ export function ReportsWorkspace() {
                   strokeDasharray="3 3"
                   vertical={false}
                 />
-                <XAxis dataKey="day" tickLine={false} axisLine={false} />
+                <XAxis
+                  dataKey="day"
+                  tick={chartAxisTick}
+                  tickLine={false}
+                  axisLine={false}
+                />
                 <YAxis
                   domain={[80, 100]}
+                  tick={chartAxisTick}
                   tickLine={false}
                   axisLine={false}
                   unit="%"
                 />
-                <Tooltip />
+                <Tooltip
+                  content={<ChartTooltipContent />}
+                  cursor={chartTooltipCursor}
+                />
                 <Line
                   type="monotone"
                   dataKey="compliance"
@@ -114,14 +128,29 @@ export function ReportsWorkspace() {
                   strokeDasharray="3 3"
                   vertical={false}
                 />
-                <XAxis dataKey="status" tickLine={false} axisLine={false} />
-                <YAxis
-                  allowDecimals={false}
+                <XAxis
+                  dataKey="status"
+                  tick={chartAxisTick}
                   tickLine={false}
                   axisLine={false}
                 />
-                <Tooltip />
+                <YAxis
+                  allowDecimals={false}
+                  tick={chartAxisTick}
+                  tickLine={false}
+                  axisLine={false}
+                />
+                <Tooltip
+                  content={<ChartTooltipContent />}
+                  cursor={chartTooltipCursor}
+                />
                 <Bar
+                  activeBar={{
+                    fill: "var(--primary)",
+                    opacity: 0.88,
+                    stroke: "var(--ring)",
+                    strokeWidth: 1,
+                  }}
                   dataKey="tasks"
                   name="Tasks"
                   fill="var(--primary)"
@@ -150,14 +179,23 @@ export function ReportsWorkspace() {
                   strokeDasharray="3 3"
                   vertical={false}
                 />
-                <XAxis dataKey="day" tickLine={false} axisLine={false} />
+                <XAxis
+                  dataKey="day"
+                  tick={chartAxisTick}
+                  tickLine={false}
+                  axisLine={false}
+                />
                 <YAxis
                   domain={[80, 100]}
+                  tick={chartAxisTick}
                   tickLine={false}
                   axisLine={false}
                   unit="%"
                 />
-                <Tooltip />
+                <Tooltip
+                  content={<ChartTooltipContent />}
+                  cursor={chartTooltipCursor}
+                />
                 <Line
                   type="monotone"
                   dataKey="compliance"
@@ -194,14 +232,29 @@ export function ReportsWorkspace() {
                   strokeDasharray="3 3"
                   vertical={false}
                 />
-                <XAxis dataKey="name" tickLine={false} axisLine={false} />
-                <YAxis
-                  allowDecimals={false}
+                <XAxis
+                  dataKey="name"
+                  tick={chartAxisTick}
                   tickLine={false}
                   axisLine={false}
                 />
-                <Tooltip />
+                <YAxis
+                  allowDecimals={false}
+                  tick={chartAxisTick}
+                  tickLine={false}
+                  axisLine={false}
+                />
+                <Tooltip
+                  content={<ChartTooltipContent />}
+                  cursor={chartTooltipCursor}
+                />
                 <Bar
+                  activeBar={{
+                    fill: "var(--primary)",
+                    opacity: 0.88,
+                    stroke: "var(--ring)",
+                    strokeWidth: 1,
+                  }}
                   dataKey="checklist"
                   name="Completed checkpoints"
                   fill="var(--primary)"

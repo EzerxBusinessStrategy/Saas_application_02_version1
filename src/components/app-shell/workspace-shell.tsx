@@ -6,7 +6,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   ChevronDown,
-  ChevronRight,
   Menu,
   PanelLeftClose,
   PanelLeftOpen,
@@ -18,8 +17,8 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { CommandMenu } from "@/components/app-shell/command-menu";
 import { NotificationMenu } from "@/components/app-shell/notification-menu";
 import { TenantSwitcher } from "@/components/app-shell/tenant-switcher";
+import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { UserMenu } from "@/components/app-shell/user-menu";
-import { WorkspaceSwitcher } from "@/components/app-shell/workspace-switcher";
 import { navigationFor } from "@/lib/nav";
 import { hasAnyPermission } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
@@ -63,19 +62,52 @@ function WorkspaceNavigation({
   pathname,
   workspace,
   collapsed,
-  onExpand,
   onNavigate,
 }: {
   items: NavigationItem[];
   pathname: string;
   workspace: Workspace;
   collapsed: boolean;
-  onExpand: () => void;
   onNavigate?: () => void;
 }) {
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>(
     {},
   );
+  const [openFlyoutGroup, setOpenFlyoutGroup] = useState<string | null>(null);
+  const labelClassName = cn(
+    "min-w-0 flex-1 truncate transition-[opacity,transform] duration-200 ease-out motion-reduce:transition-none",
+    collapsed
+      ? "pointer-events-none absolute -translate-x-1 opacity-0"
+      : "translate-x-0 opacity-100",
+  );
+
+  const renderFlyoutItem = (item: NavigationItem) => {
+    const Icon = item.icon;
+    const href =
+      item.href !== undefined ? `/${workspace}${item.href}` : undefined;
+    const active = isActiveItem(item, pathname, workspace);
+    return href ? (
+      <Link
+        key={item.label}
+        href={href}
+        className={cn(
+          "flex min-h-10 items-center gap-2 rounded-[var(--radius-control)] px-3 text-sm text-sidebar-foreground transition-colors hover:bg-sidebar-active focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white",
+          active && "bg-sidebar-active font-medium text-sidebar-foreground",
+        )}
+        aria-current={active ? "page" : undefined}
+        onClick={() => {
+          setOpenFlyoutGroup(null);
+          onNavigate?.();
+        }}
+      >
+        {Icon ? (
+          <Icon className="size-[18px] shrink-0" aria-hidden="true" />
+        ) : null}
+        <span className="truncate">{item.label}</span>
+      </Link>
+    ) : null;
+  };
+
   const renderItem = (item: NavigationItem, nested = false) => {
     const active = isActiveItem(item, pathname, workspace);
     const Icon = item.icon;
@@ -83,11 +115,23 @@ function WorkspaceNavigation({
       item.href !== undefined ? `/${workspace}${item.href}` : undefined;
     const hasChildren = Boolean(item.children?.length);
     const expanded = expandedGroups[item.label] ?? active;
+    const itemId = item.label.toLowerCase().replaceAll(" ", "-");
+    const tooltipId = `${workspace}-${itemId}-tooltip`;
     const commonClassName = cn(
-      "flex min-h-10 items-center gap-2.5 rounded-[3px] text-base leading-6 transition-colors hover:bg-sidebar-active focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white",
-      collapsed ? "justify-center px-2" : nested ? "pl-10 pr-3" : "px-[15px]",
-      active && "bg-sidebar-active font-medium text-white",
+      "group relative flex min-h-11 items-center gap-2 rounded-[var(--radius-control)] text-sm leading-5 text-sidebar-foreground transition-colors duration-200 ease-out hover:bg-sidebar-active focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white motion-reduce:transition-none",
+      collapsed ? "justify-center px-2" : nested ? "pl-9 pr-3" : "px-3",
+      active && "bg-sidebar-active font-medium text-sidebar-foreground",
     );
+    const tooltip =
+      collapsed && openFlyoutGroup !== item.label ? (
+        <span
+          id={tooltipId}
+          role="tooltip"
+          className="pointer-events-none invisible absolute left-[calc(100%+8px)] top-1/2 z-20 -translate-y-1/2 whitespace-nowrap rounded-[var(--radius-control)] bg-foreground px-2 py-1 text-xs text-card opacity-0 shadow-sm transition-[opacity,visibility] duration-200 group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100 motion-reduce:transition-none"
+        >
+          {item.label}
+        </span>
+      ) : null;
 
     if (!hasChildren && href) {
       return (
@@ -97,36 +141,43 @@ function WorkspaceNavigation({
           className={commonClassName}
           title={collapsed ? item.label : undefined}
           aria-label={collapsed ? item.label : undefined}
+          aria-describedby={collapsed ? tooltipId : undefined}
+          aria-current={active ? "page" : undefined}
           onClick={onNavigate}
         >
           {Icon ? (
             <Icon className="size-[18px] shrink-0" aria-hidden="true" />
           ) : null}
-          {!collapsed ? (
-            <span className="min-w-0 flex-1 truncate">{item.label}</span>
-          ) : null}
+          <span aria-hidden={collapsed} className={labelClassName}>
+            {item.label}
+          </span>
           {!collapsed && item.badge ? (
-            <span className="ml-auto rounded-[var(--radius-control)] bg-primary px-[7px] py-px text-xs leading-[18px] text-white">
+            <span className="ml-auto rounded-[var(--radius-control)] bg-primary px-[7px] py-px text-xs leading-[18px] text-primary-foreground">
               {item.badge}
             </span>
           ) : null}
+          {tooltip}
         </Link>
       );
     }
 
     return (
-      <div key={item.label}>
+      <div key={item.label} className="relative">
         <button
           type="button"
           className={commonClassName}
-          aria-expanded={collapsed ? undefined : expanded}
-          aria-label={
-            collapsed ? `Expand sidebar to view ${item.label}` : undefined
-          }
+          aria-expanded={collapsed ? openFlyoutGroup === item.label : expanded}
+          aria-label={collapsed ? `${item.label} navigation` : undefined}
           title={collapsed ? item.label : undefined}
+          aria-describedby={
+            collapsed && openFlyoutGroup !== item.label ? tooltipId : undefined
+          }
+          aria-controls={collapsed ? `${itemId}-navigation` : undefined}
           onClick={() => {
             if (collapsed) {
-              onExpand();
+              setOpenFlyoutGroup((current) =>
+                current === item.label ? null : item.label,
+              );
               return;
             }
             setExpandedGroups((current) => ({
@@ -134,26 +185,43 @@ function WorkspaceNavigation({
               [item.label]: !expanded,
             }));
           }}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") setOpenFlyoutGroup(null);
+          }}
         >
           {Icon ? (
             <Icon className="size-[18px] shrink-0" aria-hidden="true" />
           ) : null}
-          {!collapsed ? (
-            <span className="min-w-0 flex-1 truncate">{item.label}</span>
-          ) : null}
+          <span aria-hidden={collapsed} className={labelClassName}>
+            {item.label}
+          </span>
           {!collapsed ? (
             <ChevronDown
               className={cn(
-                "size-4 shrink-0 transition-transform",
+                "size-4 shrink-0 transition-transform duration-200 ease-out motion-reduce:transition-none",
                 expanded && "rotate-180",
               )}
               aria-hidden="true"
             />
           ) : null}
+          {tooltip}
         </button>
         {!collapsed && expanded && item.children ? (
-          <div className="mt-1 space-y-1">
+          <div className="mt-1 flex flex-col gap-1">
             {item.children.map((child) => renderItem(child, true))}
+          </div>
+        ) : null}
+        {collapsed && openFlyoutGroup === item.label && item.children ? (
+          <div
+            id={`${itemId}-navigation`}
+            role="group"
+            aria-label={`${item.label} navigation`}
+            className="absolute left-[calc(100%+8px)] top-0 z-20 flex w-52 flex-col gap-1 rounded-[var(--radius-control)] border bg-sidebar p-2 shadow-[var(--shadow-card)]"
+          >
+            <p className="px-2 py-1 text-xs font-medium text-sidebar-muted">
+              {item.label}
+            </p>
+            {item.children.map(renderFlyoutItem)}
           </div>
         ) : null}
       </div>
@@ -162,7 +230,10 @@ function WorkspaceNavigation({
 
   return (
     <nav
-      className="flex flex-1 flex-col gap-1.5 px-3 py-8"
+      className={cn(
+        "flex min-h-0 flex-1 flex-col gap-1 px-3 py-5",
+        collapsed ? "overflow-visible" : "overflow-y-auto",
+      )}
       aria-label="Workspace navigation"
     >
       {items.map((item) => renderItem(item))}
@@ -175,40 +246,61 @@ function Sidebar({
   pathname,
   workspace,
   collapsed,
-  onExpand,
+  onToggle,
+  showToggle = true,
   onNavigate,
 }: {
   items: NavigationItem[];
   pathname: string;
   workspace: Workspace;
   collapsed: boolean;
-  onExpand: () => void;
+  onToggle: () => void;
+  showToggle?: boolean;
   onNavigate?: () => void;
 }) {
   return (
-    <aside
-      className={cn(
-        "flex h-full flex-col bg-sidebar text-sidebar-foreground transition-[width]",
-        collapsed ? "w-[72px]" : "w-[var(--sidebar-width)]",
-      )}
-    >
+    <aside className="flex h-dvh min-h-0 w-full flex-col bg-sidebar text-sidebar-foreground">
       <div
         className={cn(
-          "flex h-[var(--header-height)] items-center gap-3",
-          collapsed ? "justify-center px-3" : "px-10",
+          "flex h-[var(--header-height)] items-center justify-between gap-2",
+          collapsed ? "px-0" : "px-3",
         )}
       >
-        <Image
-          src="/branding/default-mark.svg"
-          alt="Acme Ops"
-          width={32}
-          height={32}
-          priority
-        />
-        {!collapsed ? (
-          <span className="truncate text-lg font-bold tracking-tight text-white">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <Image
+            src="/branding/default-mark.svg"
+            alt={collapsed ? "Acme Ops" : ""}
+            width={28}
+            height={28}
+            priority
+          />
+          <span
+            aria-hidden={collapsed}
+            className={cn(
+              "truncate text-lg font-bold tracking-tight text-sidebar-foreground transition-[opacity,transform] duration-200 ease-out motion-reduce:transition-none",
+              collapsed
+                ? "pointer-events-none absolute -translate-x-1 opacity-0"
+                : "translate-x-0 opacity-100",
+            )}
+          >
             Acme Ops
           </span>
+        </div>
+        {showToggle ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}
+            title={collapsed ? "Expand navigation" : "Collapse navigation"}
+            className="size-10 shrink-0 p-0 text-sidebar-foreground hover:bg-sidebar-active hover:text-sidebar-foreground"
+            onClick={onToggle}
+          >
+            {collapsed ? (
+              <PanelLeftOpen className="size-[18px]" aria-hidden="true" />
+            ) : (
+              <PanelLeftClose className="size-[18px]" aria-hidden="true" />
+            )}
+          </Button>
         ) : null}
       </div>
       <WorkspaceNavigation
@@ -216,17 +308,31 @@ function Sidebar({
         pathname={pathname}
         workspace={workspace}
         collapsed={collapsed}
-        onExpand={onExpand}
         onNavigate={onNavigate}
       />
-      {!collapsed ? (
-        <div
-          className="mt-auto truncate px-[25px] py-6 text-sm text-sidebar-muted"
-          title="Tenant workspace · Demo data"
+      <div
+        className={cn(
+          "mt-auto flex items-center gap-2 px-3 py-5 text-sm text-sidebar-muted",
+          collapsed && "justify-center px-0",
+        )}
+        aria-label="Demo workspace"
+        title="Demo workspace - Demo data"
+      >
+        <span className="flex size-8 shrink-0 items-center justify-center rounded-full border border-sidebar-muted/50 text-xs font-medium text-sidebar-foreground">
+          D
+        </span>
+        <span
+          aria-hidden={collapsed}
+          className={cn(
+            "truncate transition-[opacity,transform] duration-200 ease-out motion-reduce:transition-none",
+            collapsed
+              ? "pointer-events-none absolute -translate-x-1 opacity-0"
+              : "translate-x-0 opacity-100",
+          )}
         >
-          Tenant workspace · Demo data
-        </div>
-      ) : null}
+          Demo workspace
+        </span>
+      </div>
     </aside>
   );
 }
@@ -265,44 +371,43 @@ export function WorkspaceShell({
   }, []);
 
   return (
-    <div className="min-h-screen bg-background">
+    <div
+      className="app-shell min-h-screen bg-background"
+      data-sidebar={sidebarCollapsed ? "collapsed" : "expanded"}
+    >
       <a href="#main-content" className="skip-link">
         Skip to content
       </a>
-      <aside className="fixed inset-y-0 left-0 z-30 hidden lg:flex">
+      <div className="app-shell__sidebar sticky top-0 hidden h-dvh min-w-0 self-start lg:block">
         <Sidebar
           items={items}
           pathname={pathname}
           workspace={workspace}
           collapsed={sidebarCollapsed}
-          onExpand={() => setSidebarCollapsed(false)}
+          onToggle={() => setSidebarCollapsed((collapsed) => !collapsed)}
         />
-      </aside>
+      </div>
       <Dialog
         open={mobileNavigationOpen}
         onOpenChange={setMobileNavigationOpen}
       >
         <DialogContent
           title="Workspace navigation"
-          className="left-0 top-0 h-dvh w-[min(var(--sidebar-width),calc(100vw-2rem))] max-w-none -translate-x-0 -translate-y-0 rounded-none border-y-0 border-l-0 p-0"
+          className="mobile-navigation-drawer left-0 top-0 h-dvh w-[min(var(--sidebar-expanded-width),calc(100vw-2rem))] max-w-none -translate-x-0 -translate-y-0 rounded-none border-y-0 border-l-0 p-0"
         >
           <Sidebar
             items={items}
             pathname={pathname}
             workspace={workspace}
             collapsed={false}
-            onExpand={() => undefined}
+            onToggle={() => undefined}
+            showToggle={false}
             onNavigate={() => setMobileNavigationOpen(false)}
           />
         </DialogContent>
       </Dialog>
-      <div
-        className={cn(
-          "transition-[padding]",
-          sidebarCollapsed ? "lg:pl-[72px]" : "lg:pl-[var(--sidebar-width)]",
-        )}
-      >
-        <header className="sticky top-0 z-20 flex h-[var(--header-height)] items-center justify-between gap-3 border-b bg-card px-4 lg:px-10">
+      <div className="app-shell__main min-w-0">
+        <header className="sticky top-0 z-20 flex h-[var(--header-height)] items-center justify-between gap-3 border-b bg-[var(--header-background)] px-4 text-[var(--header-foreground)] md:px-6 lg:px-8">
           <div className="flex min-w-0 items-center gap-2">
             <Button
               variant="ghost"
@@ -312,21 +417,6 @@ export function WorkspaceShell({
               onClick={() => setMobileNavigationOpen(true)}
             >
               <Menu className="size-[18px]" aria-hidden="true" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              aria-label={
-                sidebarCollapsed ? "Expand navigation" : "Collapse navigation"
-              }
-              className="hidden size-10 p-0 lg:inline-flex"
-              onClick={() => setSidebarCollapsed((collapsed) => !collapsed)}
-            >
-              {sidebarCollapsed ? (
-                <PanelLeftOpen className="size-[18px]" aria-hidden="true" />
-              ) : (
-                <PanelLeftClose className="size-[18px]" aria-hidden="true" />
-              )}
             </Button>
             <div className="hidden min-w-0 md:block">
               <Breadcrumbs
@@ -338,7 +428,6 @@ export function WorkspaceShell({
           </div>
           <div className="flex shrink-0 items-center gap-1 sm:gap-2">
             {user.role === "SUPER_ADMIN" ? <TenantSwitcher /> : null}
-            <WorkspaceSwitcher currentWorkspace={workspace} />
             <Button
               variant="outline"
               size="sm"
@@ -352,13 +441,14 @@ export function WorkspaceShell({
                 ⌘K
               </kbd>
             </Button>
+            <ThemeToggle />
             <NotificationMenu workspace={workspace} />
-            <UserMenu user={user} />
+            <UserMenu user={user} workspace={workspace} />
           </div>
         </header>
         <main
           id="main-content"
-          className="mx-auto max-w-[1290px] px-4 py-6 sm:px-6 lg:px-0 lg:py-[45px]"
+          className="min-w-0 px-4 py-6 md:px-6 lg:px-8 lg:py-8"
         >
           {children}
         </main>

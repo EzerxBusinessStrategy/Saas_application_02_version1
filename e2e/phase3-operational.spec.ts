@@ -5,7 +5,7 @@ async function expectHealthy(page: Page, path: string) {
   page.on("console", (message) => {
     if (message.type() === "error") errors.push(message.text());
   });
-  await page.goto(path);
+  await page.goto(path, { waitUntil: "domcontentloaded" });
   await page.waitForLoadState("networkidle");
   await expect(page.locator("main")).toBeVisible();
   await expect
@@ -51,6 +51,24 @@ test("employee task workflow and client portal stay usable on tablet and mobile"
   await expectHealthy(page, "/client/invoices");
   await expect(
     page.getByRole("heading", { name: "Invoices", level: 1 }),
+  ).toBeVisible();
+});
+
+test("employee calendar remains readable on desktop and mobile", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1024, height: 900 });
+  await expectHealthy(page, "/employee/calendar");
+  await expect(
+    page.getByRole("table", { name: /delivery calendar for july 2026/i }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Next month" }).click();
+  await expect(page.getByText("August 2026")).toBeVisible();
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expectHealthy(page, "/employee/calendar");
+  await expect(
+    page.getByRole("list", { name: "Upcoming milestones" }),
   ).toBeVisible();
 });
 

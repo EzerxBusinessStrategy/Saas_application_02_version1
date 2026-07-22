@@ -9,12 +9,28 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import type { User } from "@/types/domain";
+import type { User, Workspace } from "@/types/domain";
 
 const formatRole = (role: User["role"]) =>
   role.replaceAll("_", " ").toLowerCase();
 
-export function UserMenu({ user, open }: { user: User; open?: boolean }) {
+const accountHrefByWorkspace: Record<Workspace, string> = {
+  "super-admin": "/super-admin/account",
+  admin: "/admin/settings",
+  manager: "/manager/profile",
+  employee: "/employee/profile",
+  client: "/client/profile",
+};
+
+export function UserMenu({
+  user,
+  workspace,
+  open,
+}: {
+  user: User;
+  workspace: Workspace;
+  open?: boolean;
+}) {
   return (
     <DropdownMenu open={open}>
       <DropdownMenuTrigger asChild>
@@ -57,9 +73,11 @@ export function UserMenu({ user, open }: { user: User; open?: boolean }) {
           </p>
         </div>
         <DropdownMenuSeparator className="my-1 h-px bg-border" />
-        <DropdownMenuItem disabled>
-          <UserRound className="size-4" aria-hidden="true" />
-          Profile and preferences
+        <DropdownMenuItem asChild>
+          <Link href={accountHrefByWorkspace[workspace]}>
+            <UserRound className="size-4" aria-hidden="true" />
+            Profile and preferences
+          </Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator className="my-1 h-px bg-border" />
         <DropdownMenuItem asChild>

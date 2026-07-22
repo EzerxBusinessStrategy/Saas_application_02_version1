@@ -42,9 +42,12 @@ export const sectionAccess: Record<
     workspaces: ["super-admin"],
     permissions: ["tenant.update"],
   },
+  account: { workspaces: ["super-admin"] },
   managers: { workspaces: ["admin"], permissions: ["employee.read"] },
   organisation: { workspaces: ["admin"], permissions: ["employee.read"] },
   settings: { workspaces: ["admin"], permissions: ["client.update"] },
+  gamification: { workspaces: ["admin"], permissions: ["client.update"] },
+  tickets: { workspaces: ["admin", "manager"] },
   reviews: {
     workspaces: ["manager"],
     permissions: ["work_log.review.assigned_group"],
@@ -67,9 +70,26 @@ export const sectionAccess: Record<
     permissions: ["work_log.create.self"],
   },
   calendar: { workspaces: ["employee"], permissions: ["task.read.assigned"] },
+  achievements: {
+    workspaces: ["employee"],
+    permissions: ["task.read.assigned"],
+  },
+  recognition: {
+    workspaces: ["manager", "employee"],
+    permissions: ["task.read.assigned"],
+  },
+  preferences: {
+    workspaces: ["employee"],
+    permissions: ["task.read.assigned"],
+  },
   services: { workspaces: ["client"], permissions: ["client.read.assigned"] },
   requests: { workspaces: ["client"], permissions: ["client.read.assigned"] },
   support: { workspaces: ["client"], permissions: ["client.read.assigned"] },
+  onboarding: { workspaces: ["client"], permissions: ["client.read.assigned"] },
+  deliverables: {
+    workspaces: ["client"],
+    permissions: ["client.read.assigned"],
+  },
   notifications: { workspaces: ["manager", "employee", "client"] },
   profile: { workspaces: ["manager", "employee", "client"] },
 };

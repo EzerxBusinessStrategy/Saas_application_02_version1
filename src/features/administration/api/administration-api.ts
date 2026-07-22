@@ -77,9 +77,15 @@ export async function getTenant(tenantId: string) {
     .parse(tenants.find((tenant) => tenant.id === tenantId) ?? null);
 }
 
-export async function listAuditRecords(request: AuditListRequest) {
+export async function listAuditRecords(
+  request: AuditListRequest,
+  scope?: { tenantName?: string },
+) {
   const { page, pageSize } = paginationSchema.parse(request);
   const filtered = auditRecords
+    .filter(
+      (record) => !scope?.tenantName || record.tenant === scope.tenantName,
+    )
     .filter((record) =>
       includes(
         [record.actor, record.tenant, record.action, record.resource],

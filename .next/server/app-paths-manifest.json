@@ -1,12 +1,4 @@
 {
-  "/page": "app/page.js",
-  "/(auth)/login/page": "app/(auth)/login/page.js",
-  "/(auth)/forgot-password/page": "app/(auth)/forgot-password/page.js",
-  "/(auth)/reset-password/page": "app/(auth)/reset-password/page.js",
-  "/(auth)/accept-invitation/page": "app/(auth)/accept-invitation/page.js",
   "/(app)/[workspace]/page": "app/(app)/[workspace]/page.js",
-  "/(app)/[workspace]/[section]/page": "app/(app)/[workspace]/[section]/page.js",
-  "/(app)/[workspace]/tenants/new/page": "app/(app)/[workspace]/tenants/new/page.js",
-  "/(app)/[workspace]/tasks/page": "app/(app)/[workspace]/tasks/page.js",
-  "/(app)/[workspace]/clients/[clientId]/page": "app/(app)/[workspace]/clients/[clientId]/page.js"
+  "/(app)/[workspace]/[section]/page": "app/(app)/[workspace]/[section]/page.js"
 }

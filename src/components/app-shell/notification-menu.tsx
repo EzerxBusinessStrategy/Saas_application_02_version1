@@ -13,6 +13,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import type { Notification } from "@/types/app-shell";
 import type { Workspace } from "@/types/domain";
 
@@ -30,9 +31,12 @@ export function NotificationMenu({
   open?: boolean;
 }) {
   const [items, setItems] = useState(initialItems);
+  const visibleItems = items.filter(
+    (item) => !item.workspaces?.length || item.workspaces.includes(workspace),
+  );
   const unreadCount = useMemo(
-    () => items.filter((item) => !item.read).length,
-    [items],
+    () => visibleItems.filter((item) => !item.read).length,
+    [visibleItems],
   );
   const markAsRead = (id: string) =>
     setItems((current) =>
@@ -57,7 +61,11 @@ export function NotificationMenu({
           <Bell className="size-[18px]" aria-hidden="true" />
           {unreadCount ? (
             <span
-              className="absolute right-1 top-1 grid size-4 place-items-center rounded-full bg-danger text-[10px] font-semibold text-white"
+              className={cn(
+                "absolute right-1 top-1 grid size-4 place-items-center rounded-full bg-danger text-[10px] font-semibold text-destructive-foreground",
+                workspace === "super-admin" &&
+                  "super-admin-notification-signal",
+              )}
               aria-hidden="true"
             >
               {unreadCount > 9 ? "9+" : unreadCount}
@@ -100,14 +108,14 @@ export function NotificationMenu({
             </p>
           </div>
         ) : null}
-        {state === "empty" || (state === "ready" && !items.length) ? (
+        {state === "empty" || (state === "ready" && !visibleItems.length) ? (
           <div className="px-3 py-5 text-sm text-muted-foreground">
             You&apos;re all caught up.
           </div>
         ) : null}
-        {state === "ready" && items.length ? (
+        {state === "ready" && visibleItems.length ? (
           <div className="max-h-80 overflow-y-auto p-1">
-            {items.map((item) => (
+            {visibleItems.map((item) => (
               <DropdownMenuItem
                 key={item.id}
                 className="items-start whitespace-normal p-0"

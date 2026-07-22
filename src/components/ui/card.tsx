@@ -5,6 +5,7 @@ export const Card = ({
   ...props
 }: HTMLAttributes<HTMLDivElement>) => (
   <section
+    data-slot="card"
     className={cn(
       "rounded-[var(--radius-card)] border border-border bg-card text-card-foreground shadow-[var(--shadow-card)]",
       className,

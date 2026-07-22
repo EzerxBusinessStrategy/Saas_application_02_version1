@@ -1,9 +1,16 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { Bell, CheckCircle2, ClipboardCheck, Users } from "lucide-react";
-import { getOperationalWorkspace } from "@/features/operations/api/operations-api";
+import { toast } from "sonner";
+import {
+  decideEmployeeTaskReview,
+  getOperationalWorkspace,
+} from "@/features/operations/api/operations-api";
+import { ManagerRecognition } from "@/components/operations/gamification-workflows";
+import { SupportTicketWorkspace } from "@/components/operations/support-ticket-workspace";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ErrorState } from "@/components/shared/error-state";
 import { LoadingState } from "@/components/shared/loading-state";
@@ -29,7 +36,9 @@ export type ManagerSection =
   | "workload"
   | "reports"
   | "notifications"
-  | "profile";
+  | "profile"
+  | "recognition"
+  | "tickets";
 
 export function ManagerWorkspace({
   section = "overview",
@@ -50,7 +59,35 @@ export function ManagerWorkspace({
       />
     );
   const data = query.data;
+  const pendingTaskReviews = data.tasks.filter(
+    (task) => task.status === "review" && task.reviewStatus === "pending",
+  );
+  if (section === "recognition") return <ManagerRecognition />;
+  if (section === "tickets") return <SupportTicketWorkspace workspace="manager" />;
   if (section === "reviews")
+    return (
+      <TaskReviewQueue
+        tasks={pendingTaskReviews}
+        onDecision={async (taskId, decision) => {
+          try {
+            await decideEmployeeTaskReview(taskId, decision);
+            await query.refetch();
+            toast.success(
+              decision === "approve"
+                ? "Task approved and marked done."
+                : "Task returned to the employee as rejected.",
+            );
+          } catch (error) {
+            toast.error(
+              error instanceof Error
+                ? error.message
+                : "The review decision could not be saved.",
+            );
+          }
+        }}
+      />
+    );
+  if ((section as string) === "reviews")
     return (
       <QueuePage
         title="Review queue"
@@ -105,7 +142,7 @@ export function ManagerWorkspace({
       />
     );
   if (section === "notifications" || section === "profile")
-    return <SimpleManagerPage section={section} />;
+    return <SimpleManagerPage section={section} tasks={pendingTaskReviews} />;
   const pendingReviews = data.workLogs.filter(
     (log) => log.status === "submitted",
   ).length;
@@ -158,6 +195,75 @@ export function ManagerWorkspace({
           }))}
         />
       </section>
+    </div>
+  );
+}
+
+function TaskReviewQueue({
+  tasks,
+  onDecision,
+}: {
+  tasks: Awaited<ReturnType<typeof getOperationalWorkspace>>["tasks"];
+  onDecision: (taskId: string, decision: "approve" | "reject") => Promise<void>;
+}) {
+  const [workingTaskId, setWorkingTaskId] = useState<string | null>(null);
+  const decide = async (taskId: string, decision: "approve" | "reject") => {
+    setWorkingTaskId(taskId);
+    await onDecision(taskId, decision);
+    setWorkingTaskId(null);
+  };
+  return (
+    <div className="flex flex-col gap-[30px]">
+      <PageHeader
+        eyebrow="Manager"
+        title="Review queue"
+        description="Employee-submitted tasks in your assigned work groups require an approval or return decision."
+      />
+      <Card>
+        <CardContent className="pt-[30px]">
+          {tasks.length ? (
+            <ul className="flex flex-col divide-y">
+              {tasks.map((task) => (
+                <li
+                  key={task.id}
+                  className="flex flex-wrap items-center justify-between gap-3 py-4 first:pt-0"
+                >
+                  <div>
+                    <p className="font-medium">{task.title}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {task.assignee} submitted this task for review. Due {task.dueDate}.
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      aria-label={`Approve ${task.title}`}
+                      disabled={workingTaskId === task.id}
+                      onClick={() => void decide(task.id, "approve")}
+                    >
+                      Approve
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      aria-label={`Request changes for ${task.title}`}
+                      disabled={workingTaskId === task.id}
+                      onClick={() => void decide(task.id, "reject")}
+                    >
+                      Request changes
+                    </Button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <EmptyState
+              title="No submitted task reviews"
+              description="New employee submissions will appear here."
+            />
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
@@ -331,10 +437,13 @@ function AssignedScope({
 }
 function SimpleManagerPage({
   section,
+  tasks,
 }: {
   section: "notifications" | "profile";
+  tasks: Awaited<ReturnType<typeof getOperationalWorkspace>>["tasks"];
 }) {
   const profile = section === "profile";
+  const [updatesReviewed, setUpdatesReviewed] = useState(false);
   return (
     <div className="flex flex-col gap-[30px]">
       <PageHeader
@@ -351,18 +460,36 @@ function SimpleManagerPage({
           <p className="font-medium">
             {profile
               ? "Avery Patel"
-              : "Two delivery updates need your attention"}
+              : tasks.length
+                ? `${tasks.length} employee task review${tasks.length === 1 ? "" : "s"} ${tasks.length === 1 ? "needs" : "need"} your attention`
+                : "No employee task reviews are waiting"}
           </p>
           <p className="mt-2 text-sm text-muted-foreground">
             {profile
               ? "Manager · GST Review and Delivery work groups"
-              : "A submitted reconciliation work log and an at-risk delivery report are awaiting review."}
+              : tasks.length
+                ? "An employee submitted assigned work for your review. Approving marks it done; requesting changes returns it to the employee."
+                : "New employee task submissions will appear here."}
           </p>
+          {!profile && tasks.length ? (
+            <Link
+              href="/manager/reviews"
+              className="mt-5 inline-flex text-sm font-medium text-primary underline-offset-4 hover:underline"
+            >
+              Open review queue
+            </Link>
+          ) : null}
           {!profile ? (
-            <Button className="mt-5">
-              <Bell data-icon="inline-start" />
-              Mark updates reviewed
-            </Button>
+            updatesReviewed ? (
+              <p className="mt-5 text-sm text-success" role="status">
+                Updates marked as reviewed for this mock session.
+              </p>
+            ) : (
+              <Button className="mt-5" onClick={() => setUpdatesReviewed(true)}>
+                <Bell data-icon="inline-start" />
+                Mark updates reviewed
+              </Button>
+            )
           ) : (
             <p className="mt-5 flex items-center gap-2 text-sm text-success">
               <CheckCircle2 className="size-4" />

@@ -1,18 +1,22 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
 import {
   listOperationalTasks,
   listWorkLogs,
+  startEmployeeTask,
+  submitEmployeeTaskForReview,
 } from "@/features/operations/api/operations-api";
 import { TaskBoard } from "@/components/operations/task-board";
 import { TaskDetailsDrawer } from "@/components/operations/task-details-drawer";
 import { DataTable } from "@/components/operations/data-table";
 import { EmptyState } from "@/components/shared/empty-state";
+import { ConfirmationDialog } from "@/components/shared/confirmation-dialog";
 import { ErrorState } from "@/components/shared/error-state";
 import { FilterToolbar } from "@/components/shared/filter-toolbar";
 import { LoadingState } from "@/components/shared/loading-state";
@@ -33,12 +37,15 @@ const statusLabel = {
   "to-do": "To do",
   "in-progress": "In progress",
   review: "Review",
+  rejected: "Rejected",
   done: "Done",
 } as const;
 
 function taskStatus(task: OperationalTask) {
   return task.status === "done"
     ? "complete"
+    : task.status === "rejected"
+      ? "blocked"
     : task.blocked
       ? "blocked"
       : task.status === "review"
@@ -55,6 +62,8 @@ export function TasksPage({
   canCreate?: boolean;
   canUpdate?: boolean;
 }) {
+  const searchParams = useSearchParams();
+  const queryClient = useQueryClient();
   const [view, setView] = useState<"board" | "list">("board");
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<OperationalTask["status"] | "">("");
@@ -66,6 +75,10 @@ export function TasksPage({
   const [overrides, setOverrides] = useState<Record<string, OperationalTask>>(
     {},
   );
+  const [openedTaskId, setOpenedTaskId] = useState<string | null>(null);
+  const [reviewSubmission, setReviewSubmission] =
+    useState<OperationalTask | null>(null);
+  const [isSubmittingReview, setIsSubmittingReview] = useState(false);
   const tasksQuery = useQuery({
     queryKey: ["operational-tasks", workspace, query, status, priority],
     queryFn: () =>
@@ -90,10 +103,68 @@ export function TasksPage({
         (!priority || task.priority === priority),
     );
   }, [createdTasks, overrides, priority, query, status, tasksQuery.data]);
-  const updateTask = (next: OperationalTask) => {
+  const requestedTaskId = searchParams.get("task");
+  useEffect(() => {
+    if (!requestedTaskId || requestedTaskId === openedTaskId) return;
+    const requestedTask = tasks.find((task) => task.id === requestedTaskId);
+    if (!requestedTask) return;
+    setSelected(requestedTask);
+    setOpenedTaskId(requestedTaskId);
+  }, [openedTaskId, requestedTaskId, tasks]);
+  const syncTask = (next: OperationalTask) => {
     setOverrides((current) => ({ ...current, [next.id]: next }));
-    setSelected(next);
+    setSelected((current) => (current?.id === next.id ? next : current));
+  };
+  const updateTask = (next: OperationalTask) => {
+    syncTask(next);
     toast.success("Task change saved for this mock session.");
+  };
+  const refreshTaskWorkflow = () => {
+    void queryClient.invalidateQueries({ queryKey: ["operational-tasks"] });
+    void queryClient.invalidateQueries({ queryKey: ["manager-workspace"] });
+  };
+  const handleEmployeeStatusChange = async (
+    task: OperationalTask,
+    nextStatus: OperationalTask["status"],
+  ) => {
+    if (task.status === "in-progress" && nextStatus === "review") {
+      setReviewSubmission(task);
+      return;
+    }
+    if (
+      nextStatus === "in-progress" &&
+      (task.status === "to-do" || task.status === "rejected")
+    ) {
+      try {
+        syncTask(await startEmployeeTask(task.id));
+        refreshTaskWorkflow();
+        toast.success("Task started. The active-task timer is now running.");
+      } catch (error) {
+        toast.error(
+          error instanceof Error ? error.message : "Task status could not change.",
+        );
+      }
+      return;
+    }
+    toast.error(
+      "Employees can only start assigned work, submit it for review, or resume a rejected task.",
+    );
+  };
+  const submitForReview = async () => {
+    if (!reviewSubmission) return;
+    setIsSubmittingReview(true);
+    try {
+      syncTask(await submitEmployeeTaskForReview(reviewSubmission.id));
+      refreshTaskWorkflow();
+      setReviewSubmission(null);
+      toast.success("Task submitted to the assigned manager for review.");
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Task could not be submitted.",
+      );
+    } finally {
+      setIsSubmittingReview(false);
+    }
   };
   const columns: ColumnDef<OperationalTask, unknown>[] = [
     {
@@ -183,6 +254,7 @@ export function TasksPage({
           ) : undefined
         }
       />
+      {workspace === "employee" ? <ActiveTaskTimer tasks={tasks} /> : null}
       <FilterToolbar
         search={{
           value: query,
@@ -258,8 +330,12 @@ export function TasksPage({
                 onOpen={setSelected}
                 onStatusChange={(id, nextStatus) => {
                   const task = tasks.find((item) => item.id === id);
-                  if (task && canUpdate)
-                    updateTask({ ...task, status: nextStatus });
+                  if (!task || !canUpdate) return;
+                  if (workspace === "employee") {
+                    void handleEmployeeStatusChange(task, nextStatus);
+                    return;
+                  }
+                  updateTask({ ...task, status: nextStatus });
                 }}
               />
               <Card className="lg:hidden">
@@ -294,10 +370,86 @@ export function TasksPage({
         onOpenChange={(open) => !open && setSelected(null)}
         workLogs={logsQuery.data ?? []}
         canUpdate={canUpdate}
+        canChangeStatus={workspace !== "employee" && canUpdate}
+        canManageAssignment={workspace !== "employee" && canUpdate}
+        canReview={workspace !== "employee" && canUpdate}
         onUpdate={updateTask}
       />
+      <ConfirmationDialog
+        open={Boolean(reviewSubmission)}
+        onOpenChange={(open) => !open && setReviewSubmission(null)}
+        title="Submit task for review"
+        description="Submitting this task for review locks status changes until your assigned manager approves or rejects the submission."
+        confirmLabel="Submit for review"
+        isConfirming={isSubmittingReview}
+        onConfirm={() => void submitForReview()}
+      >
+        <p className="text-sm text-muted-foreground">
+          Assigned manager: {reviewSubmission?.manager}
+        </p>
+      </ConfirmationDialog>
     </div>
   );
+}
+
+function ActiveTaskTimer({ tasks }: { tasks: OperationalTask[] }) {
+  const [now, setNow] = useState(() => Date.now());
+  const activeTasks = tasks.filter((task) => task.status === "in-progress");
+  const [startedAt, setStartedAt] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    setStartedAt((current) => {
+      const next = { ...current };
+      tasks.forEach((task) => {
+        const key = `employee-task-started-at:${task.id}`;
+        if (task.status === "in-progress") {
+          const saved = Number(window.sessionStorage.getItem(key));
+          next[task.id] = saved || Date.now();
+          if (!saved) window.sessionStorage.setItem(key, String(next[task.id]));
+        } else {
+          delete next[task.id];
+          window.sessionStorage.removeItem(key);
+        }
+      });
+      return next;
+    });
+  }, [tasks]);
+
+  useEffect(() => {
+    if (!activeTasks.length) return;
+    const interval = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(interval);
+  }, [activeTasks.length]);
+
+  if (!activeTasks.length) return null;
+  return (
+    <Card aria-label="Active task timer">
+      <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4">
+        <div>
+          <p className="font-medium">Active task timer</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Timing stops only after successful review submission.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-3">
+          {activeTasks.map((task) => (
+            <p key={task.id} className="text-sm font-medium">
+              {task.title}: {formatElapsed(now - (startedAt[task.id] ?? now))}
+            </p>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function formatElapsed(milliseconds: number) {
+  const seconds = Math.max(0, Math.floor(milliseconds / 1000));
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const remainingSeconds = seconds % 60;
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(remainingSeconds).padStart(2, "0")}`;
 }
 
 function TaskMobileList({

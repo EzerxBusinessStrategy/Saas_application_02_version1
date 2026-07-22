@@ -88,3 +88,24 @@
 4. Build manager, employee, and client-portal task flows.
 5. Add finance, documents, settings, and reports through shared compositions.
 6. Add browser coverage and visual verification for each completed slice.
+
+## Phase 4 audit — 2026-07-22
+
+- Re-audited all current workspace navigation targets and removed the unused
+  `EntityList` fallback so a known route can no longer render a generic
+  placeholder screen.
+- Replaced the Employee Calendar milestone list with a responsive month view,
+  previous/next month navigation, labelled day cells, and a mobile milestone
+  fallback.
+- Repaired Super Admin report comprehension: tenant names and active-user
+  values are now available in both the chart composition and readable text.
+- Repaired visible controls that had no outcome. Employee work-log/task actions
+  navigate to existing routes; manager acknowledgement and client support
+  request creation explicitly remain session-local mocks.
+- Scoped Tenant Admin audit records to the active mock tenant before filtering
+  and pagination. Manager and Employee document fixtures are now limited to
+  clients in their assigned task scope.
+- Current-route limitation: authentication is form-only and current workspaces
+  model Super Admin, Tenant Admin, Manager, Employee, and Client User. Tenant
+  Owner, Finance User, and HR/Operations User require an approved identity and
+  access-model decision before their own workspace routes can be added.

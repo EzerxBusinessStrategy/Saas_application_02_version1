@@ -1,6 +1,5 @@
 import { ArrowDownRight, ArrowUpRight, Minus } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
 import type { Metric } from "@/types/domain";
 
 export function MetricCard({
@@ -30,7 +29,10 @@ export function MetricCard({
           </div>
           {metric.change ? (
             <span className="inline-flex items-center text-xs text-muted-foreground">
-              <Icon className="mr-1 size-3.5" />
+              <Icon
+                className="mr-1 size-3.5"
+                aria-hidden="true"
+              />
               {metric.change}
             </span>
           ) : null}

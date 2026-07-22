@@ -32,3 +32,29 @@ permission boundary.
 - Progress is delivery visibility only. It does not reward overtime, use points,
   reset streaks punitively, show public leaderboards, or use sound/celebration
   effects.
+
+## Phase 4 audit
+
+- Calendar delivery milestones now have a readable month view and mobile
+  fallback; no progress update relies on animation.
+- Existing fixtures cover goal boundaries, tenant-disabled progress,
+  reduced-motion preferences, and protected leave/holiday consistency.
+- Achievement verification, timezone-aware recurrence, notification delivery,
+  and duplicate-prevention remain backend responsibilities and are not claimed
+  as durable frontend behaviour.
+
+## Professional progress implementation
+
+- Employee routes provide daily task progress, weekly work-log completion,
+  scheduled-day consistency, missing-entry status, private achievements,
+  received recognition, and personal visibility preferences.
+- Manager recognition is a validated, duplicate-aware mock mutation. It supports
+  employee, work-group, and team recipients without public rankings.
+- Tenant Admins can set session-local policy switches for progress,
+  achievements, recognition, client onboarding, milestones, motion, and timezone.
+- Client users see only client-appropriate onboarding steps and authorised
+  deliverable feedback/revision information; internal comments and profitability
+  are never included in the client fixture.
+- Streaks exclude approved leave, holidays, and non-working days. The frontend
+  calculation is provisional; timezone, privacy, policy, and idempotency rules
+  require backend-authoritative enforcement before production use.

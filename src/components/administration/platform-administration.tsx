@@ -14,8 +14,13 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { MoreHorizontal } from "lucide-react";
+import { MoreHorizontal, ShieldCheck } from "lucide-react";
 import { ChartCard } from "@/components/dashboard/chart-card";
+import {
+  chartAxisTick,
+  chartTooltipCursor,
+  ChartTooltipContent,
+} from "@/components/dashboard/chart-tooltip";
 import { DataTable } from "@/components/operations/data-table";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ErrorState } from "@/components/shared/error-state";
@@ -42,6 +47,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { listAuditRecords } from "@/features/administration/api/administration-api";
+import { cn } from "@/lib/utils";
 import { platformOverview } from "@/mocks/platform-overview";
 import {
   type AuditRecord,
@@ -58,14 +64,16 @@ const dateTime = new Intl.DateTimeFormat("en-US", {
 
 export function PlatformReports() {
   return (
-    <div className="flex flex-col gap-[30px]">
+    <div className="super-admin-portal flex flex-col gap-[30px]">
       <PageHeader
         eyebrow="Super Admin"
+        eyebrowIcon={ShieldCheck}
         title="Global reports"
         description="Use tenant health and adoption signals to identify platform support needs."
       />
       <section className="max-w-3xl">
         <ChartCard
+          className="super-admin-surface"
           title="Tenant health and platform usage"
           description="Compare tenants needing action with adoption signals."
         >
@@ -86,10 +94,26 @@ export function PlatformReports() {
                   strokeDasharray="3 3"
                   vertical={false}
                 />
-                <XAxis dataKey="name" tickLine={false} axisLine={false} hide />
-                <YAxis tickLine={false} axisLine={false} />
-                <Tooltip />
+                <XAxis
+                  dataKey="name"
+                  tickLine={false}
+                  axisLine={false}
+                  interval={0}
+                  tick={chartAxisTick}
+                  tickFormatter={(name: string) => name.split(" ")[0]}
+                />
+                <YAxis tick={chartAxisTick} tickLine={false} axisLine={false} />
+                <Tooltip
+                  content={<ChartTooltipContent />}
+                  cursor={chartTooltipCursor}
+                />
                 <Bar
+                  activeBar={{
+                    fill: "var(--primary)",
+                    opacity: 0.88,
+                    stroke: "var(--ring)",
+                    strokeWidth: 1,
+                  }}
                   dataKey="users"
                   name="Active users"
                   fill="var(--primary)"
@@ -102,13 +126,31 @@ export function PlatformReports() {
             Review tenants with low adoption or at-risk delivery signals before
             escalating support.
           </p>
+          <ul
+            className="mt-4 grid gap-2 text-sm sm:grid-cols-2"
+            aria-label="Tenant active-user counts"
+          >
+            {platformOverview.tenantHealth.map((tenant) => (
+              <li
+                key={tenant.name}
+                className="flex items-center justify-between gap-3"
+              >
+                <span className="truncate" title={tenant.name}>
+                  {tenant.name}
+                </span>
+                <span className="shrink-0 text-muted-foreground">
+                  {tenant.users} active users
+                </span>
+              </li>
+            ))}
+          </ul>
         </ChartCard>
       </section>
     </div>
   );
 }
 
-export function GlobalAuditLog() {
+export function GlobalAuditLog({ tenantName }: { tenantName?: string }) {
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -123,8 +165,8 @@ export function GlobalAuditLog() {
       : 10,
   };
   const recordsQuery = useQuery({
-    queryKey: ["global-audit", request],
-    queryFn: () => listAuditRecords(request),
+    queryKey: ["audit-log", tenantName, request],
+    queryFn: () => listAuditRecords(request, { tenantName }),
   });
   const records = recordsQuery.data?.items ?? [];
   const setParam = (key: string, value: string) => {
@@ -163,6 +205,7 @@ export function GlobalAuditLog() {
                 ? "blocked"
                 : "pending"
           }
+          className={tenantName ? undefined : "whitespace-nowrap"}
         />
       ),
     },
@@ -199,18 +242,28 @@ export function GlobalAuditLog() {
       />
     );
   return (
-    <div className="flex flex-col gap-[30px]">
+    <div
+      className={cn(
+        "flex flex-col gap-[30px]",
+        !tenantName && "super-admin-portal",
+      )}
+    >
       <PageHeader
-        eyebrow="Super Admin"
-        title="Global audit logs"
-        description="Review administrative actions with actor, tenant, reason, result, and network context."
+        eyebrow={tenantName ? "Tenant Admin" : "Super Admin"}
+        eyebrowIcon={tenantName ? undefined : ShieldCheck}
+        title={tenantName ? "Tenant audit log" : "Global audit logs"}
+        description={
+          tenantName
+            ? "Review administrative actions recorded for your tenant workspace."
+            : "Review administrative actions with actor, tenant, reason, result, and network context."
+        }
       />
-      <Card>
+      <Card className={cn(!tenantName && "super-admin-surface")}>
         <CardHeader>
           <CardTitle>Audit activity</CardTitle>
           <CardDescription>
-            Audit visibility is read-only in the frontend. Server-side filtering
-            and access control remain required.
+            Audit visibility is read-only in the frontend. Server-side tenant
+            scoping and access control remain required.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-5">
@@ -255,7 +308,10 @@ export function GlobalAuditLog() {
           {records.length ? (
             <>
               <DataTable
-                caption="Global audit records"
+                className={tenantName ? undefined : "super-admin-table"}
+                caption={
+                  tenantName ? "Tenant audit records" : "Global audit records"
+                }
                 columns={columns}
                 data={records}
                 emptyTitle="No audit records"
@@ -362,9 +418,10 @@ export function PlatformConfiguration() {
   });
   const [saved, setSaved] = useState(false);
   return (
-    <div className="flex flex-col gap-[30px]">
+    <div className="super-admin-portal flex flex-col gap-[30px]">
       <PageHeader
         eyebrow="Super Admin"
+        eyebrowIcon={ShieldCheck}
         title="Platform configuration"
         description="Set constrained platform defaults. Applying live security, email, and feature-flag changes requires a server-side configuration workflow."
       />
@@ -373,7 +430,7 @@ export function PlatformConfiguration() {
         onSubmit={form.handleSubmit(() => setSaved(true))}
       >
         {saved ? (
-          <Card role="status">
+          <Card role="status" className="super-admin-surface">
             <CardContent className="p-[30px]">
               <p className="font-medium">Configuration payload validated</p>
               <p className="mt-1 text-sm text-muted-foreground">
@@ -382,7 +439,7 @@ export function PlatformConfiguration() {
             </CardContent>
           </Card>
         ) : null}
-        <Card>
+        <Card className="super-admin-surface">
           <CardHeader>
             <CardTitle>Platform identity and branding</CardTitle>
             <CardDescription>
@@ -408,7 +465,7 @@ export function PlatformConfiguration() {
             </label>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="super-admin-surface">
           <CardHeader>
             <CardTitle>Email and platform defaults</CardTitle>
           </CardHeader>
@@ -422,7 +479,7 @@ export function PlatformConfiguration() {
             </label>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="super-admin-surface">
           <CardHeader>
             <CardTitle>Security, feature flags, and support rules</CardTitle>
             <CardDescription>

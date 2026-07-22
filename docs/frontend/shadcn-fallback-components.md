@@ -17,3 +17,7 @@ Local TailAdmin-based components are used instead:
 
 These are local implementations, not registry downloads. Review the registry
 when certificate access is restored before adding new primitives.
+
+Professional-progress workflows introduced no new generic fallback primitive;
+they compose the existing Button, Card, Badge, Dialog, Input, Select, shared
+state components, and installed Sonner feedback.

@@ -1,5 +1,6 @@
 import {
   BarChart3,
+  Award,
   Bell,
   Building2,
   CalendarDays,
@@ -99,6 +100,18 @@ const common: NavigationItem[] = [
         icon: Settings,
         permissions: ["client.update"],
       },
+      {
+        label: "Gamification",
+        href: "/gamification",
+        icon: Award,
+        permissions: ["client.update"],
+      },
+      {
+        label: "Support tickets",
+        href: "/tickets",
+        icon: ClipboardList,
+        permissions: ["client.update"],
+      },
     ],
   },
   {
@@ -146,6 +159,7 @@ const managerNavigation: NavigationItem[] = [
   { label: "Dashboard", href: "", icon: LayoutDashboard },
   { label: "Tasks", href: "/tasks", icon: CheckSquare },
   { label: "Assigned clients", href: "/clients", icon: Building2 },
+  { label: "Support tickets", href: "/tickets", icon: ClipboardList },
   { label: "Work groups", href: "/work-groups", icon: Users },
   { label: "Assigned employees", href: "/employees", icon: Users },
   { label: "Review queue", href: "/reviews", icon: ClipboardList },
@@ -153,6 +167,9 @@ const managerNavigation: NavigationItem[] = [
   { label: "Team workload", href: "/workload", icon: BarChart3 },
   { label: "Manager reports", href: "/manager-reports", icon: BarChart3 },
   { label: "Documents", href: "/documents", icon: FileText },
+  { label: "Achievements", href: "/achievements", icon: Award },
+  { label: "Recognition", href: "/recognition", icon: Award },
+  { label: "Preferences", href: "/preferences", icon: Settings },
   { label: "Notifications", href: "/notifications", icon: Bell },
   { label: "Profile", href: "/profile", icon: Users },
 ];
@@ -164,6 +181,7 @@ const employeeNavigation: NavigationItem[] = [
   { label: "Timesheet", href: "/timesheet", icon: CalendarDays },
   { label: "Calendar", href: "/calendar", icon: CalendarDays },
   { label: "Documents", href: "/documents", icon: FileText },
+  { label: "Recognition", href: "/recognition", icon: Award },
   { label: "Notifications", href: "/notifications", icon: Bell },
   { label: "Profile", href: "/profile", icon: Users },
 ];
@@ -171,6 +189,8 @@ const employeeNavigation: NavigationItem[] = [
 const clientNavigation: NavigationItem[] = [
   { label: "Dashboard", href: "", icon: LayoutDashboard },
   { label: "Active services", href: "/services", icon: Handshake },
+  { label: "Onboarding", href: "/onboarding", icon: ClipboardList },
+  { label: "Deliverables", href: "/deliverables", icon: FileText },
   { label: "Requests", href: "/requests", icon: ClipboardList },
   { label: "Invoices", href: "/invoices", icon: ReceiptText },
   { label: "Payments", href: "/payments", icon: ReceiptText },

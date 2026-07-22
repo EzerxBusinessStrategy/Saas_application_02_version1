@@ -39,3 +39,21 @@ Design status: Pending Figma verification.
   workflows are inferred TailAdmin-based implementations. The existing Mint
   workforce and Dashlab reporting references were used only for previously
   recorded hierarchy guidance; Figma MCP was not retried while rate limited.
+
+## Phase 4 hardening compositions
+
+Design status: Pending Figma verification.
+
+- The Employee Calendar month view, tenant-scoped audit screen, and report
+  label refinements use existing TailAdmin tokens and responsive patterns.
+  They are inferred design-system implementations, not pixel-perfect Figma
+  matches.
+
+## Professional progress compositions
+
+Design status: Pending Figma verification.
+
+- Daily progress, work-log completion, achievements, recognition, onboarding,
+  deliverable review, and policy settings reuse existing TailAdmin cards,
+  dialogs, controls, badges, and responsive layouts. Figma MCP was not retried
+  while rate limited.

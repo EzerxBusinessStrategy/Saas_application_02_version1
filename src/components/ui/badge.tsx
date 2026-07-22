@@ -1,11 +1,11 @@
 import type { HTMLAttributes } from "react";
 import { cn } from "@/lib/utils";
 const tones = {
-  neutral: "bg-muted text-muted-foreground",
-  success: "bg-success/10 text-success",
-  warning: "bg-warning/10 text-warning",
-  danger: "bg-danger/10 text-danger",
-  info: "bg-primary/10 text-primary",
+  neutral: "bg-[var(--chip-neutral-bg)] text-muted-foreground",
+  success: "bg-[var(--chip-success-bg)] text-success",
+  warning: "bg-[var(--chip-warning-bg)] text-warning",
+  danger: "bg-[var(--chip-danger-bg)] text-danger",
+  info: "bg-accent text-accent-foreground",
 };
 export function Badge({
   tone = "neutral",

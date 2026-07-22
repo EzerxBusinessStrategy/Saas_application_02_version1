@@ -85,4 +85,14 @@ export const notificationFixtures: Notification[] = [
     href: "/super-admin/reports",
     read: true,
   },
+  {
+    id: "achievement-1",
+    title: "Achievement unlocked: First work log submitted",
+    description:
+      "View your private achievement details and notification preferences.",
+    createdAt: "Yesterday",
+    href: "/employee/achievements",
+    read: false,
+    workspaces: ["employee"],
+  },
 ];

@@ -5,7 +5,7 @@ async function expectHealthyPage(page: Page, path: string) {
   page.on("console", (message) => {
     if (message.type() === "error") errors.push(message.text());
   });
-  await page.goto(path);
+  await page.goto(path, { waitUntil: "domcontentloaded" });
   await page.waitForLoadState("networkidle");
   await expect(page.locator("main")).toBeVisible();
   await expect
@@ -29,7 +29,9 @@ test("Super Admin tenant lifecycle and visible support access work at desktop wi
   await expect(
     page.getByRole("link", { name: "Create tenant" }),
   ).toHaveAttribute("href", "/super-admin/tenants/new");
-  await page.goto("/super-admin/tenants/new");
+  await page.goto("/super-admin/tenants/new", {
+    waitUntil: "domcontentloaded",
+  });
   await expect(
     page.getByRole("heading", { name: "Create tenant" }),
   ).toBeVisible();
@@ -46,6 +48,30 @@ test("Super Admin tenant lifecycle and visible support access work at desktop wi
   ).toBeVisible();
 });
 
+test("Super Admin polish stays aligned and overflow-free across target widths", async ({
+  page,
+}) => {
+  for (const width of [1440, 1280, 1024, 768, 390]) {
+    await page.setViewportSize({ width, height: width <= 768 ? 844 : 900 });
+    await expectHealthyPage(page, "/super-admin");
+    await expect(
+      page.getByLabel("Page context: Super Admin"),
+    ).toBeVisible();
+    await expect(page.locator(".super-admin-signal")).toHaveCount(3);
+    await expect(page.locator(".super-admin-kpi-arrow")).toHaveCount(0);
+    await expect(
+      page.getByText("on track").locator("xpath=ancestor::li[1]"),
+    ).toHaveCSS("align-items", "center");
+  }
+
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await expect(page.locator(".super-admin-signal").first()).toHaveCSS(
+    "animation-name",
+    "none",
+  );
+});
+
 test("Tenant Admin client directory and detail remain usable at tablet width", async ({
   page,
 }) => {
@@ -53,7 +79,7 @@ test("Tenant Admin client directory and detail remain usable at tablet width", a
   await expectHealthyPage(page, "/admin/clients");
   await page.getByLabel("Filter delivery health").selectOption("watch");
   await expect(page).toHaveURL(/health=watch/);
-  await page.goto("/admin/clients/cl-101");
+  await page.goto("/admin/clients/cl-101", { waitUntil: "domcontentloaded" });
   await expect(page.getByRole("tab", { name: "Contacts" })).toBeVisible();
   await page.getByRole("tab", { name: "Contacts" }).click();
   await expect(page.getByRole("button", { name: "Add contact" })).toBeVisible();
@@ -82,7 +108,7 @@ test("Tenant creation validation and workforce mobile cards work at tablet and m
   await expect(page.getByText("Enter the organisation name.")).toBeVisible();
 
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto("/admin/employees");
+  await page.goto("/admin/employees", { waitUntil: "domcontentloaded" });
   await expect(page.locator("article").first()).toBeVisible();
   await expect
     .poll(() =>

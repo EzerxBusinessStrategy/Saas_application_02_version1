@@ -11,6 +11,7 @@ import type {
   EmploymentStatus,
   WorkloadRisk,
 } from "@/types/workforce";
+import { cn } from "@/lib/utils";
 
 type BadgeStatus =
   | Status
@@ -52,6 +53,16 @@ const tone: Record<
   "on-hold": "warning",
 };
 
-export function StatusBadge({ status }: { status: BadgeStatus }) {
-  return <Badge tone={tone[status]}>{status.replaceAll("-", " ")}</Badge>;
+export function StatusBadge({
+  status,
+  className,
+}: {
+  status: BadgeStatus;
+  className?: string;
+}) {
+  return (
+    <Badge className={cn(className)} tone={tone[status]}>
+      {status.replaceAll("-", " ")}
+    </Badge>
+  );
 }

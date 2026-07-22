@@ -2,7 +2,10 @@ import type { Entity } from "@/types/domain";
 import type {
   Achievement,
   AchievementProgress,
+  DeliverableReview,
   ClientRequest,
+  SupportTicket,
+  GamificationTenantPolicy,
   GamificationPreferences,
   Goal,
   GoalProgress,
@@ -12,9 +15,11 @@ import type {
   OperationalTask,
   Payment,
   Recognition,
+  OnboardingStep,
   Streak,
   TeamProgress,
   WorkLog,
+  WorkLogDayStatus,
 } from "@/types/operations";
 export const entities: Entity[] = [
   {
@@ -305,24 +310,85 @@ export const clientRequests: ClientRequest[] = [
     owner: "Riley Shah",
   },
 ];
+export const supportTickets: SupportTicket[] = [
+  {
+    id: "SUP-104",
+    tenantId: "acme",
+    clientId: "northstar",
+    client: "Northstar Labs",
+    managerId: "mgr-avery",
+    service: "GST Filing",
+    category: "delivery",
+    subject: "Clarify the evidence required for the July filing",
+    description:
+      "Please confirm which source documents are still needed before we can approve the July filing evidence.",
+    priority: "normal",
+    status: "assigned",
+    requester: "Taylor Morgan",
+    assigneeId: "emp-riley",
+    assignee: "Riley Shah",
+    createdOn: "2026-07-21 09:24",
+    updatedOn: "2026-07-21 10:05",
+    resolution: null,
+    activity: [
+      {
+        id: "SUP-ACT-1",
+        actor: "Taylor Morgan",
+        message: "Ticket submitted from the client portal.",
+        createdOn: "2026-07-21 09:24",
+        clientVisible: true,
+      },
+      {
+        id: "SUP-ACT-2",
+        actor: "Avery Patel",
+        message: "Assigned to Riley Shah for document review.",
+        createdOn: "2026-07-21 10:05",
+        clientVisible: true,
+      },
+    ],
+  },
+];
 export const achievements: Achievement[] = [
   {
     id: "ACH-1",
-    title: "Ready for review",
-    description: "Submitted three complete work-log entries this week.",
+    title: "First work log submitted",
+    description: "Submitted an authorised work log for review.",
+    category: "getting-started",
     unlocked: true,
     provisional: true,
+    visibility: "private",
+    earnedOn: "2026-07-18",
+    requirement: "Submit your first work log.",
+    verification: "pending-backend",
   },
   {
     id: "ACH-2",
     title: "Quality handoff",
     description: "Complete the next checklist before its delivery review.",
+    category: "quality",
     unlocked: false,
     provisional: true,
+    visibility: "private",
+    earnedOn: null,
+    requirement: "Complete three delivery checklists before review.",
+    verification: "pending-backend",
+  },
+  {
+    id: "ACH-3",
+    title: "Consistent week",
+    description: "Complete work logs for every scheduled day in a week.",
+    category: "consistency",
+    unlocked: false,
+    provisional: true,
+    visibility: "private",
+    earnedOn: null,
+    requirement: "Complete five scheduled work-log days.",
+    verification: "pending-backend",
   },
 ];
 export const achievementProgress: AchievementProgress[] = [
   { achievementId: "ACH-2", current: 2, target: 3 },
+  { achievementId: "ACH-3", current: 3, target: 5 },
 ];
 export const goals: Goal[] = [
   { id: "GOAL-1", label: "Weekly task goal", target: 4 },
@@ -354,14 +420,27 @@ export const streak: Streak = {
 export const recognitions: Recognition[] = [
   {
     id: "REC-1",
+    recipient: "Riley Shah",
+    recipientType: "employee",
     message: "Clear exception notes made the review easier.",
     from: "Avery Patel",
+    category: "quality-work",
+    relatedWork: "GST Filing",
+    visibility: "manager-recipient",
+    privateNote: "Keep the source links in the next handoff.",
     date: "2026-07-20",
   },
 ];
 export const gamificationPreferences: GamificationPreferences = {
   enabled: true,
   achievementNotifications: true,
+  achievementCatalogue: true,
+  consistencyStreak: true,
+  personalComparison: true,
+  celebrationAnimation: false,
+  keepAchievementsPrivate: true,
+  recognitionNotifications: true,
+  teamRecognitionFeed: true,
   reducedMotion: false,
 };
 export const teamProgress: TeamProgress[] = [
@@ -378,3 +457,164 @@ export const teamProgress: TeamProgress[] = [
     note: "Approved leave and holidays do not reduce this progress.",
   },
 ];
+
+export const workLogDays: WorkLogDayStatus[] = [
+  {
+    date: "2026-07-20",
+    expected: "working",
+    current: "reviewed",
+    task: "Confirm onboarding checklist",
+    feedback: null,
+  },
+  {
+    date: "2026-07-21",
+    expected: "working",
+    current: "submitted",
+    task: "Confirm onboarding checklist",
+    feedback: null,
+  },
+  {
+    date: "2026-07-22",
+    expected: "approved-leave",
+    current: "not-required",
+    task: null,
+    feedback: null,
+  },
+  {
+    date: "2026-07-23",
+    expected: "working",
+    current: "missing",
+    task: "Publish monthly delivery report",
+    feedback: null,
+  },
+  {
+    date: "2026-07-24",
+    expected: "holiday",
+    current: "not-required",
+    task: null,
+    feedback: null,
+  },
+  {
+    date: "2026-07-25",
+    expected: "non-working",
+    current: "not-required",
+    task: null,
+    feedback: null,
+  },
+  {
+    date: "2026-07-26",
+    expected: "non-working",
+    current: "not-required",
+    task: null,
+    feedback: null,
+  },
+];
+
+export const weeklyComparisons = [
+  { label: "Tasks completed", current: 3, previous: 2, unit: "tasks" },
+  {
+    label: "Work-log completion",
+    current: 2,
+    previous: 3,
+    unit: "scheduled days",
+  },
+  { label: "Overdue tasks", current: 0, previous: 2, unit: "tasks" },
+];
+
+export const onboardingSteps: OnboardingStep[] = [
+  {
+    id: "ON-1",
+    label: "Primary contact confirmed",
+    clientVisible: true,
+    status: "completed",
+    owner: "Client",
+    dueDate: null,
+  },
+  {
+    id: "ON-2",
+    label: "Agreement signed",
+    clientVisible: true,
+    status: "completed",
+    owner: "Client",
+    dueDate: null,
+  },
+  {
+    id: "ON-3",
+    label: "Required documents uploaded",
+    clientVisible: true,
+    status: "awaiting-client",
+    owner: "Client",
+    dueDate: "2026-07-23",
+  },
+  {
+    id: "ON-4",
+    label: "Billing details confirmed",
+    clientVisible: true,
+    status: "in-progress",
+    owner: "Client",
+    dueDate: "2026-07-25",
+  },
+  {
+    id: "ON-5",
+    label: "Service engagement configured",
+    clientVisible: false,
+    status: "completed",
+    owner: "Tenant team",
+    dueDate: null,
+  },
+  {
+    id: "ON-6",
+    label: "Manager assigned",
+    clientVisible: false,
+    status: "completed",
+    owner: "Tenant team",
+    dueDate: null,
+  },
+  {
+    id: "ON-7",
+    label: "Initial task created",
+    clientVisible: false,
+    status: "awaiting-internal",
+    owner: "Tenant team",
+    dueDate: "2026-07-24",
+  },
+];
+
+export const deliverableReviews: DeliverableReview[] = [
+  {
+    id: "DEL-1",
+    title: "GST filing delivery summary",
+    clientId: "northstar",
+    status: "client-review",
+    dueDate: "2026-07-24",
+    nextAction: "Review the delivery summary and approve or request changes.",
+    clientFeedback: [
+      {
+        id: "FDB-1",
+        author: "Taylor Morgan",
+        message: "Please confirm the final filing date.",
+        date: "2026-07-21",
+      },
+    ],
+    revisions: [
+      { id: "REV-1", label: "Version 2 submitted", date: "2026-07-20" },
+    ],
+    attachments: ["GST filing delivery summary.pdf"],
+  },
+];
+
+export const gamificationTenantPolicy: GamificationTenantPolicy = {
+  enabled: true,
+  achievements: true,
+  consistency: true,
+  managerRecognition: true,
+  teamFeed: true,
+  tenantFeed: false,
+  clientOnboarding: true,
+  serviceMilestones: true,
+  celebrationAnimation: false,
+  defaultVisibility: "private",
+  timezone: "Asia/Kolkata",
+  workingDays: [1, 2, 3, 4, 5],
+  leaveIntegration: "pending",
+};

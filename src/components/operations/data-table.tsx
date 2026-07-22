@@ -7,6 +7,7 @@ import {
   type ColumnDef,
 } from "@tanstack/react-table";
 import { EmptyState } from "@/components/shared/empty-state";
+import { cn } from "@/lib/utils";
 
 export function DataTable<TData>({
   caption,
@@ -14,12 +15,14 @@ export function DataTable<TData>({
   data,
   emptyTitle,
   emptyDescription,
+  className,
 }: {
   caption: string;
   columns: ColumnDef<TData, unknown>[];
   data: TData[];
   emptyTitle: string;
   emptyDescription: string;
+  className?: string;
 }) {
   const table = useReactTable({
     data,
@@ -29,7 +32,7 @@ export function DataTable<TData>({
   if (data.length === 0)
     return <EmptyState title={emptyTitle} description={emptyDescription} />;
   return (
-    <div className="overflow-x-auto">
+    <div className={cn("overflow-x-auto", className)}>
       <table className="w-full text-left text-sm">
         <caption className="sr-only">{caption}</caption>
         <thead className="border-y text-sm text-muted-foreground">

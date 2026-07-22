@@ -1,6 +1,12 @@
 import { z } from "zod";
 
-export const taskStatuses = ["to-do", "in-progress", "review", "done"] as const;
+export const taskStatuses = [
+  "to-do",
+  "in-progress",
+  "review",
+  "rejected",
+  "done",
+] as const;
 export const taskPriorities = ["high", "medium", "low"] as const;
 export const taskComplexities = ["standard", "complex", "specialist"] as const;
 export const slaStates = ["on-track", "watch", "at-risk"] as const;
@@ -103,12 +109,75 @@ export const clientRequestSchema = z.object({
 });
 export type ClientRequest = z.infer<typeof clientRequestSchema>;
 
+export const supportTicketStatuses = [
+  "new",
+  "triaged",
+  "assigned",
+  "waiting-on-client",
+  "resolved",
+] as const;
+export const supportTicketPriorities = ["low", "normal", "high", "urgent"] as const;
+export const supportTicketSchema = z.object({
+  id: z.string(),
+  tenantId: z.string(),
+  clientId: z.string(),
+  client: z.string(),
+  managerId: z.string(),
+  service: z.string(),
+  category: z.enum([
+    "delivery",
+    "documents",
+    "billing",
+    "access",
+    "other",
+  ]),
+  subject: z.string().min(5).max(120),
+  description: z.string().min(20).max(2000),
+  priority: z.enum(supportTicketPriorities),
+  status: z.enum(supportTicketStatuses),
+  requester: z.string(),
+  assigneeId: z.string().nullable(),
+  assignee: z.string().nullable(),
+  createdOn: z.string(),
+  updatedOn: z.string(),
+  resolution: z.string().nullable(),
+  activity: z.array(
+    z.object({
+      id: z.string(),
+      actor: z.string(),
+      message: z.string(),
+      createdOn: z.string(),
+      clientVisible: z.boolean(),
+    }),
+  ),
+});
+export type SupportTicket = z.infer<typeof supportTicketSchema>;
+export const supportTicketInputSchema = supportTicketSchema.pick({
+  service: true,
+  category: true,
+  subject: true,
+  description: true,
+  priority: true,
+});
+export type SupportTicketInput = z.infer<typeof supportTicketInputSchema>;
+
 export const achievementSchema = z.object({
   id: z.string(),
   title: z.string(),
   description: z.string(),
+  category: z.enum([
+    "getting-started",
+    "consistency",
+    "quality",
+    "collaboration",
+    "client-delivery",
+  ]),
   unlocked: z.boolean(),
   provisional: z.boolean(),
+  visibility: z.enum(["private", "team"]),
+  earnedOn: z.string().nullable(),
+  requirement: z.string(),
+  verification: z.enum(["pending-backend", "verified"]),
 });
 export type Achievement = z.infer<typeof achievementSchema>;
 export const achievementProgressSchema = z.object({
@@ -144,14 +213,35 @@ export const streakSchema = z.object({
 export type Streak = z.infer<typeof streakSchema>;
 export const recognitionSchema = z.object({
   id: z.string(),
-  message: z.string(),
+  recipient: z.string(),
+  recipientType: z.enum(["employee", "work-group", "team"]),
   from: z.string(),
+  category: z.enum([
+    "quality-work",
+    "timely-delivery",
+    "collaboration",
+    "client-support",
+    "process-improvement",
+    "learning",
+    "milestone-completion",
+  ]),
+  message: z.string(),
+  relatedWork: z.string().nullable(),
+  visibility: z.enum(["private", "manager-recipient", "team", "tenant"]),
+  privateNote: z.string().nullable(),
   date: z.string(),
 });
 export type Recognition = z.infer<typeof recognitionSchema>;
 export const gamificationPreferencesSchema = z.object({
   enabled: z.boolean(),
   achievementNotifications: z.boolean(),
+  achievementCatalogue: z.boolean(),
+  consistencyStreak: z.boolean(),
+  personalComparison: z.boolean(),
+  celebrationAnimation: z.boolean(),
+  keepAchievementsPrivate: z.boolean(),
+  recognitionNotifications: z.boolean(),
+  teamRecognitionFeed: z.boolean(),
   reducedMotion: z.boolean(),
 });
 export type GamificationPreferences = z.infer<
@@ -164,6 +254,136 @@ export const teamProgressSchema = z.object({
   note: z.string(),
 });
 export type TeamProgress = z.infer<typeof teamProgressSchema>;
+
+export const dailyProgressSummarySchema = z.object({
+  date: z.string(),
+  plannedTasks: z.number().int().nonnegative(),
+  completedTasks: z.number().int().nonnegative(),
+  overdueTasks: z.number().int().nonnegative(),
+  completedWithinSla: z.number().int().nonnegative(),
+  loggedMinutes: z.number().int().nonnegative(),
+  workLogComplete: z.boolean(),
+  nextMilestone: z.string().nullable(),
+});
+export type DailyProgressSummary = z.infer<typeof dailyProgressSummarySchema>;
+
+export const workLogDayStatusSchema = z.object({
+  date: z.string(),
+  expected: z.enum(["working", "approved-leave", "holiday", "non-working"]),
+  current: z.enum([
+    "complete",
+    "missing",
+    "submitted",
+    "reviewed",
+    "rejected",
+    "not-required",
+  ]),
+  task: z.string().nullable(),
+  feedback: z.string().nullable(),
+});
+export type WorkLogDayStatus = z.infer<typeof workLogDayStatusSchema>;
+
+export const workLogConsistencySchema = z.object({
+  timezone: z.string(),
+  scheduledDays: z.number().int().nonnegative(),
+  completedDays: z.number().int().nonnegative(),
+  missingDays: z.number().int().nonnegative(),
+  approvedLeaveDays: z.number().int().nonnegative(),
+  holidayDays: z.number().int().nonnegative(),
+  rejectedDays: z.number().int().nonnegative(),
+  days: z.array(workLogDayStatusSchema),
+});
+export type WorkLogConsistency = z.infer<typeof workLogConsistencySchema>;
+
+export const weeklyComparisonSchema = z.object({
+  label: z.string(),
+  current: z.number().nonnegative(),
+  previous: z.number().nonnegative(),
+  unit: z.string(),
+});
+export type WeeklyComparison = z.infer<typeof weeklyComparisonSchema>;
+
+export const onboardingStepSchema = z.object({
+  id: z.string(),
+  label: z.string(),
+  clientVisible: z.boolean(),
+  status: z.enum([
+    "not-started",
+    "in-progress",
+    "completed",
+    "blocked",
+    "not-applicable",
+    "awaiting-client",
+    "awaiting-internal",
+  ]),
+  owner: z.string(),
+  dueDate: z.string().nullable(),
+});
+export type OnboardingStep = z.infer<typeof onboardingStepSchema>;
+
+export const deliverableReviewSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  clientId: z.string(),
+  status: z.enum([
+    "draft",
+    "ready-internal",
+    "internal-review",
+    "ready-client",
+    "client-review",
+    "changes-requested",
+    "revision",
+    "resubmitted",
+    "approved",
+    "archived",
+  ]),
+  dueDate: z.string(),
+  nextAction: z.string(),
+  clientFeedback: z.array(
+    z.object({
+      id: z.string(),
+      author: z.string(),
+      message: z.string(),
+      date: z.string(),
+    }),
+  ),
+  revisions: z.array(
+    z.object({ id: z.string(), label: z.string(), date: z.string() }),
+  ),
+  attachments: z.array(z.string()),
+});
+export type DeliverableReview = z.infer<typeof deliverableReviewSchema>;
+
+export const gamificationTenantPolicySchema = z.object({
+  enabled: z.boolean(),
+  achievements: z.boolean(),
+  consistency: z.boolean(),
+  managerRecognition: z.boolean(),
+  teamFeed: z.boolean(),
+  tenantFeed: z.boolean(),
+  clientOnboarding: z.boolean(),
+  serviceMilestones: z.boolean(),
+  celebrationAnimation: z.boolean(),
+  defaultVisibility: z.enum(["private", "team"]),
+  timezone: z.string(),
+  workingDays: z.array(z.number().int().min(0).max(6)),
+  leaveIntegration: z.enum(["connected", "pending"]),
+});
+export type GamificationTenantPolicy = z.infer<
+  typeof gamificationTenantPolicySchema
+>;
+
+export const recognitionInputSchema = z.object({
+  recipient: z.string().min(2),
+  recipientType: z.enum(["employee", "work-group", "team"]),
+  category: recognitionSchema.shape.category,
+  message: z.string().min(10).max(500),
+  relatedWork: z.string().max(120).optional(),
+  privateNote: z.string().max(500).optional(),
+  visibility: recognitionSchema.shape.visibility,
+  notifyRecipient: z.boolean(),
+});
+export type RecognitionInput = z.infer<typeof recognitionInputSchema>;
 
 export type OperationalListRequest = {
   query?: string;

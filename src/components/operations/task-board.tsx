@@ -18,6 +18,7 @@ const columns: Array<{ value: OperationalTask["status"]; label: string }> = [
   { value: "to-do", label: "To do" },
   { value: "in-progress", label: "In progress" },
   { value: "review", label: "Review" },
+  { value: "rejected", label: "Rejected" },
   { value: "done", label: "Done" },
 ];
 const priorityTone = {
@@ -127,7 +128,7 @@ export function TaskBoard({
   };
   return (
     <DndContext sensors={sensors} onDragEnd={onDragEnd}>
-      <div className="hidden gap-[30px] overflow-x-auto pb-2 lg:grid lg:grid-cols-4">
+      <div className="hidden gap-[30px] overflow-x-auto pb-2 lg:grid lg:grid-cols-5">
         {columns.map((column) => (
           <BoardColumn
             key={column.value}

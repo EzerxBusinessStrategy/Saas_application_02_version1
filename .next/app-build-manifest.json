@@ -6,11 +6,6 @@
       "static/css/app/layout.css",
       "static/chunks/app/layout.js"
     ],
-    "/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/page.js"
-    ],
     "/(app)/[workspace]/layout": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
@@ -31,50 +26,20 @@
       "static/chunks/main-app.js",
       "static/chunks/app/(app)/[workspace]/not-found.js"
     ],
-    "/(app)/[workspace]/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/(app)/[workspace]/page.js"
-    ],
-    "/(auth)/login/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/(auth)/login/page.js"
-    ],
-    "/(app)/[workspace]/[section]/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/(app)/[workspace]/[section]/page.js"
-    ],
-    "/(auth)/forgot-password/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/(auth)/forgot-password/page.js"
-    ],
-    "/(app)/[workspace]/tenants/new/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/(app)/[workspace]/tenants/new/page.js"
-    ],
-    "/(auth)/reset-password/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/(auth)/reset-password/page.js"
-    ],
     "/(app)/[workspace]/tasks/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
       "static/chunks/app/(app)/[workspace]/tasks/page.js"
     ],
-    "/(auth)/accept-invitation/page": [
+    "/(app)/[workspace]/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/(auth)/accept-invitation/page.js"
+      "static/chunks/app/(app)/[workspace]/page.js"
     ],
-    "/(app)/[workspace]/clients/[clientId]/page": [
+    "/(app)/[workspace]/[section]/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/(app)/[workspace]/clients/[clientId]/page.js"
+      "static/chunks/app/(app)/[workspace]/[section]/page.js"
     ]
   }
 }

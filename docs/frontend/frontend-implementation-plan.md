@@ -43,12 +43,21 @@ Status: code-complete with typed mock integrations.
 3. Completed optional professional-progress views that protect leave/holidays
    and avoid public rankings, overtime incentives, and punitive streaks.
 
-## Phase 4: Delivery, finance, documents, and settings
+## Phase 4: Production hardening and integration readiness
 
-1. Complete task detail, work-log, review, approval, and workload flows.
-2. Add invoices, payments, agreements, and document list/detail compositions.
-3. Add branding, organisation, users/roles, notifications, and safe settings
-   forms.
+Status: frontend hardening code-complete; deployment remains blocked on the
+documented backend/authentication dependencies.
+
+1. Re-audited current routes and removed the generic entity-list fallback.
+   Tenant Admin audit history now uses the shared audit-log composition scoped
+   to the active mock tenant.
+2. Replaced the Employee Calendar placeholder list with a responsive calendar
+   grid and a mobile milestone-list fallback.
+3. Repaired report labels, session-local mock feedback, and document scope
+   filtering for Manager and Employee views.
+4. Added focused unit/component/browser coverage and production-readiness
+   documentation. Authentication, durable mutations, backend authorization,
+   and unmodelled role workspaces remain explicit backend/architecture work.
 
 ## Phase 5: Role workspaces and reports
 
@@ -58,6 +67,19 @@ Status: code-complete with typed mock integrations.
    ChartCard stack, with summaries, readable labels, and responsive fallbacks.
 3. Add restrained, data-driven progress/checklist components only where a
    business workflow benefits from them.
+
+## Professional progress implementation
+
+Status: code-complete as typed, session-local frontend workflows.
+
+1. Employee daily/task/work-log progress, private achievements, recognition,
+   comparison fixtures, and preferences reuse existing workspace and Card
+   compositions.
+2. Manager recognition, Tenant Admin policy settings, and client onboarding and
+   deliverable reviews use typed mocks, Zod validation, TanStack Query, and
+   responsive TailAdmin layouts.
+3. Backend policy/authorisation, identity, idempotency, leave, holidays, and
+   timezone calculations remain required for a production deployment.
 
 ## Phase 6: Quality gates
 

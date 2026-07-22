@@ -12,6 +12,7 @@ const statusLabel = {
   "to-do": "To do",
   "in-progress": "In progress",
   review: "Review",
+  rejected: "Rejected",
   done: "Done",
 } as const;
 
@@ -21,6 +22,9 @@ export function TaskDetailsDrawer({
   onOpenChange,
   workLogs,
   canUpdate,
+  canChangeStatus = canUpdate,
+  canManageAssignment = canUpdate,
+  canReview = canUpdate,
   onUpdate,
 }: {
   task: OperationalTask | null;
@@ -28,6 +32,9 @@ export function TaskDetailsDrawer({
   onOpenChange: (open: boolean) => void;
   workLogs: WorkLog[];
   canUpdate: boolean;
+  canChangeStatus?: boolean;
+  canManageAssignment?: boolean;
+  canReview?: boolean;
   onUpdate: (task: OperationalTask) => void;
 }) {
   if (!task) return null;
@@ -78,7 +85,7 @@ export function TaskDetailsDrawer({
                 <Select
                   className="mt-1"
                   value={task.status}
-                  disabled={!canUpdate}
+                  disabled={!canChangeStatus}
                   onChange={(event) =>
                     onUpdate({
                       ...task,
@@ -106,7 +113,7 @@ export function TaskDetailsDrawer({
                 </p>
               </div>
             </div>
-            {canUpdate && task.reviewStatus === "pending" ? (
+            {canReview && task.reviewStatus === "pending" ? (
               <div className="mt-3 flex flex-wrap gap-2">
                 <Button
                   size="sm"
@@ -136,7 +143,7 @@ export function TaskDetailsDrawer({
                 <Select
                   className="mt-1"
                   value={task.assignee}
-                  disabled={!canUpdate}
+                  disabled={!canManageAssignment}
                   onChange={(event) =>
                     onUpdate({ ...task, assignee: event.target.value })
                   }
@@ -154,7 +161,7 @@ export function TaskDetailsDrawer({
                   className="mt-1"
                   type="date"
                   value={task.dueDate}
-                  disabled={!canUpdate}
+                  disabled={!canManageAssignment}
                   onChange={(event) =>
                     onUpdate({ ...task, dueDate: event.target.value })
                   }
@@ -165,7 +172,7 @@ export function TaskDetailsDrawer({
                 <Select
                   className="mt-1"
                   value={task.priority}
-                  disabled={!canUpdate}
+                  disabled={!canManageAssignment}
                   onChange={(event) =>
                     onUpdate({
                       ...task,
@@ -184,7 +191,7 @@ export function TaskDetailsDrawer({
                 <Select
                   className="mt-1"
                   value={task.complexity}
-                  disabled={!canUpdate}
+                  disabled={!canManageAssignment}
                   onChange={(event) =>
                     onUpdate({
                       ...task,

@@ -252,6 +252,7 @@ export function TenantDirectory() {
       cell: ({ row }) => (
         <StatusBadge
           status={statusOverrides[row.original.id] ?? row.original.status}
+          className="whitespace-nowrap"
         />
       ),
     },
@@ -322,13 +323,17 @@ export function TenantDirectory() {
     );
 
   return (
-    <div className="flex flex-col gap-[30px]">
+    <div className="super-admin-portal flex flex-col gap-[30px]">
       <PageHeader
         eyebrow="Super Admin"
+        eyebrowIcon={ShieldCheck}
         title="Tenant management"
         description="Control tenant lifecycle and operational context across the platform."
         actions={
-          <Link href="/super-admin/tenants/new" className={buttonVariants()}>
+          <Link
+            href="/super-admin/tenants/new"
+            className={buttonVariants({ className: "super-admin-action" })}
+          >
             Create tenant
           </Link>
         }
@@ -405,6 +410,7 @@ export function TenantDirectory() {
             <>
               <div className="hidden md:block">
                 <DataTable
+                  className="super-admin-table"
                   caption="Tenants in the platform"
                   columns={columns}
                   data={rows}
@@ -491,9 +497,10 @@ export function TenantCreateForm() {
   const submit = (values: CreateTenantInput) => setPrepared(values);
   const inputClass = "mt-1";
   return (
-    <div className="flex flex-col gap-[30px]">
+    <div className="super-admin-portal flex flex-col gap-[30px]">
       <PageHeader
         eyebrow="Super Admin"
+        eyebrowIcon={ShieldCheck}
         title="Create tenant"
         description="Prepare a tenant provisioning request. This validated form uses mock data only; it does not create a live tenant."
         actions={
@@ -1032,7 +1039,7 @@ export function TenantDetail({ tenantId }: { tenantId: string }) {
       </Card>
     );
   return (
-    <div className="flex flex-col gap-[30px]">
+    <div className="super-admin-portal flex flex-col gap-[30px]">
       <EntityHeader
         eyebrow="Tenant management"
         title={tenant.name}
@@ -1065,9 +1072,10 @@ export function TenantDetail({ tenantId }: { tenantId: string }) {
 
 export function ControlledSupportAccess() {
   return (
-    <div className="flex flex-col gap-[30px]">
+    <div className="super-admin-portal flex flex-col gap-[30px]">
       <PageHeader
         eyebrow="Super Admin"
+        eyebrowIcon={ShieldCheck}
         title="Controlled support access"
         description="Open a visible, time-limited support session only when a documented platform support need exists."
       />

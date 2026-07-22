@@ -58,3 +58,52 @@ actor and tenant context rather than browser input.
 reviews, approvals, and create actions are session-local frontend mocks; live
 mutations require authorised tenant-scoped endpoints, durable audit history,
 and idempotency rules.
+
+## Phase 4 hardening boundaries
+
+- `listAuditRecords(request, { tenantName })` scopes fixture audit records
+  before filtering and pagination for the Tenant Admin composition. This
+  optional second argument is an internal mock boundary; a live endpoint must
+  derive tenant scope from the authenticated actor and must not trust a browser
+  supplied tenant name.
+- `getOperationalWorkspace("manager" | "employee")` limits document fixtures
+  to the client IDs present in that actor's scoped task results. Live services
+  must enforce the same rule in the database/API layer.
+- Client support-ticket creation, assignment, client-visible replies, and
+  resolution are Zod-validated frontend mocks. Client tickets are visible to
+  the matching assigned manager and tenant administration in the same browser
+  through local storage; this is a demonstration handoff, not authorization or
+  durable notification delivery. A live API must derive client, manager, and
+  tenant scope from the authenticated actor; audit each action; enforce
+  tenant-safe access; provide idempotency; and deliver notifications to the
+  relevant manager, administrator, and assigned employee.
+- Manager notification acknowledgement, task updates, reviews, approvals, and
+  work-group changes remain frontend mocks. They require authenticated,
+  tenant-scoped mutation contracts, idempotency, audit records, and cache
+  invalidation before production use.
+- Login, password reset, invitation acceptance, and role selection have no
+  authentication API connection. A backend identity/session contract is a
+  deployment prerequisite.
+
+## Professional progress contracts
+
+`src/features/operations/api/operations-api.ts` exposes typed mock contracts
+for `getGamificationWorkspace`, `getWorkLogConsistency`,
+`saveGamificationPreferences`, `saveGamificationTenantPolicy`,
+`createRecognition`, and `updateDeliverableReview`.
+
+- Reads are scoped by the existing workspace fixture. Client reads return only
+  client-visible onboarding steps and that client’s deliverables; employee
+  reads return private achievements and permitted recognition only.
+- Recognition creation validates recipient, category, reason, visibility, and
+  notification preference with Zod. The mock prevents a repeated recognition
+  by recipient, category, related work, and message for the current session.
+- A live API must derive tenant and actor context server-side, validate policy
+  and visibility, paginate recognition feeds, use an idempotency key for awards
+  and recognitions, and enforce RLS/tenant-safe relations.
+- Streaks and work-log consistency must be calculated by the backend using the
+  actor’s IANA timezone, tenant working calendar, approved leave, and holidays.
+  The local calculation is display-only and intentionally not authoritative.
+- Deliverable actions are mock-only. Live approval/change requests require
+  authorised files, audit history, revision ownership, notifications, and
+  idempotent mutation handling.

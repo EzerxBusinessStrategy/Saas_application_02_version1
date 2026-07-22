@@ -79,6 +79,30 @@ export const tenants: Tenant[] = [
 
 export const auditRecords: AuditRecord[] = [
   {
+    id: "AUD-1044",
+    actor: "Jordan Lee",
+    tenant: "Acme Operations",
+    action: "Assigned manager to work group",
+    resource: "GST Review",
+    timestamp: "2026-07-21T11:10:00Z",
+    ipAddress: "198.51.100.52",
+    reason: "Balance delivery capacity before the filing deadline",
+    result: "success",
+    detail: "Avery Patel was assigned to the GST Review work group.",
+  },
+  {
+    id: "AUD-1043",
+    actor: "Priya Nair",
+    tenant: "Acme Operations",
+    action: "Requested delivery review",
+    resource: "Monthly delivery report",
+    timestamp: "2026-07-21T08:45:00Z",
+    ipAddress: "198.51.100.64",
+    reason: "Client delivery evidence is ready for manager review",
+    result: "pending",
+    detail: "The report is waiting for an assigned manager decision.",
+  },
+  {
     id: "AUD-1048",
     actor: "Maya Chen",
     tenant: "Harbor & Finch",

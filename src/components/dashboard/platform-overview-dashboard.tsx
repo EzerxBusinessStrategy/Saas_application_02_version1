@@ -1,13 +1,7 @@
 "use client";
 
-import {
-  Activity,
-  AlertTriangle,
-  CalendarDays,
-  ShieldCheck,
-} from "lucide-react";
+import { Activity, AlertTriangle, ShieldCheck } from "lucide-react";
 import type { ColumnDef } from "@tanstack/react-table";
-import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -30,7 +24,12 @@ const auditColumns: ColumnDef<AuditEvent, unknown>[] = [
   {
     accessorKey: "status",
     header: "Status",
-    cell: ({ row }) => <StatusBadge status={row.original.status} />,
+    cell: ({ row }) => (
+      <StatusBadge
+        status={row.original.status}
+        className="whitespace-nowrap"
+      />
+    ),
   },
 ];
 
@@ -40,16 +39,19 @@ export function PlatformOverviewDashboard({
   overview: PlatformOverview;
 }) {
   return (
-    <div className="flex flex-col gap-[30px]">
+    <div className="super-admin-portal flex flex-col gap-[30px]">
       <PageHeader
         eyebrow="Super Admin"
+        eyebrowIcon={ShieldCheck}
         title="Platform overview"
         description="Tenant health and platform activity across every workspace."
         actions={
-          <Button variant="outline">
-            <CalendarDays data-icon="inline-start" />
+          <p
+            className="text-sm text-muted-foreground"
+            aria-label="Reporting period"
+          >
             Last 30 days
-          </Button>
+          </p>
         }
       />
       <section
@@ -60,15 +62,18 @@ export function PlatformOverviewDashboard({
           <MetricCard
             key={metric.label}
             metric={metric}
-            className="rounded-none border-y-0 border-l-0 shadow-none last:border-r-0"
+            className="super-admin-surface group rounded-none border-y-0 border-l-0 shadow-none last:border-r-0"
           />
         ))}
       </section>
       <section className="grid gap-[30px] xl:grid-cols-[1.1fr_1fr_1fr]">
-        <Card>
+        <Card className="super-admin-surface">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <ShieldCheck className="size-[18px] text-primary" />
+              <ShieldCheck
+                className="super-admin-signal super-admin-signal--health size-[18px] text-primary"
+                aria-hidden="true"
+              />
               Tenant health
             </CardTitle>
             <CardDescription>
@@ -86,25 +91,31 @@ export function PlatformOverviewDashboard({
                 {overview.tenantHealth.map((tenant) => (
                   <li
                     key={tenant.name}
-                    className="flex items-start justify-between gap-3 py-4 first:pt-0"
+                    className="super-admin-row grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 py-4 first:pt-0"
                   >
-                    <div>
+                    <div className="min-w-0">
                       <p className="font-medium">{tenant.name}</p>
                       <p className="mt-0.5 text-sm text-muted-foreground">
                         {tenant.users} active users · {tenant.detail}
                       </p>
                     </div>
-                    <StatusBadge status={tenant.status} />
+                    <StatusBadge
+                      status={tenant.status}
+                      className="shrink-0 whitespace-nowrap"
+                    />
                   </li>
                 ))}
               </ul>
             )}
           </CardContent>
         </Card>
-        <Card>
+        <Card className="super-admin-surface">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Activity className="size-[18px] text-primary" />
+              <Activity
+                className="super-admin-signal super-admin-signal--activity size-[18px] text-primary"
+                aria-hidden="true"
+              />
               Recent platform activity
             </CardTitle>
             <CardDescription>
@@ -120,7 +131,10 @@ export function PlatformOverviewDashboard({
             ) : (
               <ol className="flex flex-col gap-4">
                 {overview.recentActivity.map((activity) => (
-                  <li key={`${activity.title}-${activity.time}`}>
+                  <li
+                    key={`${activity.title}-${activity.time}`}
+                    className="super-admin-row py-1"
+                  >
                     <p className="font-medium">{activity.title}</p>
                     <p className="mt-0.5 text-sm text-muted-foreground">
                       {activity.detail}
@@ -134,10 +148,13 @@ export function PlatformOverviewDashboard({
             )}
           </CardContent>
         </Card>
-        <Card>
+        <Card className="super-admin-surface">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <AlertTriangle className="size-[18px] text-warning" />
+              <AlertTriangle
+                className="super-admin-signal super-admin-signal--alert size-[18px] text-warning"
+                aria-hidden="true"
+              />
               Platform alerts
             </CardTitle>
             <CardDescription>
@@ -155,15 +172,18 @@ export function PlatformOverviewDashboard({
                 {overview.alerts.map((alert) => (
                   <li
                     key={alert.title}
-                    className="flex items-start justify-between gap-3 py-4 first:pt-0"
+                    className="super-admin-row grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 py-4 first:pt-0"
                   >
-                    <div>
+                    <div className="min-w-0">
                       <p className="font-medium">{alert.title}</p>
                       <p className="mt-0.5 text-sm text-muted-foreground">
                         {alert.detail}
                       </p>
                     </div>
-                    <StatusBadge status={alert.status} />
+                    <StatusBadge
+                      status={alert.status}
+                      className="shrink-0 whitespace-nowrap"
+                    />
                   </li>
                 ))}
               </ul>
@@ -171,7 +191,7 @@ export function PlatformOverviewDashboard({
           </CardContent>
         </Card>
       </section>
-      <Card>
+      <Card className="super-admin-surface">
         <CardHeader>
           <CardTitle>Global audit activity</CardTitle>
           <CardDescription>
@@ -181,6 +201,7 @@ export function PlatformOverviewDashboard({
         </CardHeader>
         <CardContent>
           <DataTable
+            className="super-admin-table"
             caption="Global audit activity"
             columns={auditColumns}
             data={overview.auditEvents}

@@ -1,6 +1,12 @@
 /* eslint-disable @next/next/no-img-element, jsx-a11y/alt-text -- Next image is mocked for unit tests. */
 
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
 import { WorkspaceShell } from "@/components/app-shell/workspace-shell";
 import { workspaceConfig } from "@/mocks/workspaces";
@@ -16,7 +22,7 @@ vi.mock("next/image", () => ({
 
 afterEach(cleanup);
 
-test("collapses the sidebar and keeps restricted navigation hidden", () => {
+test("collapses inside the sidebar and keeps active, labelled navigation accessible", () => {
   const employee = workspaceConfig("employee").user;
   pathname.value = "/employee/tasks";
   render(
@@ -25,10 +31,61 @@ test("collapses the sidebar and keeps restricted navigation hidden", () => {
     </WorkspaceShell>,
   );
   expect(screen.queryByText("Invoices")).not.toBeInTheDocument();
-  fireEvent.click(screen.getByRole("button", { name: "Collapse navigation" }));
-  expect(screen.getAllByTitle("Dashboard").length).toBeGreaterThan(0);
+  expect(screen.getByRole("link", { name: "My tasks" })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
+  const sidebar = screen.getByRole("complementary");
+  const collapseButton = within(sidebar).getByRole("button", {
+    name: "Collapse navigation",
+  });
+  expect(
+    within(screen.getByRole("banner")).queryByRole("button", {
+      name: "Collapse navigation",
+    }),
+  ).not.toBeInTheDocument();
+  fireEvent.click(collapseButton);
+  const dashboard = screen.getByLabelText("Dashboard");
+  const dashboardLabel = dashboard.querySelector("span[aria-hidden]");
+  expect(dashboardLabel).toHaveAttribute("aria-hidden", "true");
+  expect(
+    screen.getByRole("tooltip", { name: "Dashboard" }),
+  ).toBeInTheDocument();
+  expect(dashboard).toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "Expand navigation" }));
-  expect(screen.getByText("Dashboard")).toBeInTheDocument();
+  expect(
+    screen
+      .getByRole("link", { name: "Dashboard" })
+      .querySelector("span[aria-hidden]"),
+  ).toHaveAttribute("aria-hidden", "false");
+});
+
+test("opens a permission-filtered nested flyout while collapsed", () => {
+  const admin = workspaceConfig("admin").user;
+  pathname.value = "/admin/employees";
+  render(
+    <WorkspaceShell workspace="admin" user={admin}>
+      <p>Content</p>
+    </WorkspaceShell>,
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Collapse navigation" }));
+  const operations = screen.getByRole("button", {
+    name: "Operations navigation",
+  });
+  expect(operations).toHaveAttribute("aria-expanded", "false");
+  fireEvent.click(operations);
+  expect(operations).toHaveAttribute("aria-expanded", "true");
+  const flyout = screen.getByRole("group", { name: "Operations navigation" });
+  expect(
+    within(flyout).getByRole("link", { name: "Employees" }),
+  ).toHaveAttribute("aria-current", "page");
+  expect(
+    screen.queryByRole("button", { name: "Platform navigation" }),
+  ).not.toBeInTheDocument();
+  fireEvent.keyDown(operations, { key: "Escape" });
+  expect(
+    screen.queryByRole("group", { name: "Operations navigation" }),
+  ).not.toBeInTheDocument();
 });
 
 test("opens the mobile navigation drawer and limits the tenant switcher to super admins", () => {

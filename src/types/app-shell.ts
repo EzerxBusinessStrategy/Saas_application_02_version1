@@ -13,6 +13,7 @@ export type Notification = {
   createdAt: string;
   href?: string;
   read: boolean;
+  workspaces?: Workspace[];
 };
 
 export type WorkspaceOption = {

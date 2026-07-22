@@ -18,46 +18,18 @@ import {
   OrganisationManagement,
   TenantSettings,
 } from "@/components/tenant-administration/workforce-administration";
-import { EntityList } from "@/components/operations/entity-list";
 import { ClientPortal } from "@/components/operations/client-portal";
 import { EmployeeWorkspace } from "@/components/operations/employee-workspace";
 import { FinanceDocuments } from "@/components/operations/finance-documents";
 import { ManagerWorkspace } from "@/components/operations/manager-workspace";
 import { ReportsWorkspace } from "@/components/operations/reports-workspace";
+import { SupportTicketWorkspace } from "@/components/operations/support-ticket-workspace";
+import { TenantGamificationSettings } from "@/components/operations/gamification-workflows";
+import { AccountPreferences } from "@/components/app-shell/account-preferences";
 import { FeatureBoundary } from "@/components/shared/feature-boundary";
 import { sectionAccess } from "@/lib/route-access";
 import { workspaceConfig } from "@/mocks/workspaces";
 import type { Workspace } from "@/types/domain";
-
-const labels: Record<string, string> = {
-  clients: "Clients",
-  "work-groups": "Work groups",
-  documents: "Documents",
-  invoices: "Invoices",
-  reports: "Reports",
-  "audit-log": "Audit log",
-  branding: "Branding",
-  tenants: "Tenants",
-  "platform-settings": "Platform configuration",
-  "support-access": "Support access",
-  managers: "Managers",
-  organisation: "Organisation structure",
-  settings: "Tenant settings",
-  reviews: "Review queue",
-  approvals: "Approval queue",
-  workload: "Team workload",
-  "manager-reports": "Manager reports",
-  "work-logs": "Work logs",
-  timesheet: "Timesheet",
-  calendar: "Calendar",
-  services: "Active services",
-  requests: "Requests",
-  payments: "Payments",
-  agreements: "Agreements",
-  support: "Support",
-  notifications: "Notifications",
-  profile: "Profile",
-};
 
 export default async function Section({
   params,
@@ -76,6 +48,9 @@ export default async function Section({
     );
   }
   const user = workspaceConfig(workspace).user;
+  if (section === "account" && workspace === "super-admin") {
+    return <AccountPreferences user={user} />;
+  }
   if (section === "tenants") {
     return (
       <FeatureBoundary role={user.role} permissions={["tenant.read"]}>
@@ -118,10 +93,24 @@ export default async function Section({
       </FeatureBoundary>
     );
   }
+  if (section === "audit-log" && workspace === "admin") {
+    return (
+      <FeatureBoundary role={user.role} permissions={["audit_log.read"]}>
+        <GlobalAuditLog tenantName="Acme Operations" />
+      </FeatureBoundary>
+    );
+  }
   if (section === "clients" && workspace === "admin") {
     return (
       <FeatureBoundary role={user.role} permissions={["client.read"]}>
         <ClientDirectory />
+      </FeatureBoundary>
+    );
+  }
+  if (section === "tickets" && workspace === "admin") {
+    return (
+      <FeatureBoundary role={user.role} permissions={["client.update"]}>
+        <SupportTicketWorkspace workspace="admin" />
       </FeatureBoundary>
     );
   }
@@ -137,6 +126,8 @@ export default async function Section({
       "manager-reports",
       "notifications",
       "profile",
+      "recognition",
+      "tickets",
     ].includes(section)
   ) {
     const managerSection =
@@ -164,6 +155,9 @@ export default async function Section({
       "documents",
       "notifications",
       "profile",
+      "achievements",
+      "recognition",
+      "preferences",
     ].includes(section)
   ) {
     return (
@@ -178,9 +172,15 @@ export default async function Section({
   }
   if (
     workspace === "client" &&
-    ["services", "requests", "support", "notifications", "profile"].includes(
-      section,
-    )
+    [
+      "services",
+      "requests",
+      "support",
+      "notifications",
+      "profile",
+      "onboarding",
+      "deliverables",
+    ].includes(section)
   ) {
     return (
       <FeatureBoundary role={user.role} permissions={access?.permissions ?? []}>
@@ -197,7 +197,11 @@ export default async function Section({
         : section === "documents"
           ? "document.read"
           : "invoice.create";
-    if (workspace === "admin" || workspace === "client") {
+    if (
+      workspace === "admin" ||
+      workspace === "client" ||
+      (workspace === "manager" && section === "documents")
+    ) {
       return (
         <FeatureBoundary role={user.role} permissions={[financePermission]}>
           <FinanceDocuments
@@ -214,6 +218,13 @@ export default async function Section({
     return (
       <FeatureBoundary role={user.role} permissions={["work_group.manage"]}>
         <WorkGroupDirectory />
+      </FeatureBoundary>
+    );
+  }
+  if (section === "gamification" && workspace === "admin") {
+    return (
+      <FeatureBoundary role={user.role} permissions={["client.update"]}>
+        <TenantGamificationSettings />
       </FeatureBoundary>
     );
   }
@@ -238,13 +249,5 @@ export default async function Section({
       </FeatureBoundary>
     );
   }
-  const title = labels[section];
-  if (!title) notFound();
-  return access?.permissions ? (
-    <FeatureBoundary role={user.role} permissions={access.permissions}>
-      <EntityList title={title} />
-    </FeatureBoundary>
-  ) : (
-    <EntityList title={title} />
-  );
+  notFound();
 }

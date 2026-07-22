@@ -28,7 +28,7 @@ export function FinanceDocuments({
   workspace = "admin",
 }: {
   section: "invoices" | "payments" | "agreements" | "documents";
-  workspace?: Extract<Workspace, "admin" | "client">;
+  workspace?: Extract<Workspace, "admin" | "client" | "manager">;
 }) {
   const query = useQuery({
     queryKey: ["finance-documents", workspace],

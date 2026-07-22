@@ -94,3 +94,47 @@ recorded with the final Phase 1 validation command.
 
   The Next.js development-server `allowedDevOrigins` warning for `127.0.0.1`
   remains a non-blocking development notice; SSL verification was not changed.
+
+### 2026-07-22 Professional progress workflows
+
+- Formatting, ESLint, TypeScript, design-token checks, and route checks passed.
+- Unit/component suite: 28 test files and 46 tests passed, including scheduled
+  work-log exclusions, client-visible progress isolation, and duplicate
+  recognition prevention.
+- Production build passed with `corepack pnpm build`.
+- Playwright: 13 installed Microsoft Edge tests passed with
+  `corepack pnpm exec playwright test --project=msedge`. The new workflow
+  covers Employee work-log progress and achievements, Manager recognition,
+  Client onboarding/deliverable approval at 390px, and Tenant policy settings.
+  Existing desktop, tablet, mobile, permission, route, and overflow checks
+  remain green.
+
+  The development-server `allowedDevOrigins` notice for `127.0.0.1` remains
+  non-blocking. No browser was downloaded and SSL verification was unchanged.
+
+### 2026-07-22 global theme system
+
+- Formatting: passed for the theme-system change set with
+  `corepack pnpm dlx prettier@3.5.3 --write` and `--check`. Prettier was used
+  through a temporary package runner; no project dependency was added.
+- ESLint, TypeScript, design-token checks, and route checks passed with
+  `corepack pnpm lint`, `corepack pnpm typecheck`, `corepack pnpm check:tokens`,
+  and `corepack pnpm check:routes`.
+- Unit/component suite passed with `corepack pnpm test`: 29 test files and 53
+  tests. This includes theme persistence/cooldown, reduced-motion suppression,
+  owl rendering, overlay cleanup, and app-shell integration.
+- Production build passed with `corepack pnpm build` after temporarily stopping
+  and then restarting the local hot-reload server on port 4008.
+- Installed Microsoft Edge stable browser verification passed at 1440px, 1280px,
+  1024px, 768px, and 390px. It verified the header toggle, dark class,
+  dark-page surface, owl visual, visible short-lived shooting-star overlay,
+  no horizontal overflow, and no browser console errors. Light-ray and
+  shooting-star transition screenshots were visually reviewed at 1440px.
+
+### 2026-07-22 shooting-star and owl refinement
+
+- Replaced the shared three-star 780ms effect with five configured individual
+  star elements. Edge confirmed a fixed, non-transformed, pointer-event-free
+  overlay; five distinct per-star computed transforms, delays, and durations;
+  a 24px owl; overlay cleanup after 2.8 seconds; no overflow; and no console
+  errors at 1440px, 1280px, 1024px, 768px, and 390px.

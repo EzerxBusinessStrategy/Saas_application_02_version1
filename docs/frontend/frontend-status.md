@@ -50,3 +50,50 @@
   without rankings, overtime incentives, sound, or full-screen celebration.
 - Pending Figma verification: Phase 3 screens use the existing TailAdmin system
   because Figma MCP remains rate limited.
+
+## Phase 4: Production hardening
+
+- Code-complete: replaced the Employee Calendar text-only milestone list with
+  an accessible, responsive calendar grid and mobile list fallback; tenant names
+  and active-user values are readable in the Super Admin report chart.
+- Code-complete: removed the generic section placeholder fallback, routed
+  Tenant Admin audit history to a tenant-scoped audit composition, and limited
+  Manager/Employee document fixtures to their assigned task clients.
+- Code-complete: client support is a typed ticket portal with a structured
+  request form, ticket history, activity feed, and resolution visibility.
+  Assigned Managers and Tenant Admins receive scoped queues and can assign an
+  employee, send a client-visible update, or resolve a ticket. The shared
+  browser-local mock demonstrates the handoff only; it is not a real support
+  API, notification, or authorization system.
+- Backend dependencies: real login/session handling, durable mutations,
+  server-side authorization/auditing, tenant-safe data enforcement, and
+  Tenant Owner/Finance User/HR Operations User workspace design are not
+  implemented by this frontend-only project.
+
+## Professional progress workflows
+
+- Code-complete: employee daily task progress, work-log completion and
+  scheduled-day consistency, private achievement catalogue, achievement
+  notification-centre item, personal comparison fixtures, recognition feed,
+  and visibility preferences.
+- Code-complete: manager recognition form/history, Tenant Admin policy settings,
+  client onboarding checklist, and client deliverable review actions. Changes
+  are validated and retained only for the current mock session.
+- Backend dependency: policies, private achievement visibility, recognition
+  permissions, holidays, leave, timezone recurrence, and duplicate prevention
+  are documented API requirements, not frontend security enforcement.
+
+## Global theme system
+
+- Code-complete: persisted light, dark, and system-aware preferences reuse the
+  existing `next-themes` provider and TailAdmin-derived semantic CSS tokens.
+  Shared shell, controls, status chips, dialog, notifications, cards, tables,
+  forms, and charts inherit the same palette.
+- Code-complete: the authenticated header contains one accessible theme toggle
+  with a sun, a two-second SVG owl blink in dark mode, short non-interactive
+  shooting-star and golden-ray effects, a 45-second local cooldown, and
+  reduced-motion suppression.
+- Validation: lint, TypeScript, token/route checks, 53 unit/component tests,
+  production build, and installed-Edge checks at all required widths passed.
+  Theme-system formatting also passed through the documented temporary
+  Prettier runner; see `docs/testing/frontend-validation.md`.
