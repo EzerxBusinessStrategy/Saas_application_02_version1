@@ -21,7 +21,7 @@ export const sectionAccess: Record<
     workspaces: ["admin", "manager", "employee", "client"],
     permissions: ["document.read"],
   },
-  invoices: { workspaces: ["admin", "client"] },
+  invoices: { workspaces: ["admin", "manager", "client"] },
   payments: { workspaces: ["admin", "client"] },
   agreements: { workspaces: ["admin", "client"] },
   reports: {

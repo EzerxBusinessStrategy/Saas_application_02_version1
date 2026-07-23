@@ -4,10 +4,12 @@ import { useQuery } from "@tanstack/react-query";
 import {
   Bar,
   BarChart,
+  ComposedChart,
   CartesianGrid,
   Line,
   LineChart,
   ResponsiveContainer,
+  Scatter,
   Tooltip,
   XAxis,
   YAxis,
@@ -22,6 +24,9 @@ import {
 import { ErrorState } from "@/components/shared/error-state";
 import { LoadingState } from "@/components/shared/loading-state";
 import { PageHeader } from "@/components/shared/page-header";
+
+const trendChartMargin = { top: 8, right: 20, bottom: 8, left: 8 };
+const trendXAxisPadding = { left: 18, right: 18 };
 
 export function ReportsWorkspace() {
   const query = useQuery({
@@ -71,7 +76,7 @@ export function ReportsWorkspace() {
             className="h-64"
           >
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={slaData}>
+              <LineChart data={slaData} margin={trendChartMargin}>
                 <CartesianGrid
                   stroke="var(--border)"
                   strokeDasharray="3 3"
@@ -79,6 +84,7 @@ export function ReportsWorkspace() {
                 />
                 <XAxis
                   dataKey="day"
+                  padding={trendXAxisPadding}
                   tick={chartAxisTick}
                   tickLine={false}
                   axisLine={false}
@@ -173,7 +179,7 @@ export function ReportsWorkspace() {
             className="h-64"
           >
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={slaData}>
+              <ComposedChart data={slaData} margin={trendChartMargin}>
                 <CartesianGrid
                   stroke="var(--border)"
                   strokeDasharray="3 3"
@@ -181,6 +187,7 @@ export function ReportsWorkspace() {
                 />
                 <XAxis
                   dataKey="day"
+                  padding={trendXAxisPadding}
                   tick={chartAxisTick}
                   tickLine={false}
                   axisLine={false}
@@ -204,7 +211,13 @@ export function ReportsWorkspace() {
                   strokeWidth={3}
                   dot={false}
                 />
-              </LineChart>
+                <Scatter
+                  dataKey="compliance"
+                  name="SLA checkpoint"
+                  fill="var(--warning)"
+                  line={false}
+                />
+              </ComposedChart>
             </ResponsiveContainer>
           </div>
           <p className="mt-3 text-sm text-muted-foreground">

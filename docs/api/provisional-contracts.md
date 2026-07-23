@@ -19,7 +19,41 @@ contract.
 - New feature API functions belong in feature-level `api` folders and should use
   TanStack Query for server state.
 
+## Document and invoice frontend-mock contracts
+
+`src/features/operations/api/operations-api.ts` exposes `listSharedDocuments`,
+`createSharedDocument`, `updateSharedDocumentAccess`, `listSharedInvoices`, and
+`createSharedInvoice`. The payloads and returned metadata are Zod-validated and
+the browser stores metadata only for mock workflow continuity. File bytes are
+never uploaded, persisted, previewed, downloaded, or exposed through public
+URLs.
+
+- Role filtering is a frontend experience only: Tenant Administration, assigned
+  manager, explicitly assigned employee, and matching client views are modelled
+  from fixtures.
+- A live API must derive actor, tenant, client, manager, and work-group scope
+  from the authenticated server session; it must not trust browser-supplied IDs
+  or recipient lists.
+- Production requires private object storage, short-lived signed upload and
+  download URLs, malware scanning, durable immutable audit records, retention
+  policy, tenant-safe database relations/RLS, idempotency, and server-side
+  authorization.
+
 ## Phase 2 administration contracts
+
+## Tenant provisioning and white-label frontend boundary
+
+The Super Admin tenant request and Tenant Admin branding screen are validated
+frontend workflows only. They do not create tenants, memberships, invitations,
+passwords, emails, domains, storage namespaces, cache entries, or audit events.
+Branding is rendered only in an isolated live preview and is never applied to
+another portal or tenant session.
+
+A production implementation requires a server-owned tenant context, tenant-safe
+database constraints/RLS, private logo storage, invitation and email delivery,
+domain verification, authenticated theme resolution, audit logging, and
+transactional provisioning. Browser-provided tenant IDs, logo paths, or theme
+values must not be trusted.
 
 `src/features/administration/api/administration-api.ts` is a replaceable typed
 mock boundary. It validates fixtures with Zod and exposes the following
@@ -59,6 +93,14 @@ reviews, approvals, and create actions are session-local frontend mocks; live
 mutations require authorised tenant-scoped endpoints, durable audit history,
 and idempotency rules.
 
+Manager approval and tenant approval are a two-stage session-local mock flow:
+manager approval sets `reviewStatus: approved` and `approvalStatus: pending`;
+the Tenant Admin then approves delivery (`done`) or returns it for rework
+(`rejected`). A live mutation must derive the actor and tenant from the server
+session, enforce manager work-group scope and Tenant Admin authority, persist
+decision remarks/evidence/history, and write immutable tenant-scoped audit
+events.
+
 ## Phase 4 hardening boundaries
 
 - `listAuditRecords(request, { tenantName })` scopes fixture audit records
@@ -77,12 +119,20 @@ and idempotency rules.
   tenant scope from the authenticated actor; audit each action; enforce
   tenant-safe access; provide idempotency; and deliver notifications to the
   relevant manager, administrator, and assigned employee.
+- Support-request drafts, attachment progress, contact preferences, duplicate
+  warnings, and suggested help articles are browser-only UX. Attachment bytes
+  are not uploaded or persisted by this frontend mock; a live implementation
+  requires malware scanning, object-storage authorization, per-file validation,
+  signed upload URLs, retention controls, and notification delivery.
 - Manager notification acknowledgement, task updates, reviews, approvals, and
   work-group changes remain frontend mocks. They require authenticated,
   tenant-scoped mutation contracts, idempotency, audit records, and cache
   invalidation before production use.
-- Login, password reset, invitation acceptance, and role selection have no
-  authentication API connection. A backend identity/session contract is a
+- `POST /api/demo-auth/login`, `/logout`, and `/recovery` are hardcoded demo
+  routes only. The session cookie and route guard prevent ordinary browser URL
+  switching between the selected role's portals, but do not provide production
+  identity, password storage, tenant isolation, audit, rate limiting, or
+  backend authorisation. A backend identity/session contract remains a
   deployment prerequisite.
 
 ## Professional progress contracts

@@ -16,6 +16,9 @@ import {
   payments,
   recognitions,
   supportTickets,
+  sharedDocuments,
+  sharedInvoices,
+  entities,
   streak,
   teamProgress,
   weeklyComparisons,
@@ -24,6 +27,10 @@ import {
 } from "@/mocks/operations";
 import {
   invoiceSchema,
+  documentUploadInputSchema,
+  invoiceUploadInputSchema,
+  sharedDocumentSchema,
+  sharedInvoiceSchema,
   gamificationPreferencesSchema,
   gamificationTenantPolicySchema,
   recognitionInputSchema,
@@ -35,7 +42,11 @@ import {
   workLogInputSchema,
   workLogSchema,
   type OperationalListRequest,
+  type DocumentUploadInput,
+  type InvoiceUploadInput,
   type OperationalTask,
+  type SharedDocument,
+  type SharedInvoice,
   type SupportTicket,
 } from "@/types/operations";
 import type { Workspace } from "@/types/domain";
@@ -78,8 +89,14 @@ const sessionTaskOverrides = new Map<string, OperationalTask>();
 let sessionSupportTickets = [...supportTickets];
 const taskOverrideStorageKey = "operations:task-overrides";
 const supportTicketStorageKey = "operations:support-tickets";
+const documentStorageKey = "operations:shared-documents";
+const invoiceStorageKey = "operations:shared-invoices";
 let taskOverridesHydrated = false;
 let supportTicketsHydrated = false;
+let sessionDocuments = [...sharedDocuments];
+let sessionInvoices = [...sharedInvoices];
+let documentsHydrated = false;
+let invoicesHydrated = false;
 
 function hydrateTaskOverrides() {
   if (taskOverridesHydrated || typeof window === "undefined") return;
@@ -208,6 +225,189 @@ export async function listOperationalTasks(
   return taskListSchema.parse(items);
 }
 
+// ponytail: frontend mock persists metadata only; replace with private object storage and server-authorised APIs when the backend is available.
+function readStoredRecords<T>(key: string, fallback: T[], schema: z.ZodType<T[]>) {
+  if (typeof window === "undefined") return fallback;
+  try {
+    const parsed = schema.safeParse(JSON.parse(window.localStorage.getItem(key) ?? "null"));
+    return parsed.success ? parsed.data : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function saveStoredRecords<T>(key: string, records: T[]) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(key, JSON.stringify(records));
+  } catch {
+    // Metadata remains available for the current browser session if storage is unavailable.
+  }
+}
+
+function currentSharedDocuments() {
+  if (!documentsHydrated) {
+    documentsHydrated = true;
+    sessionDocuments = readStoredRecords(documentStorageKey, sharedDocuments, z.array(sharedDocumentSchema));
+  }
+  return sessionDocuments;
+}
+
+function currentSharedInvoices() {
+  if (!invoicesHydrated) {
+    invoicesHydrated = true;
+    sessionInvoices = readStoredRecords(invoiceStorageKey, sharedInvoices, z.array(sharedInvoiceSchema));
+  }
+  return sessionInvoices;
+}
+
+const documentActors = {
+  admin: { id: "tenant-admin", name: "Tenant Administration", clientIds: ["northstar", "wellspring", "bayside"] },
+  manager: { id: managerId, name: "Avery Patel", clientIds: ["northstar", "wellspring"] },
+  employee: { id: employeeId, name: "Riley Shah", clientIds: ["northstar", "wellspring"] },
+  client: { id: clientId, name: "Taylor Morgan", clientIds: [clientId] },
+} as const;
+
+const allowedFileExtensions = new Set(["pdf", "doc", "docx", "xls", "xlsx", "csv", "png", "jpg", "jpeg", "webp", "txt", "zip"]);
+const maxFileSizeBytes = 20 * 1024 * 1024;
+
+function validateFile(fileName: string, sizeBytes: number) {
+  const extension = fileName.split(".").pop()?.toLowerCase();
+  if (!extension || !allowedFileExtensions.has(extension))
+    throw new Error("Choose a permitted document type.");
+  if (sizeBytes <= 0 || sizeBytes > maxFileSizeBytes)
+    throw new Error("Files must be between 1 byte and 20 MB.");
+}
+
+function assertClientScope(workspace: "admin" | "manager" | "employee" | "client", clientIdValue: string) {
+  if (!documentActors[workspace].clientIds.includes(clientIdValue as never))
+    throw new Error("This client is outside your authorised scope.");
+}
+
+function documentVisibleTo(workspace: Workspace, record: SharedDocument) {
+  if (workspace === "admin") return record.tenantId === "acme";
+  if (workspace === "client") return record.clientId === clientId && record.recipientClientIds.includes(clientId);
+  if (workspace === "manager")
+    return record.uploadedById === managerId || record.recipientManagerIds.includes(managerId) || documentActors.manager.clientIds.includes(record.clientId as never);
+  if (workspace === "employee")
+    return record.uploadedById === employeeId || record.recipientEmployeeIds.includes(employeeId);
+  return false;
+}
+
+function invoiceVisibleTo(workspace: Workspace, record: SharedInvoice) {
+  if (workspace === "admin") return record.tenantId === "acme";
+  if (workspace === "client") return record.clientId === clientId && record.visibility === "client";
+  if (workspace === "manager") return record.managerId === managerId && documentActors.manager.clientIds.includes(record.clientId as never);
+  return false;
+}
+
+export async function listSharedDocuments(workspace: Workspace) {
+  return currentSharedDocuments().filter((record) => documentVisibleTo(workspace, record));
+}
+
+export async function listSharedInvoices(workspace: Workspace) {
+  return currentSharedInvoices().filter((record) => invoiceVisibleTo(workspace, record));
+}
+
+export async function createSharedDocument(
+  workspace: "admin" | "manager" | "employee" | "client",
+  input: DocumentUploadInput,
+) {
+  const value = documentUploadInputSchema.parse(input);
+  const actor = documentActors[workspace];
+  const targetClientId = workspace === "client" ? clientId : value.clientId;
+  assertClientScope(workspace, targetClientId);
+  validateFile(value.fileName, value.sizeBytes);
+  const recipientEmployeeIds = value.recipientEmployeeIds ?? [];
+  const recipientManagerIds = value.recipientManagerIds ?? [];
+  const recipientClientIds = value.recipientClientIds ?? [];
+  if (workspace === "employee" && recipientEmployeeIds.length + recipientClientIds.length)
+    throw new Error("Employees can share documents only with their manager and Tenant Administration.");
+  if (workspace === "employee" && !recipientManagerIds.includes(managerId))
+    throw new Error("Select your assigned manager before uploading.");
+  if ((workspace === "admin" || workspace === "manager") && !recipientEmployeeIds.length && !recipientManagerIds.length && !recipientClientIds.length)
+    throw new Error("Select at least one authorised recipient.");
+  if (workspace === "manager" && recipientClientIds.some((id) => !documentActors.manager.clientIds.includes(id as never)))
+    throw new Error("A manager can share only with assigned clients.");
+  const client = entities.find((item) => item.id === `CL-${targetClientId === "northstar" ? "101" : targetClientId === "wellspring" ? "102" : "103"}`)?.name ?? "Authorised client";
+  const now = "Just now";
+  const record: SharedDocument = {
+    id: `DOC-${Date.now()}`, tenantId: "acme", clientId: targetClientId, client, title: value.title,
+    fileName: value.fileName, fileType: value.fileType, sizeBytes: value.sizeBytes, category: value.category,
+    engagement: value.engagement ?? null, task: value.task ?? null, uploadedBy: actor.name, uploadedByRole: workspace,
+    uploadedById: actor.id, updatedOn: now, status: "active", recipientEmployeeIds,
+    recipientManagerIds: workspace === "client" ? [managerId] : recipientManagerIds,
+    recipientClientIds: workspace === "client" ? [clientId] : recipientClientIds,
+    tenantAdminVisible: true, activity: [{ id: `DOC-ACT-${Date.now()}`, action: "Uploaded and shared", actor: actor.name, at: now }],
+  };
+  sessionDocuments = [record, ...currentSharedDocuments()];
+  saveStoredRecords(documentStorageKey, sessionDocuments);
+  return record;
+}
+
+export async function createSharedInvoice(
+  workspace: "admin" | "manager" | "client",
+  input: InvoiceUploadInput,
+) {
+  const value = invoiceUploadInputSchema.parse(input);
+  const actor = documentActors[workspace];
+  const targetClientId = workspace === "client" ? clientId : value.clientId;
+  assertClientScope(workspace, targetClientId);
+  validateFile(value.fileName, value.sizeBytes);
+  const client = entities.find((item) => item.id === `CL-${targetClientId === "northstar" ? "101" : targetClientId === "wellspring" ? "102" : "103"}`)?.name ?? "Authorised client";
+  const now = "Just now";
+  const record: SharedInvoice = {
+    id: `INV-${Date.now()}`, tenantId: "acme", clientId: targetClientId, client,
+    invoiceNumber: value.invoiceNumber, engagement: value.engagement ?? null, issuedOn: value.issuedOn, dueOn: value.dueOn,
+    currency: "INR", amount: value.amount, status: "draft", visibility: workspace === "client" ? "client" : value.visibility ?? "client",
+    fileName: value.fileName, fileType: value.fileType, sizeBytes: value.sizeBytes, uploadedBy: actor.name,
+    uploadedByRole: workspace, uploadedById: actor.id, managerId, updatedOn: now,
+    activity: [{ id: `INV-ACT-${Date.now()}`, action: "Invoice uploaded", actor: actor.name, at: now }],
+  };
+  sessionInvoices = [record, ...currentSharedInvoices()];
+  saveStoredRecords(invoiceStorageKey, sessionInvoices);
+  return record;
+}
+
+export async function updateSharedDocumentAccess(
+  workspace: "admin" | "manager",
+  documentId: string,
+  recipients: Pick<
+    DocumentUploadInput,
+    "recipientEmployeeIds" | "recipientManagerIds" | "recipientClientIds"
+  >,
+) {
+  const current = currentSharedDocuments();
+  const document = current.find((item) => item.id === documentId);
+  if (!document || !documentVisibleTo(workspace, document))
+    throw new Error("This document is outside your authorised scope.");
+  const recipientClientIds = recipients.recipientClientIds ?? [];
+  if (workspace === "manager" && recipientClientIds.some((id) => !documentActors.manager.clientIds.includes(id as never)))
+    throw new Error("A manager can share only with assigned clients.");
+  const next: SharedDocument = {
+    ...document,
+    recipientEmployeeIds: recipients.recipientEmployeeIds ?? [],
+    recipientManagerIds: recipients.recipientManagerIds ?? [],
+    recipientClientIds,
+    tenantAdminVisible: true,
+    updatedOn: "Just now",
+    activity: [...document.activity, { id: `DOC-ACT-${Date.now()}`, action: "Access updated", actor: documentActors[workspace].name, at: "Just now" }],
+  };
+  sessionDocuments = current.map((item) => (item.id === documentId ? next : item));
+  saveStoredRecords(documentStorageKey, sessionDocuments);
+  return next;
+}
+
+export async function listTaskClients(workspace: Workspace) {
+  if (workspace !== "admin") return [];
+  return [...new Map(
+    currentTasks().map((task) => [
+      task.clientId,
+      { id: task.clientId, name: task.client, manager: task.manager, engagement: task.engagement },
+    ]),
+  ).values()];
+}
+
 export async function listWorkLogs(workspace: Workspace) {
   const taskIds = new Set(scopedTasks(workspace).map((task) => task.id));
   return z
@@ -266,10 +466,41 @@ export async function decideEmployeeTaskReview(
     decision === "approve"
       ? {
           ...task,
-          status: "done",
+          status: "review",
           reviewStatus: "approved",
-          approvalStatus: "approved",
+          approvalStatus: "pending",
         }
+      : {
+          ...task,
+          status: "rejected",
+          reviewStatus: "changes-requested",
+          approvalStatus: "rejected",
+        },
+  );
+}
+
+/**
+ * Frontend mock for the tenant-owned final approval gate. The production API
+ * must derive both the tenant and actor from the authenticated session.
+ */
+export async function decideTenantTaskApproval(
+  taskId: string,
+  decision: "approve" | "return",
+) {
+  const task = currentTasks().find((item) => item.id === taskId);
+  if (
+    !task ||
+    task.tenantId !== "acme" ||
+    task.status !== "review" ||
+    task.reviewStatus !== "approved" ||
+    task.approvalStatus !== "pending"
+  ) {
+    throw new Error("This task is not awaiting tenant approval.");
+  }
+
+  return updateSessionTask(
+    decision === "approve"
+      ? { ...task, status: "done", approvalStatus: "approved" }
       : {
           ...task,
           status: "rejected",
@@ -285,15 +516,39 @@ export async function listSupportTickets(workspace: "client" | "manager" | "admi
 
 export async function createSupportTicket(input: unknown) {
   const value = supportTicketInputSchema.parse(input);
+  const duplicate = currentSupportTickets().find(
+    (ticket) =>
+      ticket.clientId === clientId &&
+      ticket.status !== "resolved" &&
+      ticket.service === value.service &&
+      ticket.subject.trim().toLowerCase() === value.subject.trim().toLowerCase(),
+  );
+  if (duplicate) {
+    throw new Error(
+      `A similar active request already exists (${duplicate.id}). Review it before creating another request.`,
+    );
+  }
   const createdOn = "Just now";
+  const ticketNumbers = currentSupportTickets()
+    .map((ticket) => Number(ticket.id.match(/(\d+)$/)?.[1]))
+    .filter(Number.isFinite);
+  const ticketNumber = Math.max(1047, ...ticketNumbers) + 1;
   const ticket = supportTicketSchema.parse({
-    id: `SUP-MOCK-${Date.now()}`,
+    id: `SUP-2026-${ticketNumber}`,
     tenantId: "acme",
     clientId,
     client: "Northstar Labs",
     managerId,
     ...value,
-    status: "new",
+    expectedFirstResponse:
+      value.businessImpact === "critical"
+        ? "Within 1 business hour"
+        : value.businessImpact === "high"
+          ? "Within 4 business hours"
+          : value.businessImpact === "medium"
+            ? "Within 8 business hours"
+            : "Within 1 business day",
+    status: "open",
     requester: "Taylor Morgan",
     assigneeId: null,
     assignee: null,
@@ -355,7 +610,7 @@ export async function replyToSupportTicket(
   const updatedOn = "Just now";
   const next = supportTicketSchema.parse({
     ...ticket,
-    status: ticket.status === "new" ? "triaged" : ticket.status,
+    status: ticket.status === "open" ? "triaged" : ticket.status,
     updatedOn,
     activity: [
       ...ticket.activity,

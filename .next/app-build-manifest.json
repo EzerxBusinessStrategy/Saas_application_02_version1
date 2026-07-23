@@ -26,20 +26,20 @@
       "static/chunks/main-app.js",
       "static/chunks/app/(app)/[workspace]/not-found.js"
     ],
-    "/(app)/[workspace]/tasks/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/(app)/[workspace]/tasks/page.js"
-    ],
-    "/(app)/[workspace]/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/(app)/[workspace]/page.js"
-    ],
     "/(app)/[workspace]/[section]/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
       "static/chunks/app/(app)/[workspace]/[section]/page.js"
+    ],
+    "/(auth)/login/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(auth)/login/page.js"
+    ],
+    "/api/demo-auth/login/route": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/api/demo-auth/login/route.js"
     ]
   }
 }

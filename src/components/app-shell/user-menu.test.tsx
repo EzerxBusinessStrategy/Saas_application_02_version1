@@ -10,8 +10,7 @@ test("shows identity, email, profile preferences, and a sign-out action", () => 
   expect(
     screen.getByRole("menuitem", { name: "Profile and preferences" }),
   ).toHaveAttribute("href", "/super-admin/account");
-  expect(screen.getByRole("menuitem", { name: "Sign out" })).toHaveAttribute(
+  expect(screen.getByRole("menuitem", { name: "Sign out" })).not.toHaveAttribute(
     "href",
-    "/login",
   );
 });

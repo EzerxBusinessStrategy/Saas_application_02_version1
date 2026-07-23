@@ -2,10 +2,11 @@
 
 import { useQuery } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
-import { useState } from "react";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useEffect, useState, type CSSProperties } from "react";
 import { useForm } from "react-hook-form";
 import { useRouter } from "next/navigation";
-import { MoreHorizontal, Plus } from "lucide-react";
+import { ImagePlus, MoreHorizontal, Plus, X } from "lucide-react";
 import { DataTable } from "@/components/operations/data-table";
 import { ConfirmationDialog } from "@/components/shared/confirmation-dialog";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -34,9 +35,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { listManagers } from "@/features/administration/api/administration-api";
+import { saveTenantBrandingSession, tenantBrandingFontFamily } from "@/lib/tenant-branding-session";
 import { organisationStructure } from "@/mocks/administration";
 import { employees } from "@/mocks/workforce";
-import type { Manager } from "@/types/administration";
+import { tenantBrandingDraftSchema, type Manager, type TenantBrandingDraft } from "@/types/administration";
 import type { Employee } from "@/types/workforce";
 
 const employeeTabs = [
@@ -54,7 +56,6 @@ const settingsTabs = [
   { value: "branding", label: "Branding" },
   { value: "users", label: "Users and roles" },
   { value: "notifications", label: "Notifications" },
-  { value: "organisation", label: "Organisation" },
   { value: "profile", label: "Profile" },
   { value: "security", label: "Security" },
 ];
@@ -581,6 +582,72 @@ type SettingsInput = {
   securityReminder: boolean;
 };
 
+const densityPreviewStyles = {
+  compact: { padding: "12px", gap: "6px", label: "Compact" },
+  comfortable: { padding: "16px", gap: "10px", label: "Comfortable" },
+  relaxed: { padding: "20px", gap: "14px", label: "Relaxed" },
+  spacious: { padding: "24px", gap: "18px", label: "Spacious" },
+} as const;
+
+const defaultBrandingColours = {
+  primaryColour: "#3C50E0",
+  sidebarColour: "#1C2434",
+  surfaceColour: "#FFFFFF",
+} as const;
+
+function rgbValue(hex: string) {
+  if (!/^#[0-9a-f]{6}$/i.test(hex)) return "Enter a valid hex value";
+  const channels = [1, 3, 5].map((index) => Number.parseInt(hex.slice(index, index + 2), 16));
+  return `RGB ${channels.join(", ")}`;
+}
+
+function BrandingSettings() {
+  const [published, setPublished] = useState(false);
+  const [customDesign, setCustomDesign] = useState<{ name: string; url: string } | null>(null);
+  const form = useForm<TenantBrandingDraft>({
+    resolver: zodResolver(tenantBrandingDraftSchema),
+    defaultValues: {
+      companyName: "Acme Operations",
+      ...defaultBrandingColours,
+      defaultTheme: "system",
+      density: "comfortable",
+      headingFont: "System",
+      allowUserThemeOverride: true,
+      portalSubtitle: "",
+    },
+  });
+  const preview = form.watch();
+  useEffect(() => () => { if (customDesign) URL.revokeObjectURL(customDesign.url); }, [customDesign]);
+  const previewTheme = preview.defaultTheme === "custom" && customDesign ? "custom" : preview.defaultTheme;
+  const isDarkPreview = previewTheme === "dark";
+  const densityStyle = densityPreviewStyles[preview.density];
+  const selectCustomDesign = (file: File | null) => {
+    if (!file) return;
+    setCustomDesign({ name: file.name, url: URL.createObjectURL(file) });
+    form.setValue("defaultTheme", "custom", { shouldDirty: true });
+  };
+  const saveDraft = () => setPublished(false);
+  const resetColours = () => {
+    form.setValue("primaryColour", defaultBrandingColours.primaryColour, { shouldDirty: true, shouldValidate: true });
+    form.setValue("sidebarColour", defaultBrandingColours.sidebarColour, { shouldDirty: true, shouldValidate: true });
+    form.setValue("surfaceColour", defaultBrandingColours.surfaceColour, { shouldDirty: true, shouldValidate: true });
+    setPublished(false);
+  };
+  const publish = (draft: TenantBrandingDraft) => {
+    saveTenantBrandingSession("acme", draft);
+    setPublished(true);
+  };
+  return <form className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]" noValidate onSubmit={form.handleSubmit(publish)}>
+    <div className="flex flex-col gap-6">
+      <Card><CardHeader><CardTitle>Brand identity</CardTitle><CardDescription>Set the company name shown in this tenant workspace and an optional portal subtitle.</CardDescription></CardHeader><CardContent className="grid gap-5 sm:grid-cols-2"><label className="block text-sm font-medium">Company name<Input className="mt-1" {...form.register("companyName")} />{form.formState.errors.companyName ? <span className="mt-1 block text-xs text-danger">{form.formState.errors.companyName.message}</span> : null}</label><label className="block text-sm font-medium">Portal subtitle <span className="font-normal text-muted-foreground">(optional)</span><Input className="mt-1" placeholder="For example, Client services workspace" {...form.register("portalSubtitle")} />{form.formState.errors.portalSubtitle ? <span className="mt-1 block text-xs text-danger">{form.formState.errors.portalSubtitle.message}</span> : null}</label></CardContent></Card>
+      <Card><CardHeader><CardTitle>Colour system</CardTitle><CardDescription>Choose an approved colour using the palette or enter an exact hex value. Semantic warning, error, and success colours remain platform controlled.</CardDescription></CardHeader><CardContent><div className="grid gap-5 sm:grid-cols-3">{(["primaryColour", "sidebarColour", "surfaceColour"] as const).map((key) => { const label = key === "primaryColour" ? "Primary colour" : key === "sidebarColour" ? "Sidebar surface colour" : "Surface colour"; return <div key={key} className="text-sm font-medium"><span>{label}</span><span className="mt-1 flex gap-2"><Input className="min-w-0" aria-label={`${label} hexadecimal value`} aria-invalid={Boolean(form.formState.errors[key])} {...form.register(key)} /><input aria-label={`Choose ${label.toLowerCase()} from palette`} className="size-10 shrink-0 cursor-pointer rounded-[var(--radius-control)] border border-border bg-transparent p-1" type="color" value={/^#[0-9a-f]{6}$/i.test(preview[key]) ? preview[key] : "#000000"} onChange={(event) => form.setValue(key, event.target.value.toUpperCase(), { shouldDirty: true, shouldValidate: true })} /></span><span className="mt-1 block text-xs font-normal text-muted-foreground">{rgbValue(preview[key])}</span>{form.formState.errors[key] ? <span className="mt-1 block text-xs text-danger">{form.formState.errors[key]?.message}</span> : null}</div>; })}</div><div className="mt-5 flex justify-end border-t pt-4"><Button type="button" size="sm" variant="outline" onClick={resetColours}>Reset colours</Button></div></CardContent></Card>
+      <Card><CardHeader><CardTitle>Theme preferences</CardTitle><CardDescription>Preview theme, density, and font changes before publishing. The custom design image stays only in this browser preview.</CardDescription></CardHeader><CardContent className="grid gap-5 sm:grid-cols-2"><label className="text-sm font-medium">Default theme<Select className="mt-1" {...form.register("defaultTheme")}><option value="light">Light</option><option value="dark">Dark</option><option value="system">Follow system</option><option value="custom">Custom design preview</option></Select></label><label className="text-sm font-medium">Dashboard density<Select className="mt-1" {...form.register("density")}><option value="compact">Compact</option><option value="comfortable">Comfortable</option><option value="relaxed">Relaxed</option><option value="spacious">Spacious</option></Select></label><label className="text-sm font-medium">Preview font<Select className="mt-1" {...form.register("headingFont")}><option value="System">System UI</option><option value="Arial">Arial</option><option value="Georgia">Georgia</option><option value="Verdana">Verdana</option><option value="Trebuchet">Trebuchet MS</option></Select></label><div className="text-sm font-medium"><span>Custom design <span className="font-normal text-muted-foreground">(optional)</span></span><label className="mt-1 flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-[var(--radius-control)] border border-dashed border-border px-3 text-sm font-medium text-muted-foreground transition-colors hover:border-primary hover:text-foreground focus-within:ring-2 focus-within:ring-ring"><input className="sr-only" type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => selectCustomDesign(event.target.files?.[0] ?? null)} /><ImagePlus className="size-4" aria-hidden="true" />Choose preview image</label>{customDesign ? <span className="mt-2 flex items-center justify-between gap-2 text-xs font-normal text-muted-foreground"><span className="truncate">{customDesign.name}</span><button type="button" className="rounded p-1 text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label="Remove custom design preview" onClick={() => { setCustomDesign(null); if (preview.defaultTheme === "custom") form.setValue("defaultTheme", "system", { shouldDirty: true }); }}><X className="size-4" /></button></span> : <span className="mt-2 block text-xs font-normal text-muted-foreground">PNG, JPG, or WebP. Not uploaded or stored.</span>}</div><label className="flex items-start gap-3 text-sm"><input className="mt-1 size-4 accent-primary" type="checkbox" {...form.register("allowUserThemeOverride")} /><span><span className="block font-medium">Allow user theme preference</span><span className="block text-muted-foreground">A future backend must resolve user, tenant, then platform preferences.</span></span></label></CardContent></Card>
+      <div className="flex flex-wrap justify-end gap-2"><Button type="button" variant="outline" onClick={saveDraft}>Save draft</Button><Button type="submit">Publish changes</Button></div>{published ? <p role="status" className="text-sm text-muted-foreground">Branding is applied to Acme tenant workspaces in this browser. Custom design images are not uploaded or published.</p> : null}
+    </div>
+    <Card className="h-fit xl:sticky xl:top-6"><CardHeader><CardTitle className="flex items-center gap-2 text-primary"><span className="relative flex size-2" aria-hidden="true"><span className="absolute inline-flex size-full rounded-full bg-primary/45 motion-safe:animate-ping motion-reduce:hidden" /><span className="relative inline-flex size-2 rounded-full bg-primary" /></span><span className="live-preview-sweep">Live preview</span></CardTitle><CardDescription>Isolated preview; active users are not affected until you publish.</CardDescription></CardHeader><CardContent><div className="overflow-hidden rounded-[var(--radius-card)] border" style={{ backgroundColor: isDarkPreview ? "#172131" : preview.surfaceColour, color: isDarkPreview ? "#edf2f7" : preview.sidebarColour, fontFamily: tenantBrandingFontFamily(preview.headingFont) } as CSSProperties}><div className="relative" style={{ backgroundColor: preview.sidebarColour, padding: densityStyle.padding, gap: densityStyle.gap, backgroundImage: previewTheme === "custom" && customDesign ? `linear-gradient(rgb(17 25 39 / 0.74), rgb(17 25 39 / 0.9)), url(${customDesign.url})` : undefined, backgroundPosition: "center", backgroundSize: "cover" }}><p className="font-semibold text-white">{preview.companyName}</p><div className="mt-4 grid text-xs text-white/75" style={{ gap: densityStyle.gap }}><p>Dashboard</p><p>Clients</p><p>Documents</p></div>{previewTheme === "custom" ? <span className="absolute right-3 top-3 rounded-full bg-white/15 px-2 py-1 text-[10px] font-medium text-white">Custom preview</span> : null}</div><div style={{ padding: densityStyle.padding, backgroundImage: previewTheme === "custom" && customDesign ? `linear-gradient(rgb(255 255 255 / 0.9), rgb(255 255 255 / 0.96)), url(${customDesign.url})` : undefined, backgroundPosition: "center", backgroundSize: "cover" }}><p className="text-xs" style={{ color: isDarkPreview ? "#aab7c8" : "#64748b" }}>Tenant portal · {densityStyle.label} density</p><h3 className="mt-1 text-lg font-semibold" style={{ color: isDarkPreview ? "#edf2f7" : preview.sidebarColour }}>Welcome to {preview.companyName}</h3>{preview.portalSubtitle ? <p className="mt-1 text-sm" style={{ color: isDarkPreview ? "#aab7c8" : "#64748b" }}>{preview.portalSubtitle}</p> : null}<div className="mt-4 rounded-[var(--radius-control)] p-3 text-sm font-medium text-white" style={{ backgroundColor: preview.primaryColour }}>Primary action</div><div className="mt-4 rounded-[var(--radius-control)] border p-3 text-sm" style={{ borderColor: isDarkPreview ? "#34445b" : undefined }}>Dashboard card</div></div></div></CardContent></Card>
+  </form>;
+}
+
 export function TenantSettings() {
   const [tab, setTab] = useState("branding");
   const [saved, setSaved] = useState(false);
@@ -594,7 +661,7 @@ export function TenantSettings() {
     },
   });
   const panel =
-    tab === "users" ? (
+    tab === "branding" ? <BrandingSettings /> : tab === "users" ? (
       <Card>
         <CardHeader>
           <CardTitle>Users and roles</CardTitle>
@@ -620,18 +687,6 @@ export function TenantSettings() {
           </ul>
         </CardContent>
       </Card>
-    ) : tab === "organisation" ? (
-      <Card>
-        <CardHeader>
-          <CardTitle>Organisation settings</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">
-            Organisation structure is managed from the dedicated workforce
-            administration area.
-          </p>
-        </CardContent>
-      </Card>
     ) : (
       <Card>
         <CardHeader>
@@ -653,28 +708,7 @@ export function TenantSettings() {
             className="flex flex-col gap-5"
             onSubmit={form.handleSubmit(() => setSaved(true))}
           >
-            {tab === "branding" ? (
-              <>
-                <label className="text-sm font-medium">
-                  Tenant display name
-                  <Input
-                    className="mt-1"
-                    {...form.register("brandName", { required: true })}
-                  />
-                </label>
-                <label className="text-sm font-medium">
-                  Primary design token
-                  <Select className="mt-1" {...form.register("primaryToken")}>
-                    <option value="primary">Primary</option>
-                    <option value="secondary">Secondary</option>
-                  </Select>
-                  <span className="mt-1 block text-xs text-muted-foreground">
-                    Only approved design tokens can be selected; arbitrary
-                    colours are not allowed.
-                  </span>
-                </label>
-              </>
-            ) : tab === "notifications" ? (
+            {tab === "notifications" ? (
               <label className="flex items-start gap-3 text-sm">
                 <input
                   className="mt-1 size-4 accent-primary"
@@ -733,7 +767,7 @@ export function TenantSettings() {
       <PageHeader
         eyebrow="Tenant Admin"
         title="Tenant settings"
-        description="Manage controlled branding, users, notifications, organisation, profile, and supported security preferences."
+        description="Manage controlled branding, users, notifications, profile, and supported security preferences."
       />
       <ResponsiveTabs
         tabs={settingsTabs}

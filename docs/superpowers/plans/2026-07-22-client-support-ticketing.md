@@ -57,4 +57,4 @@
 - Test: `src/features/operations/api/operations-api.test.ts`
 
 - [x] Add focused API and component-test coverage for ticket creation, manager visibility, assignment, and resolution.
-- [ ] Run the focused/full Vitest suite, build, and local Edge verification (blocked: sandbox process-spawn restriction and the local dev server requires restart).
+- [x] Run the full Vitest suite, ESLint, TypeScript, production build, and local Edge verification. Prettier is not installed in this repository, so formatting could not be run without adding a dependency.

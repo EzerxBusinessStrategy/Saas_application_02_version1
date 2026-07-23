@@ -1,0 +1,64 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - complementary [ref=e3]:
+      - generic [ref=e11]: Acme Ops
+      - generic [ref=e13]:
+        - paragraph [ref=e14]: Operations workspace
+        - heading "Secure operations for modern enterprises" [level=1] [ref=e15]:
+          - generic [ref=e16]: Secure operations for
+          - generic [ref=e18]: modern enterprises
+        - paragraph [ref=e20]: Manage teams, services, compliance workflows and support operations through one secure workspace.
+        - list [ref=e21]:
+          - listitem [ref=e22]: Centralised administration
+          - listitem [ref=e26]: Secure role-based access
+          - listitem [ref=e30]: Built for multi-team operations
+      - generic [ref=e34]:
+        - generic [ref=e35]: SSO Ready
+        - generic [ref=e39]: MFA Supported
+        - generic [ref=e43]: Role-Based Access
+    - main [ref=e48]:
+      - generic [ref=e50]:
+        - generic [ref=e57]:
+          - heading "Sign in to Acme Ops" [level=2] [ref=e58]
+          - paragraph [ref=e59]: Use your work account to access your authorised workspace.
+        - generic [ref=e60]:
+          - generic [ref=e61]:
+            - generic [ref=e62]:
+              - text: Work email
+              - textbox "Work email" [ref=e63]:
+                - /placeholder: name@company.com
+            - generic [ref=e64]:
+              - generic [ref=e65]: Password
+              - generic [ref=e66]:
+                - textbox "Password" [ref=e67]
+                - button "Show password" [ref=e68]
+            - generic [ref=e72]:
+              - generic [ref=e73]: Portal access
+              - combobox "Portal access" [ref=e74]:
+                - option "Super Admin" [selected]
+                - option "Tenant Admin"
+                - option "Manager"
+                - option "Employee"
+                - option "Client User"
+              - generic [ref=e75]: Select the portal assigned to your account.
+            - generic [ref=e76]:
+              - generic [ref=e77]:
+                - checkbox "Remember me" [ref=e78]
+                - text: Remember me
+              - link "Forgot password?" [ref=e79] [cursor=pointer]:
+                - /url: /forgot-password
+            - button "Sign in" [ref=e80]
+          - generic [ref=e85]:
+            - paragraph [ref=e86]: Protected by enterprise-grade authentication
+            - generic [ref=e87]:
+              - generic [ref=e88]: MFA supported
+              - generic [ref=e89]: •
+              - generic [ref=e90]: Encrypted connection
+              - generic [ref=e91]: •
+              - generic [ref=e92]: Role-based access
+      - generic [ref=e93]:
+        - generic [ref=e94]: Privacy
+        - generic [ref=e95]: Terms
+        - generic [ref=e96]: Help
+        - generic [ref=e97]: System status
+  - region "Notifications alt+T"

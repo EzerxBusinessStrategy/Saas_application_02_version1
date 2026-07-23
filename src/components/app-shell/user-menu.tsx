@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 import { LogOut, UserRound } from "lucide-react";
 import {
@@ -8,7 +10,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Button } from "@/components/ui/button";
 import type { User, Workspace } from "@/types/domain";
 
 const formatRole = (role: User["role"]) =>
@@ -31,6 +32,11 @@ export function UserMenu({
   workspace: Workspace;
   open?: boolean;
 }) {
+  const signOut = async () => {
+    await fetch("/api/demo-auth/logout", { method: "POST" });
+    window.location.assign("/login");
+  };
+
   return (
     <DropdownMenu open={open}>
       <DropdownMenuTrigger asChild>
@@ -80,11 +86,9 @@ export function UserMenu({
           </Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator className="my-1 h-px bg-border" />
-        <DropdownMenuItem asChild>
-          <Link href="/login">
+        <DropdownMenuItem onSelect={() => void signOut()}>
             <LogOut className="size-4" aria-hidden="true" />
             Sign out
-          </Link>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

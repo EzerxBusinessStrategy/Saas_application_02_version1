@@ -26,3 +26,29 @@ test("supports keyboard-accessible task status and checklist changes", () => {
     expect.objectContaining({ checklist: expect.any(Array) }),
   );
 });
+
+test("shows tenant approval actions only to an authorised tenant reviewer", () => {
+  const onTenantApproval = vi.fn();
+  render(
+    <TaskDetailsDrawer
+      task={{
+        ...operationalTasks[0],
+        status: "review",
+        reviewStatus: "approved",
+        approvalStatus: "pending",
+      }}
+      open
+      onOpenChange={vi.fn()}
+      workLogs={workLogs}
+      canUpdate
+      canTenantApprove
+      onTenantApproval={onTenantApproval}
+      onUpdate={vi.fn()}
+    />,
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Approve delivery" }));
+  expect(onTenantApproval).toHaveBeenCalledWith(
+    expect.objectContaining({ id: operationalTasks[0].id }),
+    "approve",
+  );
+});

@@ -2,7 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
@@ -47,6 +47,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { listAuditRecords } from "@/features/administration/api/administration-api";
+import {
+  defaultPlatformConfiguration,
+  formatHexAsRgb,
+  getPlatformConfigurationSession,
+  savePlatformConfigurationSession,
+} from "@/lib/platform-configuration-session";
 import { cn } from "@/lib/utils";
 import { platformOverview } from "@/mocks/platform-overview";
 import {
@@ -408,15 +414,25 @@ type PlatformConfigurationInput = {
 export function PlatformConfiguration() {
   const form = useForm<PlatformConfigurationInput>({
     defaultValues: {
-      platformName: "EZERX Operations",
-      defaultBrand: "#3C50E0",
-      senderName: "EZERX Operations",
-      supportSessionLimit: "60",
-      enforceMfa: true,
-      reportsEnabled: true,
+      ...defaultPlatformConfiguration,
     },
   });
+  const defaultBrand = form.watch("defaultBrand");
   const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    const draft = getPlatformConfigurationSession();
+    if (draft) form.reset(draft);
+  }, [form]);
+
+  const publish = (draft: PlatformConfigurationInput) => {
+    savePlatformConfigurationSession({
+      ...draft,
+      defaultBrand: draft.defaultBrand.toUpperCase(),
+    });
+    setSaved(true);
+  };
+
   return (
     <div className="super-admin-portal flex flex-col gap-[30px]">
       <PageHeader
@@ -427,14 +443,16 @@ export function PlatformConfiguration() {
       />
       <form
         className="flex flex-col gap-[30px]"
-        onSubmit={form.handleSubmit(() => setSaved(true))}
+        onSubmit={form.handleSubmit(publish)}
       >
         {saved ? (
           <Card role="status" className="super-admin-surface">
             <CardContent className="p-[30px]">
               <p className="font-medium">Configuration payload validated</p>
               <p className="mt-1 text-sm text-muted-foreground">
-                No live platform settings were changed by this frontend mock.
+                Platform name and brand colour are applied in this browser.
+                Security and reporting options remain frontend-only until the
+                backend configuration workflow exists.
               </p>
             </CardContent>
           </Card>
@@ -456,12 +474,44 @@ export function PlatformConfiguration() {
             </label>
             <label className="text-sm font-medium">
               Default brand colour
-              <Input
-                className="mt-1"
-                {...form.register("defaultBrand", {
-                  pattern: /^#[0-9A-Fa-f]{6}$/,
-                })}
-              />
+              <span className="mt-1 flex gap-2">
+                <Input
+                  className="min-w-0"
+                  aria-label="Default brand colour hexadecimal value"
+                  aria-invalid={Boolean(form.formState.errors.defaultBrand)}
+                  {...form.register("defaultBrand", {
+                    pattern: {
+                      value: /^#[0-9A-Fa-f]{6}$/,
+                      message: "Use a six-digit hex colour.",
+                    },
+                  })}
+                />
+                <input
+                  aria-label="Choose default brand colour from palette"
+                  className="size-10 shrink-0 cursor-pointer rounded-[var(--radius-control)] border border-border bg-transparent p-1"
+                  type="color"
+                  value={
+                    /^#[0-9a-f]{6}$/i.test(defaultBrand)
+                      ? defaultBrand
+                      : defaultPlatformConfiguration.defaultBrand
+                  }
+                  onChange={(event) =>
+                    form.setValue(
+                      "defaultBrand",
+                      event.target.value.toUpperCase(),
+                      { shouldDirty: true, shouldValidate: true },
+                    )
+                  }
+                />
+              </span>
+              <span className="mt-1 block text-xs font-normal text-muted-foreground">
+                {formatHexAsRgb(defaultBrand)}
+              </span>
+              {form.formState.errors.defaultBrand ? (
+                <span className="mt-1 block text-xs font-normal text-danger">
+                  {form.formState.errors.defaultBrand.message}
+                </span>
+              ) : null}
             </label>
           </CardContent>
         </Card>
@@ -532,7 +582,7 @@ export function PlatformConfiguration() {
               </span>
             </label>
             <div className="flex justify-end">
-              <Button type="submit">Validate configuration</Button>
+              <Button type="submit">Publish platform configuration</Button>
             </div>
           </CardContent>
         </Card>

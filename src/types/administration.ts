@@ -152,8 +152,35 @@ export const createTenantSchema = z.object({
   confirm: z
     .boolean()
     .refine((value) => value, "Confirm the tenant details before continuing."),
+}).extend({
+  legalName: z.string().trim().max(120).optional(),
+  businessEmail: z.string().trim().email("Enter a valid business email.").optional().or(z.literal("")),
+  country: z.string().min(1, "Choose a country."),
+  currency: z.enum(["INR", "USD", "GBP"]),
+  administratorPhone: z.string().trim().max(30).optional(),
+  plan: z.enum(["essential", "professional", "enterprise"]),
+  billingCycle: z.enum(["monthly", "annual"]),
+  userLimit: z.coerce.number().int().min(1).max(10000),
+  modules: z.array(z.string()).min(1, "Select at least one enabled module."),
+  sidebarColour: z.string().regex(/^#[0-9A-Fa-f]{6}$/, "Use a six-digit hex colour."),
+  defaultTheme: z.enum(["light", "dark", "system"]),
+  portalSlug: z.string().trim().regex(/^[a-z0-9-]{3,40}$/, "Use 3–40 lowercase letters, numbers, or hyphens."),
+  activationMethod: z.literal("invitation"),
 });
 export type CreateTenantInput = z.infer<typeof createTenantSchema>;
+
+export const tenantBrandingDraftSchema = z.object({
+  companyName: z.string().trim().min(2, "Enter a company name.").max(80),
+  primaryColour: z.string().regex(/^#[0-9A-Fa-f]{6}$/, "Use a six-digit hex colour."),
+  sidebarColour: z.string().regex(/^#[0-9A-Fa-f]{6}$/, "Use a six-digit hex colour."),
+  surfaceColour: z.string().regex(/^#[0-9A-Fa-f]{6}$/, "Use a six-digit hex colour."),
+  defaultTheme: z.enum(["light", "dark", "system", "custom"]),
+  density: z.enum(["compact", "comfortable", "relaxed", "spacious"]),
+  headingFont: z.enum(["System", "Arial", "Georgia", "Verdana", "Trebuchet"]),
+  allowUserThemeOverride: z.boolean(),
+  portalSubtitle: z.string().trim().max(120).optional(),
+});
+export type TenantBrandingDraft = z.infer<typeof tenantBrandingDraftSchema>;
 
 export const paginationSchema = z.object({
   page: z.number().int().positive().default(1),

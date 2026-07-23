@@ -101,7 +101,7 @@ const common: NavigationItem[] = [
         permissions: ["client.update"],
       },
       {
-        label: "Gamification",
+        label: "Progress settings",
         href: "/gamification",
         icon: Award,
         permissions: ["client.update"],

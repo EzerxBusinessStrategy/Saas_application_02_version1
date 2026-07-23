@@ -9,6 +9,8 @@ import {
 } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
 import { WorkspaceShell } from "@/components/app-shell/workspace-shell";
+import { PLATFORM_CONFIGURATION_STORAGE_KEY } from "@/lib/platform-configuration-session";
+import { tenantBrandingStorageKey } from "@/lib/tenant-branding-session";
 import { workspaceConfig } from "@/mocks/workspaces";
 
 const pathname = vi.hoisted(() => ({ value: "/admin/employees" }));
@@ -20,7 +22,44 @@ vi.mock("next/image", () => ({
   ),
 }));
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  window.localStorage.clear();
+  document.documentElement.style.removeProperty("--primary");
+  document.documentElement.style.removeProperty("--ring");
+});
+
+test("uses the active tenant's branding in manager and employee workspaces", () => {
+  window.localStorage.setItem(
+    tenantBrandingStorageKey("acme"),
+    JSON.stringify({
+      companyName: "Northstar Advisory",
+      primaryColour: "#3C50E0",
+      sidebarColour: "#1C2434",
+      surfaceColour: "#FFFFFF",
+      defaultTheme: "system",
+      density: "comfortable",
+      headingFont: "System",
+      allowUserThemeOverride: true,
+      portalSubtitle: "",
+    }),
+  );
+  pathname.value = "/manager";
+  const { rerender } = render(
+    <WorkspaceShell workspace="manager" user={workspaceConfig("manager").user}>
+      <p>Content</p>
+    </WorkspaceShell>,
+  );
+
+  expect(screen.getByText("Northstar Advisory")).toBeInTheDocument();
+  pathname.value = "/employee";
+  rerender(
+    <WorkspaceShell workspace="employee" user={workspaceConfig("employee").user}>
+      <p>Content</p>
+    </WorkspaceShell>,
+  );
+  expect(screen.getByText("Northstar Advisory")).toBeInTheDocument();
+});
 
 test("collapses inside the sidebar and keeps active, labelled navigation accessible", () => {
   const employee = workspaceConfig("employee").user;
@@ -111,4 +150,30 @@ test("opens the mobile navigation drawer and limits the tenant switcher to super
   expect(
     screen.getByLabelText("Tenant context: Platform context"),
   ).toBeInTheDocument();
+});
+
+test("uses saved platform configuration in the super admin shell", () => {
+  window.localStorage.setItem(
+    PLATFORM_CONFIGURATION_STORAGE_KEY,
+    JSON.stringify({
+      platformName: "SaaS Operations",
+      defaultBrand: "#9AA4C6",
+      senderName: "SaaS Operations",
+      supportSessionLimit: "30",
+      enforceMfa: true,
+      reportsEnabled: true,
+    }),
+  );
+  const superAdmin = workspaceConfig("super-admin").user;
+  pathname.value = "/super-admin/configuration";
+  render(
+    <WorkspaceShell workspace="super-admin" user={superAdmin}>
+      <p>Content</p>
+    </WorkspaceShell>,
+  );
+
+  expect(screen.getByText("SaaS Operations")).toBeInTheDocument();
+  expect(document.documentElement.style.getPropertyValue("--primary")).toBe(
+    "#9AA4C6",
+  );
 });

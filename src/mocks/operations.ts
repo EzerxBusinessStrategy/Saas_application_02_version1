@@ -10,6 +10,8 @@ import type {
   Goal,
   GoalProgress,
   Invoice,
+  SharedDocument,
+  SharedInvoice,
   Milestone,
   OperationalDocument,
   OperationalTask,
@@ -292,6 +294,33 @@ export const operationalDocuments: OperationalDocument[] = [
     visibility: "client",
   },
 ];
+
+export const sharedDocuments: SharedDocument[] = [
+  {
+    id: "DOC-1048", tenantId: "acme", clientId: "northstar", client: "Northstar Labs",
+    title: "GST filing evidence checklist", fileName: "gst-filing-evidence-checklist.pdf",
+    fileType: "PDF", sizeBytes: 284000, category: "evidence", engagement: "GST Filing", task: "Confirm onboarding checklist",
+    uploadedBy: "Avery Patel", uploadedByRole: "manager", uploadedById: "mgr-avery", updatedOn: "2026-07-21",
+    status: "active", recipientEmployeeIds: ["emp-riley"], recipientManagerIds: ["mgr-avery"], recipientClientIds: ["northstar"], tenantAdminVisible: true,
+    activity: [{ id: "DOC-ACT-1", action: "Uploaded and shared", actor: "Avery Patel", at: "2026-07-21 09:15" }],
+  },
+  {
+    id: "DOC-1049", tenantId: "acme", clientId: "wellspring", client: "Wellspring Co.",
+    title: "Monthly delivery report", fileName: "monthly-delivery-report.docx", fileType: "DOCX", sizeBytes: 138000, category: "deliverable", engagement: "Compliance Review", task: "Publish monthly delivery report",
+    uploadedBy: "Tenant Administration", uploadedByRole: "admin", uploadedById: "tenant-admin", updatedOn: "2026-07-20",
+    status: "active", recipientEmployeeIds: [], recipientManagerIds: ["mgr-avery"], recipientClientIds: ["wellspring"], tenantAdminVisible: true,
+    activity: [{ id: "DOC-ACT-2", action: "Uploaded and shared", actor: "Tenant Administration", at: "2026-07-20 16:40" }],
+  },
+];
+
+export const sharedInvoices: SharedInvoice[] = [
+  {
+    id: "INV-2407", tenantId: "acme", clientId: "northstar", client: "Northstar Labs", invoiceNumber: "INV-2407", engagement: "GST Filing", issuedOn: "2026-07-01", dueOn: "2026-07-31", currency: "INR", amount: 125000, status: "partial", visibility: "client", fileName: "INV-2407.pdf", fileType: "PDF", sizeBytes: 96000, uploadedBy: "Tenant Administration", uploadedByRole: "admin", uploadedById: "tenant-admin", managerId: "mgr-avery", updatedOn: "2026-07-12", activity: [{ id: "INV-ACT-1", action: "Invoice issued", actor: "Tenant Administration", at: "2026-07-01 10:00" }],
+  },
+  {
+    id: "INV-2408", tenantId: "acme", clientId: "wellspring", client: "Wellspring Co.", invoiceNumber: "INV-2408", engagement: "Compliance Review", issuedOn: "2026-07-05", dueOn: "2026-07-20", currency: "INR", amount: 84200, status: "overdue", visibility: "internal", fileName: "INV-2408.pdf", fileType: "PDF", sizeBytes: 104000, uploadedBy: "Avery Patel", uploadedByRole: "manager", uploadedById: "mgr-avery", managerId: "mgr-avery", updatedOn: "2026-07-20", activity: [{ id: "INV-ACT-2", action: "Internal invoice uploaded", actor: "Avery Patel", at: "2026-07-05 11:30" }],
+  },
+];
 export const clientRequests: ClientRequest[] = [
   {
     id: "REQ-71",
@@ -312,17 +341,24 @@ export const clientRequests: ClientRequest[] = [
 ];
 export const supportTickets: SupportTicket[] = [
   {
-    id: "SUP-104",
+    id: "SUP-2026-1047",
     tenantId: "acme",
     clientId: "northstar",
     client: "Northstar Labs",
     managerId: "mgr-avery",
     service: "GST Filing",
-    category: "delivery",
+    category: "document-evidence",
     subject: "Clarify the evidence required for the July filing",
     description:
       "Please confirm which source documents are still needed before we can approve the July filing evidence.",
-    priority: "normal",
+    businessImpact: "medium",
+    affectedUsers: 1,
+    affectedUrl: "https://clientportal.example/gst/filing",
+    preferredContactMethod: "email",
+    notifyByEmail: true,
+    notifyInApp: true,
+    attachments: [],
+    expectedFirstResponse: "Within 8 business hours",
     status: "assigned",
     requester: "Taylor Morgan",
     assigneeId: "emp-riley",

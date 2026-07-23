@@ -6,9 +6,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   ChevronDown,
+  ChevronsLeft,
+  ChevronsRight,
   Menu,
-  PanelLeftClose,
-  PanelLeftOpen,
   Search,
 } from "lucide-react";
 import { Breadcrumbs } from "@/components/shared/breadcrumbs";
@@ -20,7 +20,19 @@ import { TenantSwitcher } from "@/components/app-shell/tenant-switcher";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { UserMenu } from "@/components/app-shell/user-menu";
 import { navigationFor } from "@/lib/nav";
+import {
+  defaultPlatformConfiguration,
+  PLATFORM_CONFIGURATION_CHANGE_EVENT,
+  PLATFORM_CONFIGURATION_STORAGE_KEY,
+  restorePlatformConfigurationSession,
+  type PlatformConfigurationDraft,
+} from "@/lib/platform-configuration-session";
 import { hasAnyPermission } from "@/lib/permissions";
+import {
+  restoreTenantBrandingSession,
+  TENANT_BRANDING_CHANGE_EVENT,
+  tenantBrandingStorageKey,
+} from "@/lib/tenant-branding-session";
 import { cn } from "@/lib/utils";
 import type { User, Workspace } from "@/types/domain";
 import type { NavigationItem } from "@/types/navigation";
@@ -232,7 +244,7 @@ function WorkspaceNavigation({
     <nav
       className={cn(
         "flex min-h-0 flex-1 flex-col gap-1 px-3 py-5",
-        collapsed ? "overflow-visible" : "overflow-y-auto",
+        collapsed ? "overflow-visible" : "overflow-y-auto scrollbar-none",
       )}
       aria-label="Workspace navigation"
     >
@@ -246,6 +258,7 @@ function Sidebar({
   pathname,
   workspace,
   collapsed,
+  companyName,
   onToggle,
   showToggle = true,
   onNavigate,
@@ -254,6 +267,7 @@ function Sidebar({
   pathname: string;
   workspace: Workspace;
   collapsed: boolean;
+  companyName: string;
   onToggle: () => void;
   showToggle?: boolean;
   onNavigate?: () => void;
@@ -263,13 +277,13 @@ function Sidebar({
       <div
         className={cn(
           "flex h-[var(--header-height)] items-center justify-between gap-2",
-          collapsed ? "px-0" : "px-3",
+          collapsed ? "gap-0 px-1" : "px-3",
         )}
       >
         <div className="flex min-w-0 items-center gap-2.5">
           <Image
             src="/branding/default-mark.svg"
-            alt={collapsed ? "Acme Ops" : ""}
+            alt={collapsed ? companyName : ""}
             width={28}
             height={28}
             priority
@@ -283,7 +297,7 @@ function Sidebar({
                 : "translate-x-0 opacity-100",
             )}
           >
-            Acme Ops
+            {companyName}
           </span>
         </div>
         {showToggle ? (
@@ -292,13 +306,19 @@ function Sidebar({
             size="sm"
             aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}
             title={collapsed ? "Expand navigation" : "Collapse navigation"}
-            className="size-10 shrink-0 p-0 text-sidebar-foreground hover:bg-sidebar-active hover:text-sidebar-foreground"
+            className="group size-10 shrink-0 p-0 text-sidebar-foreground hover:bg-sidebar-active hover:text-sidebar-foreground"
             onClick={onToggle}
           >
             {collapsed ? (
-              <PanelLeftOpen className="size-[18px]" aria-hidden="true" />
+              <ChevronsRight
+                className="size-[18px] transition-transform duration-200 ease-out group-hover:translate-x-0.5 group-active:translate-x-0 motion-reduce:transition-none"
+                aria-hidden="true"
+              />
             ) : (
-              <PanelLeftClose className="size-[18px]" aria-hidden="true" />
+              <ChevronsLeft
+                className="size-[18px] transition-transform duration-200 ease-out group-hover:-translate-x-0.5 group-active:translate-x-0 motion-reduce:transition-none"
+                aria-hidden="true"
+              />
             )}
           </Button>
         ) : null}
@@ -350,6 +370,7 @@ export function WorkspaceShell({
   const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [commandMenuOpen, setCommandMenuOpen] = useState(false);
+  const [companyName, setCompanyName] = useState("Acme Ops");
   const items = useMemo(
     () => filterNavigation(navigationFor(workspace), user.role),
     [user.role, workspace],
@@ -370,6 +391,66 @@ export function WorkspaceShell({
     return () => window.removeEventListener("keydown", openCommandMenu);
   }, []);
 
+  useEffect(() => {
+    if (workspace === "super-admin") {
+      const restorePlatformName = () => {
+        const draft = restorePlatformConfigurationSession();
+        setCompanyName(
+          draft?.platformName ?? defaultPlatformConfiguration.platformName,
+        );
+      };
+      const updatePlatformName = (
+        event: CustomEvent<PlatformConfigurationDraft>,
+      ) => setCompanyName(event.detail.platformName);
+      const updateFromStorage = (event: StorageEvent) => {
+        if (event.key === PLATFORM_CONFIGURATION_STORAGE_KEY) {
+          restorePlatformName();
+        }
+      };
+      restorePlatformName();
+      window.addEventListener(
+        PLATFORM_CONFIGURATION_CHANGE_EVENT,
+        updatePlatformName as EventListener,
+      );
+      window.addEventListener("storage", updateFromStorage);
+      return () => {
+        window.removeEventListener(
+          PLATFORM_CONFIGURATION_CHANGE_EVENT,
+          updatePlatformName as EventListener,
+        );
+        window.removeEventListener("storage", updateFromStorage);
+      };
+    }
+    const tenantId = "acme";
+    const restoreCompanyName = () => {
+      const draft = restoreTenantBrandingSession(tenantId);
+      setCompanyName(draft?.companyName ?? "Acme Ops");
+    };
+    const updateCompanyName = (
+      event: CustomEvent<{ tenantId: string; draft: { companyName: string } }>,
+    ) => {
+      if (event.detail.tenantId === tenantId) {
+        setCompanyName(event.detail.draft.companyName);
+      }
+    };
+    const updateFromStorage = (event: StorageEvent) => {
+      if (event.key === tenantBrandingStorageKey(tenantId)) restoreCompanyName();
+    };
+    restoreCompanyName();
+    window.addEventListener(
+      TENANT_BRANDING_CHANGE_EVENT,
+      updateCompanyName as EventListener,
+    );
+    window.addEventListener("storage", updateFromStorage);
+    return () => {
+      window.removeEventListener(
+        TENANT_BRANDING_CHANGE_EVENT,
+        updateCompanyName as EventListener,
+      );
+      window.removeEventListener("storage", updateFromStorage);
+    };
+  }, [workspace]);
+
   return (
     <div
       className="app-shell min-h-screen bg-background"
@@ -384,6 +465,7 @@ export function WorkspaceShell({
           pathname={pathname}
           workspace={workspace}
           collapsed={sidebarCollapsed}
+          companyName={companyName}
           onToggle={() => setSidebarCollapsed((collapsed) => !collapsed)}
         />
       </div>
@@ -400,6 +482,7 @@ export function WorkspaceShell({
             pathname={pathname}
             workspace={workspace}
             collapsed={false}
+            companyName={companyName}
             onToggle={() => undefined}
             showToggle={false}
             onNavigate={() => setMobileNavigationOpen(false)}
@@ -448,7 +531,8 @@ export function WorkspaceShell({
         </header>
         <main
           id="main-content"
-          className="min-w-0 px-4 py-6 md:px-6 lg:px-8 lg:py-8"
+          className="min-w-0 px-4 py-6 md:px-6 lg:px-8"
+          style={{ paddingBlock: "var(--tenant-main-padding-y, 1.5rem)" }}
         >
           {children}
         </main>

@@ -73,6 +73,7 @@ const tenantTabs = [
 ];
 
 type SupportAccessFormInput = z.input<typeof supportAccessSchema>;
+type TenantCreateFormInput = z.input<typeof createTenantSchema>;
 
 const previewState = (value: string | null) =>
   value === "loading" || value === "error" || value === "empty" ? value : null;
@@ -481,15 +482,28 @@ export function TenantDirectory() {
 export function TenantCreateForm() {
   const router = useRouter();
   const [prepared, setPrepared] = useState<CreateTenantInput | null>(null);
-  const form = useForm<CreateTenantInput>({
+  const form = useForm<TenantCreateFormInput, unknown, CreateTenantInput>({
     resolver: zodResolver(createTenantSchema),
     defaultValues: {
       name: "",
       code: "",
+      legalName: "",
+      businessEmail: "",
+      country: "India",
+      currency: "INR",
       ownerName: "",
       ownerEmail: "",
+      administratorPhone: "",
+      plan: "professional",
+      billingCycle: "monthly",
+      userLimit: 100,
+      modules: ["dashboard", "clients", "tasks", "documents", "reports"],
       primaryColour: "#3C50E0",
+      sidebarColour: "#1C2434",
+      defaultTheme: "system",
       timeZone: "Asia/Kolkata",
+      portalSlug: "",
+      activationMethod: "invitation",
       inviteOwner: true,
       confirm: false,
     },
@@ -535,6 +549,20 @@ export function TenantCreateForm() {
           </CardContent>
         </Card>
       ) : null}
+      <ol className="grid grid-cols-3 gap-2 text-xs sm:grid-cols-6" aria-label="Tenant provisioning steps">
+        {[
+          "Company",
+          "Administrator",
+          "Limits",
+          "Branding",
+          "Access",
+          "Review",
+        ].map((step, index) => (
+          <li key={step} className="rounded-[var(--radius-control)] border border-border px-2 py-2 text-muted-foreground">
+            {index + 1}. {step}
+          </li>
+        ))}
+      </ol>
       <form
         className="flex flex-col gap-[30px]"
         noValidate
@@ -588,6 +616,27 @@ export function TenantCreateForm() {
               )}
             </label>
             <label className="text-sm font-medium">
+              Legal name
+              <Input className={inputClass} {...form.register("legalName")} />
+            </label>
+            <label className="text-sm font-medium">
+              Business email
+              <Input className={inputClass} type="email" {...form.register("businessEmail")} />
+              {form.formState.errors.businessEmail ? <span className="mt-1 block text-xs text-danger">{form.formState.errors.businessEmail.message}</span> : null}
+            </label>
+            <label className="text-sm font-medium">
+              Country
+              <Select className={inputClass} {...form.register("country")}>
+                <option value="India">India</option><option value="United Kingdom">United Kingdom</option><option value="United States">United States</option>
+              </Select>
+            </label>
+            <label className="text-sm font-medium">
+              Default currency
+              <Select className={inputClass} {...form.register("currency")}>
+                <option value="INR">INR</option><option value="USD">USD</option><option value="GBP">GBP</option>
+              </Select>
+            </label>
+            <label className="text-sm font-medium">
               Tenant owner
               <Input
                 className={inputClass}
@@ -616,6 +665,24 @@ export function TenantCreateForm() {
                 </span>
               ) : null}
             </label>
+            <label className="text-sm font-medium">
+              Administrator phone <span className="font-normal text-muted-foreground">(optional)</span>
+              <Input className={inputClass} type="tel" {...form.register("administratorPhone")} />
+            </label>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>Subscription and limits</CardTitle>
+            <CardDescription>
+              These selected limits are a typed frontend request. A backend must enforce every plan and module rule.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-5 md:grid-cols-2">
+            <label className="text-sm font-medium">Plan<Select className={inputClass} {...form.register("plan")}><option value="essential">Essential</option><option value="professional">Professional</option><option value="enterprise">Enterprise</option></Select></label>
+            <label className="text-sm font-medium">Billing cycle<Select className={inputClass} {...form.register("billingCycle")}><option value="monthly">Monthly</option><option value="annual">Annual</option></Select></label>
+            <label className="text-sm font-medium">User limit<Input className={inputClass} min="1" type="number" {...form.register("userLimit")} /></label>
+            <fieldset className="md:col-span-2"><legend className="text-sm font-medium">Enabled modules</legend><div className="mt-2 grid gap-2 sm:grid-cols-3">{["dashboard", "clients", "tasks", "work-groups", "employees", "managers", "documents", "invoices", "reports", "support"].map((module) => <label key={module} className="flex items-center gap-2 text-sm"><input type="checkbox" value={module} {...form.register("modules")} />{module.replace("-", " ")}</label>)}</div>{form.formState.errors.modules ? <p className="mt-1 text-xs text-danger">{form.formState.errors.modules.message}</p> : null}</fieldset>
           </CardContent>
         </Card>
         <Card>
@@ -640,6 +707,8 @@ export function TenantCreateForm() {
                 </span>
               ) : null}
             </label>
+            <label className="text-sm font-medium">Sidebar colour<Input className={inputClass} {...form.register("sidebarColour")} />{form.formState.errors.sidebarColour ? <span className="mt-1 block text-xs text-danger">{form.formState.errors.sidebarColour.message}</span> : null}</label>
+            <label className="text-sm font-medium">Default theme<Select className={inputClass} {...form.register("defaultTheme")}><option value="light">Light</option><option value="dark">Dark</option><option value="system">Follow system</option></Select></label>
             <label className="text-sm font-medium">
               Tenant time zone
               <Select className={inputClass} {...form.register("timeZone")}>
@@ -664,7 +733,12 @@ export function TenantCreateForm() {
                 </span>
               </span>
             </label>
+            <div className="rounded-[var(--radius-control)] border border-dashed border-border p-4 text-sm text-muted-foreground md:col-span-2"><p className="font-medium text-foreground">Logo upload is unavailable</p><p className="mt-1">Private tenant-scoped logo storage must be connected before files can be accepted.</p></div>
           </CardContent>
+        </Card>
+        <Card>
+          <CardHeader><CardTitle>Domain and access</CardTitle><CardDescription>Use the current path-based routing model. Custom-domain verification requires infrastructure.</CardDescription></CardHeader>
+          <CardContent className="grid gap-5 md:grid-cols-2"><label className="text-sm font-medium">Tenant portal slug<Input className={inputClass} aria-describedby="portal-slug-help" {...form.register("portalSlug")} />{form.formState.errors.portalSlug ? <span className="mt-1 block text-xs text-danger">{form.formState.errors.portalSlug.message}</span> : <span id="portal-slug-help" className="mt-1 block text-xs text-muted-foreground">Portal URL: platform.example/{form.watch("portalSlug") || "tenant-slug"}</span>}</label><div className="rounded-[var(--radius-control)] border border-border p-4 text-sm text-muted-foreground">Activation is by secure invitation. Passwords are not collected or stored by this frontend.</div></CardContent>
         </Card>
         <Card>
           <CardHeader>

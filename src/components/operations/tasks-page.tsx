@@ -1,13 +1,15 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
 import {
+  decideTenantTaskApproval,
   listOperationalTasks,
+  listTaskClients,
   listWorkLogs,
   startEmployeeTask,
   submitEmployeeTaskForReview,
@@ -63,8 +65,16 @@ export function TasksPage({
   canUpdate?: boolean;
 }) {
   const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
   const queryClient = useQueryClient();
-  const [view, setView] = useState<"board" | "list">("board");
+  const [view, setView] = useState<"board" | "list">(
+    workspace === "admin" ? "list" : "board",
+  );
+  const [tenantApprovalView, setTenantApprovalView] = useState<
+    "all" | "awaiting-tenant-approval"
+  >("all");
+  const selectedClientId = workspace === "admin" ? searchParams.get("clientId") : null;
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<OperationalTask["status"] | "">("");
   const [priority, setPriority] = useState<OperationalTask["priority"] | "">(
@@ -80,18 +90,27 @@ export function TasksPage({
     useState<OperationalTask | null>(null);
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
   const tasksQuery = useQuery({
-    queryKey: ["operational-tasks", workspace, query, status, priority],
+    queryKey: ["operational-tasks", workspace, selectedClientId, query, status, priority],
     queryFn: () =>
       listOperationalTasks(workspace, {
         query,
         status: status || undefined,
         priority: priority || undefined,
+        client: selectedClient?.name,
       }),
+    enabled: workspace !== "admin" || Boolean(selectedClientId),
+  });
+  const clientsQuery = useQuery({
+    queryKey: ["task-clients", workspace],
+    queryFn: () => listTaskClients(workspace),
+    enabled: workspace === "admin",
   });
   const logsQuery = useQuery({
-    queryKey: ["operational-work-logs", workspace],
+    queryKey: ["operational-work-logs", workspace, selectedClientId],
     queryFn: () => listWorkLogs(workspace),
+    enabled: workspace !== "admin" || Boolean(selectedClientId),
   });
+  const selectedClient = clientsQuery.data?.find((client) => client.id === selectedClientId);
   const tasks = useMemo(() => {
     const items = [...(tasksQuery.data ?? []), ...createdTasks].map(
       (task) => overrides[task.id] ?? task,
@@ -103,6 +122,15 @@ export function TasksPage({
         (!priority || task.priority === priority),
     );
   }, [createdTasks, overrides, priority, query, status, tasksQuery.data]);
+  const visibleTasks =
+    workspace === "admin" && tenantApprovalView === "awaiting-tenant-approval"
+      ? tasks.filter(
+          (task) =>
+            task.status === "review" &&
+            task.reviewStatus === "approved" &&
+            task.approvalStatus === "pending",
+        )
+      : tasks;
   const requestedTaskId = searchParams.get("task");
   useEffect(() => {
     if (!requestedTaskId || requestedTaskId === openedTaskId) return;
@@ -122,6 +150,26 @@ export function TasksPage({
   const refreshTaskWorkflow = () => {
     void queryClient.invalidateQueries({ queryKey: ["operational-tasks"] });
     void queryClient.invalidateQueries({ queryKey: ["manager-workspace"] });
+  };
+  const handleTenantApproval = async (
+    task: OperationalTask,
+    decision: "approve" | "return",
+  ) => {
+    try {
+      syncTask(await decideTenantTaskApproval(task.id, decision));
+      refreshTaskWorkflow();
+      toast.success(
+        decision === "approve"
+          ? "Tenant approval recorded. The task is complete."
+          : "Task returned to the employee for rework.",
+      );
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "The tenant approval decision could not be saved.",
+      );
+    }
   };
   const handleEmployeeStatusChange = async (
     task: OperationalTask,
@@ -200,7 +248,7 @@ export function TasksPage({
     },
     { accessorKey: "dueDate", header: "Due" },
   ];
-  if (tasksQuery.isPending || logsQuery.isPending)
+  if (clientsQuery.isPending || ((workspace !== "admin" || selectedClientId) && (tasksQuery.isPending || logsQuery.isPending)))
     return <LoadingState label="Loading task delivery workflow" rows={5} />;
   if (tasksQuery.isError || logsQuery.isError)
     return (
@@ -216,18 +264,18 @@ export function TasksPage({
     <div className="flex flex-col gap-[30px]">
       <PageHeader
         eyebrow="Delivery"
-        title="Tasks"
-        description="Plan, assign, complete, review, and approve client work within the active scope."
+        title={workspace === "admin" ? "Client tasks" : "Tasks"}
+        description={workspace === "admin" ? "Select a client to plan, assign, review and manage all work within their active scope." : "Plan, assign, complete, review, and approve client work within the active scope."}
         actions={
-          canCreate ? (
+          canCreate && (workspace !== "admin" || selectedClient) ? (
             <CreateTaskAction
               onCreate={(title) => {
                 const task: OperationalTask = {
                   id: `TASK-MOCK-${createdTasks.length + 1}`,
                   tenantId: "acme",
-                  clientId: "northstar",
-                  client: "Northstar Labs",
-                  engagement: "GST Filing",
+                  clientId: selectedClient?.id ?? "northstar",
+                  client: selectedClient?.name ?? "Northstar Labs",
+                  engagement: selectedClient?.engagement ?? "GST Filing",
                   workGroup: "GST Review",
                   managerId: "mgr-avery",
                   manager: "Avery Patel",
@@ -254,7 +302,50 @@ export function TasksPage({
           ) : undefined
         }
       />
+      {workspace === "admin" ? (
+        <Card>
+          <CardContent className="grid gap-3 py-5 md:grid-cols-[minmax(0,360px)_1fr] md:items-end">
+            <label className="flex flex-col gap-1.5 text-sm font-medium">
+              Select client
+              <Select
+                aria-label="Select client"
+                value={selectedClientId ?? ""}
+                onChange={(event) => {
+                  const params = new URLSearchParams(searchParams.toString());
+                  if (event.target.value) params.set("clientId", event.target.value);
+                  else params.delete("clientId");
+                  params.delete("task");
+                  router.replace(`${pathname}?${params.toString()}`);
+                }}
+              >
+                <option value="">Search and select a client</option>
+                {(clientsQuery.data ?? []).map((client) => <option key={client.id} value={client.id}>{client.name} · Manager: {client.manager}</option>)}
+              </Select>
+            </label>
+            {selectedClient ? <p className="text-sm text-muted-foreground">{selectedClient.name} · {selectedClient.engagement} · Manager: {selectedClient.manager}</p> : null}
+          </CardContent>
+        </Card>
+      ) : null}
+      {workspace === "admin" && !selectedClientId ? (
+        <EmptyState title="Select a client to manage tasks" description="Choose a client to view their current work, assignments, submissions, review queue and task history." />
+      ) : <>
       {workspace === "employee" ? <ActiveTaskTimer tasks={tasks} /> : null}
+      {workspace === "admin" ? (
+        <ResponsiveTabs
+          label="Client task queue"
+          value={tenantApprovalView}
+          onValueChange={(value) =>
+            setTenantApprovalView(value as "all" | "awaiting-tenant-approval")
+          }
+          tabs={[
+            { value: "all", label: "All client tasks" },
+            {
+              value: "awaiting-tenant-approval",
+              label: `Awaiting tenant approval (${tasks.filter((task) => task.status === "review" && task.reviewStatus === "approved" && task.approvalStatus === "pending").length})`,
+            },
+          ]}
+        />
+      ) : null}
       <FilterToolbar
         search={{
           value: query,
@@ -304,14 +395,20 @@ export function TasksPage({
           </Select>
         </label>
       </FilterToolbar>
-      {!tasks.length ? (
+      {!visibleTasks.length ? (
         <EmptyState
           title={
-            query || status || priority
+            tenantApprovalView === "awaiting-tenant-approval"
+              ? "No tasks are awaiting tenant approval"
+              : query || status || priority
               ? "No tasks match these filters"
               : "No tasks are assigned"
           }
-          description="Clear filters or wait for authorised work to be assigned."
+          description={
+            tenantApprovalView === "awaiting-tenant-approval"
+              ? "Manager-approved work for this client will appear here for the final delivery decision."
+              : "Clear filters or wait for authorised work to be assigned."
+          }
         />
       ) : (
         <ResponsiveTabs
@@ -326,10 +423,10 @@ export function TasksPage({
           {view === "board" ? (
             <>
               <TaskBoard
-                tasks={tasks}
+                tasks={visibleTasks}
                 onOpen={setSelected}
                 onStatusChange={(id, nextStatus) => {
-                  const task = tasks.find((item) => item.id === id);
+                  const task = visibleTasks.find((item) => item.id === id);
                   if (!task || !canUpdate) return;
                   if (workspace === "employee") {
                     void handleEmployeeStatusChange(task, nextStatus);
@@ -340,7 +437,7 @@ export function TasksPage({
               />
               <Card className="lg:hidden">
                 <CardContent>
-                  <TaskMobileList tasks={tasks} onOpen={setSelected} />
+                  <TaskMobileList tasks={visibleTasks} onOpen={setSelected} />
                 </CardContent>
               </Card>
             </>
@@ -351,13 +448,13 @@ export function TasksPage({
                   <DataTable
                     caption="Tasks in active scope"
                     columns={columns}
-                    data={tasks}
+                    data={visibleTasks}
                     emptyTitle="No tasks"
                     emptyDescription="No task records are available."
                   />
                 </div>
                 <div className="md:hidden">
-                  <TaskMobileList tasks={tasks} onOpen={setSelected} />
+                  <TaskMobileList tasks={visibleTasks} onOpen={setSelected} />
                 </div>
               </CardContent>
             </Card>
@@ -370,9 +467,10 @@ export function TasksPage({
         onOpenChange={(open) => !open && setSelected(null)}
         workLogs={logsQuery.data ?? []}
         canUpdate={canUpdate}
-        canChangeStatus={workspace !== "employee" && canUpdate}
+        canChangeStatus={workspace !== "employee" && workspace !== "admin" && canUpdate}
         canManageAssignment={workspace !== "employee" && canUpdate}
-        canReview={workspace !== "employee" && canUpdate}
+        canTenantApprove={workspace === "admin" && canUpdate}
+        onTenantApproval={handleTenantApproval}
         onUpdate={updateTask}
       />
       <ConfirmationDialog
@@ -388,6 +486,7 @@ export function TasksPage({
           Assigned manager: {reviewSubmission?.manager}
         </p>
       </ConfirmationDialog>
+      </>}
     </div>
   );
 }

@@ -99,6 +99,111 @@ export const documentSchema = z.object({
 });
 export type OperationalDocument = z.infer<typeof documentSchema>;
 
+export const sharedDocumentSchema = z.object({
+  id: z.string(),
+  tenantId: z.string(),
+  clientId: z.string(),
+  client: z.string(),
+  title: z.string().min(1).max(120),
+  fileName: z.string().min(1),
+  fileType: z.string().min(1),
+  sizeBytes: z.number().int().nonnegative(),
+  category: z.enum([
+    "agreement",
+    "deliverable",
+    "evidence",
+    "compliance",
+    "finance",
+    "report",
+    "client-upload",
+    "employee-submission",
+    "internal",
+    "supporting",
+    "other",
+  ]),
+  engagement: z.string().nullable(),
+  task: z.string().nullable(),
+  uploadedBy: z.string(),
+  uploadedByRole: z.enum(["admin", "manager", "employee", "client"]),
+  uploadedById: z.string(),
+  updatedOn: z.string(),
+  status: z.enum(["active", "archived"]),
+  recipientEmployeeIds: z.array(z.string()),
+  recipientManagerIds: z.array(z.string()),
+  recipientClientIds: z.array(z.string()),
+  tenantAdminVisible: z.boolean(),
+  activity: z.array(
+    z.object({ id: z.string(), action: z.string(), actor: z.string(), at: z.string() }),
+  ),
+});
+export type SharedDocument = z.infer<typeof sharedDocumentSchema>;
+
+export const documentUploadInputSchema = sharedDocumentSchema
+  .pick({
+    clientId: true,
+    title: true,
+    fileName: true,
+    fileType: true,
+    sizeBytes: true,
+    category: true,
+    engagement: true,
+    task: true,
+    recipientEmployeeIds: true,
+    recipientManagerIds: true,
+    recipientClientIds: true,
+  })
+  .partial({
+    engagement: true,
+    task: true,
+    recipientEmployeeIds: true,
+    recipientManagerIds: true,
+    recipientClientIds: true,
+  });
+export type DocumentUploadInput = z.infer<typeof documentUploadInputSchema>;
+
+export const sharedInvoiceSchema = z.object({
+  id: z.string(),
+  tenantId: z.string(),
+  clientId: z.string(),
+  client: z.string(),
+  invoiceNumber: z.string().min(1).max(64),
+  engagement: z.string().nullable(),
+  issuedOn: z.string(),
+  dueOn: z.string(),
+  currency: z.literal("INR"),
+  amount: z.number().nonnegative(),
+  status: z.enum(["draft", "sent", "partial", "paid", "overdue"]),
+  visibility: z.enum(["client", "internal"]),
+  fileName: z.string().min(1),
+  fileType: z.string().min(1),
+  sizeBytes: z.number().int().nonnegative(),
+  uploadedBy: z.string(),
+  uploadedByRole: z.enum(["admin", "manager", "client"]),
+  uploadedById: z.string(),
+  managerId: z.string(),
+  updatedOn: z.string(),
+  activity: z.array(
+    z.object({ id: z.string(), action: z.string(), actor: z.string(), at: z.string() }),
+  ),
+});
+export type SharedInvoice = z.infer<typeof sharedInvoiceSchema>;
+
+export const invoiceUploadInputSchema = sharedInvoiceSchema
+  .pick({
+    clientId: true,
+    invoiceNumber: true,
+    engagement: true,
+    issuedOn: true,
+    dueOn: true,
+    amount: true,
+    visibility: true,
+    fileName: true,
+    fileType: true,
+    sizeBytes: true,
+  })
+  .partial({ engagement: true, visibility: true });
+export type InvoiceUploadInput = z.infer<typeof invoiceUploadInputSchema>;
+
 export const clientRequestSchema = z.object({
   id: z.string(),
   clientId: z.string(),
@@ -110,13 +215,36 @@ export const clientRequestSchema = z.object({
 export type ClientRequest = z.infer<typeof clientRequestSchema>;
 
 export const supportTicketStatuses = [
-  "new",
+  "open",
   "triaged",
   "assigned",
   "waiting-on-client",
   "resolved",
 ] as const;
-export const supportTicketPriorities = ["low", "normal", "high", "urgent"] as const;
+export const supportTicketBusinessImpacts = [
+  "low",
+  "medium",
+  "high",
+  "critical",
+] as const;
+export const supportTicketCategories = [
+  "filing-submission",
+  "document-evidence",
+  "payment-invoice",
+  "report-certificate",
+  "incorrect-information",
+  "account-access",
+  "deadline-clarification",
+  "technical-problem",
+  "service-delivery",
+  "general-enquiry",
+  "other",
+] as const;
+const supportTicketAttachmentSchema = z.object({
+  name: z.string().min(1).max(180),
+  type: z.string().min(1).max(120),
+  size: z.number().int().nonnegative().max(20 * 1024 * 1024),
+});
 export const supportTicketSchema = z.object({
   id: z.string(),
   tenantId: z.string(),
@@ -124,16 +252,17 @@ export const supportTicketSchema = z.object({
   client: z.string(),
   managerId: z.string(),
   service: z.string(),
-  category: z.enum([
-    "delivery",
-    "documents",
-    "billing",
-    "access",
-    "other",
-  ]),
-  subject: z.string().min(5).max(120),
-  description: z.string().min(20).max(2000),
-  priority: z.enum(supportTicketPriorities),
+  category: z.enum(supportTicketCategories),
+  subject: z.string().trim().min(1).max(120),
+  description: z.string().trim().min(1).max(2000),
+  businessImpact: z.enum(supportTicketBusinessImpacts),
+  affectedUsers: z.number().int().min(1).max(10000),
+  affectedUrl: z.string().url().max(500).optional(),
+  preferredContactMethod: z.enum(["email", "phone", "no-callback"]),
+  notifyByEmail: z.boolean(),
+  notifyInApp: z.boolean(),
+  attachments: z.array(supportTicketAttachmentSchema).max(5),
+  expectedFirstResponse: z.string(),
   status: z.enum(supportTicketStatuses),
   requester: z.string(),
   assigneeId: z.string().nullable(),
@@ -157,7 +286,13 @@ export const supportTicketInputSchema = supportTicketSchema.pick({
   category: true,
   subject: true,
   description: true,
-  priority: true,
+  businessImpact: true,
+  affectedUsers: true,
+  affectedUrl: true,
+  preferredContactMethod: true,
+  notifyByEmail: true,
+  notifyInApp: true,
+  attachments: true,
 });
 export type SupportTicketInput = z.infer<typeof supportTicketInputSchema>;
 

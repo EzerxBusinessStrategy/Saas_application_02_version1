@@ -1,12 +1,17 @@
 import { expect, test } from "vitest";
 import {
   assignSupportTicket,
+  createSharedDocument,
+  createSharedInvoice,
   createSupportTicket,
   decideEmployeeTaskReview,
+  decideTenantTaskApproval,
   getOperationalWorkspace,
   isGamificationVisible,
   listSupportTickets,
   listOperationalTasks,
+  listSharedDocuments,
+  listSharedInvoices,
   progressPercent,
   startEmployeeTask,
   submitEmployeeTaskForReview,
@@ -68,7 +73,7 @@ test("filters task results and handles optional professional progress safely", a
   );
 });
 
-test("moves employee work through review, rejection, resubmission, and approval", async () => {
+test("moves employee work through manager review and tenant approval", async () => {
   await expect(startEmployeeTask("TASK-1044")).resolves.toMatchObject({
     status: "in-progress",
   });
@@ -85,18 +90,29 @@ test("moves employee work through review, rejection, resubmission, and approval"
   });
   await submitEmployeeTaskForReview("TASK-1044");
   await expect(decideEmployeeTaskReview("TASK-1044", "approve")).resolves.toMatchObject({
-    status: "done",
+    status: "review",
     reviewStatus: "approved",
+    approvalStatus: "pending",
+  });
+  await expect(decideTenantTaskApproval("TASK-1044", "approve")).resolves.toMatchObject({
+    status: "done",
+    approvalStatus: "approved",
   });
 });
 
 test("shares client support tickets with the assigned manager and tenant admin", async () => {
   const ticket = await createSupportTicket({
     service: "GST Filing",
-    category: "documents",
+    category: "document-evidence",
     subject: "Need the authorised document list",
     description: "Please confirm which source documents are still required for this filing.",
-    priority: "high",
+    businessImpact: "high",
+    affectedUsers: 2,
+    affectedUrl: "https://clientportal.example/gst/filing",
+    preferredContactMethod: "email",
+    notifyByEmail: true,
+    notifyInApp: true,
+    attachments: [],
   });
 
   await expect(listSupportTickets("client")).resolves.toContainEqual(
@@ -121,4 +137,105 @@ test("shares client support tickets with the assigned manager and tenant admin",
       "The authorised document list has been shared with your client contact.",
     ),
   ).resolves.toMatchObject({ status: "resolved" });
+});
+
+test("rejects a duplicate active client support request", async () => {
+  const input = {
+    service: "GST Filing",
+    category: "filing-submission",
+    subject: "Unable to download the GST filing report",
+    description: "The approved GST filing report download does not start for our client contact.",
+    businessImpact: "medium",
+    affectedUsers: 1,
+    preferredContactMethod: "email",
+    notifyByEmail: true,
+    notifyInApp: true,
+    attachments: [],
+  };
+  await createSupportTicket(input);
+  await expect(createSupportTicket(input)).rejects.toThrow("similar active request");
+});
+
+test("reflects an admin-shared document only in the selected recipient portal", async () => {
+  const document = await createSharedDocument("admin", {
+    clientId: "northstar",
+    title: "Employee-only evidence",
+    fileName: "employee-evidence.pdf",
+    fileType: "PDF",
+    sizeBytes: 1200,
+    category: "evidence",
+    recipientEmployeeIds: ["emp-riley"],
+  });
+  await expect(listSharedDocuments("employee")).resolves.toContainEqual(
+    expect.objectContaining({ id: document.id }),
+  );
+  await expect(listSharedDocuments("client")).resolves.not.toContainEqual(
+    expect.objectContaining({ id: document.id }),
+  );
+});
+
+test("keeps employee and manager sharing within their authorised frontend scope", async () => {
+  await expect(
+    createSharedDocument("employee", {
+      clientId: "northstar",
+      title: "Unsafe client share",
+      fileName: "unsafe.pdf",
+      fileType: "PDF",
+      sizeBytes: 1200,
+      category: "employee-submission",
+      recipientManagerIds: ["mgr-avery"],
+      recipientClientIds: ["northstar"],
+    }),
+  ).rejects.toThrow("only with their manager");
+  await expect(
+    createSharedDocument("manager", {
+      clientId: "bayside",
+      title: "Out-of-scope client",
+      fileName: "scope.pdf",
+      fileType: "PDF",
+      sizeBytes: 1200,
+      category: "supporting",
+      recipientClientIds: ["bayside"],
+    }),
+  ).rejects.toThrow("outside your authorised scope");
+});
+
+test("shares client uploads with manager and tenant administration but not employees", async () => {
+  const document = await createSharedDocument("client", {
+    clientId: "northstar",
+    title: "Client source document",
+    fileName: "client-source.pdf",
+    fileType: "PDF",
+    sizeBytes: 1200,
+    category: "client-upload",
+  });
+  await expect(listSharedDocuments("manager")).resolves.toContainEqual(
+    expect.objectContaining({ id: document.id }),
+  );
+  await expect(listSharedDocuments("admin")).resolves.toContainEqual(
+    expect.objectContaining({ id: document.id }),
+  );
+  await expect(listSharedDocuments("employee")).resolves.not.toContainEqual(
+    expect.objectContaining({ id: document.id }),
+  );
+});
+
+test("keeps internal manager invoices out of the client portal", async () => {
+  const invoice = await createSharedInvoice("manager", {
+    clientId: "northstar",
+    invoiceNumber: "INT-2026-1",
+    issuedOn: "2026-07-23",
+    dueOn: "2026-08-23",
+    amount: 2500,
+    visibility: "internal",
+    fileName: "internal-invoice.pdf",
+    fileType: "PDF",
+    sizeBytes: 1200,
+  });
+  await expect(listSharedInvoices("manager")).resolves.toContainEqual(
+    expect.objectContaining({ id: invoice.id }),
+  );
+  await expect(listSharedInvoices("client")).resolves.not.toContainEqual(
+    expect.objectContaining({ id: invoice.id }),
+  );
 });

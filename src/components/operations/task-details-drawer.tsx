@@ -24,7 +24,8 @@ export function TaskDetailsDrawer({
   canUpdate,
   canChangeStatus = canUpdate,
   canManageAssignment = canUpdate,
-  canReview = canUpdate,
+  canTenantApprove = false,
+  onTenantApproval,
   onUpdate,
 }: {
   task: OperationalTask | null;
@@ -34,7 +35,11 @@ export function TaskDetailsDrawer({
   canUpdate: boolean;
   canChangeStatus?: boolean;
   canManageAssignment?: boolean;
-  canReview?: boolean;
+  canTenantApprove?: boolean;
+  onTenantApproval?: (
+    task: OperationalTask,
+    decision: "approve" | "return",
+  ) => void;
   onUpdate: (task: OperationalTask) => void;
 }) {
   if (!task) return null;
@@ -113,27 +118,46 @@ export function TaskDetailsDrawer({
                 </p>
               </div>
             </div>
-            {canReview && task.reviewStatus === "pending" ? (
-              <div className="mt-3 flex flex-wrap gap-2">
-                <Button
-                  size="sm"
-                  onClick={() =>
-                    onUpdate({ ...task, reviewStatus: "approved" })
-                  }
-                >
-                  Approve review
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() =>
-                    onUpdate({ ...task, reviewStatus: "changes-requested" })
-                  }
-                >
-                  Request changes
-                </Button>
-              </div>
-            ) : null}
+          </section>
+          <section className="mt-7 grid gap-5 lg:grid-cols-2">
+            <div>
+              <h3 className="font-semibold">Manager review</h3>
+              <p className="mt-2 text-sm text-muted-foreground">
+                {task.manager} reviews employee evidence for this work group.
+                Work logs and recorded review remarks are included in delivery history below.
+              </p>
+              <p className="mt-3 text-sm font-medium">
+                {task.reviewStatus === "approved"
+                  ? "Manager review approved"
+                  : task.reviewStatus === "pending"
+                    ? "Awaiting manager review"
+                    : task.reviewStatus.replaceAll("-", " ")}
+              </p>
+            </div>
+            <div>
+              <h3 className="font-semibold">Tenant approval</h3>
+              <p className="mt-2 text-sm text-muted-foreground">
+                The Tenant Admin records the final delivery decision after manager approval.
+              </p>
+              {task.reviewStatus === "approved" && task.approvalStatus === "pending" ? (
+                canTenantApprove && onTenantApproval ? (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Button size="sm" onClick={() => onTenantApproval(task, "approve")}>
+                      Approve delivery
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => onTenantApproval(task, "return")}>
+                      Return for rework
+                    </Button>
+                  </div>
+                ) : (
+                  <p className="mt-3 text-sm font-medium">Awaiting tenant approval</p>
+                )
+              ) : (
+                <p className="mt-3 text-sm font-medium">
+                  {task.approvalStatus.replaceAll("-", " ")}
+                </p>
+              )}
+            </div>
           </section>
           <section className="mt-7">
             <h3 className="font-semibold">Assignment and delivery controls</h3>

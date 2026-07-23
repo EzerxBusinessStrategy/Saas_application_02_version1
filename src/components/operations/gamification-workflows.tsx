@@ -751,11 +751,11 @@ export function TenantGamificationSettings() {
     },
   });
   if (query.isPending)
-    return <LoadingState label="Loading gamification settings" rows={4} />;
+    return <LoadingState label="Loading progress settings" rows={4} />;
   if (query.isError)
     return (
       <ErrorState
-        title="Gamification settings could not load"
+        title="Progress settings could not load"
         onRetry={() => void query.refetch()}
       />
     );
@@ -763,7 +763,7 @@ export function TenantGamificationSettings() {
     <div className="flex flex-col gap-[30px]">
       <PageHeader
         eyebrow="Tenant Admin"
-        title="Gamification settings"
+        title="Progress settings"
         description="Set optional progress and recognition rules. Backend policy enforcement is required before live use."
       />
       <Card>

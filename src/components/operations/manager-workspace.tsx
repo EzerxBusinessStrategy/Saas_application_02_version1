@@ -74,7 +74,7 @@ export function ManagerWorkspace({
             await query.refetch();
             toast.success(
               decision === "approve"
-                ? "Task approved and marked done."
+                ? "Manager review complete. The task is awaiting tenant approval."
                 : "Task returned to the employee as rejected.",
             );
           } catch (error) {
@@ -104,8 +104,9 @@ export function ManagerWorkspace({
   if (section === "approvals")
     return (
       <QueuePage
-        title="Approval queue"
-        description="Approve or return delivery items that require your decision."
+        title="Tenant approval tracking"
+        description="Manager-approved work remains here until the Tenant Admin records the final delivery decision."
+        readOnly
         items={data.tasks
           .filter((task) => task.approvalStatus === "pending")
           .map((task) => ({
@@ -217,7 +218,7 @@ function TaskReviewQueue({
       <PageHeader
         eyebrow="Manager"
         title="Review queue"
-        description="Employee-submitted tasks in your assigned work groups require an approval or return decision."
+        description="Review employee-submitted evidence, then submit approved work to the Tenant Admin for final delivery approval."
       />
       <Card>
         <CardContent className="pt-[30px]">
@@ -237,11 +238,11 @@ function TaskReviewQueue({
                   <div className="flex gap-2">
                     <Button
                       size="sm"
-                      aria-label={`Approve ${task.title}`}
+                      aria-label={`Submit ${task.title} for tenant approval`}
                       disabled={workingTaskId === task.id}
                       onClick={() => void decide(task.id, "approve")}
                     >
-                      Approve
+                      Submit for tenant approval
                     </Button>
                     <Button
                       size="sm"
@@ -272,10 +273,12 @@ function QueuePage({
   title,
   description,
   items,
+  readOnly = false,
 }: {
   title: string;
   description: string;
   items: Array<{ id: string; title: string; detail: string }>;
+  readOnly?: boolean;
 }) {
   const [acted, setActed] = useState<string[]>([]);
   return (
@@ -303,7 +306,7 @@ function QueuePage({
                       : item.detail}
                   </p>
                 </div>
-                <div className="flex gap-2">
+                {!readOnly ? <div className="flex gap-2">
                   <Button
                     size="sm"
                     disabled={acted.includes(item.id)}
@@ -319,7 +322,7 @@ function QueuePage({
                   >
                     Request changes
                   </Button>
-                </div>
+                </div> : null}
               </li>
             ))}
           </ul>

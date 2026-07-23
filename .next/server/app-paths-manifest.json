@@ -1,4 +1,5 @@
 {
-  "/(app)/[workspace]/page": "app/(app)/[workspace]/page.js",
+  "/api/demo-auth/login/route": "app/api/demo-auth/login/route.js",
+  "/(auth)/login/page": "app/(auth)/login/page.js",
   "/(app)/[workspace]/[section]/page": "app/(app)/[workspace]/[section]/page.js"
 }

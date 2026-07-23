@@ -152,7 +152,6 @@ export default async function Section({
       "work-logs",
       "timesheet",
       "calendar",
-      "documents",
       "notifications",
       "profile",
       "achievements",
@@ -200,7 +199,8 @@ export default async function Section({
     if (
       workspace === "admin" ||
       workspace === "client" ||
-      (workspace === "manager" && section === "documents")
+      (workspace === "manager" && ["documents", "invoices"].includes(section)) ||
+      (workspace === "employee" && section === "documents")
     ) {
       return (
         <FeatureBoundary role={user.role} permissions={[financePermission]}>

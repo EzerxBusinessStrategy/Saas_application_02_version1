@@ -64,6 +64,7 @@ export const rolePermissions: Record<Role, Permission[]> = {
     "task.update_status.assigned",
     "work_log.review.assigned_group",
     "document.read",
+    "invoice.create",
   ],
   EMPLOYEE: [
     "task.read.assigned",

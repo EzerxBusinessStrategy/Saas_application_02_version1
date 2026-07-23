@@ -47,6 +47,7 @@ test("stores tenant status filters in URL search parameters", async () => {
 
 test("shows tenant creation validation and retains the form", async () => {
   render(<TenantCreateForm />);
+  expect(screen.getByLabelText("Tenant provisioning steps")).toHaveTextContent("1. Company");
   fireEvent.click(
     screen.getByRole("button", { name: "Prepare tenant request" }),
   );

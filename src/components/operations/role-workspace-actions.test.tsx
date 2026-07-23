@@ -8,6 +8,7 @@ import {
 import { ClientPortal } from "@/components/operations/client-portal";
 import { EmployeeWorkspace } from "@/components/operations/employee-workspace";
 import { ManagerWorkspace } from "@/components/operations/manager-workspace";
+import { SupportTicketWorkspace } from "@/components/operations/support-ticket-workspace";
 
 function renderWithQuery(ui: React.ReactElement) {
   const client = new QueryClient({
@@ -41,15 +42,39 @@ test("opens the professional client support-ticket form", async () => {
   renderWithQuery(<ClientPortal section="support" />);
 
   fireEvent.click(
-    await screen.findByRole("button", { name: /raise support ticket/i }),
+    await screen.findByRole("button", { name: /create support request/i }),
   );
   expect(screen.getByRole("dialog")).toHaveTextContent(
-    "Raise support ticket",
+    "Create a support request",
   );
   expect(screen.getByLabelText("Describe the issue")).toBeInTheDocument();
+  expect(screen.getByLabelText("Business impact")).toBeInTheDocument();
+  expect(
+    screen.getByRole("form", { name: "Create support request" }),
+  ).toHaveClass("scrollbar-none");
+  expect(screen.getByText("Company")).toBeInTheDocument();
+  fireEvent.change(
+    screen.getByPlaceholderText("Example: Unable to download the GST filing report"),
+    {
+    target: { value: "Hi" },
+    },
+  );
+  fireEvent.change(screen.getByLabelText("Describe the issue"), {
+    target: { value: "Help" },
+  });
+  expect(
+    screen.getByRole("button", { name: "Submit request" }),
+  ).toBeEnabled();
 });
 
-test("notifies the assigned manager and completes an approved employee task", async () => {
+test("labels the manager employee-assignment control", async () => {
+  renderWithQuery(<SupportTicketWorkspace workspace="manager" />);
+
+  fireEvent.click(await screen.findByRole("button", { name: "View request" }));
+  expect(screen.getByLabelText("Assign employee")).toBeInTheDocument();
+});
+
+test("notifies the assigned manager and submits approved employee work for tenant approval", async () => {
   await submitEmployeeTaskForReview("TASK-1042");
   renderWithQuery(<ManagerWorkspace section="notifications" />);
 
@@ -60,7 +85,7 @@ test("notifies the assigned manager and completes an approved employee task", as
   renderWithQuery(<ManagerWorkspace section="reviews" />);
   fireEvent.click(
     await screen.findByRole("button", {
-      name: "Approve Confirm onboarding checklist",
+      name: "Submit Confirm onboarding checklist for tenant approval",
     }),
   );
 
@@ -68,6 +93,10 @@ test("notifies the assigned manager and completes an approved employee task", as
     const task = (await listOperationalTasks("employee")).find(
       (item) => item.id === "TASK-1042",
     );
-    expect(task?.status).toBe("done");
+    expect(task).toMatchObject({
+      status: "review",
+      reviewStatus: "approved",
+      approvalStatus: "pending",
+    });
   });
 });

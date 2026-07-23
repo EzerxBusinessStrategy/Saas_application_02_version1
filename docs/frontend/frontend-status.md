@@ -6,6 +6,10 @@
   responsive mobile drawer, nested role-filtered navigation, a route-derived
   breadcrumb, command navigation search, notification centre shell, user menu,
   controlled Super Admin tenant context, and workspace context display.
+- Code-complete: demo role-aware login with an HTTP-only browser session,
+  server-side workspace URL guards, client user-ID sign-in, internal email
+  sign-in, sign out, and non-enumerating password-recovery acknowledgement;
+  this is explicitly a hardcoded demo flow, not production authentication.
 - Code-complete: authentication forms plus session-expired, permission-denied,
   invitation-expired, tenant-suspended, and account-suspended states; shared
   loading, error, empty, permission, filter-toolbar, pagination, mobile-entity,
@@ -65,6 +69,12 @@
   employee, send a client-visible update, or resolve a ticket. The shared
   browser-local mock demonstrates the handoff only; it is not a real support
   API, notification, or authorization system.
+- Code-complete: the client request form records business impact, affected
+  users and URL, contact preference, notification preference, permitted
+  attachment metadata, and response-time expectations. It offers service-aware
+  categories, browser-local drafts, duplicate warnings, help-article links,
+  a Critical-impact safety warning, and a request confirmation state. File
+  bytes and notifications remain backend dependencies.
 - Backend dependencies: real login/session handling, durable mutations,
   server-side authorization/auditing, tenant-safe data enforcement, and
   Tenant Owner/Finance User/HR Operations User workspace design are not
