@@ -156,9 +156,9 @@ test("uses saved platform configuration in the super admin shell", () => {
   window.localStorage.setItem(
     PLATFORM_CONFIGURATION_STORAGE_KEY,
     JSON.stringify({
-      platformName: "SaaS Operations",
+      platformName: "SaaS App",
       defaultBrand: "#9AA4C6",
-      senderName: "SaaS Operations",
+      senderName: "SaaS App",
       supportSessionLimit: "30",
       enforceMfa: true,
       reportsEnabled: true,
@@ -172,7 +172,7 @@ test("uses saved platform configuration in the super admin shell", () => {
     </WorkspaceShell>,
   );
 
-  expect(screen.getByText("SaaS Operations")).toBeInTheDocument();
+  expect(screen.getByText("SaaS App")).toBeInTheDocument();
   expect(document.documentElement.style.getPropertyValue("--primary")).toBe(
     "#9AA4C6",
   );

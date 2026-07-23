@@ -372,7 +372,7 @@ export function SupportTicketWorkspace({
                     </p>
                     <dl className="mt-4 grid gap-3 rounded-[var(--radius-card)] border bg-muted/40 p-4 text-sm sm:grid-cols-3">
                       <div><dt className="text-muted-foreground">Client</dt><dd className="mt-1 font-medium">Northstar Labs</dd></div>
-                      <div><dt className="text-muted-foreground">Company</dt><dd className="mt-1 font-medium">Acme Operations</dd></div>
+                      <div><dt className="text-muted-foreground">Company</dt><dd className="mt-1 font-medium">SaaS App</dd></div>
                       <div><dt className="text-muted-foreground">Requester</dt><dd className="mt-1 font-medium">Taylor Morgan</dd></div>
                     </dl>
                     <div className="mt-5 grid gap-4 sm:grid-cols-2">

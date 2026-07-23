@@ -70,7 +70,7 @@ type Values = {
 
 const content: Record<Mode, { title: string; description: string; action: string }> = {
   login: {
-    title: "Sign in to Acme Ops",
+    title: "Sign in to SaaS App",
     description: "Use your work account to access your authorised workspace.",
     action: "Sign in",
   },
@@ -86,7 +86,7 @@ const content: Record<Mode, { title: string; description: string; action: string
   },
   invitation: {
     title: "Accept your invitation",
-    description: "Set a password to activate your Acme Ops account.",
+    description: "Set a password to activate your SaaS App account.",
     action: "Activate account",
   },
 };
@@ -302,7 +302,7 @@ export function AuthForm({ mode }: { mode: Mode }) {
         <OperationalNetwork />
         <div className="relative z-10 flex items-center gap-3">
           <Image src="/branding/default-mark.svg" alt="" width={34} height={34} priority />
-          <span className="text-xl font-bold tracking-tight">Acme Ops</span>
+          <span className="text-xl font-bold tracking-tight">SaaS App</span>
         </div>
         <div className="relative z-10 my-auto max-w-xl py-16">
           <p className="text-sm font-semibold tracking-[0.16em] text-sidebar-muted uppercase">Operations workspace</p>
@@ -316,7 +316,7 @@ export function AuthForm({ mode }: { mode: Mode }) {
       </aside>
 
       <main className="flex min-h-[100dvh] flex-col bg-muted px-4 py-6 sm:px-8 lg:h-[100dvh] lg:min-h-0 lg:overflow-hidden lg:bg-background lg:px-10 lg:py-4 xl:px-16">
-        <div className="mx-auto flex w-full max-w-[480px] items-center gap-2 lg:hidden"><Image src="/branding/default-mark.svg" alt="Acme Ops" width={28} height={28} priority /><span className="font-bold tracking-tight">Acme Ops</span></div>
+        <div className="mx-auto flex w-full max-w-[480px] items-center gap-2 lg:hidden"><Image src="/branding/default-mark.svg" alt="SaaS App" width={28} height={28} priority /><span className="font-bold tracking-tight">SaaS App</span></div>
         <div className="mx-auto flex w-full max-w-[480px] flex-1 items-center py-8 sm:py-12 lg:py-4">
           <Card className="login-form-enter w-full rounded-2xl border-border/80 shadow-[var(--shadow-card)]">
             <CardHeader className="p-6 pb-0 sm:p-8 sm:pb-0 lg:p-7 lg:pb-0">

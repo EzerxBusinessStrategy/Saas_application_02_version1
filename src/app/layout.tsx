@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "@/app/globals.css";
 import { Providers } from "@/components/providers";
 export const metadata: Metadata = {
-  title: "Acme Operations",
+  title: "SaaS App",
   description: "Multi-tenant operations workspace",
   icons: { icon: "/branding/default-mark.svg" },
 };

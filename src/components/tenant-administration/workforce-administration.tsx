@@ -607,7 +607,7 @@ function BrandingSettings() {
   const form = useForm<TenantBrandingDraft>({
     resolver: zodResolver(tenantBrandingDraftSchema),
     defaultValues: {
-      companyName: "Acme Operations",
+      companyName: "SaaS App",
       ...defaultBrandingColours,
       defaultTheme: "system",
       density: "comfortable",
@@ -653,7 +653,7 @@ export function TenantSettings() {
   const [saved, setSaved] = useState(false);
   const form = useForm<SettingsInput>({
     defaultValues: {
-      brandName: "Acme Operations",
+      brandName: "SaaS App",
       primaryToken: "primary",
       notifications: true,
       profileName: "Jordan Lee",

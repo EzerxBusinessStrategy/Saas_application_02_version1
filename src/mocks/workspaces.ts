@@ -8,7 +8,7 @@ import type {
 import { rolePermissions } from "@/lib/permissions";
 
 export const tenantTheme: TenantTheme = {
-  name: "Acme Operations",
+  name: "SaaS App",
   primary: "#2563eb",
 };
 const personas: Record<
@@ -20,7 +20,7 @@ const personas: Record<
     subtitle: "Tenant health across the platform",
     user: {
       name: "Maya Chen",
-      email: "maya.chen@acmeops.example",
+      email: "maya.chen@saasapp.example",
       initials: "MC",
       role: "SUPER_ADMIN",
       permissions: rolePermissions.SUPER_ADMIN,
@@ -44,10 +44,10 @@ const personas: Record<
   },
   admin: {
     title: "Operations command center",
-    subtitle: "Delivery, capacity, and billing for Acme Operations",
+    subtitle: "Delivery, capacity, and billing for SaaS App",
     user: {
       name: "Jordan Lee",
-      email: "jordan.lee@acmeops.example",
+      email: "jordan.lee@saasapp.example",
       initials: "JL",
       role: "TENANT_ADMIN",
       permissions: rolePermissions.TENANT_ADMIN,
@@ -69,7 +69,7 @@ const personas: Record<
     subtitle: "Priorities and approvals for your work groups",
     user: {
       name: "Avery Patel",
-      email: "avery.patel@acmeops.example",
+      email: "avery.patel@saasapp.example",
       initials: "AP",
       role: "MANAGER",
       permissions: rolePermissions.MANAGER,
@@ -86,7 +86,7 @@ const personas: Record<
     subtitle: "Keep work moving and make your progress visible",
     user: {
       name: "Riley Shah",
-      email: "riley.shah@acmeops.example",
+      email: "riley.shah@saasapp.example",
       initials: "RS",
       role: "EMPLOYEE",
       permissions: rolePermissions.EMPLOYEE,
@@ -99,11 +99,11 @@ const personas: Record<
     ],
   },
   client: {
-    title: "Welcome to Acme Operations",
+    title: "Welcome to SaaS App",
     subtitle: "Your services, progress, and shared documents",
     user: {
       name: "Taylor Morgan",
-      email: "taylor.morgan@acmeops.example",
+      email: "taylor.morgan@saasapp.example",
       initials: "TM",
       role: "CLIENT_USER",
       permissions: rolePermissions.CLIENT_USER,

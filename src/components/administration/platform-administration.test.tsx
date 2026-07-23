@@ -29,7 +29,7 @@ test("publishes platform configuration to the current browser session", async ()
   render(<PlatformConfiguration />);
 
   fireEvent.change(screen.getByLabelText("Platform name"), {
-    target: { value: "SaaS Operations" },
+    target: { value: "SaaS App" },
   });
   fireEvent.change(
     screen.getByLabelText("Default brand colour hexadecimal value"),
@@ -51,5 +51,5 @@ test("publishes platform configuration to the current browser session", async ()
   );
   expect(
     window.localStorage.getItem("ezerx-platform-configuration-draft"),
-  ).toContain("SaaS Operations");
+  ).toContain("SaaS App");
 });

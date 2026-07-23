@@ -81,7 +81,7 @@ export const auditRecords: AuditRecord[] = [
   {
     id: "AUD-1044",
     actor: "Jordan Lee",
-    tenant: "Acme Operations",
+    tenant: "SaaS App",
     action: "Assigned manager to work group",
     resource: "GST Review",
     timestamp: "2026-07-21T11:10:00Z",
@@ -93,7 +93,7 @@ export const auditRecords: AuditRecord[] = [
   {
     id: "AUD-1043",
     actor: "Priya Nair",
-    tenant: "Acme Operations",
+    tenant: "SaaS App",
     action: "Requested delivery review",
     resource: "Monthly delivery report",
     timestamp: "2026-07-21T08:45:00Z",

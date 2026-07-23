@@ -1,4 +1,4 @@
-# Acme Ops Frontend User Guide
+# SaaS App Frontend User Guide
 
 This document explains the current frontend in simple language. It is written
 for checking the application in the browser, not for backend or database setup.
@@ -904,4 +904,3 @@ Purpose:
 - Support access does not perform real tenant impersonation.
 - Upload forms retain metadata only unless backend storage is connected.
 - Audit and configuration actions need backend audit trails for production.
-

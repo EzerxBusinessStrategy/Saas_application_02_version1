@@ -370,7 +370,7 @@ export function WorkspaceShell({
   const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [commandMenuOpen, setCommandMenuOpen] = useState(false);
-  const [companyName, setCompanyName] = useState("Acme Ops");
+  const [companyName, setCompanyName] = useState("SaaS App");
   const items = useMemo(
     () => filterNavigation(navigationFor(workspace), user.role),
     [user.role, workspace],
@@ -424,7 +424,7 @@ export function WorkspaceShell({
     const tenantId = "acme";
     const restoreCompanyName = () => {
       const draft = restoreTenantBrandingSession(tenantId);
-      setCompanyName(draft?.companyName ?? "Acme Ops");
+      setCompanyName(draft?.companyName ?? "SaaS App");
     };
     const updateCompanyName = (
       event: CustomEvent<{ tenantId: string; draft: { companyName: string } }>,

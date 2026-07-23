@@ -13,9 +13,9 @@ export const PLATFORM_CONFIGURATION_CHANGE_EVENT =
   "platform-configuration-change";
 
 export const defaultPlatformConfiguration: PlatformConfigurationDraft = {
-  platformName: "Acme Ops",
+  platformName: "SaaS App",
   defaultBrand: "#3C50E0",
-  senderName: "Acme Ops",
+  senderName: "SaaS App",
   supportSessionLimit: "60",
   enforceMfa: true,
   reportsEnabled: true,

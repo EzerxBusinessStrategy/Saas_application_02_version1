@@ -96,7 +96,7 @@ export default async function Section({
   if (section === "audit-log" && workspace === "admin") {
     return (
       <FeatureBoundary role={user.role} permissions={["audit_log.read"]}>
-        <GlobalAuditLog tenantName="Acme Operations" />
+        <GlobalAuditLog tenantName="SaaS App" />
       </FeatureBoundary>
     );
   }

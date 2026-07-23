@@ -6,6 +6,11 @@
       "static/css/app/layout.css",
       "static/chunks/app/layout.js"
     ],
+    "/(auth)/login/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(auth)/login/page.js"
+    ],
     "/(app)/[workspace]/layout": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
@@ -26,15 +31,15 @@
       "static/chunks/main-app.js",
       "static/chunks/app/(app)/[workspace]/not-found.js"
     ],
-    "/(app)/[workspace]/[section]/page": [
+    "/(app)/[workspace]/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/(app)/[workspace]/[section]/page.js"
+      "static/chunks/app/(app)/[workspace]/page.js"
     ],
-    "/(auth)/login/page": [
+    "/(auth)/no-permission/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/(auth)/login/page.js"
+      "static/chunks/app/(auth)/no-permission/page.js"
     ],
     "/api/demo-auth/login/route": [
       "static/chunks/webpack.js",

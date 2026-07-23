@@ -12,7 +12,7 @@ export const tenantContexts: TenantContext[] = [
   },
   {
     id: "tenant-acme",
-    name: "Acme Operations",
+    name: "SaaS App",
     status: "active",
   },
   {
@@ -71,7 +71,7 @@ export const notificationFixtures: Notification[] = [
   },
   {
     id: "notification-2",
-    title: "SLA risk reported for Acme Operations",
+    title: "SLA risk reported for SaaS App",
     description: "One client work group requires attention.",
     createdAt: "2 hours ago",
     href: "/super-admin/audit-log",
