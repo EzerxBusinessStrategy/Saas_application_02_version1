@@ -7,8 +7,8 @@
   breadcrumb, command navigation search, notification centre shell, user menu,
   controlled Super Admin tenant context, and workspace context display.
 - Code-complete: demo role-aware login with an HTTP-only browser session,
-  server-side workspace URL guards, client user-ID sign-in, internal email
-  sign-in, sign out, and non-enumerating password-recovery acknowledgement;
+  server-side workspace URL guards, shared email sign-in, sign out, and
+  non-enumerating password-recovery acknowledgement;
   this is explicitly a hardcoded demo flow, not production authentication.
 - Code-complete: authentication forms plus session-expired, permission-denied,
   invitation-expired, tenant-suspended, and account-suspended states; shared

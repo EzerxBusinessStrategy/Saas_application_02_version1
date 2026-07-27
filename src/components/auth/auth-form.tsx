@@ -30,10 +30,7 @@ const loginSchema = z
     rememberMe: z.boolean(),
   })
   .superRefine((data, context) => {
-    if (
-      data.role !== "CLIENT_USER" &&
-      !z.string().email().safeParse(data.identifier).success
-    ) {
+    if (!z.string().email().safeParse(data.identifier).success) {
       context.addIssue({
         code: "custom",
         path: ["identifier"],
@@ -46,7 +43,7 @@ const recoverySchema = z.object({
   identifier: z
     .string()
     .trim()
-    .min(1, "Enter your work email or client user ID."),
+    .min(1, "Enter your email."),
 });
 
 const passwordSchema = z
@@ -76,7 +73,7 @@ const content: Record<Mode, { title: string; description: string; action: string
   },
   recovery: {
     title: "Reset your password",
-    description: "Enter your work email or client user ID to request a reset.",
+    description: "Enter your email to request a reset.",
     action: "Send reset link",
   },
   reset: {
@@ -124,7 +121,6 @@ export function AuthForm({ mode }: { mode: Mode }) {
   });
   const role = watch("role") ?? "SUPER_ADMIN";
   const isLogin = mode === "login";
-  const isClientLogin = isLogin && role === "CLIENT_USER";
   const details = content[mode];
   const passwordMode = isLogin || mode === "reset" || mode === "invitation";
 
@@ -168,11 +164,11 @@ export function AuthForm({ mode }: { mode: Mode }) {
     <form className="mt-7 flex flex-col gap-5 lg:mt-5 lg:gap-4" onSubmit={handleSubmit(onSubmit)} noValidate>
       {isLogin || mode === "recovery" ? (
         <label className="flex flex-col gap-2 text-sm font-semibold">
-          {isClientLogin ? "Client user ID" : mode === "recovery" ? "Work email or client user ID" : "Work email"}
+          {mode === "recovery" ? "Email" : "Work email"}
           <Input
-            type={isClientLogin || mode === "recovery" ? "text" : "email"}
-            placeholder={isClientLogin ? "Enter client user ID" : "name@company.com"}
-            autoComplete={isClientLogin ? "username" : "email"}
+            type="email"
+            placeholder="name@company.com"
+            autoComplete="email"
             aria-invalid={Boolean(errors.identifier)}
             aria-describedby={errors.identifier ? "auth-identifier-error" : undefined}
             className="h-12 rounded-lg px-3.5 lg:h-11"

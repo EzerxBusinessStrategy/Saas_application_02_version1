@@ -11,8 +11,7 @@ The frontend currently displays a login form but does not authenticate a user. E
 ## Constraints
 
 - This is a frontend demo only; credentials are intentionally hardcoded by product direction.
-- Internal roles share `abcd1234@gmail.com` and password `1234`, so the role must be explicitly selected at sign-in.
-- Client users sign in with user ID `abc@123` and password `1234`.
+- All demo portal roles share `abcd1234@gmail.com` and password `1234`, so the role must be explicitly selected at sign-in.
 - Production authentication, password storage, tenant isolation, and backend authorisation remain out of scope.
 
 ## Considered options
@@ -28,7 +27,7 @@ Use a minimal demo authentication route that validates the approved hardcoded cr
 ## Positive and negative consequences
 
 - Direct portal URLs are blocked in normal browser use when the signed-in role does not match.
-- Shared internal credentials mean the role selector is not a production identity proof.
+- Shared demo credentials mean the role selector is not a production identity proof.
 - Forgot-password remains a non-enumerating mock acknowledgement because the credentials are fixed for this demo.
 
 ## Security and operational consequences
@@ -42,5 +41,5 @@ Remove the demo auth routes, cookie, and middleware when a real identity provide
 ## Validation plan
 
 - Unit-test credential validation and role-to-workspace mapping.
-- Component-test internal email and client user-ID login states.
+- Component-test shared email login states.
 - Browser-test successful role login, rejected credentials, logout, forgot-password acknowledgement, and cross-workspace URL denial.

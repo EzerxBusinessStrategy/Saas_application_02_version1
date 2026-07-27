@@ -1,6 +1,0 @@
-{
-  "/api/demo-auth/login/route": "app/api/demo-auth/login/route.js",
-  "/(auth)/no-permission/page": "app/(auth)/no-permission/page.js",
-  "/(auth)/login/page": "app/(auth)/login/page.js",
-  "/(app)/[workspace]/page": "app/(app)/[workspace]/page.js"
-}

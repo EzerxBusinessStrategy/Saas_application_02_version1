@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Add approved hardcoded demo login, role-based portal routing, and a client user-ID flow.
+**Goal:** Add approved hardcoded demo login and role-based portal routing.
 
 **Architecture:** A small auth helper owns the approved demo credentials and workspace mapping. Route handlers create and clear an HTTP-only demo cookie; middleware and the workspace layout reject a session whose role does not own the requested workspace. Existing role permissions remain the UI layer only.
 
@@ -11,8 +11,7 @@
 ## Global Constraints
 
 - Demo credentials only: never describe this as production authentication.
-- Internal roles use `abcd1234@gmail.com` and `1234` with an explicit role selector.
-- Client login uses `abc@123` and `1234`.
+- All demo portal roles use `abcd1234@gmail.com` and `1234` with an explicit role selector.
 - Keep existing TailAdmin UI primitives and role permissions.
 - Enforce workspace-route denial before application content renders.
 
@@ -24,7 +23,7 @@
 - Create: `src/lib/demo-auth.ts`
 - Test: `src/lib/demo-auth.test.ts`
 
-- [ ] Write tests for internal credential validation, client credential validation, and role-to-workspace mapping.
+- [ ] Write tests for shared credential validation and role-to-workspace mapping.
 - [ ] Implement `validateDemoLogin`, `workspaceForRole`, `isWorkspaceAllowed`, and the cookie key constant.
 - [ ] Run `corepack pnpm exec vitest run src/lib/demo-auth.test.ts`.
 
@@ -59,9 +58,9 @@
 - Modify: `src/components/auth/auth-form.test.tsx`
 - Modify: `src/app/(auth)/forgot-password/page.tsx`
 
-- [ ] Show an internal-role selector, an email field for internal roles, and a user-ID field for Client User.
+- [ ] Show a role selector and email field for every demo portal role.
 - [ ] Submit to the login endpoint and navigate to the permitted workspace only after success.
-- [ ] Keep URL and password handling accessible, show generic credential failures, and make recovery accept email or client user ID.
+- [ ] Keep URL and password handling accessible, show generic credential failures, and make recovery accept email.
 - [ ] Run focused auth tests.
 
 ### Task 5: Verify the complete demo flow
@@ -76,6 +75,6 @@
 
 - [x] Demo credentials and role-to-workspace rules implemented and unit-tested.
 - [x] Login, logout, recovery, middleware, layout, and root-route session handling implemented.
-- [x] Internal email, client user-ID, and accessible password controls implemented.
+- [x] Shared email and accessible password controls implemented.
 - [x] Browser verification completed for login, client login, cross-workspace denial, recovery, and sign out.
 - [x] Lint, TypeScript, full unit suite, and production build passed.

@@ -1,13 +1,12 @@
 import { expect, test } from "vitest";
 import {
-  clientDemoUserId,
   demoPassword,
   internalDemoEmail,
   isWorkspaceAllowed,
   validateDemoLogin,
 } from "@/lib/demo-auth";
 
-test("validates the approved internal and client demo credentials", () => {
+test("validates the approved demo credentials for every portal role", () => {
   expect(
     validateDemoLogin({
       identifier: internalDemoEmail,
@@ -17,7 +16,7 @@ test("validates the approved internal and client demo credentials", () => {
   ).toEqual({ role: "MANAGER", workspace: "manager" });
   expect(
     validateDemoLogin({
-      identifier: clientDemoUserId,
+      identifier: internalDemoEmail,
       password: demoPassword,
       role: "CLIENT_USER",
     }),

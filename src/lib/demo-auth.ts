@@ -2,7 +2,6 @@ import type { Role, Workspace } from "@/types/domain";
 
 export const demoSessionCookie = "ezerx-demo-role";
 export const internalDemoEmail = "abcd1234@gmail.com";
-export const clientDemoUserId = "abc@123";
 export const demoPassword = "1234";
 
 export const loginRoles = [
@@ -44,8 +43,7 @@ export function validateDemoLogin({
   const workspace = workspaceForRole(role);
   if (!workspace || password !== demoPassword) return null;
 
-  const expectedIdentifier = role === "CLIENT_USER" ? clientDemoUserId : internalDemoEmail;
-  return identifier.trim().toLowerCase() === expectedIdentifier ? { role, workspace } : null;
+  return identifier.trim().toLowerCase() === internalDemoEmail ? { role, workspace } : null;
 }
 
 export function roleFromSession(value?: string) {

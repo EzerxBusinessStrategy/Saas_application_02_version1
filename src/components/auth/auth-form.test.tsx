@@ -16,15 +16,12 @@ test("reports invalid sign-in credentials", async () => {
   ).toBeInTheDocument();
 });
 
-test("uses a client user ID field when Client User is selected", () => {
+test("keeps email login for Client User", () => {
   render(<AuthForm mode="login" />);
   fireEvent.change(screen.getByLabelText("Portal access"), {
     target: { value: "CLIENT_USER" },
   });
-  expect(screen.getByLabelText("Client user ID")).toHaveAttribute(
-    "type",
-    "text",
-  );
+  expect(screen.getByLabelText("Work email")).toHaveAttribute("type", "email");
 });
 
 test("keeps recovery and session controls inside the login form", () => {

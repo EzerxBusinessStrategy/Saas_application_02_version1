@@ -32,12 +32,11 @@ Use these credentials for testing.
 | Tenant Admin | Tenant Admin | `abcd1234@gmail.com` | `1234` |
 | Manager | Manager | `abcd1234@gmail.com` | `1234` |
 | Employee | Employee | `abcd1234@gmail.com` | `1234` |
-| Client User | Client User | `abc@123` | `1234` |
+| Client User | Client User | `abcd1234@gmail.com` | `1234` |
 
 Important:
 
-- Internal users use email login.
-- Client users use client user ID login.
+- All portals use the same demo email and password.
 - Select the correct `Portal access` option before signing in.
 - Direct URL access is role checked in the frontend. For example, an employee
   should not be able to open Super Admin pages by typing the URL.
@@ -850,8 +849,7 @@ Purpose:
 
 ### 9.1 Role-based login
 
-- Super Admin, Tenant Admin, Manager, and Employee use the same demo email.
-- Client User uses a client user ID.
+- All portals use the same demo email and password.
 - The selected portal controls which workspace opens.
 
 ### 9.2 Direct URL protection
