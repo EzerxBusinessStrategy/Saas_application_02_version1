@@ -1,0 +1,4 @@
+interface:
+  display_name: "Supabase Postgres Drizzle"
+  short_description: "Use Supabase Postgres with Drizzle safely."
+  default_prompt: "Use $supabase-postgres-drizzle to plan or implement Supabase PostgreSQL with Drizzle."

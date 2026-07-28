@@ -1,0 +1,4 @@
+interface:
+  display_name: "Redis Cache Rate Limiting"
+  short_description: "Review measured Redis cache and limits."
+  default_prompt: "Use `$redis-cache-rate-limiting to review cache or throttling proposals."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Supabase Private Storage"
+  short_description: "Design private Supabase Storage flows."
+  default_prompt: "Use `$supabase-private-storage to design secure document workflows."

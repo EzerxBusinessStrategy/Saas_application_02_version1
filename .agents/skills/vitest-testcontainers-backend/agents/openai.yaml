@@ -1,0 +1,4 @@
+interface:
+  display_name: "Vitest Testcontainers Backend"
+  short_description: "Design backend tests with Testcontainers."
+  default_prompt: "Use `$vitest-testcontainers-backend to plan or review backend tests."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Safe Database Migrations"
+  short_description: "Plan safe PostgreSQL and Drizzle migrations."
+  default_prompt: "Use $safe-database-migrations to plan or review a PostgreSQL or Drizzle migration."

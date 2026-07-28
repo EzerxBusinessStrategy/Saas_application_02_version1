@@ -1,0 +1,4 @@
+interface:
+  display_name: "BullMQ Reliable Jobs"
+  short_description: "Design BullMQ jobs after ADR approval."
+  default_prompt: "Use `$bullmq-reliable-jobs to design reliable BullMQ jobs."

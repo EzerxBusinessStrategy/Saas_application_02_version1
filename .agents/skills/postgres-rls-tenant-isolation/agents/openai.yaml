@@ -1,0 +1,4 @@
+interface:
+  display_name: "Postgres RLS Tenant Isolation"
+  short_description: "Design tenant-safe PostgreSQL RLS schemas."
+  default_prompt: "Use $postgres-rls-tenant-isolation to design or review tenant-safe PostgreSQL RLS."

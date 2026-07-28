@@ -1,0 +1,4 @@
+interface:
+  display_name: "Docker GitHub Actions Backend"
+  short_description: "Review Docker and CI/CD for backend."
+  default_prompt: "Use `$docker-github-actions-backend to design Docker or GitHub Actions."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Postgres Query Performance"
+  short_description: "Measure PostgreSQL query performance."
+  default_prompt: "Use `$postgres-query-performance to diagnose tenant-scoped PostgreSQL queries."

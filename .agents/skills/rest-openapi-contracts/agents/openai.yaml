@@ -1,0 +1,4 @@
+interface:
+  display_name: "REST OpenAPI Contracts"
+  short_description: "Design stable REST OpenAPI contracts."
+  default_prompt: "Use `$rest-openapi-contracts to design or review REST API contracts."

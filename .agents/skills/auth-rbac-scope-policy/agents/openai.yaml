@@ -1,0 +1,4 @@
+interface:
+  display_name: "Auth RBAC Scope Policy"
+  short_description: "Design SaaS auth, RBAC, and scope policies."
+  default_prompt: "Use $auth-rbac-scope-policy to design or review SaaS auth, RBAC, and scope policy."

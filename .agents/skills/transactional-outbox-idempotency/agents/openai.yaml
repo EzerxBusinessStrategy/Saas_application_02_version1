@@ -1,0 +1,4 @@
+interface:
+  display_name: "Transactional Outbox Idempotency"
+  short_description: "Design outbox and idempotency flows."
+  default_prompt: "Use `$transactional-outbox-idempotency to design reliable async mutations."
