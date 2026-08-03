@@ -2,8 +2,13 @@ import { cookies } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { WorkspaceShell } from "@/components/app-shell/workspace-shell";
 import { demoSessionCookie, isWorkspaceAllowed, roleFromSession } from "@/lib/demo-auth";
+import { superAdminAccessTokenCookie, superAdminRefreshTokenCookie } from "@/lib/auth-cookies";
+import { fetchVerifiedSuperAdminMe, userFromSuperAdminMe } from "@/lib/server/super-admin-auth";
 import { workspaceConfig, workspaces } from "@/mocks/workspaces";
 import type { Workspace } from "@/types/domain";
+
+export const dynamic = "force-dynamic";
+
 export default async function AppLayout({
   children,
   params,
@@ -13,9 +18,28 @@ export default async function AppLayout({
 }) {
   const { workspace } = await params;
   if (!workspaces.includes(workspace as Workspace)) notFound();
-  const sessionRole = roleFromSession(
-    (await cookies()).get(demoSessionCookie)?.value,
-  );
+  const cookieStore = await cookies();
+  if (workspace === "super-admin") {
+    const accessToken = cookieStore.get(superAdminAccessTokenCookie)?.value;
+    const refreshToken = cookieStore.get(superAdminRefreshTokenCookie)?.value;
+    if (!accessToken) {
+      if (refreshToken) redirect(`/api/demo-auth/refresh?next=/${workspace}`);
+      redirect("/login");
+    }
+    const me = await fetchVerifiedSuperAdminMe(accessToken);
+    if (!me) {
+      if (refreshToken) redirect(`/api/demo-auth/refresh?next=/${workspace}`);
+      redirect("/login");
+    }
+
+    return (
+      <WorkspaceShell workspace="super-admin" user={userFromSuperAdminMe(me)}>
+        {children}
+      </WorkspaceShell>
+    );
+  }
+
+  const sessionRole = roleFromSession(cookieStore.get(demoSessionCookie)?.value);
   if (!sessionRole) redirect("/login");
   if (!isWorkspaceAllowed(sessionRole, workspace as Workspace)) {
     redirect("/no-permission");

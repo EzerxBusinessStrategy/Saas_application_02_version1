@@ -172,7 +172,7 @@ export function GlobalAuditLog({ tenantName }: { tenantName?: string }) {
   };
   const recordsQuery = useQuery({
     queryKey: ["audit-log", tenantName, request],
-    queryFn: () => listAuditRecords(request, { tenantName }),
+      queryFn: () => listAuditRecords(request),
   });
   const records = recordsQuery.data?.items ?? [];
   const setParam = (key: string, value: string) => {
@@ -306,6 +306,7 @@ export function GlobalAuditLog({ tenantName }: { tenantName?: string }) {
               >
                 <option value="">All results</option>
                 <option value="success">Success</option>
+                <option value="denied">Denied</option>
                 <option value="pending">Pending</option>
                 <option value="failed">Failed</option>
               </Select>

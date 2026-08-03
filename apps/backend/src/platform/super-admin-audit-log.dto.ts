@@ -1,0 +1,75 @@
+import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
+import { z } from "zod";
+
+const optionalQueryString = z.preprocess((value) => {
+  const raw = Array.isArray(value) ? value[0] : value;
+  if (typeof raw !== "string") return undefined;
+  const trimmed = raw.trim();
+  return trimmed || undefined;
+}, z.string().optional());
+
+const optionalPositiveInt = (defaultValue: number, max?: number) =>
+  z.preprocess((value) => {
+    const raw = Array.isArray(value) ? value[0] : value;
+    if (typeof raw !== "string" || !raw.trim()) return undefined;
+    return raw;
+  }, z.coerce.number().int().positive().max(max ?? Number.MAX_SAFE_INTEGER).default(defaultValue));
+
+export const auditLogQuerySchema = z.object({
+  query: optionalQueryString.pipe(z.string().max(120).optional()),
+  result: optionalQueryString.pipe(z.enum(["success", "failed", "pending", "denied"]).optional()),
+  sort: optionalQueryString.pipe(z.enum(["timestamp", "actor", "tenant"]).optional()),
+  page: optionalPositiveInt(1),
+  pageSize: optionalPositiveInt(10, 100),
+});
+
+export type AuditLogQuery = z.infer<typeof auditLogQuerySchema>;
+
+export class AuditLogRecordDto {
+  @ApiProperty({ type: String, format: "uuid" })
+  id!: string;
+
+  @ApiProperty({ type: String })
+  actor!: string;
+
+  @ApiProperty({ type: String })
+  tenant!: string;
+
+  @ApiProperty({ type: String })
+  action!: string;
+
+  @ApiProperty({ type: String })
+  resource!: string;
+
+  @ApiProperty({ type: String, format: "date-time" })
+  timestamp!: string;
+
+  @ApiProperty({ type: String })
+  ipAddress!: string;
+
+  @ApiPropertyOptional({ type: String, nullable: true })
+  reason!: string | null;
+
+  @ApiProperty({ enum: ["success", "failed", "pending", "denied"] })
+  result!: "success" | "failed" | "pending" | "denied";
+
+  @ApiProperty({ type: String })
+  detail!: string;
+}
+
+export class AuditLogResponseDto {
+  @ApiProperty({ type: () => [AuditLogRecordDto] })
+  items!: readonly AuditLogRecordDto[];
+
+  @ApiProperty({ type: Number })
+  page!: number;
+
+  @ApiProperty({ type: Number })
+  pageSize!: number;
+
+  @ApiProperty({ type: Number })
+  pageCount!: number;
+
+  @ApiProperty({ type: Number })
+  totalItems!: number;
+}

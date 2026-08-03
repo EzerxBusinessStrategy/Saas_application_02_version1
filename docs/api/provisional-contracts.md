@@ -135,6 +135,34 @@ events.
   backend authorisation. A backend identity/session contract remains a
   deployment prerequisite.
 
+## Backend access-administration contracts
+
+The backend now owns the first real administrator-controlled access-management
+slice:
+
+- `POST /api/v1/tenants` creates a `pending_activation` tenant and a pending
+  Tenant Owner invitation for a Super Admin. It does not create or return a
+  reusable password.
+- `POST /api/v1/invitations` creates a tenant-scoped invitation with an
+  administrator-selected role. The tenant, actor, and inviter authority come
+  from the verified backend request context, not the browser payload.
+- `POST /api/v1/invitations/{invitationId}/accept` accepts a pending invitation
+  only when the verified Supabase email matches the invitation email. The
+  backend creates or activates the application user, tenant membership, and
+  one active membership role.
+- `POST /api/v1/invitations/{invitationId}/cancel` and
+  `POST /api/v1/invitations/{invitationId}/revoke` close pending invitations.
+- `POST /api/v1/memberships/{membershipId}/revoke` changes membership access to
+  `revoked`, revokes active membership roles, cancels pending invitations for
+  that user in the tenant, and retains historical business records.
+- `POST /api/v1/memberships/{membershipId}/reactivate` reactivates a membership
+  with one reviewed role instead of restoring all previous authority.
+
+Supabase Auth remains the identity provider. Supabase invitation email delivery
+is still a backend/outbox integration step: no service-role or secret key may
+be placed in frontend code, and administrators must not distribute permanent
+passwords.
+
 ## Professional progress contracts
 
 `src/features/operations/api/operations-api.ts` exposes typed mock contracts

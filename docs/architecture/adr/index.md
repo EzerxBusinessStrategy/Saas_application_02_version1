@@ -3,4 +3,14 @@
 - [0001: Demo role-aware login and route guard](0001-demo-role-login.md)
 - [0002: Manager review followed by tenant approval for client tasks](0002-manager-tenant-task-approval-gate.md)
 - [0003: Secure document and invoice storage and access service](0003-secure-document-and-invoice-storage.md) (Accepted for frontend mock UI only)
-- [0004: PostgreSQL database architecture](0004-postgresql-database-architecture.md) (Proposed)
+- [0004: PostgreSQL database architecture](0004-postgresql-database-architecture.md) (Accepted)
+
+Supporting proposed architecture documents:
+
+- [Phase 0 architecture decision lock](../phase-0-architecture-decision-lock.md)
+- [Subscription architecture](../subscription-architecture.md)
+
+ADR 0004 was explicitly approved for implementation on 2026-07-28. The
+supporting documents authorize only the approved phase scope; they do not
+authorize database migrations, Supabase resource creation, production
+infrastructure changes, or deployment by themselves.

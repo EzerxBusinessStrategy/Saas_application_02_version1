@@ -1,24 +1,26 @@
 import { z } from "zod";
 import {
-  auditRecords,
   clientContacts,
   clients,
   engagements,
   managers,
-  tenants,
   workGroups,
 } from "@/mocks/administration";
+import { redirectToLoginOnUnauthorized } from "@/lib/client/silent-auth-redirect";
 import {
   auditRecordSchema,
   clientContactSchema,
   clientSchema,
+  createTenantResponseSchema,
   engagementSchema,
   managerSchema,
   paginationSchema,
   tenantSchema,
+  tenantCreationOptionsSchema,
   workGroupSchema,
   type AuditListRequest,
   type ClientListRequest,
+  type CreateTenantInput,
   type PaginatedResponse,
   type TenantListRequest,
 } from "@/types/administration";
@@ -41,25 +43,14 @@ const includes = (values: Array<string | undefined>, query?: string) =>
 
 export async function listTenants(request: TenantListRequest) {
   const { page, pageSize } = paginationSchema.parse(request);
-  const filtered = tenants
-    .filter((tenant) =>
-      includes(
-        [tenant.name, tenant.code, tenant.owner.name, tenant.owner.email],
-        request.query,
-      ),
-    )
-    .filter((tenant) => !request.status || tenant.status === request.status)
-    .filter(
-      (tenant) =>
-        !request.createdAfter || tenant.createdAt >= request.createdAfter,
-    )
-    .sort((left, right) => {
-      if (request.sort === "employees")
-        return right.employeeCount - left.employeeCount;
-      if (request.sort === "createdAt")
-        return right.createdAt.localeCompare(left.createdAt);
-      return left.name.localeCompare(right.name);
-    });
+  const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+  if (request.query) params.set("query", request.query);
+  if (request.status) params.set("status", request.status);
+  if (request.createdAfter) params.set("createdAfter", request.createdAfter);
+  if (request.sort) params.set("sort", request.sort);
+  const response = await fetch(`/api/super-admin/tenants?${params.toString()}`, { cache: "no-store" });
+  await redirectToLoginOnUnauthorized(response);
+  if (!response.ok) throw new Error("Tenant directory could not load.");
   return z
     .object({
       items: z.array(tenantSchema),
@@ -68,38 +59,92 @@ export async function listTenants(request: TenantListRequest) {
       pageCount: z.number(),
       totalItems: z.number(),
     })
-    .parse(asPage(filtered, page, pageSize));
+    .parse(await response.json());
 }
 
 export async function getTenant(tenantId: string) {
-  return tenantSchema
-    .nullable()
-    .parse(tenants.find((tenant) => tenant.id === tenantId) ?? null);
+  const response = await fetch(`/api/super-admin/tenants/${tenantId}`, { cache: "no-store" });
+  await redirectToLoginOnUnauthorized(response);
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error("Tenant details could not load.");
+  return tenantSchema.parse(await response.json());
+}
+
+export async function getTenantCreationOptions(countryCode?: string, incorporationDate?: string) {
+  const params = new URLSearchParams();
+  if (countryCode) params.set("countryCode", countryCode);
+  if (incorporationDate) params.set("incorporationDate", incorporationDate);
+  const response = await fetch(`/api/super-admin/tenant-creation-options?${params.toString()}`, {
+    cache: "no-store",
+  });
+  await redirectToLoginOnUnauthorized(response);
+  if (!response.ok) throw new Error("Tenant creation options could not load.");
+  return tenantCreationOptionsSchema.parse(await response.json());
+}
+
+export async function createTenant(input: CreateTenantInput) {
+  // Build a clean payload matching the backend schema exactly.
+  // Strip frontend-only fields (confirm, incorporationDate) and
+  // normalize empty optional strings to undefined so they are omitted.
+  const payload = {
+    company: {
+      displayName: input.company.displayName,
+      legalName: input.company.legalName,
+      tenantCode: input.company.tenantCode,
+      slug: input.company.slug,
+      countryCode: input.company.countryCode,
+      reportingCurrencyCode: input.company.reportingCurrencyCode,
+      timezone: input.company.timezone,
+      industry: input.company.industry || undefined,
+      registrationNumber: input.company.registrationNumber || undefined,
+      taxIdentifier: input.company.taxIdentifier || undefined,
+    },
+    financialYear: {
+      source: input.financialYear.source,
+      label: input.financialYear.label,
+      startsOn: input.financialYear.startsOn,
+      endsOn: input.financialYear.endsOn,
+      // Only include templateId if it is a non-empty string (real UUID)
+      templateId: input.financialYear.templateId || undefined,
+      overrideReason: input.financialYear.overrideReason || undefined,
+    },
+    tenantAdministrator: {
+      fullName: input.tenantAdministrator.fullName,
+      email: input.tenantAdministrator.email,
+      phone: input.tenantAdministrator.phone || undefined,
+      expiresAt: input.tenantAdministrator.expiresAt || undefined,
+    },
+  };
+
+  const response = await fetch("/api/super-admin/tenants", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  await redirectToLoginOnUnauthorized(response);
+  if (!response.ok) {
+    const body = await response.json().catch(() => null);
+    // Show the first validation detail if available, otherwise the top-level message
+    const detail = body?.error?.details?.[0];
+    const message = detail
+      ? `${detail.path}: ${detail.message}`
+      : (body?.error?.message ?? body?.message ?? "Tenant could not be created.");
+    throw new Error(message);
+  }
+  return createTenantResponseSchema.parse(await response.json());
 }
 
 export async function listAuditRecords(
   request: AuditListRequest,
-  scope?: { tenantName?: string },
 ) {
   const { page, pageSize } = paginationSchema.parse(request);
-  const filtered = auditRecords
-    .filter(
-      (record) => !scope?.tenantName || record.tenant === scope.tenantName,
-    )
-    .filter((record) =>
-      includes(
-        [record.actor, record.tenant, record.action, record.resource],
-        request.query,
-      ),
-    )
-    .filter((record) => !request.result || record.result === request.result)
-    .sort((left, right) => {
-      if (request.sort === "actor")
-        return left.actor.localeCompare(right.actor);
-      if (request.sort === "tenant")
-        return left.tenant.localeCompare(right.tenant);
-      return right.timestamp.localeCompare(left.timestamp);
-    });
+  const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+  if (request.query) params.set("query", request.query);
+  if (request.result) params.set("result", request.result);
+  if (request.sort) params.set("sort", request.sort);
+  const response = await fetch(`/api/super-admin/audit-log?${params.toString()}`, { cache: "no-store" });
+  await redirectToLoginOnUnauthorized(response);
+  if (!response.ok) throw new Error("Audit records could not load.");
   return z
     .object({
       items: z.array(auditRecordSchema),
@@ -108,7 +153,7 @@ export async function listAuditRecords(
       pageCount: z.number(),
       totalItems: z.number(),
     })
-    .parse(asPage(filtered, page, pageSize));
+    .parse(await response.json());
 }
 
 export async function listClients(request: ClientListRequest) {

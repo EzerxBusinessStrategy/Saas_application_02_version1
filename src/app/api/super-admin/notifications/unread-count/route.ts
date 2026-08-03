@@ -1,0 +1,5 @@
+import { proxyBackend } from "../backend";
+
+export function GET(request: Request) {
+  return proxyBackend(request, "/super-admin/notifications/unread-count");
+}

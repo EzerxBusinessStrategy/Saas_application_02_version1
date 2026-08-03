@@ -50,9 +50,9 @@ import {
 } from "@/features/administration/api/administration-api";
 import { tenants } from "@/mocks/administration";
 import {
-  createTenantSchema,
+  legacyCreateTenantSchema,
   supportAccessSchema,
-  type CreateTenantInput,
+  type LegacyCreateTenantInput,
   type SupportAccessRequest,
   type Tenant,
   type TenantListRequest,
@@ -73,7 +73,7 @@ const tenantTabs = [
 ];
 
 type SupportAccessFormInput = z.input<typeof supportAccessSchema>;
-type TenantCreateFormInput = z.input<typeof createTenantSchema>;
+type TenantCreateFormInput = z.input<typeof legacyCreateTenantSchema>;
 
 const previewState = (value: string | null) =>
   value === "loading" || value === "error" || value === "empty" ? value : null;
@@ -343,8 +343,7 @@ export function TenantDirectory() {
         <CardHeader>
           <CardTitle>Tenant directory</CardTitle>
           <CardDescription>
-            Searchable, server-ready tenant records. Changes stay mock-only
-            until the platform API is connected.
+            Searchable tenant records from the platform database.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-5">
@@ -378,6 +377,7 @@ export function TenantDirectory() {
                 onChange={(event) => setParam("status", event.target.value)}
               >
                 <option value="">All statuses</option>
+                <option value="pending_activation">Pending activation</option>
                 <option value="active">Active</option>
                 <option value="suspended">Suspended</option>
               </Select>
@@ -481,9 +481,9 @@ export function TenantDirectory() {
 
 export function TenantCreateForm() {
   const router = useRouter();
-  const [prepared, setPrepared] = useState<CreateTenantInput | null>(null);
-  const form = useForm<TenantCreateFormInput, unknown, CreateTenantInput>({
-    resolver: zodResolver(createTenantSchema),
+  const [prepared, setPrepared] = useState<LegacyCreateTenantInput | null>(null);
+  const form = useForm<TenantCreateFormInput, unknown, LegacyCreateTenantInput>({
+    resolver: zodResolver(legacyCreateTenantSchema),
     defaultValues: {
       name: "",
       code: "",
@@ -508,7 +508,7 @@ export function TenantCreateForm() {
       confirm: false,
     },
   });
-  const submit = (values: CreateTenantInput) => setPrepared(values);
+  const submit = (values: LegacyCreateTenantInput) => setPrepared(values);
   const inputClass = "mt-1";
   return (
     <div className="super-admin-portal flex flex-col gap-[30px]">

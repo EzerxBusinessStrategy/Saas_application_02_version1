@@ -13,20 +13,14 @@ import { ClientPortal } from "@/components/operations/client-portal";
 import { EmployeeWorkspace } from "@/components/operations/employee-workspace";
 import { ManagerWorkspace } from "@/components/operations/manager-workspace";
 import { MetricCard } from "@/components/shared/metric-card";
-import { PermissionBoundary } from "@/components/shared/permission-boundary";
 import { StatusBadge } from "@/components/shared/status-badge";
-import { platformOverview } from "@/mocks/platform-overview";
 import { tasks, workspaceConfig } from "@/mocks/workspaces";
 import type { Workspace } from "@/types/domain";
 
 export function Dashboard({ workspace }: { workspace: Workspace }) {
-  const config = workspaceConfig(workspace);
   if (workspace === "super-admin")
-    return (
-      <PermissionBoundary role={config.user.role} permission="report.read">
-        <PlatformOverviewDashboard overview={platformOverview} />
-      </PermissionBoundary>
-    );
+    return <PlatformOverviewDashboard />;
+  const config = workspaceConfig(workspace);
   if (workspace === "admin") return <TenantAdministrationOverview />;
   if (workspace === "manager") return <ManagerWorkspace />;
   if (workspace === "employee") return <EmployeeWorkspace />;

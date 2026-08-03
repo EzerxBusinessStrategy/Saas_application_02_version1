@@ -1,6 +1,7 @@
 import type { Role, Workspace } from "@/types/domain";
+import { demoSessionCookie } from "@/lib/auth-cookies";
 
-export const demoSessionCookie = "ezerx-demo-role";
+export { demoSessionCookie };
 export const internalDemoEmail = "abcd1234@gmail.com";
 export const demoPassword = "1234";
 
@@ -12,6 +13,13 @@ export const loginRoles = [
   "CLIENT_USER",
 ] as const;
 type DemoLoginRole = (typeof loginRoles)[number];
+const demoLoginRoles = [
+  "TENANT_ADMIN",
+  "MANAGER",
+  "EMPLOYEE",
+  "CLIENT_USER",
+] as const;
+type MockLoginRole = (typeof demoLoginRoles)[number];
 
 const roleWorkspace: Record<(typeof loginRoles)[number], Workspace> = {
   SUPER_ADMIN: "super-admin",
@@ -40,6 +48,7 @@ export function validateDemoLogin({
   password: string;
   role: Role;
 }) {
+  if (!demoLoginRoles.includes(role as MockLoginRole)) return null;
   const workspace = workspaceForRole(role);
   if (!workspace || password !== demoPassword) return null;
 
@@ -47,7 +56,7 @@ export function validateDemoLogin({
 }
 
 export function roleFromSession(value?: string) {
-  return loginRoles.includes(value as (typeof loginRoles)[number])
+  return demoLoginRoles.includes(value as MockLoginRole)
     ? (value as Role)
     : null;
 }

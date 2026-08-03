@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import {
@@ -11,12 +12,42 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { redirectToLoginOnUnauthorized } from "@/lib/client/silent-auth-redirect";
 import type { User } from "@/types/domain";
 
 export function AccountPreferences({ user }: { user: User }) {
+  const router = useRouter();
   const [name, setName] = useState(user.name);
   const [deliveryAlerts, setDeliveryAlerts] = useState(true);
   const [saved, setSaved] = useState(false);
+  const [savingName, setSavingName] = useState(false);
+  const [nameMessage, setNameMessage] = useState<string | null>(null);
+
+  useEffect(() => setName(user.name), [user.name]);
+
+  const saveName = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setSavingName(true);
+    setNameMessage(null);
+    try {
+      const response = await fetch("/api/super-admin/profile", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ displayName: name }),
+      });
+      await redirectToLoginOnUnauthorized(response);
+      if (!response.ok) {
+        setNameMessage("Name was not saved. Check the name and try again.");
+        return;
+      }
+      setNameMessage("Name saved.");
+      router.refresh();
+    } catch {
+      setNameMessage("Name was not saved. Check the name and try again.");
+    } finally {
+      setSavingName(false);
+    }
+  };
 
   return (
     <div className="flex flex-col gap-[30px]">
@@ -33,20 +64,34 @@ export function AccountPreferences({ user }: { user: User }) {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-5 sm:grid-cols-2">
+          <form className="grid gap-5 sm:grid-cols-2" onSubmit={saveName}>
             <label className="text-sm font-medium">
               Display name
               <Input
+                name="displayName"
                 className="mt-1"
+                autoComplete="name"
+                maxLength={160}
+                required
                 value={name}
                 onChange={(event) => setName(event.target.value)}
               />
             </label>
             <label className="text-sm font-medium">
               Work email
-              <Input className="mt-1" value={user.email} readOnly />
+              <Input className="mt-1" name="email" type="email" value={user.email} readOnly />
             </label>
-          </div>
+            <div className="flex items-center gap-3 sm:col-span-2">
+              <Button type="submit" disabled={savingName}>
+                {savingName ? "Saving..." : "Save Name"}
+              </Button>
+              {nameMessage ? (
+                <p role="status" aria-live="polite" className="text-sm text-muted-foreground">
+                  {nameMessage}
+                </p>
+              ) : null}
+            </div>
+          </form>
         </CardContent>
       </Card>
       <Card>
@@ -86,8 +131,7 @@ export function AccountPreferences({ user }: { user: User }) {
           </form>
           {saved ? (
             <p role="status" className="mt-4 text-sm text-muted-foreground">
-              Preferences saved locally for this demo. Server-side account
-              persistence will be connected when the identity API is available.
+              Notification preferences are still saved locally for this demo.
             </p>
           ) : null}
         </CardContent>

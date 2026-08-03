@@ -39,6 +39,7 @@ const tone: Record<
   "partially-available": "warning",
   unavailable: "danger",
   active: "success",
+  pending_activation: "info",
   "on-leave": "warning",
   inactive: "neutral",
   balanced: "info",
@@ -47,6 +48,8 @@ const tone: Record<
   onboarding: "info",
   paused: "warning",
   archived: "neutral",
+  cancelled: "neutral",
+  pending_deletion: "warning",
   healthy: "success",
   watch: "warning",
   planning: "info",
@@ -62,7 +65,7 @@ export function StatusBadge({
 }) {
   return (
     <Badge className={cn(className)} tone={tone[status]}>
-      {status.replaceAll("-", " ")}
+      {status.replaceAll("-", " ").replaceAll("_", " ")}
     </Badge>
   );
 }

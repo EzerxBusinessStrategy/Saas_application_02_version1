@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { TenantCreateForm } from "@/components/administration/tenant-management";
+import { TenantCreatePageForm } from "@/components/administration/tenant-create-form";
 import { FeatureBoundary } from "@/components/shared/feature-boundary";
 import { workspaceConfig } from "@/mocks/workspaces";
 
@@ -13,7 +13,7 @@ export default async function NewTenantPage({
   const user = workspaceConfig("super-admin").user;
   return (
     <FeatureBoundary role={user.role} permissions={["tenant.create"]}>
-      <TenantCreateForm />
+      <TenantCreatePageForm />
     </FeatureBoundary>
   );
 }

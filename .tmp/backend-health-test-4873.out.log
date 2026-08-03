@@ -1,0 +1,33 @@
+
+> @saas-app/backend@0.1.0 start D:\Saas_app_version_2\apps\backend
+> tsx src/main.ts
+
+{"level":30,"time":1785319820709,"service":"SaaS App Backend","environment":"development","msg":"Server listening at http://127.0.0.1:4873"}
+[32m[Nest] 32584  - [39m07/29/2026, 3:40:20 PM [32m    LOG[39m [38;5;3m[NestFactory] [39m[32mStarting Nest application...[39m
+[32m[Nest] 32584  - [39m07/29/2026, 3:40:20 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mAppConfigModule dependencies initialized[39m[38;5;3m +5ms[39m
+[32m[Nest] 32584  - [39m07/29/2026, 3:40:20 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mAppConfigModule dependencies initialized[39m[38;5;3m +1ms[39m
+[32m[Nest] 32584  - [39m07/29/2026, 3:40:20 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mCommonModule dependencies initialized[39m[38;5;3m +1ms[39m
+[32m[Nest] 32584  - [39m07/29/2026, 3:40:20 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mAppModule dependencies initialized[39m[38;5;3m +0ms[39m
+[32m[Nest] 32584  - [39m07/29/2026, 3:40:20 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mDatabaseModule dependencies initialized[39m[38;5;3m +1ms[39m
+[32m[Nest] 32584  - [39m07/29/2026, 3:40:20 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mHealthModule dependencies initialized[39m[38;5;3m +0ms[39m
+[32m[Nest] 32584  - [39m07/29/2026, 3:40:20 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mAuthModule dependencies initialized[39m[38;5;3m +0ms[39m
+[32m[Nest] 32584  - [39m07/29/2026, 3:40:20 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mHealthController {/api/v1/health}:[39m[38;5;3m +1ms[39m
+[32m[Nest] 32584  - [39m07/29/2026, 3:40:20 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/health/live, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 32584  - [39m07/29/2026, 3:40:20 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/health/ready, GET} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 32584  - [39m07/29/2026, 3:40:20 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mMeController {/api/v1/me}:[39m[38;5;3m +0ms[39m
+[32m[Nest] 32584  - [39m07/29/2026, 3:40:20 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/me, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 32584  - [39m07/29/2026, 3:40:20 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mAccessAdminController {/api/v1}:[39m[38;5;3m +1ms[39m
+[32m[Nest] 32584  - [39m07/29/2026, 3:40:20 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/tenants, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 32584  - [39m07/29/2026, 3:40:20 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/invitations, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 32584  - [39m07/29/2026, 3:40:20 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/invitations/:invitationId/cancel, POST} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 32584  - [39m07/29/2026, 3:40:20 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/invitations/:invitationId/revoke, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 32584  - [39m07/29/2026, 3:40:20 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/invitations/:invitationId/accept, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 32584  - [39m07/29/2026, 3:40:20 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/memberships/:membershipId/revoke, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 32584  - [39m07/29/2026, 3:40:20 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/memberships/:membershipId/reactivate, POST} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 32584  - [39m07/29/2026, 3:40:20 PM [32m    LOG[39m [38;5;3m[NestApplication] [39m[32mNest application successfully started[39m[38;5;3m +0ms[39m
+{"level":30,"time":1785319820710,"service":"SaaS App Backend","environment":"development","msg":"Server listening at http://172.16.0.2:4873"}
+{"level":30,"time":1785319820710,"service":"SaaS App Backend","environment":"development","msg":"Server listening at http://192.168.1.8:4873"}
+{"level":30,"time":1785319821138,"service":"SaaS App Backend","environment":"development","reqId":"3fd32c9a-6c11-43b0-8e2c-6ce3efef1745","req":{"id":"3fd32c9a-6c11-43b0-8e2c-6ce3efef1745","method":"GET","url":"/api/v1/health/live","route":"/api/v1/health/live"},"msg":"incoming request"}
+{"level":30,"time":1785319821144,"service":"SaaS App Backend","environment":"development","reqId":"3fd32c9a-6c11-43b0-8e2c-6ce3efef1745","res":{"statusCode":200},"responseTime":5.606899999999996,"msg":"request completed"}
+{"level":30,"time":1785319821189,"service":"SaaS App Backend","environment":"development","reqId":"cb725bf9-d464-432f-a458-38ac6bd02af9","req":{"id":"cb725bf9-d464-432f-a458-38ac6bd02af9","method":"GET","url":"/api/v1/health/ready","route":"/api/v1/health/ready"},"msg":"incoming request"}
+{"level":30,"time":1785319824181,"service":"SaaS App Backend","environment":"development","reqId":"cb725bf9-d464-432f-a458-38ac6bd02af9","res":{"statusCode":200},"responseTime":2992.3009999999995,"msg":"request completed"}

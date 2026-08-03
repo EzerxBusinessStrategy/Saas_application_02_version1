@@ -1,19 +1,34 @@
-import { expect, test } from "vitest";
+import { afterEach, expect, test, vi } from "vitest";
 import { listAuditRecords } from "@/features/administration/api/administration-api";
 
-test("scopes tenant audit records before pagination", async () => {
-  const response = await listAuditRecords(
-    { page: 1, pageSize: 10, sort: "timestamp" },
-    { tenantName: "SaaS App" },
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
+test("loads audit records from the real Super Admin audit API route", async () => {
+  const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+    new Response(
+      JSON.stringify({
+        items: [],
+        page: 1,
+        pageSize: 10,
+        pageCount: 1,
+        totalItems: 0,
+      }),
+      { status: 200, headers: { "content-type": "application/json" } },
+    ),
   );
 
-  expect(response.totalItems).toBeGreaterThan(0);
-  expect(response.items).toEqual(
-    expect.arrayContaining([
-      expect.objectContaining({ tenant: "SaaS App" }),
-    ]),
+  const response = await listAuditRecords({
+    page: 1,
+    pageSize: 10,
+    sort: "timestamp",
+    query: "tenant",
+  });
+
+  expect(response.items).toEqual([]);
+  expect(fetchMock).toHaveBeenCalledWith(
+    "/api/super-admin/audit-log?page=1&pageSize=10&query=tenant&sort=timestamp",
+    { cache: "no-store" },
   );
-  expect(
-    response.items.every((record) => record.tenant === "SaaS App"),
-  ).toBe(true);
 });

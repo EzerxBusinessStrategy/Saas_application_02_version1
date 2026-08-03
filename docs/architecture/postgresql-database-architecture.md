@@ -1,6 +1,6 @@
 # PostgreSQL database architecture
 
-Status: Proposed
+Status: Approved for phased implementation
 Date: 2026-07-27
 
 ## Goal
@@ -16,6 +16,15 @@ supports the current frontend portals without copying data between portals:
 
 This is an architecture proposal, not a migration. Approve the related ADR
 before creating database migrations or backend repository code.
+
+Phase 2 implements only the foundational database objects documented in
+[`database-foundation-erd.md`](database-foundation-erd.md). The complete
+business-module catalogue below remains approved future scope unless a later
+phase explicitly creates those tables.
+
+The task, revenue, employee-performance and tenant-health database slice is
+documented in
+[`task-revenue-performance-database-workflow.md`](task-revenue-performance-database-workflow.md).
 
 ## Design rules
 
@@ -57,11 +66,18 @@ The backend sets these transaction-local values after authenticating the user:
 ```sql
 set local app.user_id = '<uuid>';
 set local app.tenant_id = '<uuid>';
+set local app.membership_id = '<uuid>';
+set local app.employee_id = '<uuid-or-empty>';
+set local app.client_id = '<uuid-or-empty>';
+set local app.support_access_session_id = '<uuid-or-empty>';
 set local app.is_platform_admin = 'false';
 ```
 
 Platform requests set `app.is_platform_admin = 'true'` and do not set a tenant
 unless the platform user has an audited support session for that tenant.
+Policies must fail closed when required context is missing. Put helper
+functions for reading and validating context in the `private` schema if raw
+`current_setting` expressions become hard to reason about.
 
 Use separate database roles:
 
@@ -151,22 +167,30 @@ every tenant-owned feature table.
 | Table | Purpose | Tenant-owned |
 | --- | --- | --- |
 | `users` | Global human user profile | No |
-| `auth_identities` | Login identity provider and password hash metadata | No |
+| `user_auth_mappings` | Application user to Supabase Auth user mapping | No |
 | `tenant_memberships` | User's membership in a tenant | Yes |
 | `roles` | Role catalogue, including platform and tenant roles | No |
 | `permissions` | Permission catalogue matching backend actions | No |
 | `role_permissions` | Normalized role-to-permission mapping | No |
 | `membership_roles` | Roles assigned to a tenant membership | Yes |
 | `invitations` | Tenant invitations and acceptance state | Yes |
-| `sessions` | Optional durable session records or refresh tokens | No |
 
 Keep `users` global so one email can belong to more than one tenant without
 duplicating the person. Tenant-specific status, job profile, client link, and
 role assignment belong to `tenant_memberships`.
 
+Supabase Auth owns credential verification, password hashes, refresh tokens,
+MFA state, OAuth/provider identities, password recovery, and email confirmation
+token mechanics. The application database stores only the mapping from a
+Supabase Auth user to the application's `users` row plus application-specific
+memberships, roles, permissions, invitations, and audit facts.
+
 Core constraints:
 
 - `users.email` unique with a case-insensitive index.
+- `user_auth_mappings.supabase_auth_user_id` unique.
+- `user_auth_mappings.user_id` unique unless an approved design needs multiple
+  auth identities for one application user.
 - `tenant_memberships` unique on `(tenant_id, user_id)`.
 - `membership_roles` unique on `(tenant_id, membership_id, role_id)`.
 - `role_permissions` unique on `(role_id, permission_id)`.
@@ -340,6 +364,22 @@ events.
 Audit rows are append-only. Do not update or delete them through the runtime
 role.
 
+The runtime role must not have direct table DML on `audit.audit_events`. Use a
+narrow append-only audited write path, such as a reviewed `SECURITY DEFINER`
+function owned by the migration/table-owner role. Application services may call
+that function inside the same business transaction; they must not forge audit
+rows with direct inserts.
+
+`idempotency_keys` must have a uniqueness guarantee such as
+`unique (tenant_id, actor_membership_id, idempotency_key)`. Store a
+request-body hash, lock or mark in-progress rows during mutation execution, and
+reject reuse of the same key with a different request hash.
+
+`outbox_events` must support safe at-least-once processing. Include worker
+claim and retry fields such as `locked_at`, `locked_until`, `locked_by`,
+`max_attempts`, `last_error`, terminal failed/dead-letter state, retention
+metadata, and a dedupe key where the event type needs one.
+
 ## Normalized relationship map
 
 ```text
@@ -383,14 +423,13 @@ This catalogue names the business columns. Standard `id`, `tenant_id`,
 | Table | Main columns |
 | --- | --- |
 | `users` | `email`, `display_name`, `phone`, `status`, `last_login_at` |
-| `auth_identities` | `user_id`, `provider`, `provider_subject`, `password_hash`, `password_changed_at`, `mfa_enabled`, `locked_until` |
+| `user_auth_mappings` | `user_id`, `supabase_auth_user_id`, `provider`, `provider_subject`, `linked_at`, `last_verified_at` |
 | `tenant_memberships` | `tenant_id`, `user_id`, `status`, `display_name`, `timezone`, `joined_at`, `last_active_at` |
 | `roles` | `code`, `name`, `scope`, `system_role` |
 | `permissions` | `code`, `description`, `resource`, `action` |
 | `role_permissions` | `role_id`, `permission_id` |
 | `membership_roles` | `tenant_id`, `membership_id`, `role_id`, `assigned_by_membership_id`, `assigned_at` |
 | `invitations` | `tenant_id`, `email`, `role_id`, `token_hash`, `status`, `expires_at`, `accepted_at` |
-| `sessions` | `user_id`, `refresh_token_hash`, `ip_address`, `user_agent`, `expires_at`, `revoked_at` |
 
 ### Organisation and workforce
 
@@ -575,10 +614,11 @@ alter table tasks enable row level security;
 alter table tasks force row level security;
 ```
 
-Base tenant policy:
+Tenant context guard:
 
 ```sql
-create policy tenant_isolation_tasks on tasks
+create policy tenant_context_tasks on tasks
+as restrictive
 for all to app_runtime
 using (
   tenant_id = current_setting('app.tenant_id', true)::uuid
@@ -587,6 +627,13 @@ with check (
   tenant_id = current_setting('app.tenant_id', true)::uuid
 );
 ```
+
+Do not use a broad tenant-only permissive `for all` policy on tables that also
+need manager, employee, client, finance, HR, or support-access scope. PostgreSQL
+permissive policies combine with `OR`; a broad tenant-only policy can bypass
+record-level scope. Use restrictive tenant-context policies plus explicit
+operation-specific policies, or combine tenant and actor scope in each
+operation policy.
 
 Manager task scope adds assigned work-group access:
 
@@ -655,7 +702,8 @@ Use materialized views only for slow reports after measuring with
 6. Tasks, work logs, reviews, approvals.
 7. Billing, documents, support, notifications.
 8. Audit, idempotency, outbox.
-9. RLS policies and runtime grants.
+9. RLS policies and runtime grants for each tenant-owned slice before that
+   slice is used by runtime code.
 10. Views for list pages and dashboards.
 11. Tenant A/B isolation tests.
 
@@ -663,6 +711,8 @@ Use backward-compatible migrations:
 
 - Add nullable columns first, backfill, then add `not null`.
 - Add constraints after data is valid.
+- Enable and force RLS in the same migration slice as each tenant-owned table,
+  before granting runtime access.
 - Keep transactions short.
 - Never run external calls inside a database transaction.
 
@@ -673,12 +723,20 @@ Minimum test set before production:
 - Tenant A cannot read Tenant B clients, employees, tasks, invoices, documents,
   support tickets, notifications, or audit rows.
 - A child row cannot reference a parent row from a different tenant.
+- Same-tenant managers, employees, and client users cannot read, update, or
+  delete out-of-scope records.
 - Manager can access only tasks in assigned work groups.
 - Employee can access only self-owned or assigned task/work-log records.
 - Client user can access only their own client account, visible documents,
   invoices, requests, and tickets.
 - Platform support access requires an active support session and writes audit.
-- Runtime role cannot bypass RLS or write audit rows directly.
+- Runtime role cannot bypass RLS, cannot query without required context, and
+  cannot write forged audit rows directly.
+- Concurrent idempotent mutations create one business mutation only.
+- Outbox workers cannot claim the same event concurrently and failed events
+  retry before moving to a failed/dead-letter state.
+- Signed URL requests are denied for cross-tenant or unscanned/quarantined
+  documents.
 
 ## What this deliberately does not include
 

@@ -3,6 +3,7 @@ import {
   demoPassword,
   internalDemoEmail,
   isWorkspaceAllowed,
+  roleFromSession,
   validateDemoLogin,
 } from "@/lib/demo-auth";
 
@@ -28,6 +29,17 @@ test("validates the approved demo credentials for every portal role", () => {
       role: "EMPLOYEE",
     }),
   ).toBeNull();
+});
+
+test("does not allow Super Admin to use demo credentials", () => {
+  expect(
+    validateDemoLogin({
+      identifier: internalDemoEmail,
+      password: demoPassword,
+      role: "SUPER_ADMIN",
+    }),
+  ).toBeNull();
+  expect(roleFromSession("SUPER_ADMIN")).toBeNull();
 });
 
 test("limits every demo role to its own workspace", () => {

@@ -99,38 +99,4 @@ export const platformOverview: PlatformOverview = {
       status: "pending",
     },
   ],
-  auditEvents: [
-    {
-      id: "AUD-1048",
-      actor: "Maya Chen",
-      action: "Suspended tenant",
-      target: "Harbor & Finch",
-      time: "Today, 10:42",
-      status: "complete",
-    },
-    {
-      id: "AUD-1047",
-      actor: "Jordan Lee",
-      action: "Updated tenant configuration",
-      target: "Northstar Labs",
-      time: "Today, 09:18",
-      status: "complete",
-    },
-    {
-      id: "AUD-1046",
-      actor: "System",
-      action: "Requested tenant support review",
-      target: "Harbor & Finch",
-      time: "Yesterday, 17:25",
-      status: "pending",
-    },
-    {
-      id: "AUD-1045",
-      actor: "Maya Chen",
-      action: "Added tenant administrator",
-      target: "Wellspring Co.",
-      time: "Yesterday, 14:06",
-      status: "complete",
-    },
-  ],
 };

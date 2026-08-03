@@ -1,3 +1,8 @@
 node_modules
 .next
 tsconfig.tsbuildinfo
+dist
+coverage
+.env
+.env.*
+!.env.example

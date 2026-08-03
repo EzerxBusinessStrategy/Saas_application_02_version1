@@ -330,29 +330,6 @@ function Sidebar({
         collapsed={collapsed}
         onNavigate={onNavigate}
       />
-      <div
-        className={cn(
-          "mt-auto flex items-center gap-2 px-3 py-5 text-sm text-sidebar-muted",
-          collapsed && "justify-center px-0",
-        )}
-        aria-label="Demo workspace"
-        title="Demo workspace - Demo data"
-      >
-        <span className="flex size-8 shrink-0 items-center justify-center rounded-full border border-sidebar-muted/50 text-xs font-medium text-sidebar-foreground">
-          D
-        </span>
-        <span
-          aria-hidden={collapsed}
-          className={cn(
-            "truncate transition-[opacity,transform] duration-200 ease-out motion-reduce:transition-none",
-            collapsed
-              ? "pointer-events-none absolute -translate-x-1 opacity-0"
-              : "translate-x-0 opacity-100",
-          )}
-        >
-          Demo workspace
-        </span>
-      </div>
     </aside>
   );
 }

@@ -3,7 +3,7 @@ import type { Workspace } from "@/types/domain";
 export type TenantContext = {
   id: string;
   name: string;
-  status: "active" | "suspended";
+  status: string;
 };
 
 export type Notification = {

@@ -1,6 +1,13 @@
 import { z } from "zod";
 
-export const tenantStatuses = ["active", "suspended"] as const;
+export const tenantStatuses = [
+  "pending_activation",
+  "active",
+  "suspended",
+  "cancelled",
+  "archived",
+  "pending_deletion",
+] as const;
 export const deliveryHealthStates = ["healthy", "watch", "at-risk"] as const;
 export const availabilityStates = ["available", "limited", "full"] as const;
 
@@ -26,7 +33,7 @@ export const auditRecordSchema = z.object({
   timestamp: z.string(),
   ipAddress: z.string(),
   reason: z.string().nullable(),
-  result: z.enum(["success", "failed", "pending"]),
+  result: z.enum(["success", "failed", "pending", "denied"]),
   detail: z.string(),
 });
 export type AuditRecord = z.infer<typeof auditRecordSchema>;
@@ -133,7 +140,7 @@ export const supportAccessSchema = z.object({
 });
 export type SupportAccessRequest = z.infer<typeof supportAccessSchema>;
 
-export const createTenantSchema = z.object({
+export const legacyCreateTenantSchema = z.object({
   name: z.string().trim().min(2, "Enter the organisation name."),
   code: z
     .string()
@@ -167,7 +174,70 @@ export const createTenantSchema = z.object({
   portalSlug: z.string().trim().regex(/^[a-z0-9-]{3,40}$/, "Use 3–40 lowercase letters, numbers, or hyphens."),
   activationMethod: z.literal("invitation"),
 });
+export type LegacyCreateTenantInput = z.infer<typeof legacyCreateTenantSchema>;
+export const createTenantSchema = z.object({
+  company: z.object({
+    displayName: z.string().trim().min(2, "Enter the company display name."),
+    legalName: z.string().trim().min(2, "Enter the legal company name."),
+    tenantCode: z.string().trim().regex(/^[A-Z0-9][A-Z0-9-]{1,30}[A-Z0-9]$/, "Use uppercase letters, numbers, or hyphens."),
+    slug: z.string().trim().regex(/^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$/, "Use lowercase letters, numbers, or hyphens."),
+    countryCode: z.string().length(2, "Choose a country."),
+    reportingCurrencyCode: z.string().length(3, "Choose a currency."),
+    timezone: z.string().min(1, "Choose a timezone."),
+    industry: z.string().trim().max(160).optional().or(z.literal("")),
+    incorporationDate: z.string().optional().or(z.literal("")),
+    registrationNumber: z.string().trim().max(160).optional().or(z.literal("")),
+    taxIdentifier: z.string().trim().max(160).optional().or(z.literal("")),
+  }),
+  financialYear: z.object({
+    source: z.enum(["COUNTRY_SUGGESTION_CONFIRMED", "CUSTOM_CONFIRMED"]),
+    label: z.string().trim().min(2, "Enter the financial-year label."),
+    startsOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Enter a start date."),
+    endsOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Enter an end date."),
+    templateId: z.string().uuid().optional().or(z.literal("")),
+    overrideReason: z.string().trim().max(500).optional().or(z.literal("")),
+  }),
+  tenantAdministrator: z.object({
+    fullName: z.string().trim().min(2, "Enter the Tenant Administrator name."),
+    email: z.string().trim().email("Enter a valid work email."),
+    phone: z.string().trim().max(30).optional().or(z.literal("")),
+    expiresAt: z.string().optional(),
+  }),
+  confirm: z.boolean().refine((value) => value, "Confirm the tenant details before creating."),
+});
 export type CreateTenantInput = z.infer<typeof createTenantSchema>;
+
+export const tenantCreationOptionsSchema = z.object({
+  countries: z.array(z.object({
+    countryCode: z.string(),
+    name: z.string(),
+    reportingCurrencyCode: z.string(),
+    timezone: z.string(),
+  })),
+  countryCode: z.string().optional(),
+  policyMode: z.string().optional(),
+  suggestedFinancialYear: z.object({
+    id: z.string(),
+    label: z.string(),
+    startsOn: z.string(),
+    endsOn: z.string(),
+    source: z.literal("COUNTRY_SUGGESTION"),
+  }).optional(),
+  suggestedYearEnds: z.array(z.string()).optional(),
+  confirmationRequired: z.boolean().optional(),
+  customAllowed: z.boolean().optional(),
+  guidance: z.string().optional(),
+});
+export type TenantCreationOptions = z.infer<typeof tenantCreationOptionsSchema>;
+
+export const createTenantResponseSchema = z.object({
+  tenantId: z.string(),
+  financialYearId: z.string(),
+  invitationId: z.string(),
+  tenantStatus: z.literal("pending_activation"),
+  invitationStatus: z.literal("pending"),
+});
+export type CreateTenantResponse = z.infer<typeof createTenantResponseSchema>;
 
 export const tenantBrandingDraftSchema = z.object({
   companyName: z.string().trim().min(2, "Enter a company name.").max(80),

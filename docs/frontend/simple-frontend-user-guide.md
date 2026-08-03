@@ -28,7 +28,7 @@ Use these credentials for testing.
 
 | Portal | Portal access option | Login ID | Password |
 | --- | --- | --- | --- |
-| Super Admin | Super Admin | `abcd1234@gmail.com` | `1234` |
+| Super Admin | Super Admin | Use the email/password created by `corepack pnpm backend:bootstrap-super-admin` | Supabase Auth password |
 | Tenant Admin | Tenant Admin | `abcd1234@gmail.com` | `1234` |
 | Manager | Manager | `abcd1234@gmail.com` | `1234` |
 | Employee | Employee | `abcd1234@gmail.com` | `1234` |
@@ -36,7 +36,10 @@ Use these credentials for testing.
 
 Important:
 
-- All portals use the same demo email and password.
+- Tenant Admin, Manager, Employee, and Client User still use the same demo
+  email and password while their backend login flows are pending.
+- Super Admin no longer uses the demo password. It signs in through Supabase
+  Auth and is verified by the backend `/api/v1/me` endpoint.
 - Select the correct `Portal access` option before signing in.
 - Direct URL access is role checked in the frontend. For example, an employee
   should not be able to open Super Admin pages by typing the URL.
@@ -849,7 +852,10 @@ Purpose:
 
 ### 9.1 Role-based login
 
-- All portals use the same demo email and password.
+- Tenant, manager, employee, and client demo portals still use the same demo
+  email and password.
+- Super Admin uses the real Supabase account created by the backend bootstrap
+  command.
 - The selected portal controls which workspace opens.
 
 ### 9.2 Direct URL protection
