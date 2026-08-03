@@ -74,6 +74,7 @@ export type TenantListRow = {
   readonly code: string;
   readonly owner_name: string | null;
   readonly owner_email: string | null;
+  readonly pending_invitation_id: string | null;
   readonly status: string;
   readonly employee_count: number;
   readonly client_count: number;
@@ -96,6 +97,8 @@ export type ClosedInvitationRow = {
   readonly status: "cancelled" | "revoked";
 };
 
+export type InvitationDeliveryStatus = "not_sent" | "sent" | "failed";
+
 export type AcceptedInvitationRow = {
   readonly tenant_id: string;
   readonly user_id: string;
@@ -108,6 +111,11 @@ export type MembershipAccessRow = {
   readonly membership_id: string;
   readonly role_code?: string;
   readonly status: "active" | "revoked";
+};
+
+export type TenantStatusRow = {
+  readonly tenant_id: string;
+  readonly status: "active" | "suspended";
 };
 
 @Injectable()
@@ -242,6 +250,38 @@ export class AccessAdminRepository {
     });
   }
 
+  async cancelPendingTenantAdminInvitation(
+    context: RequestContext,
+    tenantId: string,
+    reason?: string,
+  ): Promise<ClosedInvitationRow> {
+    return this.withContext(context, async (client) => {
+      const result = await client.query<ClosedInvitationRow>(
+        "select * from private.cancel_super_admin_tenant_invitation($1::uuid, $2::text)",
+        [tenantId, reason ?? null],
+      );
+      return singleRow(result.rows);
+    });
+  }
+
+  async markInvitationDelivery(
+    context: RequestContext,
+    invitationId: string,
+    status: InvitationDeliveryStatus,
+    supabaseInvitationId?: string,
+  ): Promise<void> {
+    await this.withContext(context, async (client) => {
+      await client.query(
+        `update public.invitations
+         set delivery_status = $2::text,
+             supabase_invitation_id = coalesce($3::text, supabase_invitation_id),
+             updated_at = now()
+         where id = $1::uuid`,
+        [invitationId, status, supabaseInvitationId ?? null],
+      );
+    });
+  }
+
   async acceptInvitation(
     verifiedUser: VerifiedAuthUser,
     invitationId: string,
@@ -278,6 +318,21 @@ export class AccessAdminRepository {
       const result = await client.query<MembershipAccessRow>(
         "select * from private.reactivate_membership($1::uuid, $2::text)",
         [membershipId, roleCode],
+      );
+      return singleRow(result.rows);
+    });
+  }
+
+  async setTenantStatus(
+    context: RequestContext,
+    tenantId: string,
+    status: "active" | "suspended",
+    reason?: string,
+  ): Promise<TenantStatusRow> {
+    return this.withContext(context, async (client) => {
+      const result = await client.query<TenantStatusRow>(
+        "select * from private.set_super_admin_tenant_status($1::uuid, $2::text, $3::text)",
+        [tenantId, status, reason ?? null],
       );
       return singleRow(result.rows);
     });

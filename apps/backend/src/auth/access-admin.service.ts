@@ -1,4 +1,7 @@
 import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { createClient } from "@supabase/supabase-js";
+import { APP_CONFIG } from "../config/app-config.module";
+import { AppConfig } from "../config/app-config";
 import {
   AcceptedInvitationResponseDto,
   ClosedInvitationResponseDto,
@@ -38,7 +41,10 @@ const adminInviteRoles = [
 
 @Injectable()
 export class AccessAdminService {
-  constructor(@Inject(AccessAdminRepository) private readonly repository: AccessAdminRepository) { }
+  constructor(
+    @Inject(AccessAdminRepository) private readonly repository: AccessAdminRepository,
+    @Inject(APP_CONFIG) private readonly config: AppConfig,
+  ) { }
 
   async createTenantWithOwnerInvitation(
     context: RequestContext,
@@ -49,13 +55,40 @@ export class AccessAdminService {
     }
     await this.validateTenantCreation(context, request);
     const created = await this.createTenantOrThrowConflict(context, request);
+    const invitationDeliveryStatus = await this.sendTenantAdminInvitationEmail(
+      context,
+      created.invitation_id,
+      request.tenantAdministrator.email,
+    );
     return {
       tenantId: created.tenant_id,
       financialYearId: created.financial_year_id,
       invitationId: created.invitation_id,
       tenantStatus: "pending_activation",
       invitationStatus: "pending",
+      invitationDeliveryStatus,
     };
+  }
+
+  private async sendTenantAdminInvitationEmail(
+    context: RequestContext,
+    invitationId: string,
+    email: string,
+  ): Promise<"not_sent" | "sent" | "failed"> {
+    if (!this.config.supabaseUrl || !this.config.supabaseAdminKey || !this.config.publicAppUrl) {
+      return "not_sent";
+    }
+    const client = createClient(this.config.supabaseUrl, this.config.supabaseAdminKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    const redirectTo = `${this.config.publicAppUrl.replace(/\/+$/, "")}/accept-invitation?invitationId=${invitationId}`;
+    const { error } = await client.auth.admin.inviteUserByEmail(email, {
+      redirectTo,
+      data: { invitationId },
+    });
+    const status = error ? "failed" : "sent";
+    await this.repository.markInvitationDelivery(context, invitationId, status);
+    return status;
   }
 
   private async validateTenantCreation(
@@ -265,6 +298,28 @@ export class AccessAdminService {
     return { invitationId: closed.invitation_id, status: closed.status };
   }
 
+  async cancelTenantAdminInvitation(
+    context: RequestContext,
+    tenantId: string,
+    reason?: string,
+  ): Promise<ClosedInvitationResponseDto> {
+    if (!context.isPlatformAdmin || !context.permissions.includes("invitation.cancel")) {
+      throw permissionDenied();
+    }
+    try {
+      const closed = await this.repository.cancelPendingTenantAdminInvitation(context, tenantId, reason);
+      return { invitationId: closed.invitation_id, status: closed.status };
+    } catch (error) {
+      if (isPgUniqueError(error)) {
+        throw new ConflictException({
+          code: "INVITATION_NOT_PENDING",
+          message: "The Tenant Administrator invitation has already been cancelled or accepted.",
+        });
+      }
+      throw error;
+    }
+  }
+
   async acceptInvitation(
     verifiedUser: VerifiedAuthUser,
     invitationId: string,
@@ -303,6 +358,30 @@ export class AccessAdminService {
       roleCode: request.roleCode,
     };
   }
+
+  async updateTenantStatus(
+    context: RequestContext,
+    tenantId: string,
+    status: "active" | "suspended",
+    reason?: string,
+  ) {
+    const requiredPermission = status === "suspended" ? "tenant.suspend" : "tenant.reactivate";
+    if (!context.isPlatformAdmin || !context.permissions.includes(requiredPermission)) {
+      throw permissionDenied();
+    }
+    try {
+      const updated = await this.repository.setTenantStatus(context, tenantId, status, reason);
+      return { tenantId: updated.tenant_id, status: updated.status };
+    } catch (error) {
+      if (isPgInvalidStatusTransition(error)) {
+        throw new ConflictException({
+          code: "TENANT_STATUS_TRANSITION_INVALID",
+          message: "Only active tenants can be suspended and only suspended tenants can be reactivated.",
+        });
+      }
+      throw error;
+    }
+  }
 }
 
 function assertCanAssignRole(context: RequestContext, roleCode: TenantRoleCode): void {
@@ -325,6 +404,7 @@ function mapTenantRow(row: {
   readonly code: string;
   readonly owner_name: string | null;
   readonly owner_email: string | null;
+  readonly pending_invitation_id: string | null;
   readonly status: string;
   readonly employee_count: number;
   readonly client_count: number;
@@ -336,9 +416,12 @@ function mapTenantRow(row: {
     name: row.name,
     code: row.code,
     owner: {
-      name: row.owner_name ?? "Invitation pending",
+      name:
+        row.owner_name ??
+        (row.status === "cancelled" ? "Invitation cancelled" : "Invitation pending"),
       email: row.owner_email ?? "",
     },
+    pendingInvitationId: row.pending_invitation_id,
     status: row.status,
     employeeCount: row.employee_count,
     clientCount: row.client_count,
@@ -420,4 +503,8 @@ function isPgUniqueError(error: unknown): boolean {
 
 function isPgCheckError(error: unknown): boolean {
   return typeof error === "object" && error !== null && "code" in error && error.code === "23514";
+}
+
+function isPgInvalidStatusTransition(error: unknown): boolean {
+  return typeof error === "object" && error !== null && "code" in error && error.code === "P0001";
 }

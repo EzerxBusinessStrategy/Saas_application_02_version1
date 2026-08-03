@@ -61,6 +61,11 @@ export const closeInvitationSchema = z.object({
   reason: z.string().trim().min(1).max(500).optional(),
 });
 
+export const updateTenantStatusSchema = z.object({
+  status: z.enum(["active", "suspended"]),
+  reason: z.string().trim().min(1).max(500).optional(),
+});
+
 export const acceptInvitationSchema = z.object({
   displayName: z.string().trim().min(1).max(160).optional(),
 });
@@ -78,9 +83,18 @@ export type CreateTenantWithOwnerInvitationRequest = z.infer<
 >;
 export type CreateInvitationRequest = z.infer<typeof createInvitationSchema>;
 export type CloseInvitationRequest = z.infer<typeof closeInvitationSchema>;
+export type UpdateTenantStatusRequest = z.infer<typeof updateTenantStatusSchema>;
 export type AcceptInvitationRequest = z.infer<typeof acceptInvitationSchema>;
 export type RevokeMembershipRequest = z.infer<typeof revokeMembershipSchema>;
 export type ReactivateMembershipRequest = z.infer<typeof reactivateMembershipSchema>;
+
+export class TenantStatusResponseDto {
+  @ApiProperty({ type: String, format: "uuid" })
+  tenantId!: string;
+
+  @ApiProperty({ enum: ["active", "suspended"] })
+  status!: "active" | "suspended";
+}
 
 export class CompanyInfoDto {
   @ApiProperty({ type: String, example: "ABC Technologies" })
@@ -208,6 +222,9 @@ export class CreateTenantWithOwnerInvitationResponseDto {
 
   @ApiProperty({ enum: ["pending"] })
   invitationStatus!: "pending";
+
+  @ApiProperty({ enum: ["not_sent", "sent", "failed"] })
+  invitationDeliveryStatus!: "not_sent" | "sent" | "failed";
 }
 
 export class TenantCreationCountryDto {

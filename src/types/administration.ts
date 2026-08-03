@@ -16,6 +16,7 @@ export const tenantSchema = z.object({
   name: z.string(),
   code: z.string(),
   owner: z.object({ name: z.string(), email: z.string() }),
+  pendingInvitationId: z.string().nullable().optional(),
   status: z.enum(tenantStatuses),
   employeeCount: z.number().int().nonnegative(),
   clientCount: z.number().int().nonnegative(),
@@ -236,6 +237,7 @@ export const createTenantResponseSchema = z.object({
   invitationId: z.string(),
   tenantStatus: z.literal("pending_activation"),
   invitationStatus: z.literal("pending"),
+  invitationDeliveryStatus: z.enum(["not_sent", "sent", "failed"]).optional(),
 });
 export type CreateTenantResponse = z.infer<typeof createTenantResponseSchema>;
 

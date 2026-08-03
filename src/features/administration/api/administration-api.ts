@@ -134,6 +134,33 @@ export async function createTenant(input: CreateTenantInput) {
   return createTenantResponseSchema.parse(await response.json());
 }
 
+export async function cancelTenantAdminInvitation(tenantId: string) {
+  const response = await fetch(`/api/super-admin/tenants/${tenantId}/invitation/cancel`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ reason: "Cancelled by Super Admin from tenant actions." }),
+  });
+  await redirectToLoginOnUnauthorized(response);
+  if (!response.ok) throw new Error("Invitation could not be cancelled.");
+}
+
+export async function updateTenantStatus(
+  tenantId: string,
+  status: "active" | "suspended",
+) {
+  const response = await fetch(`/api/super-admin/tenants/${tenantId}`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      status,
+      reason: `Super Admin ${status === "suspended" ? "suspended" : "reactivated"} the tenant from the tenant directory.`,
+    }),
+  });
+  await redirectToLoginOnUnauthorized(response);
+  if (!response.ok) throw new Error("Tenant status could not be updated.");
+  return z.object({ tenantId: z.string(), status: z.enum(["active", "suspended"]) }).parse(await response.json());
+}
+
 export async function listAuditRecords(
   request: AuditListRequest,
 ) {

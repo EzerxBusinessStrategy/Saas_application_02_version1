@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
@@ -48,17 +48,16 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { listAuditRecords } from "@/features/administration/api/administration-api";
 import {
-  defaultPlatformConfiguration,
-  formatHexAsRgb,
-  getPlatformConfigurationSession,
-  savePlatformConfigurationSession,
-} from "@/lib/platform-configuration-session";
+  getPlatformConfiguration,
+  updatePlatformConfiguration,
+} from "@/features/platform/api/super-admin-platform-configuration-api";
 import { cn } from "@/lib/utils";
-import { platformOverview } from "@/mocks/platform-overview";
+import { getSuperAdminDashboard } from "@/features/platform/api/super-admin-dashboard-api";
 import {
   type AuditRecord,
   type AuditListRequest,
 } from "@/types/administration";
+import type { PlatformConfiguration } from "@/types/platform-configuration";
 
 const dateTime = new Intl.DateTimeFormat("en-US", {
   month: "short",
@@ -69,6 +68,29 @@ const dateTime = new Intl.DateTimeFormat("en-US", {
 });
 
 export function PlatformReports() {
+  const reportsQuery = useQuery({
+    queryKey: ["super-admin-reports"],
+    queryFn: () => getSuperAdminDashboard({}),
+    placeholderData: keepPreviousData,
+    retry: false,
+    staleTime: 30_000,
+  });
+  const tenants = reportsQuery.data?.tenantHealth ?? [];
+
+  if (reportsQuery.isLoading) {
+    return <LoadingState label="Loading global reports" rows={4} />;
+  }
+
+  if (reportsQuery.isError || !reportsQuery.data) {
+    return (
+      <ErrorState
+        title="Global reports could not load"
+        description="Check the backend connection and try again."
+        onRetry={() => void reportsQuery.refetch()}
+      />
+    );
+  }
+
   return (
     <div className="super-admin-portal flex flex-col gap-[30px]">
       <PageHeader
@@ -77,79 +99,89 @@ export function PlatformReports() {
         title="Global reports"
         description="Use tenant health and adoption signals to identify platform support needs."
       />
-      <section className="max-w-3xl">
+      <section className="mx-auto w-full max-w-5xl">
         <ChartCard
           className="super-admin-surface"
           title="Tenant health and platform usage"
           description="Compare tenants needing action with adoption signals."
         >
-          <div
-            role="img"
-            aria-label="Two tenants require attention and two are healthy or pending review."
-            className="h-64"
-          >
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart
-                data={platformOverview.tenantHealth.map((tenant) => ({
-                  name: tenant.name,
-                  users: tenant.users,
-                }))}
+          {tenants.length ? (
+            <>
+              <div
+                role="img"
+                aria-label="Active users by tenant"
+                className="h-72 min-w-0"
               >
-                <CartesianGrid
-                  stroke="var(--border)"
-                  strokeDasharray="3 3"
-                  vertical={false}
-                />
-                <XAxis
-                  dataKey="name"
-                  tickLine={false}
-                  axisLine={false}
-                  interval={0}
-                  tick={chartAxisTick}
-                  tickFormatter={(name: string) => name.split(" ")[0]}
-                />
-                <YAxis tick={chartAxisTick} tickLine={false} axisLine={false} />
-                <Tooltip
-                  content={<ChartTooltipContent />}
-                  cursor={chartTooltipCursor}
-                />
-                <Bar
-                  activeBar={{
-                    fill: "var(--primary)",
-                    opacity: 0.88,
-                    stroke: "var(--ring)",
-                    strokeWidth: 1,
-                  }}
-                  dataKey="users"
-                  name="Active users"
-                  fill="var(--primary)"
-                  radius={[4, 4, 0, 0]}
-                />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-          <p className="mt-3 text-sm text-muted-foreground">
-            Review tenants with low adoption or at-risk delivery signals before
-            escalating support.
-          </p>
-          <ul
-            className="mt-4 grid gap-2 text-sm sm:grid-cols-2"
-            aria-label="Tenant active-user counts"
-          >
-            {platformOverview.tenantHealth.map((tenant) => (
-              <li
-                key={tenant.name}
-                className="flex items-center justify-between gap-3"
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    data={tenants.map((tenant) => ({
+                      name: tenant.tenantName,
+                      users: tenant.activeUsers,
+                    }))}
+                    margin={{ top: 8, right: 8, left: 0, bottom: 8 }}
+                  >
+                    <CartesianGrid
+                      stroke="var(--border)"
+                      strokeDasharray="3 3"
+                      vertical={false}
+                    />
+                    <XAxis
+                      dataKey="name"
+                      tickLine={false}
+                      axisLine={false}
+                      interval={0}
+                      tick={chartAxisTick}
+                      tickFormatter={(name: string) => name.split(" ")[0]}
+                    />
+                    <YAxis tick={chartAxisTick} tickLine={false} axisLine={false} />
+                    <Tooltip
+                      content={<ChartTooltipContent />}
+                      cursor={chartTooltipCursor}
+                    />
+                    <Bar
+                      activeBar={{
+                        fill: "var(--primary)",
+                        opacity: 0.88,
+                        stroke: "var(--ring)",
+                        strokeWidth: 1,
+                      }}
+                      dataKey="users"
+                      name="Active users"
+                      fill="var(--primary)"
+                      radius={[4, 4, 0, 0]}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+              <p className="mt-3 text-sm text-muted-foreground">
+                Review tenants with low adoption or at-risk delivery signals before
+                escalating support.
+              </p>
+              <ul
+                className="mt-4 grid gap-2 text-sm sm:grid-cols-2"
+                aria-label="Tenant active-user counts"
               >
-                <span className="truncate" title={tenant.name}>
-                  {tenant.name}
-                </span>
-                <span className="shrink-0 text-muted-foreground">
-                  {tenant.users} active users
-                </span>
-              </li>
-            ))}
-          </ul>
+                {tenants.map((tenant) => (
+                  <li
+                    key={tenant.tenantId}
+                    className="flex items-center justify-between gap-3"
+                  >
+                    <span className="truncate" title={tenant.tenantName}>
+                      {tenant.tenantName}
+                    </span>
+                    <span className="shrink-0 text-muted-foreground">
+                      {tenant.activeUsers} active users
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : (
+            <EmptyState
+              title="No tenant usage data yet"
+              description="Tenant activity will appear here when tenant memberships are active."
+            />
+          )}
         </ChartCard>
       </section>
     </div>
@@ -407,32 +439,54 @@ type PlatformConfigurationInput = {
   platformName: string;
   defaultBrand: string;
   senderName: string;
-  supportSessionLimit: string;
-  enforceMfa: boolean;
-  reportsEnabled: boolean;
 };
 
+const defaultPlatformConfiguration: PlatformConfiguration = {
+  platformName: "SaaS App",
+  defaultBrand: "#3C50E0",
+  senderName: "SaaS App",
+};
+
+function formatHexAsRgb(hex: string) {
+  if (!/^#[0-9a-f]{6}$/i.test(hex)) return "Enter a valid hex value";
+  return `RGB ${[1, 3, 5].map((index) => Number.parseInt(hex.slice(index, index + 2), 16)).join(", ")}`;
+}
+
 export function PlatformConfiguration() {
+  const queryClient = useQueryClient();
+  const configurationQuery = useQuery({
+    queryKey: ["platform-configuration"],
+    queryFn: getPlatformConfiguration,
+  });
   const form = useForm<PlatformConfigurationInput>({
     defaultValues: {
       ...defaultPlatformConfiguration,
     },
   });
   const defaultBrand = form.watch("defaultBrand");
-  const [saved, setSaved] = useState(false);
+  const saveConfiguration = useMutation({
+    mutationFn: updatePlatformConfiguration,
+    onSuccess: async (configuration) => {
+      queryClient.setQueryData(["platform-configuration"], configuration);
+      form.reset(configuration);
+    },
+  });
 
   useEffect(() => {
-    const draft = getPlatformConfigurationSession();
-    if (draft) form.reset(draft);
-  }, [form]);
+    if (configurationQuery.data) form.reset(configurationQuery.data);
+  }, [configurationQuery.data, form]);
 
   const publish = (draft: PlatformConfigurationInput) => {
-    savePlatformConfigurationSession({
+    saveConfiguration.mutate({
       ...draft,
       defaultBrand: draft.defaultBrand.toUpperCase(),
     });
-    setSaved(true);
   };
+
+  if (configurationQuery.isPending) return <LoadingState label="Loading platform configuration" rows={2} />;
+  if (configurationQuery.isError) {
+    return <ErrorState title="Platform configuration could not load" description="Try again to retrieve the saved platform defaults." onRetry={() => void configurationQuery.refetch()} />;
+  }
 
   return (
     <div className="super-admin-portal flex flex-col gap-[30px]">
@@ -440,21 +494,26 @@ export function PlatformConfiguration() {
         eyebrow="Super Admin"
         eyebrowIcon={ShieldCheck}
         title="Platform configuration"
-        description="Set constrained platform defaults. Applying live security, email, and feature-flag changes requires a server-side configuration workflow."
+        description="Set constrained platform identity, branding, and email defaults."
       />
       <form
         className="flex flex-col gap-[30px]"
         onSubmit={form.handleSubmit(publish)}
       >
-        {saved ? (
+        {saveConfiguration.isSuccess ? (
           <Card role="status" className="super-admin-surface">
             <CardContent className="p-[30px]">
-              <p className="font-medium">Configuration payload validated</p>
+              <p className="font-medium">Platform configuration saved</p>
               <p className="mt-1 text-sm text-muted-foreground">
-                Platform name and brand colour are applied in this browser.
-                Security and reporting options remain frontend-only until the
-                backend configuration workflow exists.
+                Saved to the platform database and applied to the Super Admin shell.
               </p>
+            </CardContent>
+          </Card>
+        ) : null}
+        {saveConfiguration.isError ? (
+          <Card role="alert" className="border-danger/40">
+            <CardContent className="p-[30px] text-sm text-danger">
+              {saveConfiguration.error.message}
             </CardContent>
           </Card>
         ) : null}
@@ -529,62 +588,10 @@ export function PlatformConfiguration() {
               />
             </label>
           </CardContent>
-        </Card>
-        <Card className="super-admin-surface">
-          <CardHeader>
-            <CardTitle>Security, feature flags, and support rules</CardTitle>
-            <CardDescription>
-              These controls are frontend-only until the configuration API and
-              audit workflow are available.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-5">
-            <label className="text-sm font-medium">
-              Maximum support session
-              <Select
-                className="mt-1 max-w-xs"
-                {...form.register("supportSessionLimit")}
-              >
-                <option value="30">30 minutes</option>
-                <option value="60">60 minutes</option>
-                <option value="120">2 hours</option>
-              </Select>
-            </label>
-            <label className="flex items-start gap-3 text-sm">
-              <input
-                className="mt-1 size-4 accent-primary"
-                type="checkbox"
-                {...form.register("enforceMfa")}
-              />
-              <span>
-                <span className="block font-medium">
-                  Require multifactor authentication
-                </span>
-                <span className="block text-muted-foreground">
-                  A future identity provider integration must enforce this on
-                  the server.
-                </span>
-              </span>
-            </label>
-            <label className="flex items-start gap-3 text-sm">
-              <input
-                className="mt-1 size-4 accent-primary"
-                type="checkbox"
-                {...form.register("reportsEnabled")}
-              />
-              <span>
-                <span className="block font-medium">
-                  Enable platform reporting
-                </span>
-                <span className="block text-muted-foreground">
-                  Controls report visibility after backend authorization is in
-                  place.
-                </span>
-              </span>
-            </label>
-            <div className="flex justify-end">
-              <Button type="submit">Publish platform configuration</Button>
-            </div>
+          <CardContent className="flex justify-end pt-0">
+            <Button type="submit" disabled={saveConfiguration.isPending}>
+              {saveConfiguration.isPending ? "Saving configuration" : "Publish platform configuration"}
+            </Button>
           </CardContent>
         </Card>
       </form>

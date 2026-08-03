@@ -140,9 +140,22 @@ events.
 The backend now owns the first real administrator-controlled access-management
 slice:
 
+- `GET /api/v1/super-admin/platform-configuration` and
+  `PATCH /api/v1/super-admin/platform-configuration` are authenticated,
+  Super Admin-only APIs for the persistent platform name, default brand colour,
+  and email sender name. Updates are validated, written atomically, and audited;
+  the browser must not treat local storage as a configuration source.
+
 - `POST /api/v1/tenants` creates a `pending_activation` tenant and a pending
   Tenant Owner invitation for a Super Admin. It does not create or return a
   reusable password.
+- Super Admin tenant list/detail responses include the pending Tenant Admin
+  invitation ID only while the invitation is still pending, so the frontend can
+  cancel that activation link.
+- Tenant creation returns invitation delivery status. Supabase email delivery
+  runs only when the backend has Supabase admin and public app URL settings.
+- `POST /api/v1/super-admin/tenants/{tenantId}/invitation/cancel` cancels the
+  pending Tenant Admin activation link from Super Admin tenant actions.
 - `POST /api/v1/invitations` creates a tenant-scoped invitation with an
   administrator-selected role. The tenant, actor, and inviter authority come
   from the verified backend request context, not the browser payload.

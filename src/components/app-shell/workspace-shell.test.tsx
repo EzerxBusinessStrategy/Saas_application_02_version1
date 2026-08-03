@@ -7,20 +7,43 @@ import {
   screen,
   within,
 } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { ReactElement } from "react";
 import { afterEach, expect, test, vi } from "vitest";
 import { WorkspaceShell } from "@/components/app-shell/workspace-shell";
-import { PLATFORM_CONFIGURATION_STORAGE_KEY } from "@/lib/platform-configuration-session";
 import { tenantBrandingStorageKey } from "@/lib/tenant-branding-session";
 import { workspaceConfig } from "@/mocks/workspaces";
 
 const pathname = vi.hoisted(() => ({ value: "/admin/employees" }));
 
-vi.mock("next/navigation", () => ({ usePathname: () => pathname.value }));
+vi.mock("next/navigation", () => ({
+  usePathname: () => pathname.value,
+  useRouter: () => ({ push: vi.fn() }),
+}));
 vi.mock("next/image", () => ({
   default: ({ priority: _priority, ...props }: Record<string, unknown>) => (
     <img {...props} />
   ),
 }));
+vi.mock("@/components/app-shell/notification-menu", () => ({
+  NotificationMenu: () => null,
+}));
+
+const mockPlatformConfigurationApi = vi.hoisted(() => ({
+  getPlatformConfiguration: vi.fn(),
+}));
+
+vi.mock("@/features/platform/api/super-admin-platform-configuration-api", () => mockPlatformConfigurationApi);
+
+function renderShell(ui: ReactElement) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const result = render(<QueryClientProvider client={client}>{ui}</QueryClientProvider>);
+  return {
+    ...result,
+    rerender: (next: ReactElement) =>
+      result.rerender(<QueryClientProvider client={client}>{next}</QueryClientProvider>),
+  };
+}
 
 afterEach(() => {
   cleanup();
@@ -45,7 +68,7 @@ test("uses the active tenant's branding in manager and employee workspaces", () 
     }),
   );
   pathname.value = "/manager";
-  const { rerender } = render(
+  const { rerender } = renderShell(
     <WorkspaceShell workspace="manager" user={workspaceConfig("manager").user}>
       <p>Content</p>
     </WorkspaceShell>,
@@ -64,7 +87,7 @@ test("uses the active tenant's branding in manager and employee workspaces", () 
 test("collapses inside the sidebar and keeps active, labelled navigation accessible", () => {
   const employee = workspaceConfig("employee").user;
   pathname.value = "/employee/tasks";
-  render(
+  renderShell(
     <WorkspaceShell workspace="employee" user={employee}>
       <p>Content</p>
     </WorkspaceShell>,
@@ -102,7 +125,7 @@ test("collapses inside the sidebar and keeps active, labelled navigation accessi
 test("opens a permission-filtered nested flyout while collapsed", () => {
   const admin = workspaceConfig("admin").user;
   pathname.value = "/admin/employees";
-  render(
+  renderShell(
     <WorkspaceShell workspace="admin" user={admin}>
       <p>Content</p>
     </WorkspaceShell>,
@@ -130,7 +153,7 @@ test("opens a permission-filtered nested flyout while collapsed", () => {
 test("opens the mobile navigation drawer and limits the tenant switcher to super admins", () => {
   const admin = workspaceConfig("admin").user;
   pathname.value = "/admin";
-  const { rerender } = render(
+  const { rerender } = renderShell(
     <WorkspaceShell workspace="admin" user={admin}>
       <p>Content</p>
     </WorkspaceShell>,
@@ -142,6 +165,11 @@ test("opens the mobile navigation drawer and limits the tenant switcher to super
   ).toBeInTheDocument();
   const superAdmin = workspaceConfig("super-admin").user;
   pathname.value = "/super-admin";
+  mockPlatformConfigurationApi.getPlatformConfiguration.mockResolvedValueOnce({
+    platformName: "SaaS App",
+    defaultBrand: "#3C50E0",
+    senderName: "SaaS App",
+  });
   rerender(
     <WorkspaceShell workspace="super-admin" user={superAdmin}>
       <p>Content</p>
@@ -150,29 +178,26 @@ test("opens the mobile navigation drawer and limits the tenant switcher to super
   expect(
     screen.getByLabelText("Tenant context: Platform context"),
   ).toBeInTheDocument();
+  expect(
+    screen.getByRole("button", { name: "Refresh dashboard data" }),
+  ).toBeInTheDocument();
 });
 
-test("uses saved platform configuration in the super admin shell", () => {
-  window.localStorage.setItem(
-    PLATFORM_CONFIGURATION_STORAGE_KEY,
-    JSON.stringify({
-      platformName: "SaaS App",
-      defaultBrand: "#9AA4C6",
-      senderName: "SaaS App",
-      supportSessionLimit: "30",
-      enforceMfa: true,
-      reportsEnabled: true,
-    }),
-  );
+test("uses database platform configuration in the super admin shell", async () => {
+  mockPlatformConfigurationApi.getPlatformConfiguration.mockResolvedValueOnce({
+    platformName: "Operations Hub",
+    defaultBrand: "#9AA4C6",
+    senderName: "Operations Hub",
+  });
   const superAdmin = workspaceConfig("super-admin").user;
   pathname.value = "/super-admin/configuration";
-  render(
+  renderShell(
     <WorkspaceShell workspace="super-admin" user={superAdmin}>
       <p>Content</p>
     </WorkspaceShell>,
   );
 
-  expect(screen.getByText("SaaS App")).toBeInTheDocument();
+  expect(await screen.findByText("Operations Hub")).toBeInTheDocument();
   expect(document.documentElement.style.getPropertyValue("--primary")).toBe(
     "#9AA4C6",
   );

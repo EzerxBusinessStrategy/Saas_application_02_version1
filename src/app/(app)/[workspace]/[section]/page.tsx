@@ -60,7 +60,7 @@ export default async function Section({
   }
   if (section === "platform-settings") {
     return (
-      <FeatureBoundary role={user.role} permissions={["tenant.update"]}>
+      <FeatureBoundary role={user.role} permissions={["platform.configuration.update"]}>
         <PlatformConfiguration />
       </FeatureBoundary>
     );

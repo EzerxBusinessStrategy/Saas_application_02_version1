@@ -142,7 +142,6 @@ export class SuperAdminDashboardRepository {
       const platformStatus = await this.getPlatformStatus(client, filters);
       const trend = await this.getTrendRows(client, filters);
       const audit = await this.getAuditRows(client);
-      await this.syncPlatformAlerts(client, metricTenants);
       const platformAlerts = await this.getPlatformAlerts(client, filters);
       const tenantReviews = await this.getTenantReviews(client, filters);
       const healthBands = await this.getHealthBands(client);
@@ -188,9 +187,10 @@ export class SuperAdminDashboardRepository {
     options: { readonly includeSearch: boolean; readonly includeStatus: boolean },
   ): Promise<readonly DashboardTenantRow[]> {
     const params: unknown[] = [];
+    const financialYearWhere = selectedFinancialYearCondition(filters, params, "tfy");
     const tenantWhere = tenantConditions(filters, params, "t", options);
     const invoiceWhere = invoiceConditions(filters, params, "i", "ft");
-    const financialYearWhere = selectedFinancialYearCondition(filters, params, "tfy");
+    const healthCondition = filters.health ? `and hb.code = ${param(params, filters.health)}` : "";
     const result = await client.query<DashboardTenantRow>(
       `
       with filtered_tenants as (
@@ -233,19 +233,21 @@ export class SuperAdminDashboardRepository {
       ),
       item_totals as (
         select
-          tenant_id,
-          invoice_id,
-          sum(gross_amount - discount_amount)::numeric(18,2) as turnover_amount
-        from public.invoice_items
-        group by tenant_id, invoice_id
+          ii.tenant_id,
+          ii.invoice_id,
+          sum(ii.gross_amount - ii.discount_amount)::numeric(18,2) as turnover_amount
+        from public.invoice_items ii
+        join filtered_tenants ft on ft.id = ii.tenant_id
+        group by ii.tenant_id, ii.invoice_id
       ),
       payment_totals as (
         select
-          tenant_id,
-          invoice_id,
-          coalesce(sum(amount) filter (where status = 'successful'), 0)::numeric(18,2) as collected_amount
-        from public.payments
-        group by tenant_id, invoice_id
+          p.tenant_id,
+          p.invoice_id,
+          coalesce(sum(p.amount) filter (where p.status = 'successful'), 0)::numeric(18,2) as collected_amount
+        from public.payments p
+        join filtered_tenants ft on ft.id = p.tenant_id
+        group by p.tenant_id, p.invoice_id
       ),
       invoice_values as (
         select
@@ -312,6 +314,7 @@ export class SuperAdminDashboardRepository {
         order by sort_order
         limit 1
       ) hb on true
+      where true ${healthCondition}
       order by coalesce(tf.turnover, 0) desc, ft.display_name asc
       limit 100
       `,
@@ -325,12 +328,12 @@ export class SuperAdminDashboardRepository {
     filters: SuperAdminDashboardQuery,
   ): Promise<readonly DashboardCurrencyTotalRow[]> {
     const params: unknown[] = [];
+    const financialYearWhere = selectedFinancialYearCondition(filters, params, "tfy");
     const tenantWhere = tenantConditions(filters, params, "t", {
       includeSearch: false,
       includeStatus: false,
     });
     const invoiceWhere = invoiceConditions(filters, params, "i", "ft");
-    const financialYearWhere = selectedFinancialYearCondition(filters, params, "tfy");
     const result = await client.query<DashboardCurrencyTotalRow>(
       `
       with filtered_tenants as (
@@ -348,19 +351,21 @@ export class SuperAdminDashboardRepository {
       ),
       item_totals as (
         select
-          tenant_id,
-          invoice_id,
-          sum(gross_amount - discount_amount)::numeric(18,2) as turnover_amount
-        from public.invoice_items
-        group by tenant_id, invoice_id
+          ii.tenant_id,
+          ii.invoice_id,
+          sum(ii.gross_amount - ii.discount_amount)::numeric(18,2) as turnover_amount
+        from public.invoice_items ii
+        join filtered_tenants ft on ft.id = ii.tenant_id
+        group by ii.tenant_id, ii.invoice_id
       ),
       payment_totals as (
         select
-          tenant_id,
-          invoice_id,
-          coalesce(sum(amount) filter (where status = 'successful'), 0)::numeric(18,2) as collected_amount
-        from public.payments
-        group by tenant_id, invoice_id
+          p.tenant_id,
+          p.invoice_id,
+          coalesce(sum(p.amount) filter (where p.status = 'successful'), 0)::numeric(18,2) as collected_amount
+        from public.payments p
+        join filtered_tenants ft on ft.id = p.tenant_id
+        group by p.tenant_id, p.invoice_id
       ),
       invoice_values as (
         select
@@ -441,12 +446,12 @@ export class SuperAdminDashboardRepository {
     filters: SuperAdminDashboardQuery,
   ): Promise<readonly DashboardTrendRow[]> {
     const params: unknown[] = [];
+    const financialYearWhere = selectedFinancialYearCondition(filters, params, "tfy");
     const tenantWhere = tenantConditions(filters, params, "t", {
       includeSearch: true,
       includeStatus: true,
     });
     const invoiceWhere = invoiceConditions(filters, params, "i", "ft");
-    const financialYearWhere = selectedFinancialYearCondition(filters, params, "tfy");
     const result = await client.query<DashboardTrendRow>(
       `
       with filtered_tenants as (
@@ -464,11 +469,12 @@ export class SuperAdminDashboardRepository {
       ),
       item_totals as (
         select
-          tenant_id,
-          invoice_id,
-          sum(gross_amount - discount_amount)::numeric(18,2) as turnover_amount
-        from public.invoice_items
-        group by tenant_id, invoice_id
+          ii.tenant_id,
+          ii.invoice_id,
+          sum(ii.gross_amount - ii.discount_amount)::numeric(18,2) as turnover_amount
+        from public.invoice_items ii
+        join filtered_tenants ft on ft.id = ii.tenant_id
+        group by ii.tenant_id, ii.invoice_id
       )
       select
         i.tenant_id::text as tenant_id,
@@ -505,62 +511,6 @@ export class SuperAdminDashboardRepository {
       limit 5
     `);
     return result.rows;
-  }
-
-  private async syncPlatformAlerts(
-    client: PoolClient,
-    tenants: readonly DashboardTenantRow[],
-  ): Promise<void> {
-    for (const tenant of tenants) {
-      const tenantId = tenant.tenant_id;
-      const actionUrl = `/super-admin?tenantId=${tenantId}`;
-      if (!tenant.financial_year_id) {
-        await insertPlatformAlert(client, {
-          type: "FINANCIAL_YEAR_MISSING",
-          title: "Missing financial year",
-          message: `${tenant.tenant_name} has no current financial year configured.`,
-          severity: "WARNING",
-          tenantId,
-          actionUrl,
-          idempotencyKey: `FINANCIAL_YEAR_MISSING:${tenantId}`,
-        });
-      }
-      if (tenant.tenant_status === "suspended") {
-        await insertPlatformAlert(client, {
-          type: "TENANT_SUSPENDED",
-          title: "Tenant suspended",
-          message: `${tenant.tenant_name} is currently suspended.`,
-          severity: "WARNING",
-          tenantId,
-          actionUrl,
-          idempotencyKey: `TENANT_SUSPENDED:${tenantId}`,
-        });
-      }
-      if (tenant.health_code === "LOW") {
-        await insertPlatformAlert(client, {
-          type: "TENANT_LOW_HEALTH",
-          title: "Low financial health",
-          message: `${tenant.tenant_name}'s turnover is below the configured threshold.`,
-          severity: "WARNING",
-          tenantId,
-          actionUrl,
-          idempotencyKey: `TENANT_LOW_HEALTH:${tenantId}:${tenant.financial_year_id ?? "NO_FY"}`,
-        });
-      }
-      const turnover = Number(tenant.turnover) || 0;
-      const outstanding = Number(tenant.outstanding) || 0;
-      if (turnover > 0 && outstanding / turnover >= 0.5) {
-        await insertPlatformAlert(client, {
-          type: "HIGH_OUTSTANDING_AMOUNT",
-          title: "High outstanding amount",
-          message: `${tenant.tenant_name} has high outstanding invoices for the selected period.`,
-          severity: "CRITICAL",
-          tenantId,
-          actionUrl,
-          idempotencyKey: `HIGH_OUTSTANDING_AMOUNT:${tenantId}:${tenant.financial_year_id ?? "NO_FY"}`,
-        });
-      }
-    }
   }
 
   private async getPlatformAlerts(
@@ -802,12 +752,25 @@ export class SuperAdminDashboardRepository {
     return result.rows;
   }
 
-  private async getCountries(_client: PoolClient): Promise<readonly string[]> {
-    return COUNTRY_CODES;
+  private async getCountries(client: PoolClient): Promise<readonly string[]> {
+    const result = await client.query<{ country: string }>(`
+      select distinct country
+      from public.tenants
+      where country is not null
+      order by country
+    `);
+    const countries = result.rows.map((row) => row.country);
+    return countries.length ? countries : COUNTRY_CODES;
   }
 
-  private async getTenantStatuses(_client: PoolClient): Promise<readonly string[]> {
-    return TENANT_STATUS_OPTIONS;
+  private async getTenantStatuses(client: PoolClient): Promise<readonly string[]> {
+    const result = await client.query<{ status: string }>(`
+      select distinct status
+      from public.tenants
+      order by status
+    `);
+    const statuses = result.rows.map((row) => row.status);
+    return statuses.length ? statuses : TENANT_STATUS_OPTIONS;
   }
 }
 
@@ -897,52 +860,6 @@ function selectedFinancialYearCondition(
 function param(params: unknown[], value: unknown): string {
   params.push(value);
   return `$${params.length}`;
-}
-
-async function insertPlatformAlert(
-  client: PoolClient,
-  alert: {
-    readonly type: string;
-    readonly title: string;
-    readonly message: string;
-    readonly severity: "INFO" | "WARNING" | "CRITICAL";
-    readonly tenantId: string;
-    readonly actionUrl: string;
-    readonly idempotencyKey: string;
-  },
-): Promise<void> {
-  await client.query(
-    `
-    insert into public.platform_alerts (
-      type,
-      title,
-      message,
-      severity,
-      tenant_id,
-      entity_type,
-      entity_id,
-      action_url,
-      idempotency_key
-    )
-    values ($1, $2, $3, $4, $5, 'tenant', $5, $6, $7)
-    on conflict (idempotency_key) do update
-    set title = excluded.title,
-        message = excluded.message,
-        severity = excluded.severity,
-        action_url = excluded.action_url,
-        updated_at = now()
-    where public.platform_alerts.status in ('open', 'viewed')
-    `,
-    [
-      alert.type,
-      alert.title,
-      alert.message,
-      alert.severity,
-      alert.tenantId,
-      alert.actionUrl,
-      alert.idempotencyKey,
-    ],
-  );
 }
 
 function reviewTypeFromAlert(type: string): string {

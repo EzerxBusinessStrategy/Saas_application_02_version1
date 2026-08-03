@@ -190,7 +190,7 @@ function LocalResults({
         </ul>
       ) : (
         <p className="mt-3 rounded-[var(--radius-control)] bg-muted px-3 py-4 text-sm text-muted-foreground">
-          No available pages match "{query}".
+          No available pages match &quot;{query}&quot;.
         </p>
       )}
     </div>

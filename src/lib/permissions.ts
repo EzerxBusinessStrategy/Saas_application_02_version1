@@ -6,6 +6,8 @@ export const rolePermissions: Record<Role, Permission[]> = {
     "tenant.create",
     "tenant.update",
     "audit_log.read",
+    "platform.configuration.read",
+    "platform.configuration.update",
     "report.read",
   ],
   TENANT_OWNER: [

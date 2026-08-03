@@ -4,6 +4,7 @@ import { NestFastifyApplication } from "@nestjs/platform-fastify";
 import { createTestApp } from "../../helpers/test-app";
 import { AccessAdminRepository } from "../../../src/auth/access-admin.repository";
 import { AuthContextRepository, AuthContextRow } from "../../../src/auth/auth-context.repository";
+import { SessionPolicyRepository } from "../../../src/auth/session-policy.repository";
 import { SupabaseJwtVerifier } from "../../../src/auth/supabase-jwt-verifier.service";
 
 const authUserId = "77777777-7777-4777-8777-777777777777";
@@ -21,6 +22,7 @@ describe("administrator-controlled invitation and membership access", () => {
   afterEach(async () => {
     await app?.close();
     app = undefined;
+    verifiedEmail = undefined;
     vi.restoreAllMocks();
   });
 
@@ -33,7 +35,7 @@ describe("administrator-controlled invitation and membership access", () => {
       status: "pending",
       expires_at: new Date("2026-07-29T10:00:00.000Z"),
     });
-    app = await createTestApp();
+    app = await createAccessAdminTestApp();
 
     const response = await request(app.getHttpServer())
       .post("/api/v1/invitations")
@@ -76,7 +78,7 @@ describe("administrator-controlled invitation and membership access", () => {
         metadata: { defaultCurrency: "INR", defaultTimezone: "Asia/Kolkata" },
       },
     ]);
-    app = await createTestApp();
+    app = await createAccessAdminTestApp();
 
     const response = await request(app.getHttpServer())
       .post("/api/v1/super-admin/tenants")
@@ -112,14 +114,85 @@ describe("administrator-controlled invitation and membership access", () => {
       invitationId,
       tenantStatus: "pending_activation",
       invitationStatus: "pending",
+      invitationDeliveryStatus: "not_sent",
     });
+  });
+
+  test("allows a Super Admin to cancel a pending Tenant Admin invitation", async () => {
+    mockVerifiedAuthUser("super-admin@example.com");
+    mockPlatformAuthRows(["invitation.cancel"]);
+    vi.spyOn(AccessAdminRepository.prototype, "closeInvitation").mockResolvedValue({
+      invitation_id: invitationId,
+      status: "cancelled",
+    });
+    app = await createAccessAdminTestApp();
+
+    const response = await request(app.getHttpServer())
+      .post(`/api/v1/invitations/${invitationId}/cancel`)
+      .set("authorization", "Bearer verified-token")
+      .set("x-portal", "super-admin")
+      .send({ reason: "Wrong Tenant Administrator email." })
+      .expect(200);
+
+    expect(response.body).toEqual({ invitationId, status: "cancelled" });
+  });
+
+  test("allows a Super Admin to cancel a pending Tenant Admin invitation from tenant actions", async () => {
+    mockVerifiedAuthUser("super-admin@example.com");
+    mockPlatformAuthRows(["invitation.cancel"]);
+    vi.spyOn(AccessAdminRepository.prototype, "cancelPendingTenantAdminInvitation").mockResolvedValue({
+      invitation_id: invitationId,
+      status: "cancelled",
+    });
+    app = await createAccessAdminTestApp();
+
+    const response = await request(app.getHttpServer())
+      .post(`/api/v1/super-admin/tenants/${tenantId}/invitation/cancel`)
+      .set("authorization", "Bearer verified-token")
+      .set("x-portal", "super-admin")
+      .send({ reason: "Wrong Tenant Administrator email." })
+      .expect(200);
+
+    expect(response.body).toEqual({ invitationId, status: "cancelled" });
+  });
+
+  test("returns a conflict when the Tenant Administrator invitation is no longer pending", async () => {
+    mockVerifiedAuthUser("super-admin@example.com");
+    mockPlatformAuthRows(["invitation.cancel"]);
+    vi.spyOn(AccessAdminRepository.prototype, "cancelPendingTenantAdminInvitation").mockRejectedValue({ code: "23505" });
+    app = await createAccessAdminTestApp();
+
+    const response = await request(app.getHttpServer())
+      .post(`/api/v1/super-admin/tenants/${tenantId}/invitation/cancel`)
+      .set("authorization", "Bearer verified-token")
+      .set("x-portal", "super-admin")
+      .send({ reason: "Wrong Tenant Administrator email." })
+      .expect(409);
+
+    expect(response.body.error.code).toBe("INVITATION_NOT_PENDING");
+  });
+
+  test("returns a conflict instead of a server error for an invalid tenant lifecycle transition", async () => {
+    mockVerifiedAuthUser("super-admin@example.com");
+    mockPlatformAuthRows(["tenant.suspend"]);
+    vi.spyOn(AccessAdminRepository.prototype, "setTenantStatus").mockRejectedValue({ code: "P0001" });
+    app = await createAccessAdminTestApp();
+
+    const response = await request(app.getHttpServer())
+      .patch(`/api/v1/super-admin/tenants/${tenantId}/status`)
+      .set("authorization", "Bearer verified-token")
+      .set("x-portal", "super-admin")
+      .send({ status: "suspended" })
+      .expect(409);
+
+    expect(response.body.error.code).toBe("TENANT_STATUS_TRANSITION_INVALID");
   });
 
   test("denies Tenant Admin role escalation to Tenant Owner", async () => {
     mockVerifiedAuthUser("admin@tenant.test");
     mockAuthRows(["TENANT_ADMIN"], ["invitation.create"]);
     const repositorySpy = vi.spyOn(AccessAdminRepository.prototype, "createInvitation");
-    app = await createTestApp();
+    app = await createAccessAdminTestApp();
 
     const response = await request(app.getHttpServer())
       .post("/api/v1/invitations")
@@ -135,7 +208,7 @@ describe("administrator-controlled invitation and membership access", () => {
   test("denies invitation creation when the active membership lacks permission", async () => {
     mockVerifiedAuthUser("employee@tenant.test");
     mockAuthRows(["EMPLOYEE"], []);
-    app = await createTestApp();
+    app = await createAccessAdminTestApp();
 
     const response = await request(app.getHttpServer())
       .post("/api/v1/invitations")
@@ -156,7 +229,7 @@ describe("administrator-controlled invitation and membership access", () => {
       role_code: "MANAGER",
       status: "active",
     });
-    app = await createTestApp();
+    app = await createAccessAdminTestApp();
 
     const response = await request(app.getHttpServer())
       .post(`/api/v1/invitations/${invitationId}/accept`)
@@ -175,7 +248,7 @@ describe("administrator-controlled invitation and membership access", () => {
 
   test("rejects invitation acceptance when the token has no verified email claim", async () => {
     mockVerifiedAuthUser(undefined);
-    app = await createTestApp();
+    app = await createAccessAdminTestApp();
 
     const response = await request(app.getHttpServer())
       .post(`/api/v1/invitations/${invitationId}/accept`)
@@ -193,7 +266,7 @@ describe("administrator-controlled invitation and membership access", () => {
       membership_id: targetMembershipId,
       status: "revoked",
     });
-    app = await createTestApp();
+    app = await createAccessAdminTestApp();
 
     const response = await request(app.getHttpServer())
       .post(`/api/v1/memberships/${targetMembershipId}/revoke`)
@@ -213,7 +286,7 @@ describe("administrator-controlled invitation and membership access", () => {
       status: "active",
       role_code: "EMPLOYEE",
     });
-    app = await createTestApp();
+    app = await createAccessAdminTestApp();
 
     const response = await request(app.getHttpServer())
       .post(`/api/v1/memberships/${targetMembershipId}/reactivate`)
@@ -230,14 +303,24 @@ describe("administrator-controlled invitation and membership access", () => {
   });
 });
 
-function mockVerifiedAuthUser(email: string | undefined): void {
-  vi.spyOn(SupabaseJwtVerifier.prototype, "verifyBearerToken").mockResolvedValue({
+let verifiedEmail: string | undefined;
+
+async function createAccessAdminTestApp(): Promise<NestFastifyApplication> {
+  const testApp = await createTestApp();
+  vi.spyOn(testApp.get(SupabaseJwtVerifier), "verifyBearerToken").mockResolvedValue({
     authUserId,
-    email,
+    sessionId: "test-session",
+    email: verifiedEmail,
     issuer: "https://auth.example.test/auth/v1",
     audience: ["authenticated"],
     expiresAt: new Date(Date.now() + 300_000),
   });
+  vi.spyOn(testApp.get(SessionPolicyRepository), "assertActive").mockResolvedValue(undefined);
+  return testApp;
+}
+
+function mockVerifiedAuthUser(email: string | undefined): void {
+  verifiedEmail = email;
 }
 
 function mockAuthRows(roles: readonly string[], permissions: readonly string[]): void {
@@ -261,7 +344,7 @@ function mockAuthRows(roles: readonly string[], permissions: readonly string[]):
   ]);
 }
 
-function mockPlatformAuthRows(): void {
+function mockPlatformAuthRows(extraPermissions: readonly string[] = []): void {
   vi.spyOn(AuthContextRepository.prototype, "findBySupabaseAuthUserId").mockResolvedValue([
     {
       user_id: userId,
@@ -277,7 +360,7 @@ function mockPlatformAuthRows(): void {
       membership_display_name: null,
       membership_timezone: null,
       role_codes: ["SUPER_ADMIN"],
-      permission_codes: ["tenant.create"],
+      permission_codes: ["tenant.create", ...extraPermissions],
     } satisfies AuthContextRow,
   ]);
 }

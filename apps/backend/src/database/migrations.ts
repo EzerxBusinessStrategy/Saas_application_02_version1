@@ -34,6 +34,13 @@ export const migrationNames = [
   "0024_fix_audit_user_fk.sql",
   "0025_fix_notification_trigger_ambiguous_column.sql",
   "0026_fix_resolve_auth_context_check.sql",
+  "0027_super_admin_pending_invitation_id.sql",
+  "0028_super_admin_cancel_tenant_invitation.sql",
+  "0029_fix_cancel_tenant_invitation_role_lookup.sql",
+  "0030_cancel_tenant_with_invitation.sql",
+  "0031_backfill_cancelled_tenant_status.sql",
+  "0032_super_admin_tenant_status_lifecycle.sql",
+  "0033_platform_configuration.sql",
 ] as const;
 
 export async function runMigrations(

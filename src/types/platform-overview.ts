@@ -24,6 +24,7 @@ export type DashboardHealthFilter =
 
 export type TenantStatusFilter =
   | "active"
+  | "pending_activation"
   | "suspended"
   | "archived"
   | "provisioning";

@@ -5,6 +5,6 @@ import { dirname } from "node:path";
 const compat = new FlatCompat({ baseDirectory: dirname(fileURLToPath(import.meta.url)) });
 const config = [
   ...compat.extends("next/core-web-vitals"),
-  { ignores: [".next/**", "apps/backend/**", "storybook-static/**", "playwright-report/**"] },
+  { ignores: [".next/**", ".next-dev/**", "apps/backend/**", "storybook-static/**", "playwright-report/**"] },
 ];
 export default config;

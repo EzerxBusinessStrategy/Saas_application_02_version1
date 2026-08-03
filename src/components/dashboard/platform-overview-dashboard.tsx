@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Bar,
   BarChart,
@@ -12,7 +12,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { Activity, AlertTriangle, Info, ShieldCheck } from "lucide-react";
+import { Activity, Info, MoreHorizontal, Search, ShieldCheck } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -21,8 +21,15 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import { ConfirmationDialog } from "@/components/shared/confirmation-dialog";
 import { MetricCard } from "@/components/shared/metric-card";
 import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -31,20 +38,14 @@ import { ErrorState } from "@/components/shared/error-state";
 import { ChartCard } from "@/components/dashboard/chart-card";
 import { chartAxisTick, chartTooltipCursor } from "@/components/dashboard/chart-tooltip";
 import { cn } from "@/lib/utils";
-import {
-  createTenantReviewFromAlert,
-  markPlatformAlertViewed,
-  updateTenantReviewStatus,
-} from "@/features/platform/api/super-admin-actions-api";
+import { cancelTenantAdminInvitation } from "@/features/administration/api/administration-api";
 import { getSuperAdminDashboard } from "@/features/platform/api/super-admin-dashboard-api";
 import type {
-  DashboardAlert,
   DashboardHealthFilter,
   MoneyByCurrency,
   ReportingPeriodMode,
   SuperAdminDashboardData,
   SuperAdminDashboardFilters,
-  TenantReview,
   TenantStatusFilter,
   TenantTurnoverHealthRow,
   TurnoverTrendPoint,
@@ -53,10 +54,14 @@ import type {
 export function PlatformOverviewDashboard() {
   const queryClient = useQueryClient();
   const [filters, setFilters] = useState<SuperAdminDashboardFilters>({});
+  const [tenantSearch, setTenantSearch] = useState("");
   const [selectedTenantId, setSelectedTenantId] = useState("");
+  const [cancelTarget, setCancelTarget] = useState<TenantTurnoverHealthRow | null>(null);
+  const [cancelledTenantIds, setCancelledTenantIds] = useState<ReadonlySet<string>>(() => new Set());
   const query = useQuery({
     queryKey: ["super-admin-dashboard", filters],
     queryFn: () => getSuperAdminDashboard(filters),
+    placeholderData: keepPreviousData,
     retry: false,
     refetchOnWindowFocus: false,
     staleTime: 30_000,
@@ -71,28 +76,6 @@ export function PlatformOverviewDashboard() {
         : [],
     [data?.turnoverTrend, selectedTenant],
   );
-  const refreshDashboard = () => queryClient.invalidateQueries({ queryKey: ["super-admin-dashboard"] });
-  const markAlertViewed = useMutation({
-    mutationFn: markPlatformAlertViewed,
-    onSuccess: refreshDashboard,
-  });
-  const createReview = useMutation({
-    mutationFn: createTenantReviewFromAlert,
-    onSuccess: refreshDashboard,
-  });
-  const updateReview = useMutation({
-    mutationFn: ({
-      reviewId,
-      status,
-      resolution,
-    }: {
-      reviewId: string;
-      status: "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
-      resolution?: string;
-    }) => updateTenantReviewStatus(reviewId, status, resolution),
-    onSuccess: refreshDashboard,
-  });
-
   const setFilter = <Key extends keyof SuperAdminDashboardFilters>(
     key: Key,
     value: SuperAdminDashboardFilters[Key] | "",
@@ -101,6 +84,16 @@ export function PlatformOverviewDashboard() {
       ...current,
       [key]: value || undefined,
     }));
+  const submitTenantSearch = () =>
+    setFilters((current) => ({ ...current, search: tenantSearch.trim() || undefined }));
+  const cancelInvitation = useMutation({
+    mutationFn: (tenantId: string) => cancelTenantAdminInvitation(tenantId),
+    onSuccess: async (_result, tenantId) => {
+      setCancelledTenantIds((current) => new Set(current).add(tenantId));
+      await queryClient.invalidateQueries({ queryKey: ["super-admin-dashboard"] });
+      setCancelTarget(null);
+    },
+  });
 
   if (query.isLoading) {
     return <LoadingState label="Loading Super Admin dashboard" rows={6} />;
@@ -132,6 +125,11 @@ export function PlatformOverviewDashboard() {
         filters={filters}
         onFilter={setFilter}
         onTenant={setSelectedTenantId}
+        cancelledTenantIds={cancelledTenantIds}
+        onCancelInvitation={setCancelTarget}
+        searchValue={tenantSearch}
+        onSearchChange={setTenantSearch}
+        onSearch={submitTenantSearch}
       />
 
       <TenantFinancialDetails
@@ -144,20 +142,19 @@ export function PlatformOverviewDashboard() {
         onTenant={setSelectedTenantId}
       />
 
-      <section className="grid gap-[30px] xl:grid-cols-2">
-        <ActivityCard items={data.recentActivity} />
-        <AlertsCard
-          alerts={data.platformAlerts}
-          reviews={data.tenantReviews}
-          onTenant={setSelectedTenantId}
-          onViewAlert={(alert) => {
-            if (alert.tenantId) setSelectedTenantId(alert.tenantId);
-            markAlertViewed.mutate(alert.id);
-          }}
-          onCreateReview={(alertId) => createReview.mutate(alertId)}
-          onUpdateReview={(reviewId, status, resolution) => updateReview.mutate({ reviewId, status, resolution })}
-        />
-      </section>
+      <ActivityCard items={data.recentActivity} />
+      <ConfirmationDialog
+        open={Boolean(cancelTarget)}
+        onOpenChange={(open) => !open && setCancelTarget(null)}
+        title="Cancel invitation"
+        description={`Cancel the pending Tenant Administrator invitation for ${cancelTarget?.tenantName ?? "this tenant"}. The emailed link will no longer activate the tenant.`}
+        confirmLabel="Cancel invitation"
+        isConfirming={cancelInvitation.isPending}
+        destructive
+        onConfirm={() => {
+          if (cancelTarget) cancelInvitation.mutate(cancelTarget.tenantId);
+        }}
+      />
     </div>
   );
 }
@@ -216,11 +213,10 @@ function PlatformOverviewSection({
 
       <div>
         <h2 className="mb-3 text-xl font-semibold">Platform Status</h2>
-        <section className="grid overflow-hidden rounded-[var(--radius-card)] border border-border bg-border sm:grid-cols-2 xl:grid-cols-4">
+        <section className="grid overflow-hidden rounded-[var(--radius-card)] border border-border bg-border sm:grid-cols-2 xl:grid-cols-3">
           {[
             ["Active tenants", data.platformStatus.activeTenants],
             ["Suspended tenants", data.platformStatus.suspendedTenants],
-            ["Pending reviews", data.platformStatus.pendingTenantReviews],
             ["Active tenant users", data.platformStatus.activeTenantUsers],
           ].map(([label, value]) => (
             <MetricCard
@@ -276,6 +272,11 @@ function TenantTurnoverHealthSection({
   filters,
   onFilter,
   onTenant,
+  cancelledTenantIds,
+  onCancelInvitation,
+  searchValue,
+  onSearchChange,
+  onSearch,
 }: {
   data: SuperAdminDashboardData;
   filters: SuperAdminDashboardFilters;
@@ -284,6 +285,11 @@ function TenantTurnoverHealthSection({
     value: SuperAdminDashboardFilters[Key] | "",
   ) => void;
   onTenant: (tenantId: string) => void;
+  cancelledTenantIds: ReadonlySet<string>;
+  onCancelInvitation: (tenant: TenantTurnoverHealthRow) => void;
+  searchValue: string;
+  onSearchChange: (value: string) => void;
+  onSearch: () => void;
 }) {
   return (
     <Card className="super-admin-surface">
@@ -305,7 +311,14 @@ function TenantTurnoverHealthSection({
           </div>
           <HealthBandLegend data={data} />
         </div>
-        <TenantHealthFilters data={data} filters={filters} onFilter={onFilter} />
+        <TenantHealthFilters
+          data={data}
+          filters={filters}
+          onFilter={onFilter}
+          searchValue={searchValue}
+          onSearchChange={onSearchChange}
+          onSearch={onSearch}
+        />
         <HealthChips
           counts={data.filterOptions.healthCounts}
           active={filters.health ?? null}
@@ -316,12 +329,21 @@ function TenantTurnoverHealthSection({
         {data.tenantHealth.length ? (
           <div className="flex flex-col gap-5">
             <TopTenantsByCountry tenants={data.tenantHealth} selectedCountry={filters.country ?? null} />
-            <TenantHealthTable tenants={data.tenantHealth} onTenant={onTenant} />
+            <TenantHealthTable
+              tenants={data.tenantHealth}
+              onTenant={onTenant}
+              cancelledTenantIds={cancelledTenantIds}
+              onCancelInvitation={onCancelInvitation}
+            />
           </div>
         ) : (
           <EmptyState
-            title="No tenants match these filters"
-            description="Clear the health, status, country or search filter to expand the dashboard result."
+            title={filters.search ? `No tenant found for \"${filters.search}\"` : "No tenants match these filters"}
+            description={
+              filters.search
+                ? "Try a different tenant name, code, or clear the search."
+                : "Clear the health, status, country or search filter to expand the dashboard result."
+            }
           />
         )}
       </CardContent>
@@ -380,6 +402,9 @@ function TenantHealthFilters({
   data,
   filters,
   onFilter,
+  searchValue,
+  onSearchChange,
+  onSearch,
 }: {
   data: SuperAdminDashboardData;
   filters: SuperAdminDashboardFilters;
@@ -387,6 +412,9 @@ function TenantHealthFilters({
     key: Key,
     value: SuperAdminDashboardFilters[Key] | "",
   ) => void;
+  searchValue: string;
+  onSearchChange: (value: string) => void;
+  onSearch: () => void;
 }) {
   return (
     <section className="grid gap-3 rounded-[var(--radius-card)] border bg-card p-4 md:grid-cols-2 xl:grid-cols-12">
@@ -428,12 +456,28 @@ function TenantHealthFilters({
       </div>
       <label className="text-sm font-medium xl:col-span-3">
         Search Tenant
-        <Input
-          className="mt-1"
-          value={filters.search ?? ""}
-          placeholder="Search tenant..."
-          onChange={(event) => onFilter("search", event.target.value)}
-        />
+        <div className="relative mt-1">
+          <Input
+            className="pr-10"
+            value={searchValue}
+            placeholder="Search tenant..."
+            onChange={(event) => onSearchChange(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") onSearch();
+            }}
+          />
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="absolute right-1 top-1/2 size-8 -translate-y-1/2"
+            aria-label="Search tenants"
+            title="Search tenants"
+            onClick={onSearch}
+          >
+            <Search className="size-4" aria-hidden="true" />
+          </Button>
+        </div>
       </label>
     </section>
   );
@@ -626,9 +670,13 @@ function HealthChips({
 function TenantHealthTable({
   tenants,
   onTenant,
+  cancelledTenantIds,
+  onCancelInvitation,
 }: {
   tenants: readonly TenantTurnoverHealthRow[];
   onTenant: (tenantId: string) => void;
+  cancelledTenantIds: ReadonlySet<string>;
+  onCancelInvitation: (tenant: TenantTurnoverHealthRow) => void;
 }) {
   return (
     <div className="overflow-x-auto">
@@ -667,9 +715,27 @@ function TenantHealthTable({
                 <TenantStatusBadge status={tenant.tenantStatus} />
               </td>
               <td className="px-4 py-5">
-                <Button variant="outline" size="sm" onClick={() => onTenant(tenant.tenantId)}>
-                  View
-                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      aria-label={`Actions for ${tenant.tenantName}`}
+                    >
+                      <MoreHorizontal className="size-4" aria-hidden="true" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onSelect={() => onTenant(tenant.tenantId)}>
+                      View tenant
+                    </DropdownMenuItem>
+                    {tenant.tenantStatus === "pending_activation" && !cancelledTenantIds.has(tenant.tenantId) ? (
+                      <DropdownMenuItem onSelect={() => onCancelInvitation(tenant)}>
+                        Cancel invitation
+                      </DropdownMenuItem>
+                    ) : null}
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </td>
             </tr>
           ))}
@@ -913,129 +979,6 @@ function ActivityCard({
   );
 }
 
-function AlertsCard({
-  alerts,
-  reviews,
-  onTenant,
-  onViewAlert,
-  onCreateReview,
-  onUpdateReview,
-}: {
-  alerts: readonly DashboardAlert[];
-  reviews: readonly TenantReview[];
-  onTenant: (tenantId: string) => void;
-  onViewAlert: (alert: DashboardAlert) => void;
-  onCreateReview: (alertId: string) => void;
-  onUpdateReview: (reviewId: string, status: "IN_PROGRESS" | "COMPLETED" | "CANCELLED", resolution?: string) => void;
-}) {
-  return (
-    <Card className="super-admin-surface">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <AlertTriangle className="size-[18px] text-warning" aria-hidden="true" />
-          Platform Alerts and Reviews
-        </CardTitle>
-        <CardDescription>Financial, access and review items requiring attention.</CardDescription>
-      </CardHeader>
-      <CardContent className="grid gap-5 md:grid-cols-2">
-        <AlertList alerts={alerts} onView={onViewAlert} onReview={onCreateReview} />
-        <ReviewList reviews={reviews} onTenant={onTenant} onUpdate={onUpdateReview} />
-      </CardContent>
-    </Card>
-  );
-}
-
-function AlertList({
-  alerts,
-  onView,
-  onReview,
-}: {
-  alerts: readonly DashboardAlert[];
-  onView: (alert: DashboardAlert) => void;
-  onReview: (alertId: string) => void;
-}) {
-  if (!alerts.length) {
-    return <EmptyState title="No platform alerts" description="No tenants require platform action." />;
-  }
-  return (
-    <ul className="flex flex-col divide-y">
-      {alerts.map((alert) => (
-        <li key={alert.id} className="py-3 first:pt-0">
-          <p className="font-medium">{alert.title}</p>
-          <p className="mt-0.5 text-sm text-muted-foreground">{alert.message}</p>
-          <p className="mt-1 text-xs font-medium text-muted-foreground">
-            {titleCase(alert.severity)} - {titleCase(alert.status)} - {formatDateTime(alert.createdAt)}
-          </p>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <Button size="sm" variant="outline" onClick={() => onView(alert)}>
-              View Tenant
-            </Button>
-            {alert.tenantId ? (
-              <Button size="sm" onClick={() => onReview(alert.id)}>
-                Start Review
-              </Button>
-            ) : null}
-          </div>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-function ReviewList({
-  reviews,
-  onTenant,
-  onUpdate,
-}: {
-  reviews: readonly TenantReview[];
-  onTenant: (tenantId: string) => void;
-  onUpdate: (reviewId: string, status: "IN_PROGRESS" | "COMPLETED" | "CANCELLED", resolution?: string) => void;
-}) {
-  const [resolutionByReview, setResolutionByReview] = useState<Record<string, string>>({});
-  if (!reviews.length) {
-    return <EmptyState title="No tenant reviews" description="No tenant reviews are pending." />;
-  }
-  return (
-    <ul className="flex flex-col divide-y">
-      {reviews.map((review) => (
-        <li key={review.id} className="py-3 first:pt-0">
-          <p className="font-medium">{titleCase(review.reviewType)} - {review.tenantName}</p>
-          <p className="mt-0.5 text-sm text-muted-foreground">
-            {titleCase(review.status)} {review.dueDate ? `- Due ${formatDate(review.dueDate)}` : ""}
-          </p>
-          {review.reason ? <p className="mt-1 text-xs text-muted-foreground">{review.reason}</p> : null}
-          <div className="mt-3 flex flex-wrap gap-2">
-            <Button size="sm" variant="outline" onClick={() => onTenant(review.tenantId)}>
-              View Tenant
-            </Button>
-            {review.status === "PENDING" || review.status === "OVERDUE" ? (
-              <Button size="sm" onClick={() => onUpdate(review.id, "IN_PROGRESS")}>
-                Start
-              </Button>
-            ) : null}
-            {review.status === "IN_PROGRESS" ? (
-              <div className="flex w-full flex-col gap-2">
-                <textarea
-                  className="min-h-20 rounded-[var(--radius-control)] border border-border bg-background px-3 py-2 text-sm"
-                  maxLength={4000}
-                  placeholder="Resolution note"
-                  value={resolutionByReview[review.id] ?? ""}
-                  onChange={(event) =>
-                    setResolutionByReview((current) => ({ ...current, [review.id]: event.target.value }))
-                  }
-                />
-                <Button size="sm" onClick={() => onUpdate(review.id, "COMPLETED", resolutionByReview[review.id])}>
-                  Complete
-                </Button>
-              </div>
-            ) : null}
-          </div>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
 function HealthBadge({ health, label }: { health: DashboardHealthFilter; label: string }) {
   return (
     <span
@@ -1106,10 +1049,6 @@ function formatDateTime(value: string): string {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(value));
-}
-
-function formatDate(value: string): string {
-  return new Intl.DateTimeFormat("en-IN", { dateStyle: "medium" }).format(new Date(value));
 }
 
 function topTenantsByCountry(tenants: readonly TenantTurnoverHealthRow[]): readonly TenantTurnoverHealthRow[] {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useQuery } from "@tanstack/react-query";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -9,6 +10,7 @@ import {
   ChevronsLeft,
   ChevronsRight,
   Menu,
+  RefreshCw,
   Search,
 } from "lucide-react";
 import { Breadcrumbs } from "@/components/shared/breadcrumbs";
@@ -19,14 +21,8 @@ import { NotificationMenu } from "@/components/app-shell/notification-menu";
 import { TenantSwitcher } from "@/components/app-shell/tenant-switcher";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { UserMenu } from "@/components/app-shell/user-menu";
+import { getPlatformConfiguration } from "@/features/platform/api/super-admin-platform-configuration-api";
 import { navigationFor } from "@/lib/nav";
-import {
-  defaultPlatformConfiguration,
-  PLATFORM_CONFIGURATION_CHANGE_EVENT,
-  PLATFORM_CONFIGURATION_STORAGE_KEY,
-  restorePlatformConfigurationSession,
-  type PlatformConfigurationDraft,
-} from "@/lib/platform-configuration-session";
 import { hasAnyPermission } from "@/lib/permissions";
 import {
   restoreTenantBrandingSession,
@@ -348,6 +344,11 @@ export function WorkspaceShell({
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [commandMenuOpen, setCommandMenuOpen] = useState(false);
   const [companyName, setCompanyName] = useState("SaaS App");
+  const platformConfigurationQuery = useQuery({
+    queryKey: ["platform-configuration"],
+    queryFn: getPlatformConfiguration,
+    enabled: workspace === "super-admin" && user.role === "SUPER_ADMIN",
+  });
   const items = useMemo(
     () => filterNavigation(navigationFor(workspace), user.role),
     [user.role, workspace],
@@ -370,33 +371,11 @@ export function WorkspaceShell({
 
   useEffect(() => {
     if (workspace === "super-admin") {
-      const restorePlatformName = () => {
-        const draft = restorePlatformConfigurationSession();
-        setCompanyName(
-          draft?.platformName ?? defaultPlatformConfiguration.platformName,
-        );
-      };
-      const updatePlatformName = (
-        event: CustomEvent<PlatformConfigurationDraft>,
-      ) => setCompanyName(event.detail.platformName);
-      const updateFromStorage = (event: StorageEvent) => {
-        if (event.key === PLATFORM_CONFIGURATION_STORAGE_KEY) {
-          restorePlatformName();
-        }
-      };
-      restorePlatformName();
-      window.addEventListener(
-        PLATFORM_CONFIGURATION_CHANGE_EVENT,
-        updatePlatformName as EventListener,
-      );
-      window.addEventListener("storage", updateFromStorage);
-      return () => {
-        window.removeEventListener(
-          PLATFORM_CONFIGURATION_CHANGE_EVENT,
-          updatePlatformName as EventListener,
-        );
-        window.removeEventListener("storage", updateFromStorage);
-      };
+      const configuration = platformConfigurationQuery.data;
+      setCompanyName(configuration?.platformName ?? "SaaS App");
+      document.documentElement.style.setProperty("--primary", configuration?.defaultBrand ?? "#3C50E0");
+      document.documentElement.style.setProperty("--ring", configuration?.defaultBrand ?? "#3C50E0");
+      return;
     }
     const tenantId = "acme";
     const restoreCompanyName = () => {
@@ -426,7 +405,7 @@ export function WorkspaceShell({
       );
       window.removeEventListener("storage", updateFromStorage);
     };
-  }, [workspace]);
+  }, [platformConfigurationQuery.data, workspace]);
 
   return (
     <div
@@ -488,6 +467,16 @@ export function WorkspaceShell({
           </div>
           <div className="flex shrink-0 items-center gap-1 sm:gap-2">
             {user.role === "SUPER_ADMIN" ? <TenantSwitcher /> : null}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="size-10 p-0"
+              aria-label="Refresh dashboard data"
+              title="Refresh dashboard data"
+              onClick={() => window.location.reload()}
+            >
+              <RefreshCw className="size-[18px]" aria-hidden="true" />
+            </Button>
             <Button
               variant="outline"
               size="sm"

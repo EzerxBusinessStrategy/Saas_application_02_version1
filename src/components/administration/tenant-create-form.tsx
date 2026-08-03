@@ -149,7 +149,7 @@ export function TenantCreatePageForm() {
         "financialYear.endsOn",
       ],
       ["tenantAdministrator.fullName", "tenantAdministrator.email"],
-      ["confirm"],
+      ["tenantAdministrator.email", "confirm"],
     ],
     [],
   );
@@ -177,7 +177,7 @@ export function TenantCreatePageForm() {
               </Button>
             ) : (
               <Button type="submit" form="create-tenant-form" disabled={mutation.isPending}>
-                {mutation.isPending ? "Creating..." : "Create tenant"}
+                {mutation.isPending ? "Creating..." : "Create tenant and send invitation"}
               </Button>
             )}
           </div>
@@ -230,7 +230,7 @@ export function TenantCreatePageForm() {
           </Button>
         ) : (
           <Button type="submit" form="create-tenant-form" disabled={mutation.isPending}>
-            {mutation.isPending ? "Creating..." : "Create tenant"}
+            {mutation.isPending ? "Creating..." : "Create tenant and send invitation"}
           </Button>
         )}
       </div>
@@ -480,6 +480,7 @@ function AdminStep({ form }: { form: ReturnType<typeof useForm<CreateTenantInput
         </Field>
         <Field
           label="Work email"
+          hint="Invitation link is sent only here"
           error={form.formState.errors.tenantAdministrator?.email?.message}
         >
           <Input type="email" {...form.register("tenantAdministrator.email")} />
@@ -524,6 +525,13 @@ function ReviewStep({
             value={`${values.tenantAdministrator.fullName || "-"} · ${values.tenantAdministrator.email || "-"}`}
           />
         </dl>
+        <Field
+          label="Invitation email"
+          hint="Tenant Administrator activation link"
+          error={form.formState.errors.tenantAdministrator?.email?.message}
+        >
+          <Input type="email" {...form.register("tenantAdministrator.email")} />
+        </Field>
         <label className="flex items-start gap-3 text-sm">
           <input type="checkbox" className="mt-1" {...form.register("confirm")} />
           <span>

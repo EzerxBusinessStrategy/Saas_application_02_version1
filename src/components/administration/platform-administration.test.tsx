@@ -1,9 +1,23 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, expect, test } from "vitest";
+import { afterEach, expect, test, vi } from "vitest";
 import {
   PlatformConfiguration,
   PlatformReports,
 } from "@/components/administration/platform-administration";
+import type { SuperAdminDashboardData } from "@/types/platform-overview";
+
+const mockDashboardApi = vi.hoisted(() => ({
+  getSuperAdminDashboard: vi.fn(),
+}));
+
+const mockPlatformConfigurationApi = vi.hoisted(() => ({
+  getPlatformConfiguration: vi.fn(),
+  updatePlatformConfiguration: vi.fn(),
+}));
+
+vi.mock("@/features/platform/api/super-admin-dashboard-api", () => mockDashboardApi);
+vi.mock("@/features/platform/api/super-admin-platform-configuration-api", () => mockPlatformConfigurationApi);
 
 afterEach(() => {
   cleanup();
@@ -12,10 +26,26 @@ afterEach(() => {
   document.documentElement.style.removeProperty("--ring");
 });
 
-test("labels tenant values in the global platform report", () => {
-  const { container } = render(<PlatformReports />);
+test("renders database-backed tenant usage in the global platform report", async () => {
+  const dashboard: SuperAdminDashboardData = {
+    superAdmin: { id: "admin-1", name: "Super Admin", email: "admin@example.com", initials: "SA" },
+    metrics: { totalTenants: 1, totalTurnoverByCurrency: [], collectedByCurrency: [], outstandingByCurrency: [], lowHealthTenants: 0 },
+    platformStatus: { activeTenants: 1, suspendedTenants: 0, pendingTenantReviews: 0, activeTenantUsers: 7 },
+    tenantHealth: [{ tenantId: "tenant-1", tenantName: "ABC Technologies", country: "GB", tenantStatus: "active", currencyCode: "GBP", turnover: "0.00", collected: "0.00", outstanding: "0.00", growthPercentage: null, collectionRate: 0, invoiceCount: 0, activeUsers: 7, health: "LOW", healthLabel: "Low", financialCondition: "AT_RISK", financialYear: null, financialYears: [] }],
+    recentActivity: [], platformAlerts: [], tenantReviews: [], turnoverTrend: [],
+    filterOptions: { financialYears: [], countries: ["GB"], healthBands: [], healthCounts: [], tenantStatuses: ["active"] },
+    appliedFilters: { from: null, to: null, periodMode: "CURRENT_FY", financialYearId: null, health: null, tenantStatus: null, country: null, search: null },
+  };
+  mockDashboardApi.getSuperAdminDashboard.mockResolvedValueOnce(dashboard);
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const { container } = render(
+    <QueryClientProvider client={client}>
+      <PlatformReports />
+    </QueryClientProvider>,
+  );
 
-  expect(screen.getByText("Northstar Labs")).toBeInTheDocument();
+  expect(await screen.findByText("ABC Technologies")).toBeInTheDocument();
+  expect(mockDashboardApi.getSuperAdminDashboard).toHaveBeenCalledWith({});
   expect(
     screen.getByLabelText("Page context: Super Admin"),
   ).toBeInTheDocument();
@@ -25,8 +55,25 @@ test("labels tenant values in the global platform report", () => {
   ).toBeInTheDocument();
 });
 
-test("publishes platform configuration to the current browser session", async () => {
-  render(<PlatformConfiguration />);
+test("persists platform configuration through the API", async () => {
+  mockPlatformConfigurationApi.getPlatformConfiguration.mockResolvedValueOnce({
+    platformName: "SaaS App",
+    defaultBrand: "#3C50E0",
+    senderName: "SaaS App",
+  });
+  mockPlatformConfigurationApi.updatePlatformConfiguration.mockResolvedValueOnce({
+    platformName: "SaaS App",
+    defaultBrand: "#9AA4C6",
+    senderName: "SaaS App",
+  });
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(
+    <QueryClientProvider client={client}>
+      <PlatformConfiguration />
+    </QueryClientProvider>,
+  );
+
+  await screen.findByLabelText("Platform name");
 
   fireEvent.change(screen.getByLabelText("Platform name"), {
     target: { value: "SaaS App" },
@@ -44,12 +91,16 @@ test("publishes platform configuration to the current browser session", async ()
   );
 
   expect(
-    await screen.findByText(/Platform name and brand colour are applied/),
+    await screen.findByText(/Saved to the platform database/),
   ).toBeInTheDocument();
-  expect(document.documentElement.style.getPropertyValue("--primary")).toBe(
-    "#9AA4C6",
-  );
   expect(
-    window.localStorage.getItem("ezerx-platform-configuration-draft"),
-  ).toContain("SaaS App");
+    mockPlatformConfigurationApi.updatePlatformConfiguration,
+  ).toHaveBeenCalledWith(
+    {
+      platformName: "SaaS App",
+      defaultBrand: "#9AA4C6",
+      senderName: "SaaS App",
+    },
+    expect.anything(),
+  );
 });

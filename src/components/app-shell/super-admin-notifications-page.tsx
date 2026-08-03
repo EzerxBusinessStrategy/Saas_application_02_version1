@@ -44,7 +44,7 @@ export function SuperAdminNotificationsPage() {
         {query.isLoading ? <p className="p-5 text-sm text-muted-foreground">Loading notifications...</p> : null}
         {query.isError ? <p className="p-5 text-sm text-danger">Notifications could not load.</p> : null}
         {query.data && !query.data.items.length ? (
-          <p className="p-5 text-sm text-muted-foreground">You're all caught up.</p>
+          <p className="p-5 text-sm text-muted-foreground">You&apos;re all caught up.</p>
         ) : null}
         {query.data?.items.map((item) => (
           <Link

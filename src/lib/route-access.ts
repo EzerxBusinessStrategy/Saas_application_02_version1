@@ -36,7 +36,7 @@ export const sectionAccess: Record<
   tenants: { workspaces: ["super-admin"], permissions: ["tenant.read"] },
   "platform-settings": {
     workspaces: ["super-admin"],
-    permissions: ["tenant.update"],
+    permissions: ["platform.configuration.update"],
   },
   "support-access": {
     workspaces: ["super-admin"],

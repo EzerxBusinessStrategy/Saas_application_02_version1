@@ -36,6 +36,8 @@ export const permissions = [
   "report.read",
   "branding.manage",
   "audit_log.read",
+  "platform.configuration.read",
+  "platform.configuration.update",
 ] as const;
 export type Permission = (typeof permissions)[number];
 export type Workspace =

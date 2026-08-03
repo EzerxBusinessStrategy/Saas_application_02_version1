@@ -176,7 +176,7 @@ function SuperAdminNotificationMenu({ open }: { open?: boolean }) {
         {query.isLoading ? <NotificationLoading /> : null}
         {query.isError ? <NotificationError /> : null}
         {!query.isLoading && !query.isError && !items.length ? (
-          <div className="px-3 py-5 text-sm text-muted-foreground">You're all caught up.</div>
+          <div className="px-3 py-5 text-sm text-muted-foreground">You&apos;re all caught up.</div>
         ) : null}
         {!query.isLoading && !query.isError && items.length ? (
           <NotificationList items={items} onRead={(id) => markRead.mutate(id)} />
@@ -279,7 +279,7 @@ function MockNotificationMenu({
         {state === "loading" ? <NotificationLoading /> : null}
         {state === "error" ? <NotificationError /> : null}
         {state === "empty" || (state === "ready" && !visibleItems.length) ? (
-          <div className="px-3 py-5 text-sm text-muted-foreground">You're all caught up.</div>
+          <div className="px-3 py-5 text-sm text-muted-foreground">You&apos;re all caught up.</div>
         ) : null}
         {state === "ready" && visibleItems.length ? (
           <div className="max-h-80 overflow-y-auto p-1">

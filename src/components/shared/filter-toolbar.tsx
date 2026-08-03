@@ -17,6 +17,7 @@ export function FilterToolbar({
   search?: {
     value: string;
     onChange: (value: string) => void;
+    onSubmit?: () => void;
     label: string;
     placeholder: string;
   };
@@ -42,9 +43,26 @@ export function FilterToolbar({
               value={search.value}
               disabled={disabled}
               onChange={(event) => search.onChange(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") search.onSubmit?.();
+              }}
               placeholder={search.placeholder}
-              className="pl-10"
+              className={search.onSubmit ? "pl-10 pr-10" : "pl-10"}
             />
+            {search.onSubmit ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="absolute right-1 top-1/2 size-8 -translate-y-1/2 p-0"
+                aria-label={search.label}
+                title={search.label}
+                disabled={disabled}
+                onClick={search.onSubmit}
+              >
+                <Search className="size-4" aria-hidden="true" />
+              </Button>
+            ) : null}
           </label>
         ) : null}
         <div className="flex items-center gap-2">

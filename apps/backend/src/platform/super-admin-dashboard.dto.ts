@@ -19,10 +19,13 @@ export const dashboardHealthFilters = [
 ] as const;
 
 export const dashboardTenantStatusFilters = [
+  "provisioning",
+  "pending_activation",
   "active",
   "suspended",
+  "cancelled",
   "archived",
-  "provisioning",
+  "pending_deletion",
 ] as const;
 
 export const dashboardPeriodModes = [

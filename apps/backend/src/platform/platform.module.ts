@@ -12,6 +12,9 @@ import { SuperAdminNotificationsGateway } from "./super-admin-notifications.gate
 import { SuperAdminNotificationsListener } from "./super-admin-notifications-listener.service";
 import { SuperAdminNotificationsRepository } from "./super-admin-notifications.repository";
 import { SuperAdminNotificationsService } from "./super-admin-notifications.service";
+import { SuperAdminPlatformConfigurationController } from "./super-admin-platform-configuration.controller";
+import { SuperAdminPlatformConfigurationRepository } from "./super-admin-platform-configuration.repository";
+import { SuperAdminPlatformConfigurationService } from "./super-admin-platform-configuration.service";
 import { SuperAdminSearchController } from "./super-admin-search.controller";
 import { SuperAdminSearchRepository } from "./super-admin-search.repository";
 import { SuperAdminSearchService } from "./super-admin-search.service";
@@ -23,6 +26,7 @@ import { SuperAdminSearchService } from "./super-admin-search.service";
     SuperAdminDashboardController,
     SuperAdminSearchController,
     SuperAdminNotificationsController,
+    SuperAdminPlatformConfigurationController,
   ],
   providers: [
     SuperAdminAuditLogRepository,
@@ -35,6 +39,8 @@ import { SuperAdminSearchService } from "./super-admin-search.service";
     SuperAdminNotificationsService,
     SuperAdminNotificationsGateway,
     SuperAdminNotificationsListener,
+    SuperAdminPlatformConfigurationRepository,
+    SuperAdminPlatformConfigurationService,
   ],
 })
 export class PlatformModule {}

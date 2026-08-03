@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
@@ -44,9 +44,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
+  cancelTenantAdminInvitation,
   getTenant,
   listAuditRecords,
   listTenants,
+  updateTenantStatus,
 } from "@/features/administration/api/administration-api";
 import { tenants } from "@/mocks/administration";
 import {
@@ -74,6 +76,8 @@ const tenantTabs = [
 
 type SupportAccessFormInput = z.input<typeof supportAccessSchema>;
 type TenantCreateFormInput = z.input<typeof legacyCreateTenantSchema>;
+const canChangeTenantStatus = (tenant: Tenant) =>
+  tenant.status === "active" || tenant.status === "suspended";
 
 const previewState = (value: string | null) =>
   value === "loading" || value === "error" || value === "empty" ? value : null;
@@ -97,11 +101,14 @@ function TenantCard({
   tenant,
   onOpen,
   onChangeStatus,
+  onCancelInvitation,
 }: {
   tenant: Tenant;
   onOpen: () => void;
   onChangeStatus: () => void;
+  onCancelInvitation: () => void;
 }) {
+  const canCancelInvitation = tenant.status === "pending_activation";
   return (
     <MobileEntityCard
       title={tenant.name}
@@ -127,13 +134,15 @@ function TenantCard({
         </Button>
       }
       overflowActions={[
-        {
-          label:
-            tenant.status === "suspended"
-              ? "Reactivate tenant"
-              : "Suspend tenant",
-          onSelect: onChangeStatus,
-        },
+        ...(canCancelInvitation
+          ? [{ label: "Cancel invitation", onSelect: onCancelInvitation }]
+          : []),
+        ...(canChangeTenantStatus(tenant)
+          ? [{
+              label: tenant.status === "suspended" ? "Reactivate tenant" : "Suspend tenant",
+              onSelect: onChangeStatus,
+            }]
+          : []),
       ]}
     />
   );
@@ -142,14 +151,17 @@ function TenantCard({
 export function TenantDirectory() {
   const pathname = usePathname();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const searchParams = useSearchParams();
+  const [searchValue, setSearchValue] = useState(
+    () => searchParams.get("query") ?? "",
+  );
+  const [submittedQuery, setSubmittedQuery] = useState(searchValue);
   const [lifecycleTarget, setLifecycleTarget] = useState<Tenant | null>(null);
-  const [statusOverrides, setStatusOverrides] = useState<
-    Record<string, Tenant["status"]>
-  >({});
+  const [invitationTarget, setInvitationTarget] = useState<Tenant | null>(null);
   const request = useMemo<TenantListRequest>(
     () => ({
-      query: searchParams.get("query") ?? undefined,
+      query: submittedQuery.trim() || undefined,
       status: searchParams.get("status") as TenantListRequest["status"],
       createdAfter: searchParams.get("createdAfter") ?? undefined,
       sort: (searchParams.get("sort") as TenantListRequest["sort"]) ?? "name",
@@ -158,11 +170,27 @@ export function TenantDirectory() {
         ? Number(searchParams.get("pageSize"))
         : 5,
     }),
-    [searchParams],
+    [searchParams, submittedQuery],
   );
   const query = useQuery({
     queryKey: ["tenants", request],
     queryFn: () => listTenants(request),
+    placeholderData: keepPreviousData,
+  });
+  const cancelInvitation = useMutation({
+    mutationFn: (tenant: Tenant) => cancelTenantAdminInvitation(tenant.id),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["tenants"] });
+      setInvitationTarget(null);
+    },
+  });
+  const lifecycleMutation = useMutation({
+    mutationFn: ({ tenantId, status }: { tenantId: string; status: "active" | "suspended" }) =>
+      updateTenantStatus(tenantId, status),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["tenants"] });
+      setLifecycleTarget(null);
+    },
   });
   const forcedState = previewState(searchParams.get("state"));
   const setParam = (key: string, value: string) =>
@@ -173,7 +201,19 @@ export function TenantDirectory() {
       key,
       value,
     );
-  const clearFilters = () => router.replace(pathname, { scroll: false });
+  const clearFilters = () => {
+    setSearchValue("");
+    setSubmittedQuery("");
+    router.replace(pathname, { scroll: false });
+  };
+  const submitSearch = () => {
+    const nextQuery = searchValue.trim();
+    if (nextQuery === submittedQuery) {
+      void query.refetch();
+      return;
+    }
+    setSubmittedQuery(nextQuery);
+  };
   const activeFilters = [
     request.query,
     request.status,
@@ -182,7 +222,7 @@ export function TenantDirectory() {
   const rows = (forcedState === "empty" ? [] : (query.data?.items ?? [])).map(
     (tenant) => ({
       ...tenant,
-      status: statusOverrides[tenant.id] ?? tenant.status,
+      status: tenant.status,
     }),
   );
 
@@ -252,7 +292,7 @@ export function TenantDirectory() {
       header: "Tenant status",
       cell: ({ row }) => (
         <StatusBadge
-          status={statusOverrides[row.original.id] ?? row.original.status}
+          status={row.original.status}
           className="whitespace-nowrap"
         />
       ),
@@ -297,12 +337,16 @@ export function TenantDirectory() {
             >
               View tenant
             </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => setLifecycleTarget(row.original)}>
-              {(statusOverrides[row.original.id] ?? row.original.status) ===
-              "suspended"
-                ? "Reactivate tenant"
-                : "Suspend tenant"}
-            </DropdownMenuItem>
+            {row.original.status === "pending_activation" ? (
+              <DropdownMenuItem onSelect={() => setInvitationTarget(row.original)}>
+                Cancel invitation
+              </DropdownMenuItem>
+            ) : null}
+            {canChangeTenantStatus(row.original) ? (
+              <DropdownMenuItem onSelect={() => setLifecycleTarget(row.original)}>
+                {row.original.status === "suspended" ? "Reactivate tenant" : "Suspend tenant"}
+              </DropdownMenuItem>
+            ) : null}
           </DropdownMenuContent>
         </DropdownMenu>
       ),
@@ -349,8 +393,9 @@ export function TenantDirectory() {
         <CardContent className="flex flex-col gap-5">
           <FilterToolbar
             search={{
-              value: request.query ?? "",
-              onChange: (value) => setParam("query", value),
+              value: searchValue,
+              onChange: setSearchValue,
+              onSubmit: submitSearch,
               label: "Search tenants",
               placeholder: "Search tenant, code, or owner",
             }}
@@ -380,6 +425,7 @@ export function TenantDirectory() {
                 <option value="pending_activation">Pending activation</option>
                 <option value="active">Active</option>
                 <option value="suspended">Suspended</option>
+                <option value="cancelled">Cancelled</option>
               </Select>
             </label>
             <label className="flex flex-col gap-1 text-sm font-medium">
@@ -397,12 +443,16 @@ export function TenantDirectory() {
           {rows.length === 0 ? (
             <EmptyState
               title={
-                activeFilters
+                request.query
+                  ? `No tenants found for "${request.query}"`
+                  : activeFilters
                   ? "No tenants match these filters"
                   : "No tenants yet"
               }
               description={
-                activeFilters
+                request.query
+                  ? "Try a different tenant name, code, or owner."
+                  : activeFilters
                   ? "Try changing or clearing the filters."
                   : "Create the first tenant when an organisation is ready to join the platform."
               }
@@ -428,6 +478,7 @@ export function TenantDirectory() {
                       router.push(`/super-admin/tenants/${tenant.id}`)
                     }
                     onChangeStatus={() => setLifecycleTarget(tenant)}
+                    onCancelInvitation={() => setInvitationTarget(tenant)}
                   />
                 ))}
               </div>
@@ -465,14 +516,28 @@ export function TenantDirectory() {
             : "Suspend tenant"
         }
         destructive={lifecycleTarget?.status !== "suspended"}
+        isConfirming={lifecycleMutation.isPending}
         onConfirm={() => {
-          if (lifecycleTarget)
-            setStatusOverrides((current) => ({
-              ...current,
-              [lifecycleTarget.id]:
-                lifecycleTarget.status === "suspended" ? "active" : "suspended",
-            }));
-          setLifecycleTarget(null);
+          if (lifecycleTarget && canChangeTenantStatus(lifecycleTarget)) {
+            lifecycleMutation.mutate({
+              tenantId: lifecycleTarget.id,
+              status: lifecycleTarget.status === "suspended" ? "active" : "suspended",
+            });
+          }
+        }}
+      />
+      <ConfirmationDialog
+        open={Boolean(invitationTarget)}
+        onOpenChange={(open) => !open && setInvitationTarget(null)}
+        title="Cancel invitation"
+        description={`Cancel the pending Tenant Administrator invitation for ${invitationTarget?.owner.email || invitationTarget?.name || "this tenant"}. The emailed link will no longer activate the tenant.`}
+        confirmLabel="Cancel invitation"
+        isConfirming={cancelInvitation.isPending}
+        destructive
+        onConfirm={() => {
+          if (invitationTarget) {
+            cancelInvitation.mutate(invitationTarget);
+          }
         }}
       />
     </div>

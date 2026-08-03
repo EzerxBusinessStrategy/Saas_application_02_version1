@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Inject, Param, ParseUUIDPipe, Post, Query, Req, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, Inject, Param, ParseUUIDPipe, Patch, Post, Query, Req, UseGuards } from "@nestjs/common";
 import {
   ApiBearerAuth,
   ApiBody,
@@ -27,6 +27,9 @@ import {
   CreateTenantWithOwnerInvitationResponseDto,
   InvitationResponseDto,
   TenantCreationOptionsResponseDto,
+  TenantStatusResponseDto,
+  UpdateTenantStatusRequest,
+  updateTenantStatusSchema,
   ReactivateMembershipDto,
   reactivateMembershipSchema,
   RevokeMembershipDto,
@@ -96,13 +99,49 @@ export class AccessAdminController {
     return this.service.getTenant(context, tenantId);
   }
 
+  @Patch("super-admin/tenants/:tenantId/status")
+  @HttpCode(200)
+  @UseGuards(SupabaseAuthGuard, ActiveRequestContextGuard, PermissionGuard)
+  @RequirePermissions("tenant.suspend")
+  @ApiOperation({ summary: "Suspend or reactivate a tenant and enforce workspace access state." })
+  @ApiBody({ type: TenantStatusResponseDto })
+  @ApiOkResponse({ type: TenantStatusResponseDto })
+  @ApiUnauthorizedResponse({ type: ApiErrorResponseDto })
+  @ApiForbiddenResponse({ type: ApiErrorResponseDto })
+  @ApiConflictResponse({ type: ApiErrorResponseDto })
+  updateTenantStatus(
+    @CurrentRequestContext() context: RequestContext,
+    @Param("tenantId", ParseUUIDPipe) tenantId: string,
+    @Body(new ZodValidationPipe(updateTenantStatusSchema)) body: UpdateTenantStatusRequest,
+  ) {
+    return this.service.updateTenantStatus(context, tenantId, body.status, body.reason);
+  }
+
+  @Post("super-admin/tenants/:tenantId/invitation/cancel")
+  @HttpCode(200)
+  @UseGuards(SupabaseAuthGuard, ActiveRequestContextGuard, PermissionGuard)
+  @RequirePermissions("invitation.cancel")
+  @ApiOperation({ summary: "Cancel the pending Tenant Administrator invitation for a tenant." })
+  @ApiBody({ type: CloseInvitationDto })
+  @ApiOkResponse({ type: ClosedInvitationResponseDto })
+  @ApiUnauthorizedResponse({ type: ApiErrorResponseDto })
+  @ApiForbiddenResponse({ type: ApiErrorResponseDto })
+  @ApiConflictResponse({ type: ApiErrorResponseDto })
+  cancelTenantAdminInvitation(
+    @CurrentRequestContext() context: RequestContext,
+    @Param("tenantId", ParseUUIDPipe) tenantId: string,
+    @Body(new ZodValidationPipe(closeInvitationSchema)) body: CloseInvitationDto,
+  ): Promise<ClosedInvitationResponseDto> {
+    return this.service.cancelTenantAdminInvitation(context, tenantId, body.reason);
+  }
+
   @Post("super-admin/tenants")
   @UseGuards(SupabaseAuthGuard, ActiveRequestContextGuard, PermissionGuard)
   @RequirePermissions("tenant.create")
   @ApiOperation({
     summary: "Create a pending tenant, financial year and Tenant Admin invitation.",
     description:
-      "Only a Super Admin can create a tenant. The administrator receives an invitation intent; no password is created or returned.",
+      "Only a Super Admin can create a tenant. The administrator receives a Supabase invitation email when delivery is configured; no password is created or returned.",
   })
   @ApiBody({ type: CreateTenantWithOwnerInvitationDto })
   @ApiCreatedResponse({ type: CreateTenantWithOwnerInvitationResponseDto })
