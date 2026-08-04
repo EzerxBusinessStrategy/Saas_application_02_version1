@@ -3,6 +3,7 @@ import {
   superAdminAccessTokenCookie,
   superAdminRefreshTokenCookie,
   superAdminRememberMeCookie,
+  authenticatedWorkspaceCookie,
 } from "@/lib/auth-cookies";
 
 type CookieSession = {
@@ -17,6 +18,7 @@ export function setSuperAdminSessionCookies(
   response: NextResponse,
   session: CookieSession,
   rememberMe: boolean,
+  workspace: "super-admin" | "admin" = "super-admin",
 ): void {
   const common = {
     httpOnly: true,
@@ -37,10 +39,12 @@ export function setSuperAdminSessionCookies(
     ...common,
     ...(rememberMe ? { maxAge: maxRememberMeAge } : {}),
   });
+  response.cookies.set(authenticatedWorkspaceCookie, workspace, { ...common, ...(rememberMe ? { maxAge: maxRememberMeAge } : {}) });
 }
 
 export function clearSuperAdminSessionCookies(response: NextResponse): void {
   response.cookies.set(superAdminAccessTokenCookie, "", { maxAge: 0, path: "/" });
   response.cookies.set(superAdminRefreshTokenCookie, "", { maxAge: 0, path: "/" });
   response.cookies.set(superAdminRememberMeCookie, "", { maxAge: 0, path: "/" });
+  response.cookies.set(authenticatedWorkspaceCookie, "", { maxAge: 0, path: "/" });
 }

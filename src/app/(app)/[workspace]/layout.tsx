@@ -2,8 +2,8 @@ import { cookies } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { WorkspaceShell } from "@/components/app-shell/workspace-shell";
 import { demoSessionCookie, isWorkspaceAllowed, roleFromSession } from "@/lib/demo-auth";
-import { superAdminAccessTokenCookie, superAdminRefreshTokenCookie } from "@/lib/auth-cookies";
-import { fetchVerifiedSuperAdminMe, userFromSuperAdminMe } from "@/lib/server/super-admin-auth";
+import { authenticatedWorkspaceCookie, superAdminAccessTokenCookie, superAdminRefreshTokenCookie } from "@/lib/auth-cookies";
+import { fetchVerifiedSuperAdminMe, fetchVerifiedTenantAdminMe, userFromSuperAdminMe, userFromTenantAdminMe } from "@/lib/server/super-admin-auth";
 import { workspaceConfig, workspaces } from "@/mocks/workspaces";
 import type { Workspace } from "@/types/domain";
 
@@ -37,6 +37,21 @@ export default async function AppLayout({
         {children}
       </WorkspaceShell>
     );
+  }
+
+  if (workspace === "admin" && cookieStore.get(authenticatedWorkspaceCookie)?.value === "admin") {
+    const accessToken = cookieStore.get(superAdminAccessTokenCookie)?.value;
+    const refreshToken = cookieStore.get(superAdminRefreshTokenCookie)?.value;
+    if (!accessToken) {
+      if (refreshToken) redirect(`/api/demo-auth/refresh?next=/${workspace}`);
+      redirect("/login");
+    }
+    const me = await fetchVerifiedTenantAdminMe(accessToken);
+    if (!me) {
+      if (refreshToken) redirect(`/api/demo-auth/refresh?next=/${workspace}`);
+      redirect("/login");
+    }
+    return <WorkspaceShell workspace="admin" user={userFromTenantAdminMe(me)}>{children}</WorkspaceShell>;
   }
 
   const sessionRole = roleFromSession(cookieStore.get(demoSessionCookie)?.value);

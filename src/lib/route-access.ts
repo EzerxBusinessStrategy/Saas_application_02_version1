@@ -38,7 +38,11 @@ export const sectionAccess: Record<
     workspaces: ["super-admin"],
     permissions: ["platform.configuration.update"],
   },
-  "support-access": {
+  "tenant-analytics": {
+    workspaces: ["super-admin"],
+    permissions: ["report.read"],
+  },
+  "tenant-password": {
     workspaces: ["super-admin"],
     permissions: ["tenant.update"],
   },

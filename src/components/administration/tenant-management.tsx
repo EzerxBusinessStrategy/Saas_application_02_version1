@@ -44,18 +44,17 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-  cancelTenantAdminInvitation,
   getTenant,
   listAuditRecords,
+  listTenantListFilters,
   listTenants,
   updateTenantStatus,
 } from "@/features/administration/api/administration-api";
 import { tenants } from "@/mocks/administration";
+import { formatIndiaDateTime } from "@/lib/india-time";
 import {
   legacyCreateTenantSchema,
-  supportAccessSchema,
   type LegacyCreateTenantInput,
-  type SupportAccessRequest,
   type Tenant,
   type TenantListRequest,
 } from "@/types/administration";
@@ -64,24 +63,76 @@ const date = new Intl.DateTimeFormat("en-US", {
   month: "short",
   day: "numeric",
   year: "numeric",
+  timeZone: "Asia/Kolkata",
 });
+const countryNames = new Intl.DisplayNames(["en"], { type: "region" });
 const tenantTabs = [
   { value: "overview", label: "Overview" },
   { value: "users", label: "Users" },
   { value: "usage", label: "Usage" },
   { value: "audit", label: "Audit logs" },
   { value: "configuration", label: "Configuration" },
-  { value: "support", label: "Support access" },
 ];
 
-type SupportAccessFormInput = z.input<typeof supportAccessSchema>;
 type TenantCreateFormInput = z.input<typeof legacyCreateTenantSchema>;
-const canChangeTenantStatus = (tenant: Tenant) =>
-  tenant.status === "active" || tenant.status === "suspended";
+const suspensionDurations = [
+  { value: "24h", label: "24 hours" },
+  { value: "48h", label: "48 hours" },
+  { value: "72h", label: "72 hours" },
+  { value: "96h", label: "96 hours" },
+  { value: "1w", label: "1 week" },
+  { value: "1m", label: "1 month" },
+  { value: "6m", label: "6 months" },
+] as const;
+type SuspensionDuration = (typeof suspensionDurations)[number]["value"];
+const canSuspendTenant = (tenant: Tenant) =>
+  tenant.status === "active" || tenant.status === "pending_activation";
+const canReactivateTenant = (tenant: Tenant) => tenant.status === "suspended";
+const canRevokeTenant = (tenant: Tenant) =>
+  tenant.status === "active" || tenant.status === "suspended" || tenant.status === "pending_activation";
+
+function tenantLifecycleStatus(tenant: Tenant): Tenant["status"] | "not_logged_in" {
+  if (tenant.status === "active" || tenant.status === "pending_activation") {
+    return tenant.tenantAdministrator?.lastLoginAt ? "active" : "not_logged_in";
+  }
+  return tenant.status;
+}
 
 const previewState = (value: string | null) =>
   value === "loading" || value === "error" || value === "empty" ? value : null;
 
+function TenantAdministratorAccess({
+  tenant,
+  showTimestamps = true,
+}: {
+  tenant: Tenant;
+  showTimestamps?: boolean;
+}) {
+  const administrator = tenant.tenantAdministrator;
+  const status = administrator?.membershipStatus === "revoked"
+    ? "Revoked"
+    : administrator?.lastLoginAt
+      ? "Active"
+      : "Not logged in";
+  return (
+    <div>
+      <p className="font-medium">{status}</p>
+      {status === "Active" && administrator?.passwordChangedAt ? (
+        <p className="mt-1 text-xs text-muted-foreground">Changed password</p>
+      ) : null}
+      {showTimestamps ? (
+        <p className="mt-1 text-xs text-muted-foreground">
+          {administrator?.lastLoginAt
+            ? `Last login: ${formatIndiaDateTime(administrator.lastLoginAt)}`
+            : "No login recorded"}
+          {administrator?.lastLogoutAt
+            ? ` | Last logout: ${formatIndiaDateTime(administrator.lastLogoutAt)}`
+            : ""}
+        </p>
+      ) : null}
+    </div>
+  );
+}
 function applySearchParam(
   pathname: string,
   searchParams: URLSearchParams,
@@ -100,20 +151,19 @@ function applySearchParam(
 function TenantCard({
   tenant,
   onOpen,
-  onChangeStatus,
-  onCancelInvitation,
+  onManageLifecycle,
+  onRevoke,
 }: {
   tenant: Tenant;
   onOpen: () => void;
-  onChangeStatus: () => void;
-  onCancelInvitation: () => void;
+  onManageLifecycle: () => void;
+  onRevoke: () => void;
 }) {
-  const canCancelInvitation = tenant.status === "pending_activation";
   return (
     <MobileEntityCard
       title={tenant.name}
       identifier={tenant.code}
-      status={<StatusBadge status={tenant.status} />}
+      status={<TenantAdministratorAccess tenant={tenant} showTimestamps={false} />}
       metadata={
         <>
           <div>
@@ -123,7 +173,7 @@ function TenantCard({
           <div>
             <dt className="text-muted-foreground">Created</dt>
             <dd className="mt-0.5">
-              {date.format(new Date(tenant.createdAt))}
+              {formatIndiaDateTime(tenant.createdAt)}
             </dd>
           </div>
         </>
@@ -134,15 +184,13 @@ function TenantCard({
         </Button>
       }
       overflowActions={[
-        ...(canCancelInvitation
-          ? [{ label: "Cancel invitation", onSelect: onCancelInvitation }]
-          : []),
-        ...(canChangeTenantStatus(tenant)
+        ...((canSuspendTenant(tenant) || canReactivateTenant(tenant))
           ? [{
               label: tenant.status === "suspended" ? "Reactivate tenant" : "Suspend tenant",
-              onSelect: onChangeStatus,
+              onSelect: onManageLifecycle,
             }]
           : []),
+        ...(canRevokeTenant(tenant) ? [{ label: "Revoke tenant", onSelect: onRevoke }] : []),
       ]}
     />
   );
@@ -158,12 +206,17 @@ export function TenantDirectory() {
   );
   const [submittedQuery, setSubmittedQuery] = useState(searchValue);
   const [lifecycleTarget, setLifecycleTarget] = useState<Tenant | null>(null);
-  const [invitationTarget, setInvitationTarget] = useState<Tenant | null>(null);
+  const [revokeTarget, setRevokeTarget] = useState<Tenant | null>(null);
+  const [showFinalRevokeWarning, setShowFinalRevokeWarning] = useState(false);
+  const [revokeAcknowledged, setRevokeAcknowledged] = useState(false);
+  const [suspensionDuration, setSuspensionDuration] = useState<SuspensionDuration>("24h");
   const request = useMemo<TenantListRequest>(
     () => ({
       query: submittedQuery.trim() || undefined,
       status: searchParams.get("status") as TenantListRequest["status"],
       createdAfter: searchParams.get("createdAfter") ?? undefined,
+      countryCode: searchParams.get("countryCode") ?? undefined,
+      financialYear: searchParams.get("financialYear") ?? undefined,
       sort: (searchParams.get("sort") as TenantListRequest["sort"]) ?? "name",
       page: Math.max(1, Number(searchParams.get("page") ?? "1")),
       pageSize: [5, 10, 25, 50].includes(Number(searchParams.get("pageSize")))
@@ -177,19 +230,25 @@ export function TenantDirectory() {
     queryFn: () => listTenants(request),
     placeholderData: keepPreviousData,
   });
-  const cancelInvitation = useMutation({
-    mutationFn: (tenant: Tenant) => cancelTenantAdminInvitation(tenant.id),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["tenants"] });
-      setInvitationTarget(null);
-    },
+  const filterOptionsQuery = useQuery({
+    queryKey: ["tenant-list-filters"],
+    queryFn: listTenantListFilters,
+    staleTime: 60_000,
   });
   const lifecycleMutation = useMutation({
-    mutationFn: ({ tenantId, status }: { tenantId: string; status: "active" | "suspended" }) =>
-      updateTenantStatus(tenantId, status),
+    mutationFn: ({ tenantId, status, suspensionDuration: duration, revokeConfirmation }: {
+      tenantId: string;
+      status: "active" | "suspended" | "revoked";
+      suspensionDuration?: SuspensionDuration;
+      revokeConfirmation?: "REVOKE";
+    }) => updateTenantStatus(tenantId, status, { suspensionDuration: duration, revokeConfirmation }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["tenants"] });
+      await queryClient.invalidateQueries({ queryKey: ["audit-records"] });
       setLifecycleTarget(null);
+      setRevokeTarget(null);
+      setShowFinalRevokeWarning(false);
+      setRevokeAcknowledged(false);
     },
   });
   const forcedState = previewState(searchParams.get("state"));
@@ -201,6 +260,14 @@ export function TenantDirectory() {
       key,
       value,
     );
+  const setCountry = (countryCode: string) => {
+    const params = new URLSearchParams(searchParams);
+    if (countryCode) params.set("countryCode", countryCode);
+    else params.delete("countryCode");
+    params.delete("financialYear");
+    params.delete("page");
+    router.replace(`${pathname}${params.size ? `?${params.toString()}` : ""}`, { scroll: false });
+  };
   const clearFilters = () => {
     setSearchValue("");
     setSubmittedQuery("");
@@ -218,7 +285,12 @@ export function TenantDirectory() {
     request.query,
     request.status,
     request.createdAfter,
+    request.countryCode,
+    request.financialYear,
   ].filter(Boolean).length;
+  const financialYears = (filterOptionsQuery.data?.financialYears ?? []).filter(
+    (item) => !request.countryCode || item.countryCode === request.countryCode,
+  );
   const rows = (forcedState === "empty" ? [] : (query.data?.items ?? [])).map(
     (tenant) => ({
       ...tenant,
@@ -249,7 +321,7 @@ export function TenantDirectory() {
     },
     {
       id: "owner",
-      header: "Owner",
+      header: "Tenant administrator",
       cell: ({ row }) => (
         <div>
           <p>{row.original.owner.name}</p>
@@ -289,10 +361,15 @@ export function TenantDirectory() {
     },
     {
       id: "status",
-      header: "Tenant status",
+      header: "Administrator access",
+      cell: ({ row }) => <TenantAdministratorAccess tenant={row.original} />,
+    },
+    {
+      id: "lifecycle",
+      header: "Tenant lifecycle",
       cell: ({ row }) => (
         <StatusBadge
-          status={row.original.status}
+          status={tenantLifecycleStatus(row.original)}
           className="whitespace-nowrap"
         />
       ),
@@ -313,7 +390,7 @@ export function TenantDirectory() {
           Created <ArrowUpDown className="size-3.5" aria-hidden="true" />
         </button>
       ),
-      cell: ({ row }) => date.format(new Date(row.original.createdAt)),
+      cell: ({ row }) => formatIndiaDateTime(row.original.createdAt),
     },
     {
       id: "actions",
@@ -337,14 +414,14 @@ export function TenantDirectory() {
             >
               View tenant
             </DropdownMenuItem>
-            {row.original.status === "pending_activation" ? (
-              <DropdownMenuItem onSelect={() => setInvitationTarget(row.original)}>
-                Cancel invitation
-              </DropdownMenuItem>
-            ) : null}
-            {canChangeTenantStatus(row.original) ? (
+            {canSuspendTenant(row.original) || canReactivateTenant(row.original) ? (
               <DropdownMenuItem onSelect={() => setLifecycleTarget(row.original)}>
                 {row.original.status === "suspended" ? "Reactivate tenant" : "Suspend tenant"}
+              </DropdownMenuItem>
+            ) : null}
+            {canRevokeTenant(row.original) ? (
+              <DropdownMenuItem onSelect={() => setRevokeTarget(row.original)}>
+                Revoke tenant
               </DropdownMenuItem>
             ) : null}
           </DropdownMenuContent>
@@ -372,8 +449,8 @@ export function TenantDirectory() {
       <PageHeader
         eyebrow="Super Admin"
         eyebrowIcon={ShieldCheck}
-        title="Tenant management"
-        description="Control tenant lifecycle and operational context across the platform."
+        title="Tenant list"
+        description="Tenant registry with lifecycle, administrator access, and activity timestamps."
         actions={
           <Link
             href="/super-admin/tenants/new"
@@ -385,7 +462,7 @@ export function TenantDirectory() {
       />
       <Card>
         <CardHeader>
-          <CardTitle>Tenant directory</CardTitle>
+          <CardTitle>Tenant registry</CardTitle>
           <CardDescription>
             Searchable tenant records from the platform database.
           </CardDescription>
@@ -422,10 +499,42 @@ export function TenantDirectory() {
                 onChange={(event) => setParam("status", event.target.value)}
               >
                 <option value="">All statuses</option>
-                <option value="pending_activation">Pending activation</option>
                 <option value="active">Active</option>
                 <option value="suspended">Suspended</option>
+                <option value="revoked">Revoked</option>
                 <option value="cancelled">Cancelled</option>
+              </Select>
+            </label>
+            <label className="flex flex-col gap-1 text-sm font-medium">
+              Country
+              <Select
+                aria-label="Filter by country"
+                value={request.countryCode ?? ""}
+                disabled={filterOptionsQuery.isPending}
+                onChange={(event) => setCountry(event.target.value)}
+              >
+                <option value="">All countries</option>
+                {(filterOptionsQuery.data?.countries ?? []).map((countryCode) => (
+                  <option key={countryCode} value={countryCode}>
+                    {countryNames.of(countryCode) ?? countryCode}
+                  </option>
+                ))}
+              </Select>
+            </label>
+            <label className="flex flex-col gap-1 text-sm font-medium">
+              Financial year
+              <Select
+                aria-label="Filter by financial year"
+                value={request.financialYear ?? ""}
+                disabled={filterOptionsQuery.isPending}
+                onChange={(event) => setParam("financialYear", event.target.value)}
+              >
+                <option value="">All financial years</option>
+                {financialYears.map((financialYear) => (
+                  <option key={`${financialYear.countryCode}-${financialYear.label}`} value={financialYear.label}>
+                    {financialYear.label}
+                  </option>
+                ))}
               </Select>
             </label>
             <label className="flex flex-col gap-1 text-sm font-medium">
@@ -477,8 +586,8 @@ export function TenantDirectory() {
                     onOpen={() =>
                       router.push(`/super-admin/tenants/${tenant.id}`)
                     }
-                    onChangeStatus={() => setLifecycleTarget(tenant)}
-                    onCancelInvitation={() => setInvitationTarget(tenant)}
+                    onManageLifecycle={() => setLifecycleTarget(tenant)}
+                    onRevoke={() => setRevokeTarget(tenant)}
                   />
                 ))}
               </div>
@@ -508,38 +617,77 @@ export function TenantDirectory() {
         description={
           lifecycleTarget?.status === "suspended"
             ? "The tenant will be able to sign in again. Record the supporting business approval in the backend audit log."
-            : "Suspending blocks tenant access. Confirm the billing and support context before proceeding."
+            : "Suspending blocks all tenant portal access for the selected period."
         }
         confirmLabel={
           lifecycleTarget?.status === "suspended"
             ? "Reactivate tenant"
             : "Suspend tenant"
         }
-        destructive={lifecycleTarget?.status !== "suspended"}
+        destructive={false}
         isConfirming={lifecycleMutation.isPending}
         onConfirm={() => {
-          if (lifecycleTarget && canChangeTenantStatus(lifecycleTarget)) {
+          if (lifecycleTarget && (canSuspendTenant(lifecycleTarget) || canReactivateTenant(lifecycleTarget))) {
             lifecycleMutation.mutate({
               tenantId: lifecycleTarget.id,
               status: lifecycleTarget.status === "suspended" ? "active" : "suspended",
+              suspensionDuration: lifecycleTarget.status !== "suspended" ? suspensionDuration : undefined,
             });
           }
         }}
+      >
+        {lifecycleTarget && lifecycleTarget.status !== "suspended" ? (
+          <label className="flex flex-col gap-1 text-sm font-medium">
+            Suspension period
+            <Select
+              aria-label="Suspension period"
+              value={suspensionDuration}
+              onChange={(event) => setSuspensionDuration(event.target.value as SuspensionDuration)}
+            >
+              {suspensionDurations.map((duration) => (
+                <option key={duration.value} value={duration.value}>{duration.label}</option>
+              ))}
+            </Select>
+          </label>
+        ) : null}
+        {lifecycleMutation.isError ? <p className="text-sm text-danger" role="alert">Tenant lifecycle could not be updated.</p> : null}
+      </ConfirmationDialog>
+      <ConfirmationDialog
+        open={Boolean(revokeTarget) && !showFinalRevokeWarning}
+        onOpenChange={(open) => !open && setRevokeTarget(null)}
+        title="Caution: revoke tenant access"
+        description="Revoking blocks this tenant and every tenant member immediately. Tenant data will remain in the database."
+        confirmLabel="Continue"
+        warning
+        onConfirm={() => setShowFinalRevokeWarning(true)}
       />
       <ConfirmationDialog
-        open={Boolean(invitationTarget)}
-        onOpenChange={(open) => !open && setInvitationTarget(null)}
-        title="Cancel invitation"
-        description={`Cancel the pending Tenant Administrator invitation for ${invitationTarget?.owner.email || invitationTarget?.name || "this tenant"}. The emailed link will no longer activate the tenant.`}
-        confirmLabel="Cancel invitation"
-        isConfirming={cancelInvitation.isPending}
-        destructive
-        onConfirm={() => {
-          if (invitationTarget) {
-            cancelInvitation.mutate(invitationTarget);
+        open={Boolean(revokeTarget) && showFinalRevokeWarning}
+        onOpenChange={(open) => {
+          if (!open) {
+            setShowFinalRevokeWarning(false);
+            setRevokeTarget(null);
+            setRevokeAcknowledged(false);
           }
         }}
-      />
+        title="Revoke tenant permanently"
+        description="This cannot be undone through the application. The tenant and its records are retained only for audit and recovery review."
+        confirmLabel="Revoke tenant"
+        destructive
+        confirmDisabled={!revokeAcknowledged}
+        isConfirming={lifecycleMutation.isPending}
+        onConfirm={() => {
+          if (revokeTarget && canRevokeTenant(revokeTarget)) {
+            lifecycleMutation.mutate({ tenantId: revokeTarget.id, status: "revoked", revokeConfirmation: "REVOKE" });
+          }
+        }}
+      >
+        <label className="flex items-center gap-2 text-sm font-medium">
+          <input type="checkbox" checked={revokeAcknowledged} onChange={(event) => setRevokeAcknowledged(event.target.checked)} />
+          I understand that revocation cannot be undone here.
+        </label>
+        {lifecycleMutation.isError ? <p className="text-sm text-danger" role="alert">Tenant could not be revoked.</p> : null}
+      </ConfirmationDialog>
     </div>
   );
 }
@@ -603,7 +751,7 @@ export function TenantCreateForm() {
             </CardTitle>
             <CardDescription>
               {prepared.name} ({prepared.code}) is ready for a future
-              provisioning API. The owner invitation setting and initial
+              provisioning API. The Tenant Administrator account and initial
               configuration are included in the typed request.
             </CardDescription>
           </CardHeader>
@@ -803,7 +951,7 @@ export function TenantCreateForm() {
         </Card>
         <Card>
           <CardHeader><CardTitle>Domain and access</CardTitle><CardDescription>Use the current path-based routing model. Custom-domain verification requires infrastructure.</CardDescription></CardHeader>
-          <CardContent className="grid gap-5 md:grid-cols-2"><label className="text-sm font-medium">Tenant portal slug<Input className={inputClass} aria-describedby="portal-slug-help" {...form.register("portalSlug")} />{form.formState.errors.portalSlug ? <span className="mt-1 block text-xs text-danger">{form.formState.errors.portalSlug.message}</span> : <span id="portal-slug-help" className="mt-1 block text-xs text-muted-foreground">Portal URL: platform.example/{form.watch("portalSlug") || "tenant-slug"}</span>}</label><div className="rounded-[var(--radius-control)] border border-border p-4 text-sm text-muted-foreground">Activation is by secure invitation. Passwords are not collected or stored by this frontend.</div></CardContent>
+          <CardContent className="grid gap-5 md:grid-cols-2"><label className="text-sm font-medium">Tenant portal slug<Input className={inputClass} aria-describedby="portal-slug-help" {...form.register("portalSlug")} />{form.formState.errors.portalSlug ? <span className="mt-1 block text-xs text-danger">{form.formState.errors.portalSlug.message}</span> : <span id="portal-slug-help" className="mt-1 block text-xs text-muted-foreground">Portal URL: platform.example/{form.watch("portalSlug") || "tenant-slug"}</span>}</label><div className="rounded-[var(--radius-control)] border border-border p-4 text-sm text-muted-foreground">The Tenant Administrator account is created directly. Passwords are handled only by the identity provider.</div></CardContent>
         </Card>
         <Card>
           <CardHeader>
@@ -859,6 +1007,7 @@ export function TenantCreateForm() {
   );
 }
 
+/* Removed support-access UI.
 function SupportAccess({ tenantId: fixedTenantId }: { tenantId?: string }) {
   const [session, setSession] = useState<{
     tenant: string;
@@ -978,6 +1127,8 @@ function SupportAccess({ tenantId: fixedTenantId }: { tenantId?: string }) {
   );
 }
 
+*/
+
 export function TenantDetail({ tenantId }: { tenantId: string }) {
   const [tab, setTab] = useState("overview");
   const query = useQuery({
@@ -986,7 +1137,7 @@ export function TenantDetail({ tenantId }: { tenantId: string }) {
   });
   const audit = useQuery({
     queryKey: ["audit-records", tenantId],
-    queryFn: () => listAuditRecords({ page: 1, pageSize: 100 }),
+    queryFn: () => listAuditRecords({ page: 1, pageSize: 100, tenantId }),
   });
   if (query.isPending)
     return <LoadingState label="Loading tenant details" rows={4} />;
@@ -1023,13 +1174,14 @@ export function TenantDetail({ tenantId }: { tenantId: string }) {
         </Card>
         <Card>
           <CardHeader>
-            <CardTitle>Owner</CardTitle>
+          <CardTitle>Tenant Administrator</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="font-medium">{tenant.owner.name}</p>
+            <p className="font-medium">{tenant.tenantAdministrator?.name ?? tenant.owner.name}</p>
             <p className="mt-1 break-all text-sm text-muted-foreground">
-              {tenant.owner.email}
+              {tenant.tenantAdministrator?.email ?? tenant.owner.email}
             </p>
+            <div className="mt-3 border-t pt-3"><TenantAdministratorAccess tenant={tenant} /></div>
           </CardContent>
         </Card>
         <Card>
@@ -1038,7 +1190,7 @@ export function TenantDetail({ tenantId }: { tenantId: string }) {
           </CardHeader>
           <CardContent>
             <p className="font-medium">
-              Created {date.format(new Date(tenant.createdAt))}
+              Created {formatIndiaDateTime(tenant.createdAt)}
             </p>
             <p className="mt-1 text-sm text-muted-foreground">
               {tenant.clientCount} client organisations are currently active.
@@ -1069,10 +1221,10 @@ export function TenantDetail({ tenantId }: { tenantId: string }) {
             </div>
             <div>
               <dt className="text-sm text-muted-foreground">
-                Owner invitation
+                Administrator access
               </dt>
               <dd className="mt-1">
-                <StatusBadge status="active" />
+                <TenantAdministratorAccess tenant={tenant} />
               </dd>
             </div>
           </dl>
@@ -1111,14 +1263,12 @@ export function TenantDetail({ tenantId }: { tenantId: string }) {
             <LoadingState label="Loading audit records" rows={2} />
           ) : (
             <ul className="flex flex-col divide-y">
-              {audit.data?.items
-                ?.filter((record) => record.tenant === tenant.name)
-                .map((record) => (
+              {audit.data?.items?.map((record) => (
                   <li className="py-3 text-sm" key={record.id}>
                     <p className="font-medium">{record.action}</p>
                     <p className="mt-1 text-muted-foreground">
                       {record.actor} ·{" "}
-                      {new Date(record.timestamp).toLocaleString()} ·{" "}
+                      {formatIndiaDateTime(record.timestamp)} ·{" "}
                       {record.result}
                     </p>
                   </li>
@@ -1163,20 +1313,7 @@ export function TenantDetail({ tenantId }: { tenantId: string }) {
           </dl>
         </CardContent>
       </Card>
-    ) : (
-      <Card>
-        <CardHeader>
-          <CardTitle>Controlled support access</CardTitle>
-          <CardDescription>
-            Support sessions are visible, reasoned, time-limited, and auditable.
-            They never silently impersonate a tenant.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <SupportAccess tenantId={tenant.id} />
-        </CardContent>
-      </Card>
-    );
+    ) : null;
   return (
     <div className="super-admin-portal flex flex-col gap-[30px]">
       <EntityHeader
@@ -1205,31 +1342,6 @@ export function TenantDetail({ tenantId }: { tenantId: string }) {
       >
         {panel}
       </ResponsiveTabs>
-    </div>
-  );
-}
-
-export function ControlledSupportAccess() {
-  return (
-    <div className="super-admin-portal flex flex-col gap-[30px]">
-      <PageHeader
-        eyebrow="Super Admin"
-        eyebrowIcon={ShieldCheck}
-        title="Controlled support access"
-        description="Open a visible, time-limited support session only when a documented platform support need exists."
-      />
-      <Card>
-        <CardHeader>
-          <CardTitle>New support session</CardTitle>
-          <CardDescription>
-            Support mode is never hidden. This mock records the intended tenant,
-            reason, and expiry in the visible interface only.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <SupportAccess />
-        </CardContent>
-      </Card>
     </div>
   );
 }

@@ -20,7 +20,7 @@ components. They are not claimed to be pixel-perfect or Figma-verified.
 Design status: Pending Figma verification.
 
 - Super Admin tenant management, tenant detail, tenant creation, reports,
-  global audit logs, platform configuration, and support access
+  global audit logs, and platform configuration
   use the existing TailAdmin system and the previously recorded NEATLAB
   hierarchy only. Audit sort and pagination remain a TailAdmin-based inferred
   implementation.

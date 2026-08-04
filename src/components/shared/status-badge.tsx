@@ -24,7 +24,8 @@ type BadgeStatus =
   | ServiceEngagement["status"]
   | ServiceEngagement["slaStatus"]
   | WorkGroup["status"]
-  | WorkGroup["slaStatus"];
+  | WorkGroup["slaStatus"]
+  | "not_logged_in";
 
 const tone: Record<
   BadgeStatus,
@@ -35,10 +36,12 @@ const tone: Record<
   blocked: "danger",
   complete: "info",
   pending: "neutral",
+  not_logged_in: "neutral",
   available: "success",
   "partially-available": "warning",
   unavailable: "danger",
-  active: "success",
+    active: "success",
+    revoked: "danger",
   pending_activation: "info",
   "on-leave": "warning",
   inactive: "neutral",

@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import {
   Bar,
   BarChart,
@@ -29,7 +29,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
-import { ConfirmationDialog } from "@/components/shared/confirmation-dialog";
 import { MetricCard } from "@/components/shared/metric-card";
 import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -38,7 +37,7 @@ import { ErrorState } from "@/components/shared/error-state";
 import { ChartCard } from "@/components/dashboard/chart-card";
 import { chartAxisTick, chartTooltipCursor } from "@/components/dashboard/chart-tooltip";
 import { cn } from "@/lib/utils";
-import { cancelTenantAdminInvitation } from "@/features/administration/api/administration-api";
+import { formatIndiaDateTime } from "@/lib/india-time";
 import { getSuperAdminDashboard } from "@/features/platform/api/super-admin-dashboard-api";
 import type {
   DashboardHealthFilter,
@@ -52,12 +51,9 @@ import type {
 } from "@/types/platform-overview";
 
 export function PlatformOverviewDashboard() {
-  const queryClient = useQueryClient();
   const [filters, setFilters] = useState<SuperAdminDashboardFilters>({});
   const [tenantSearch, setTenantSearch] = useState("");
   const [selectedTenantId, setSelectedTenantId] = useState("");
-  const [cancelTarget, setCancelTarget] = useState<TenantTurnoverHealthRow | null>(null);
-  const [cancelledTenantIds, setCancelledTenantIds] = useState<ReadonlySet<string>>(() => new Set());
   const query = useQuery({
     queryKey: ["super-admin-dashboard", filters],
     queryFn: () => getSuperAdminDashboard(filters),
@@ -86,15 +82,6 @@ export function PlatformOverviewDashboard() {
     }));
   const submitTenantSearch = () =>
     setFilters((current) => ({ ...current, search: tenantSearch.trim() || undefined }));
-  const cancelInvitation = useMutation({
-    mutationFn: (tenantId: string) => cancelTenantAdminInvitation(tenantId),
-    onSuccess: async (_result, tenantId) => {
-      setCancelledTenantIds((current) => new Set(current).add(tenantId));
-      await queryClient.invalidateQueries({ queryKey: ["super-admin-dashboard"] });
-      setCancelTarget(null);
-    },
-  });
-
   if (query.isLoading) {
     return <LoadingState label="Loading Super Admin dashboard" rows={6} />;
   }
@@ -125,8 +112,6 @@ export function PlatformOverviewDashboard() {
         filters={filters}
         onFilter={setFilter}
         onTenant={setSelectedTenantId}
-        cancelledTenantIds={cancelledTenantIds}
-        onCancelInvitation={setCancelTarget}
         searchValue={tenantSearch}
         onSearchChange={setTenantSearch}
         onSearch={submitTenantSearch}
@@ -143,18 +128,6 @@ export function PlatformOverviewDashboard() {
       />
 
       <ActivityCard items={data.recentActivity} />
-      <ConfirmationDialog
-        open={Boolean(cancelTarget)}
-        onOpenChange={(open) => !open && setCancelTarget(null)}
-        title="Cancel invitation"
-        description={`Cancel the pending Tenant Administrator invitation for ${cancelTarget?.tenantName ?? "this tenant"}. The emailed link will no longer activate the tenant.`}
-        confirmLabel="Cancel invitation"
-        isConfirming={cancelInvitation.isPending}
-        destructive
-        onConfirm={() => {
-          if (cancelTarget) cancelInvitation.mutate(cancelTarget.tenantId);
-        }}
-      />
     </div>
   );
 }
@@ -272,8 +245,6 @@ function TenantTurnoverHealthSection({
   filters,
   onFilter,
   onTenant,
-  cancelledTenantIds,
-  onCancelInvitation,
   searchValue,
   onSearchChange,
   onSearch,
@@ -285,8 +256,6 @@ function TenantTurnoverHealthSection({
     value: SuperAdminDashboardFilters[Key] | "",
   ) => void;
   onTenant: (tenantId: string) => void;
-  cancelledTenantIds: ReadonlySet<string>;
-  onCancelInvitation: (tenant: TenantTurnoverHealthRow) => void;
   searchValue: string;
   onSearchChange: (value: string) => void;
   onSearch: () => void;
@@ -332,8 +301,6 @@ function TenantTurnoverHealthSection({
             <TenantHealthTable
               tenants={data.tenantHealth}
               onTenant={onTenant}
-              cancelledTenantIds={cancelledTenantIds}
-              onCancelInvitation={onCancelInvitation}
             />
           </div>
         ) : (
@@ -632,7 +599,7 @@ function TenantStatusSelect({
         onChange={(event) => onFilter("tenantStatus", event.target.value as TenantStatusFilter | "")}
       >
         <option value="">All Statuses</option>
-        {data.filterOptions.tenantStatuses.map((status) => (
+        {data.filterOptions.tenantStatuses.filter((status) => status !== "pending_activation").map((status) => (
           <option key={status} value={status}>
             {titleCase(status)}
           </option>
@@ -670,13 +637,9 @@ function HealthChips({
 function TenantHealthTable({
   tenants,
   onTenant,
-  cancelledTenantIds,
-  onCancelInvitation,
 }: {
   tenants: readonly TenantTurnoverHealthRow[];
   onTenant: (tenantId: string) => void;
-  cancelledTenantIds: ReadonlySet<string>;
-  onCancelInvitation: (tenant: TenantTurnoverHealthRow) => void;
 }) {
   return (
     <div className="overflow-x-auto">
@@ -712,7 +675,10 @@ function TenantHealthTable({
                 <HealthBadge health={tenant.health} label={tenant.healthLabel} />
               </td>
               <td className="px-4 py-5">
-                <TenantStatusBadge status={tenant.tenantStatus} />
+                <TenantStatusBadge
+                  status={tenant.tenantStatus}
+                  tenantAdministratorLastLoginAt={tenant.tenantAdministratorLastLoginAt ?? null}
+                />
               </td>
               <td className="px-4 py-5">
                 <DropdownMenu>
@@ -729,11 +695,6 @@ function TenantHealthTable({
                     <DropdownMenuItem onSelect={() => onTenant(tenant.tenantId)}>
                       View tenant
                     </DropdownMenuItem>
-                    {tenant.tenantStatus === "pending_activation" && !cancelledTenantIds.has(tenant.tenantId) ? (
-                      <DropdownMenuItem onSelect={() => onCancelInvitation(tenant)}>
-                        Cancel invitation
-                      </DropdownMenuItem>
-                    ) : null}
                   </DropdownMenuContent>
                 </DropdownMenu>
               </td>
@@ -967,7 +928,7 @@ function ActivityCard({
               <li key={item.id}>
                 <p className="font-medium">{item.title}</p>
                 <p className="mt-0.5 text-sm text-muted-foreground">{item.description}</p>
-                <p className="mt-1 text-xs text-muted-foreground">{formatDateTime(item.occurredAt)}</p>
+                <p className="mt-1 text-xs text-muted-foreground">{formatIndiaDateTime(item.occurredAt)}</p>
               </li>
             ))}
           </ol>
@@ -995,17 +956,26 @@ function HealthBadge({ health, label }: { health: DashboardHealthFilter; label: 
   );
 }
 
-function TenantStatusBadge({ status }: { status: string }) {
+function TenantStatusBadge({
+  status,
+  tenantAdministratorLastLoginAt,
+}: {
+  status: string;
+  tenantAdministratorLastLoginAt: string | null;
+}) {
+  const displayStatus = (status === "active" || status === "pending_activation") && !tenantAdministratorLastLoginAt
+    ? "not_logged_in"
+    : status;
   return (
     <span
       className={cn(
         "inline-flex whitespace-nowrap rounded-full border px-2.5 py-1 text-xs font-semibold",
-        status === "active" && "border-emerald-700/30 bg-emerald-700/10 text-emerald-800",
-        status === "suspended" && "border-red-700/30 bg-red-700/10 text-red-800",
-        status !== "active" && status !== "suspended" && "border-slate-700/30 bg-slate-700/10 text-slate-700",
+        displayStatus === "active" && "border-emerald-700/30 bg-emerald-700/10 text-emerald-800",
+        displayStatus === "suspended" && "border-red-700/30 bg-red-700/10 text-red-800",
+        displayStatus !== "active" && displayStatus !== "suspended" && "border-slate-700/30 bg-slate-700/10 text-slate-700",
       )}
     >
-      {titleCase(status)}
+      {titleCase(displayStatus)}
     </span>
   );
 }
@@ -1042,13 +1012,6 @@ function titleCase(value: string): string {
     .replaceAll("_", " ")
     .toLowerCase()
     .replace(/\b[a-z]/g, (letter) => letter.toUpperCase());
-}
-
-function formatDateTime(value: string): string {
-  return new Intl.DateTimeFormat("en-IN", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(value));
 }
 
 function topTenantsByCountry(tenants: readonly TenantTurnoverHealthRow[]): readonly TenantTurnoverHealthRow[] {

@@ -16,6 +16,7 @@ const optionalPositiveInt = (defaultValue: number, max?: number) =>
   }, z.coerce.number().int().positive().max(max ?? Number.MAX_SAFE_INTEGER).default(defaultValue));
 
 export const auditLogQuerySchema = z.object({
+  tenantId: optionalQueryString.pipe(z.string().uuid().optional()),
   query: optionalQueryString.pipe(z.string().max(120).optional()),
   result: optionalQueryString.pipe(z.enum(["success", "failed", "pending", "denied"]).optional()),
   sort: optionalQueryString.pipe(z.enum(["timestamp", "actor", "tenant"]).optional()),

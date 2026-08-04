@@ -4,6 +4,9 @@
 - [0002: Manager review followed by tenant approval for client tasks](0002-manager-tenant-task-approval-gate.md)
 - [0003: Secure document and invoice storage and access service](0003-secure-document-and-invoice-storage.md) (Accepted for frontend mock UI only)
 - [0004: PostgreSQL database architecture](0004-postgresql-database-architecture.md) (Accepted)
+- [0005: Database-backed platform configuration](0005-database-backed-platform-configuration.md) (Accepted)
+- [0006: Direct Tenant Administrator provisioning](0006-direct-tenant-admin-provisioning.md) (Accepted)
+- [0007: Tenant timed suspension and soft revocation](0007-tenant-timed-suspension-and-soft-revocation.md) (Accepted)
 
 Supporting proposed architecture documents:
 

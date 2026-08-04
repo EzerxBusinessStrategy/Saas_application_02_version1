@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException, ServiceUnavailableException } from "@nestjs/common";
 import { createClient } from "@supabase/supabase-js";
 import { APP_CONFIG } from "../config/app-config.module";
 import { AppConfig } from "../config/app-config";
@@ -11,6 +11,8 @@ import {
   TenantCreationOptionsResponseDto,
   MembershipAccessResponseDto,
   ReactivateMembershipRequest,
+  ResetTenantAdministratorPasswordRequest,
+  TenantAdministratorPasswordResetResponseDto,
   RevokeMembershipRequest,
   TenantRoleCode,
 } from "./access-admin.dto";
@@ -54,41 +56,38 @@ export class AccessAdminService {
       throw permissionDenied();
     }
     await this.validateTenantCreation(context, request);
-    const created = await this.createTenantOrThrowConflict(context, request);
-    const invitationDeliveryStatus = await this.sendTenantAdminInvitationEmail(
-      context,
-      created.invitation_id,
-      request.tenantAdministrator.email,
-    );
-    return {
-      tenantId: created.tenant_id,
-      financialYearId: created.financial_year_id,
-      invitationId: created.invitation_id,
-      tenantStatus: "pending_activation",
-      invitationStatus: "pending",
-      invitationDeliveryStatus,
-    };
-  }
-
-  private async sendTenantAdminInvitationEmail(
-    context: RequestContext,
-    invitationId: string,
-    email: string,
-  ): Promise<"not_sent" | "sent" | "failed"> {
-    if (!this.config.supabaseUrl || !this.config.supabaseAdminKey || !this.config.publicAppUrl) {
-      return "not_sent";
+    if (!this.config.supabaseUrl || !this.config.supabaseAdminKey) {
+      throw new ServiceUnavailableException({ code: "AUTH_PROVISIONING_UNAVAILABLE", message: "Tenant Administrator account provisioning is unavailable." });
     }
     const client = createClient(this.config.supabaseUrl, this.config.supabaseAdminKey, {
       auth: { autoRefreshToken: false, persistSession: false },
     });
-    const redirectTo = `${this.config.publicAppUrl.replace(/\/+$/, "")}/accept-invitation?invitationId=${invitationId}`;
-    const { error } = await client.auth.admin.inviteUserByEmail(email, {
-      redirectTo,
-      data: { invitationId },
+    const { data, error } = await client.auth.admin.createUser({
+      email: request.tenantAdministrator.email,
+      password: request.tenantAdministrator.password,
+      email_confirm: true,
+      user_metadata: { full_name: request.tenantAdministrator.fullName },
     });
-    const status = error ? "failed" : "sent";
-    await this.repository.markInvitationDelivery(context, invitationId, status);
-    return status;
+    if (error || !data.user) throw new ConflictException({ code: "TENANT_ADMIN_ACCOUNT_CONFLICT", message: "A Tenant Administrator account already exists for this email." });
+    try {
+      const created = await this.createTenantOrThrowConflict(context, request);
+      const accepted = await this.repository.acceptInvitation(
+        { authUserId: data.user.id, email: request.tenantAdministrator.email, issuer: "supabase-admin", audience: [], expiresAt: new Date(Date.now() + 60_000) },
+        created.invitation_id,
+        request.tenantAdministrator.fullName,
+      );
+      await this.repository.setDirectTenantAdministratorPhone(
+        context,
+        created.tenant_id,
+        accepted.user_id,
+        request.tenantAdministrator.phone,
+      );
+      await this.repository.activateDirectTenantAdminTenant(context, created.tenant_id);
+      return { tenantId: created.tenant_id, financialYearId: created.financial_year_id, membershipId: accepted.membership_id, tenantStatus: "active" as const };
+    } catch (provisioningError) {
+      await client.auth.admin.deleteUser(data.user.id).catch(() => undefined);
+      throw provisioningError;
+    }
   }
 
   private async validateTenantCreation(
@@ -225,6 +224,8 @@ export class AccessAdminService {
       readonly query?: string;
       readonly status?: string;
       readonly createdAfter?: string;
+      readonly countryCode?: string;
+      readonly financialYear?: string;
       readonly sort?: string;
       readonly page?: number;
       readonly pageSize?: number;
@@ -245,6 +246,19 @@ export class AccessAdminService {
       pageSize,
       pageCount: Math.max(1, Math.ceil(totalItems / pageSize)),
       totalItems,
+    };
+  }
+
+  async listTenantFilters(context: RequestContext) {
+    if (!context.isPlatformAdmin || !context.permissions.includes("tenant.read")) {
+      throw permissionDenied();
+    }
+    const rows = await this.repository.listTenantFilters(context);
+    return {
+      countries: [...new Set(rows.map((row) => row.country_code))],
+      financialYears: rows
+        .filter((row): row is typeof row & { financial_year_label: string } => Boolean(row.financial_year_label))
+        .map((row) => ({ countryCode: row.country_code, label: row.financial_year_label })),
     };
   }
 
@@ -298,28 +312,6 @@ export class AccessAdminService {
     return { invitationId: closed.invitation_id, status: closed.status };
   }
 
-  async cancelTenantAdminInvitation(
-    context: RequestContext,
-    tenantId: string,
-    reason?: string,
-  ): Promise<ClosedInvitationResponseDto> {
-    if (!context.isPlatformAdmin || !context.permissions.includes("invitation.cancel")) {
-      throw permissionDenied();
-    }
-    try {
-      const closed = await this.repository.cancelPendingTenantAdminInvitation(context, tenantId, reason);
-      return { invitationId: closed.invitation_id, status: closed.status };
-    } catch (error) {
-      if (isPgUniqueError(error)) {
-        throw new ConflictException({
-          code: "INVITATION_NOT_PENDING",
-          message: "The Tenant Administrator invitation has already been cancelled or accepted.",
-        });
-      }
-      throw error;
-    }
-  }
-
   async acceptInvitation(
     verifiedUser: VerifiedAuthUser,
     invitationId: string,
@@ -362,25 +354,65 @@ export class AccessAdminService {
   async updateTenantStatus(
     context: RequestContext,
     tenantId: string,
-    status: "active" | "suspended",
+    status: "active" | "suspended" | "revoked",
+    suspensionDuration?: string,
     reason?: string,
   ) {
-    const requiredPermission = status === "suspended" ? "tenant.suspend" : "tenant.reactivate";
+    const requiredPermission = status === "suspended"
+      ? "tenant.suspend"
+      : status === "active"
+        ? "tenant.reactivate"
+        : "tenant.revoke";
     if (!context.isPlatformAdmin || !context.permissions.includes(requiredPermission)) {
       throw permissionDenied();
     }
     try {
-      const updated = await this.repository.setTenantStatus(context, tenantId, status, reason);
-      return { tenantId: updated.tenant_id, status: updated.status };
+      const updated = await this.repository.setTenantStatus(context, tenantId, status, suspensionDuration, reason);
+      return {
+        tenantId: updated.tenant_id,
+        status: updated.status,
+        suspensionEndsAt: updated.suspension_ends_at?.toISOString() ?? null,
+        revokedAt: updated.revoked_at?.toISOString() ?? null,
+      };
     } catch (error) {
       if (isPgInvalidStatusTransition(error)) {
         throw new ConflictException({
           code: "TENANT_STATUS_TRANSITION_INVALID",
-          message: "Only active tenants can be suspended and only suspended tenants can be reactivated.",
+          message: "The requested tenant lifecycle transition is not allowed.",
         });
       }
       throw error;
     }
+  }
+
+  async resetTenantAdministratorPassword(
+    context: RequestContext,
+    tenantId: string,
+    request: ResetTenantAdministratorPasswordRequest,
+  ): Promise<TenantAdministratorPasswordResetResponseDto> {
+    if (!context.isPlatformAdmin || !context.permissions.includes("tenant.update")) {
+      throw permissionDenied();
+    }
+    if (!this.config.supabaseUrl || !this.config.supabaseAdminKey) {
+      throw new ServiceUnavailableException({ code: "AUTH_PROVISIONING_UNAVAILABLE", message: "Tenant Administrator password management is unavailable." });
+    }
+    const administrator = await this.repository.getActiveTenantAdministrator(context, tenantId);
+    if (!administrator) {
+      throw new NotFoundException({ code: "TENANT_ADMIN_NOT_FOUND", message: "No active Tenant Administrator was found for this tenant." });
+    }
+    await this.repository.auditTenantAdministratorPasswordReset(context, tenantId, administrator.user_id, "requested");
+    const client = createClient(this.config.supabaseUrl, this.config.supabaseAdminKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    const { error } = await client.auth.admin.updateUserById(administrator.supabase_auth_user_id, {
+      password: request.password,
+    });
+    if (error) {
+      await this.repository.auditTenantAdministratorPasswordReset(context, tenantId, administrator.user_id, "failed");
+      throw new ServiceUnavailableException({ code: "TENANT_ADMIN_PASSWORD_RESET_FAILED", message: "The Tenant Administrator password could not be updated." });
+    }
+    await this.repository.auditTenantAdministratorPasswordReset(context, tenantId, administrator.user_id, "succeeded");
+    return { tenantId, email: administrator.email, passwordChangedAt: new Date().toISOString() };
   }
 }
 
@@ -410,6 +442,13 @@ function mapTenantRow(row: {
   readonly client_count: number;
   readonly created_at: Date;
   readonly usage_percent: number;
+  readonly administrator_membership_id?: string | null;
+  readonly administrator_name?: string | null;
+  readonly administrator_email?: string | null;
+  readonly administrator_membership_status?: string | null;
+  readonly administrator_last_login_at?: Date | null;
+  readonly administrator_last_logout_at?: Date | null;
+  readonly administrator_password_changed_at?: Date | null;
 }) {
   return {
     id: row.id,
@@ -427,6 +466,17 @@ function mapTenantRow(row: {
     clientCount: row.client_count,
     createdAt: row.created_at.toISOString(),
     usagePercent: row.usage_percent,
+    tenantAdministrator: row.administrator_membership_id
+      ? {
+          membershipId: row.administrator_membership_id,
+          name: row.administrator_name ?? "Tenant Administrator",
+          email: row.administrator_email ?? "",
+          membershipStatus: row.administrator_membership_status ?? "active",
+          lastLoginAt: row.administrator_last_login_at?.toISOString() ?? null,
+          lastLogoutAt: row.administrator_last_logout_at?.toISOString() ?? null,
+          passwordChangedAt: row.administrator_password_changed_at?.toISOString() ?? null,
+        }
+      : null,
   };
 }
 

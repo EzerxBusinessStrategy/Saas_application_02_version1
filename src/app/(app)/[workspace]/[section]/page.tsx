@@ -1,9 +1,8 @@
 import { notFound } from "next/navigation";
 import { EmployeeDirectory } from "@/components/workforce/employee-directory";
-import {
-  ControlledSupportAccess,
-  TenantDirectory,
-} from "@/components/administration/tenant-management";
+import { TenantDirectory } from "@/components/administration/tenant-management";
+import { TenantAnalyticsPage } from "@/components/administration/tenant-analytics";
+import { TenantPasswordPage } from "@/components/administration/tenant-password";
 import {
   GlobalAuditLog,
   PlatformConfiguration,
@@ -65,10 +64,17 @@ export default async function Section({
       </FeatureBoundary>
     );
   }
-  if (section === "support-access") {
+  if (section === "tenant-analytics") {
+    return (
+      <FeatureBoundary role={user.role} permissions={["report.read"]}>
+        <TenantAnalyticsPage />
+      </FeatureBoundary>
+    );
+  }
+  if (section === "tenant-password") {
     return (
       <FeatureBoundary role={user.role} permissions={["tenant.update"]}>
-        <ControlledSupportAccess />
+        <TenantPasswordPage />
       </FeatureBoundary>
     );
   }

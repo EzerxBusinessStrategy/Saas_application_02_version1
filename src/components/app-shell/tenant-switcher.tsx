@@ -100,7 +100,7 @@ export function TenantSwitcher({
       <DropdownMenuContent align="start" className="w-[min(22rem,calc(100vw-2rem))]">
         <div className="px-3 py-2">
           <DropdownMenuLabel className="p-0 font-semibold">Tenant context</DropdownMenuLabel>
-          <p className="mt-1 text-xs text-muted-foreground">Support access is controlled and audited.</p>
+          <p className="mt-1 text-xs text-muted-foreground">Tenant context is controlled and audited.</p>
         </div>
         <DropdownMenuSeparator className="my-1 h-px bg-border" />
         <label className="relative m-2 block">

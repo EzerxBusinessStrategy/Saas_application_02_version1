@@ -45,8 +45,8 @@ export const createTenantWithOwnerInvitationSchema = z.object({
   tenantAdministrator: z.object({
     fullName: z.string().trim().min(2).max(160),
     email: z.string().trim().email().max(320).toLowerCase(),
-    phone: z.string().trim().max(30).optional().or(z.literal("")),
-    expiresAt: optionalFutureIsoDate,
+    password: z.string().min(8).max(128),
+    phone: z.string().trim().min(1).max(30),
   }),
 });
 
@@ -62,8 +62,21 @@ export const closeInvitationSchema = z.object({
 });
 
 export const updateTenantStatusSchema = z.object({
-  status: z.enum(["active", "suspended"]),
+  status: z.enum(["active", "suspended", "revoked"]),
+  suspensionDuration: z.enum(["24h", "48h", "72h", "96h", "1w", "1m", "6m"]).optional(),
   reason: z.string().trim().min(1).max(500).optional(),
+  revokeConfirmation: z.literal("REVOKE").optional(),
+}).superRefine((value, context) => {
+  if (value.status === "suspended" && !value.suspensionDuration) {
+    context.addIssue({ code: "custom", path: ["suspensionDuration"], message: "Choose a suspension duration." });
+  }
+  if (value.status === "revoked" && value.revokeConfirmation !== "REVOKE") {
+    context.addIssue({ code: "custom", path: ["revokeConfirmation"], message: "Confirm tenant revocation." });
+  }
+});
+
+export const resetTenantAdministratorPasswordSchema = z.object({
+  password: z.string().min(8).max(128),
 });
 
 export const acceptInvitationSchema = z.object({
@@ -84,6 +97,7 @@ export type CreateTenantWithOwnerInvitationRequest = z.infer<
 export type CreateInvitationRequest = z.infer<typeof createInvitationSchema>;
 export type CloseInvitationRequest = z.infer<typeof closeInvitationSchema>;
 export type UpdateTenantStatusRequest = z.infer<typeof updateTenantStatusSchema>;
+export type ResetTenantAdministratorPasswordRequest = z.infer<typeof resetTenantAdministratorPasswordSchema>;
 export type AcceptInvitationRequest = z.infer<typeof acceptInvitationSchema>;
 export type RevokeMembershipRequest = z.infer<typeof revokeMembershipSchema>;
 export type ReactivateMembershipRequest = z.infer<typeof reactivateMembershipSchema>;
@@ -92,8 +106,40 @@ export class TenantStatusResponseDto {
   @ApiProperty({ type: String, format: "uuid" })
   tenantId!: string;
 
-  @ApiProperty({ enum: ["active", "suspended"] })
-  status!: "active" | "suspended";
+  @ApiProperty({ enum: ["active", "suspended", "revoked"] })
+  status!: "active" | "suspended" | "revoked";
+
+  @ApiPropertyOptional({ type: String, format: "date-time", nullable: true })
+  suspensionEndsAt?: string | null;
+
+  @ApiPropertyOptional({ type: String, format: "date-time", nullable: true })
+  revokedAt?: string | null;
+}
+
+export class UpdateTenantStatusDto {
+  @ApiProperty({ enum: ["active", "suspended", "revoked"] })
+  status!: "active" | "suspended" | "revoked";
+
+  @ApiPropertyOptional({ enum: ["24h", "48h", "72h", "96h", "1w", "1m", "6m"] })
+  suspensionDuration?: "24h" | "48h" | "72h" | "96h" | "1w" | "1m" | "6m";
+
+  @ApiPropertyOptional({ type: String, maxLength: 500 })
+  reason?: string;
+
+  @ApiPropertyOptional({ enum: ["REVOKE"] })
+  revokeConfirmation?: "REVOKE";
+}
+
+export class ResetTenantAdministratorPasswordDto {
+  @ApiProperty({ type: String, minLength: 8, writeOnly: true }) password!: string;
+}
+
+export class TenantAdministratorPasswordResetResponseDto {
+  @ApiProperty({ type: String, format: "uuid" }) tenantId!: string;
+
+  @ApiProperty({ type: String, format: "email" }) email!: string;
+
+  @ApiProperty({ type: String, format: "date-time" }) passwordChangedAt!: string;
 }
 
 export class CompanyInfoDto {
@@ -155,11 +201,11 @@ export class TenantAdministratorInfoDto {
   @ApiProperty({ type: String, format: "email", example: "rahul@abctech.com" })
   email!: string;
 
-  @ApiPropertyOptional({ type: String, example: "+919876543210" })
-  phone?: string;
+  @ApiProperty({ type: String, minLength: 8, writeOnly: true }) password!: string;
 
-  @ApiPropertyOptional({ type: String, format: "date-time" })
-  expiresAt?: string;
+  @ApiProperty({ type: String, example: "+919876543210" })
+  phone!: string;
+
 }
 
 export class CreateTenantWithOwnerInvitationDto {
@@ -214,17 +260,9 @@ export class CreateTenantWithOwnerInvitationResponseDto {
   @ApiProperty({ type: String, format: "uuid" })
   financialYearId!: string;
 
-  @ApiProperty({ type: String, format: "uuid" })
-  invitationId!: string;
+  @ApiProperty({ type: String, format: "uuid" }) membershipId!: string;
 
-  @ApiProperty({ enum: ["pending_activation"] })
-  tenantStatus!: "pending_activation";
-
-  @ApiProperty({ enum: ["pending"] })
-  invitationStatus!: "pending";
-
-  @ApiProperty({ enum: ["not_sent", "sent", "failed"] })
-  invitationDeliveryStatus!: "not_sent" | "sent" | "failed";
+  @ApiProperty({ enum: ["active"] }) tenantStatus!: "active";
 }
 
 export class TenantCreationCountryDto {

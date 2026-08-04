@@ -7,12 +7,7 @@ import type { SuperAdminDashboardData } from "@/types/platform-overview";
 const mockApi = vi.hoisted(() => ({
   getSuperAdminDashboard: vi.fn(),
 }));
-const mockAdministrationApi = vi.hoisted(() => ({
-  cancelTenantAdminInvitation: vi.fn(),
-}));
-
 vi.mock("@/features/platform/api/super-admin-dashboard-api", () => mockApi);
-vi.mock("@/features/administration/api/administration-api", () => mockAdministrationApi);
 vi.mock("@/components/ui/dropdown-menu", () => ({
   DropdownMenu: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   DropdownMenuContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
@@ -61,6 +56,7 @@ test("renders live Super Admin turnover dashboard sections", async () => {
         tenantName: "ABC Technologies",
         country: "IN",
         tenantStatus: "pending_activation",
+        tenantAdministratorLastLoginAt: null,
         currencyCode: "INR",
         turnover: "4200000.00",
         collected: "3600000.00",
@@ -152,10 +148,10 @@ test("renders live Super Admin turnover dashboard sections", async () => {
   expect(screen.getByText("Platform Status")).toBeInTheDocument();
   expect(screen.getByText("Tenant Financial Details")).toBeInTheDocument();
   expect(screen.getAllByText("ABC Technologies").length).toBeGreaterThan(0);
+  expect(screen.getAllByText("Not Logged In").length).toBeGreaterThan(0);
   expect(screen.getByLabelText("Page context: Super Admin")).toBeInTheDocument();
   expect(screen.getByLabelText("Actions for ABC Technologies")).toBeInTheDocument();
   expect(screen.getByText("View tenant")).toBeInTheDocument();
-  expect(screen.getByText("Cancel invitation")).toBeInTheDocument();
 });
 
 test("submits tenant search only after the search action and shows a no-results message", async () => {

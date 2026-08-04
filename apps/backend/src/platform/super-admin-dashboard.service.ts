@@ -123,6 +123,7 @@ function mapTenant(row: DashboardTenantRow): TenantTurnoverHealthDto {
     country: row.country,
     currencyCode: row.currency_code,
     tenantStatus: row.tenant_status,
+    tenantAdministratorLastLoginAt: row.tenant_administrator_last_login_at?.toISOString() ?? null,
     turnover: moneyString(turnover),
     collected: moneyString(collected),
     outstanding: moneyString(outstanding),

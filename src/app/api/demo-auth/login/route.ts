@@ -3,7 +3,9 @@ import { z } from "zod";
 import { demoSessionCookie, loginRoles, validateDemoLogin } from "@/lib/demo-auth";
 import {
   createSuperAdminSessionPolicy,
+  createTenantAdminSessionPolicy,
   fetchVerifiedSuperAdminMe,
+  fetchVerifiedTenantAdminMe,
   signInSuperAdminWithPassword,
 } from "@/lib/server/super-admin-auth";
 import { clearSuperAdminSessionCookies, setSuperAdminSessionCookies } from "@/lib/server/super-admin-session-cookies";
@@ -25,7 +27,7 @@ export async function POST(request: Request) {
   }
 
   const rememberMe = parsed.success ? parsed.data.rememberMe : false;
-  if (parsed.data.role === "SUPER_ADMIN") {
+  if (parsed.data.role === "SUPER_ADMIN" || parsed.data.role === "TENANT_ADMIN") {
     try {
       const session = await signInSuperAdminWithPassword({
         email: parsed.data.identifier,
@@ -37,21 +39,23 @@ export async function POST(request: Request) {
           { status: 401 },
         );
       }
-      if (!(await createSuperAdminSessionPolicy(session.accessToken, rememberMe))) {
+      const isSuperAdmin = parsed.data.role === "SUPER_ADMIN";
+      if (!(isSuperAdmin ? await createSuperAdminSessionPolicy(session.accessToken, rememberMe) : await createTenantAdminSessionPolicy(session.accessToken, rememberMe))) {
         return NextResponse.json(
           { message: "Super Admin authentication is not available right now." },
           { status: 503 },
         );
       }
-      if (!(await fetchVerifiedSuperAdminMe(session.accessToken))) {
+      if (!(isSuperAdmin ? await fetchVerifiedSuperAdminMe(session.accessToken) : await fetchVerifiedTenantAdminMe(session.accessToken))) {
         return NextResponse.json(
           { message: "The sign-in details do not match the selected portal." },
           { status: 401 },
         );
       }
 
-      const response = NextResponse.json({ workspace: "super-admin" });
-      setSuperAdminSessionCookies(response, session, rememberMe);
+      const workspace = isSuperAdmin ? "super-admin" : "admin";
+      const response = NextResponse.json({ workspace });
+      setSuperAdminSessionCookies(response, session, rememberMe, workspace);
       response.cookies.set(demoSessionCookie, "", { maxAge: 0, path: "/" });
       return response;
     } catch {

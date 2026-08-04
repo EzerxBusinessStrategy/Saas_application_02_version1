@@ -6,13 +6,13 @@ export async function POST(
 ) {
   const { tenantId } = await params;
   return proxySuperAdminBackend({
-    path: `/super-admin/tenants/${tenantId}/invitation/cancel`,
+    path: `/super-admin/tenants/${tenantId}/password`,
     init: {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: await request.text(),
     },
-    unauthenticatedMessage: "Sign in to cancel invitations.",
-    unavailableMessage: "Invitation cancellation is unavailable.",
+    unauthenticatedMessage: "Sign in to manage tenant passwords.",
+    unavailableMessage: "Tenant Administrator password could not be updated.",
   });
 }

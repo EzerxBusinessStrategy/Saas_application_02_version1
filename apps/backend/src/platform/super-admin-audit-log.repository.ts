@@ -68,6 +68,10 @@ export class SuperAdminAuditLogRepository {
 
 function auditWhere(query: AuditLogQuery, params: unknown[]): string {
   const conditions = ["true"];
+  if (query.tenantId) {
+    const tenantId = param(params, query.tenantId);
+    conditions.push(`(ae.tenant_id = ${tenantId}::uuid or (ae.resource_type = 'tenant' and ae.resource_id = ${tenantId}::uuid))`);
+  }
   if (query.result) {
     const dbResult = query.result === "success" ? "succeeded" : query.result;
     conditions.push(`ae.result = ${param(params, dbResult)}`);

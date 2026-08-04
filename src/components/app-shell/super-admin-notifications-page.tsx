@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bell, CheckCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { formatIndiaDateTime } from "@/lib/india-time";
 import {
   getSuperAdminNotifications,
   markAllSuperAdminNotificationsRead,
@@ -63,7 +64,7 @@ export function SuperAdminNotificationsPage() {
               </span>
               <span className="mt-1 block text-sm text-muted-foreground">{item.message}</span>
               <span className="mt-1 block text-xs text-muted-foreground">
-                {new Date(item.createdAt).toLocaleString()}
+                {formatIndiaDateTime(item.createdAt)}
               </span>
             </span>
           </Link>

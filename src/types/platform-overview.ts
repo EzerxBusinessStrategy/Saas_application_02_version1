@@ -96,6 +96,7 @@ export type TenantTurnoverHealthRow = {
   tenantName: string;
   country: string | null;
   tenantStatus: string;
+  tenantAdministratorLastLoginAt?: string | null;
   currencyCode: string | null;
   turnover: string;
   collected: string;

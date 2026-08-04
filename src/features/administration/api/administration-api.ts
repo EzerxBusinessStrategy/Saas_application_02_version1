@@ -17,6 +17,7 @@ import {
   paginationSchema,
   tenantSchema,
   tenantCreationOptionsSchema,
+  tenantListFiltersSchema,
   workGroupSchema,
   type AuditListRequest,
   type ClientListRequest,
@@ -47,6 +48,8 @@ export async function listTenants(request: TenantListRequest) {
   if (request.query) params.set("query", request.query);
   if (request.status) params.set("status", request.status);
   if (request.createdAfter) params.set("createdAfter", request.createdAfter);
+  if (request.countryCode) params.set("countryCode", request.countryCode);
+  if (request.financialYear) params.set("financialYear", request.financialYear);
   if (request.sort) params.set("sort", request.sort);
   const response = await fetch(`/api/super-admin/tenants?${params.toString()}`, { cache: "no-store" });
   await redirectToLoginOnUnauthorized(response);
@@ -111,8 +114,8 @@ export async function createTenant(input: CreateTenantInput) {
     tenantAdministrator: {
       fullName: input.tenantAdministrator.fullName,
       email: input.tenantAdministrator.email,
+      password: input.tenantAdministrator.password,
       phone: input.tenantAdministrator.phone || undefined,
-      expiresAt: input.tenantAdministrator.expiresAt || undefined,
     },
   };
 
@@ -134,31 +137,53 @@ export async function createTenant(input: CreateTenantInput) {
   return createTenantResponseSchema.parse(await response.json());
 }
 
-export async function cancelTenantAdminInvitation(tenantId: string) {
-  const response = await fetch(`/api/super-admin/tenants/${tenantId}/invitation/cancel`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ reason: "Cancelled by Super Admin from tenant actions." }),
-  });
+export async function listTenantListFilters() {
+  const response = await fetch("/api/super-admin/tenant-list-filters", { cache: "no-store" });
   await redirectToLoginOnUnauthorized(response);
-  if (!response.ok) throw new Error("Invitation could not be cancelled.");
+  if (!response.ok) throw new Error("Tenant filters could not load.");
+  return tenantListFiltersSchema.parse(await response.json());
 }
 
 export async function updateTenantStatus(
   tenantId: string,
-  status: "active" | "suspended",
+  status: "active" | "suspended" | "revoked",
+  options?: { suspensionDuration?: "24h" | "48h" | "72h" | "96h" | "1w" | "1m" | "6m"; revokeConfirmation?: "REVOKE" },
 ) {
   const response = await fetch(`/api/super-admin/tenants/${tenantId}`, {
     method: "PATCH",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
       status,
-      reason: `Super Admin ${status === "suspended" ? "suspended" : "reactivated"} the tenant from the tenant directory.`,
+      ...options,
+      reason: `Super Admin ${status === "suspended" ? "suspended" : status === "revoked" ? "revoked" : "reactivated"} the tenant from the tenant directory.`,
     }),
   });
   await redirectToLoginOnUnauthorized(response);
   if (!response.ok) throw new Error("Tenant status could not be updated.");
-  return z.object({ tenantId: z.string(), status: z.enum(["active", "suspended"]) }).parse(await response.json());
+  return z.object({
+    tenantId: z.string(),
+    status: z.enum(["active", "suspended", "revoked"]),
+    suspensionEndsAt: z.string().nullable(),
+    revokedAt: z.string().nullable(),
+  }).parse(await response.json());
+}
+
+export async function resetTenantAdministratorPassword(tenantId: string, password: string) {
+  const response = await fetch(`/api/super-admin/tenants/${tenantId}/password`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ password }),
+  });
+  await redirectToLoginOnUnauthorized(response);
+  if (!response.ok) {
+    const body = await response.json().catch(() => null);
+    throw new Error(body?.error?.message ?? "Tenant Administrator password could not be updated.");
+  }
+  return z.object({
+    tenantId: z.string(),
+    email: z.string().email(),
+    passwordChangedAt: z.string(),
+  }).parse(await response.json());
 }
 
 export async function listAuditRecords(
@@ -166,6 +191,7 @@ export async function listAuditRecords(
 ) {
   const { page, pageSize } = paginationSchema.parse(request);
   const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+  if (request.tenantId) params.set("tenantId", request.tenantId);
   if (request.query) params.set("query", request.query);
   if (request.result) params.set("result", request.result);
   if (request.sort) params.set("sort", request.sort);

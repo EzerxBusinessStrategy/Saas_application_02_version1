@@ -41,6 +41,12 @@ export const migrationNames = [
   "0031_backfill_cancelled_tenant_status.sql",
   "0032_super_admin_tenant_status_lifecycle.sql",
   "0033_platform_configuration.sql",
+  "0034_direct_tenant_admin_provisioning.sql",
+  "0035_direct_tenant_administrator_phone.sql",
+  "0036_tenant_administrator_access_audit.sql",
+  "0037_super_admin_tenant_list_filters.sql",
+  "0038_tenant_timed_suspension_and_revocation.sql",
+  "0039_pending_tenant_lifecycle_actions.sql",
 ] as const;
 
 export async function runMigrations(

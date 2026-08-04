@@ -31,6 +31,7 @@ export class AuthContextRepository {
     try {
       await client.query("begin");
       await setTrustedDatabaseContext(client, { authUserId });
+      await client.query("select private.restore_expired_tenant_suspensions()");
       const result = await client.query<AuthContextRow>(
         "select * from private.resolve_auth_context($1::uuid)",
         [authUserId],

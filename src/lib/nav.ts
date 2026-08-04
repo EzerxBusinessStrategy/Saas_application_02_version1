@@ -11,6 +11,7 @@ import {
   LayoutDashboard,
   ReceiptText,
   Settings,
+  KeyRound,
   Users,
 } from "lucide-react";
 import type { NavigationItem } from "@/types/navigation";
@@ -119,7 +120,7 @@ const common: NavigationItem[] = [
     icon: Building2,
     children: [
       {
-        label: "Tenants",
+        label: "Tenant list",
         href: "/tenants",
         icon: Building2,
         permissions: ["tenant.read"],
@@ -131,9 +132,15 @@ const common: NavigationItem[] = [
         permissions: ["tenant.update"],
       },
       {
-        label: "Support access",
-        href: "/support-access",
-        icon: ClipboardList,
+        label: "Tenant analytics",
+        href: "/tenant-analytics",
+        icon: BarChart3,
+        permissions: ["report.read"],
+      },
+      {
+        label: "Tenant password",
+        href: "/tenant-password",
+        icon: KeyRound,
         permissions: ["tenant.update"],
       },
     ],
@@ -142,17 +149,19 @@ const common: NavigationItem[] = [
 
 const superAdminItems = new Set([
   "Dashboard",
-  "Tenants",
+  "Tenant list",
   "Reports",
   "Audit log",
   "Platform configuration",
-  "Support access",
+  "Tenant analytics",
+  "Tenant password",
 ]);
 const tenantAdminOnlyItems = new Set(["Managers", "Organisation", "Settings"]);
 const platformOnlyItems = new Set([
-  "Tenants",
+  "Tenant list",
   "Platform configuration",
-  "Support access",
+  "Tenant analytics",
+  "Tenant password",
 ]);
 
 const managerNavigation: NavigationItem[] = [
@@ -227,8 +236,14 @@ export const flattenNavigation = (items: NavigationItem[]): NavigationItem[] =>
     ...(item.children ? flattenNavigation(item.children) : []),
   ]);
 
+const superAdminNavigation = filterForWorkspace(common, "super-admin").flatMap(
+  (item) => item.children ?? [item],
+);
+
 export const navigationFor = (workspace: Workspace) =>
-  workspace === "manager"
+  workspace === "super-admin"
+    ? superAdminNavigation
+    : workspace === "manager"
     ? managerNavigation
     : workspace === "employee"
       ? employeeNavigation

@@ -8,6 +8,7 @@ import { RequestContext } from "./request-context";
 export type SessionPolicyRow = {
   readonly remember_me: boolean;
   readonly absolute_expires_at: Date;
+  readonly created: boolean;
 };
 
 @Injectable()
@@ -33,12 +34,15 @@ export class SessionPolicyRepository {
             last_seen_at = now()
         where public.auth_session_policies.user_id = excluded.user_id
           and public.auth_session_policies.revoked_at is null
-        returning remember_me, absolute_expires_at
+        returning remember_me, absolute_expires_at, (xmax = 0) as created
         `,
         [context.userId, sessionId, rememberMe],
       );
       const row = result.rows[0];
       if (!row) throw sessionExpired();
+      if (row.created && context.roles.includes("TENANT_ADMIN")) {
+        await client.query("select private.record_tenant_administrator_session_event('login')");
+      }
       return row;
     });
   }
@@ -66,15 +70,19 @@ export class SessionPolicyRepository {
   async revoke(context: RequestContext, sessionId: string | undefined): Promise<void> {
     if (!sessionId || !this.pool) return;
     await withDatabaseTransaction(this.pool, context, async (_tx, client) => {
-      await client.query(
+      const result = await client.query(
         `
         update public.auth_session_policies
         set revoked_at = coalesce(revoked_at, now())
         where user_id = $1
           and supabase_session_id = $2
+        returning id
         `,
         [context.userId, sessionId],
       );
+      if (result.rowCount && context.roles.includes("TENANT_ADMIN")) {
+        await client.query("select private.record_tenant_administrator_session_event('logout')");
+      }
     });
   }
 }

@@ -28,6 +28,7 @@ import {
   InvitationResponseDto,
   TenantCreationOptionsResponseDto,
   TenantStatusResponseDto,
+  UpdateTenantStatusDto,
   UpdateTenantStatusRequest,
   updateTenantStatusSchema,
   ReactivateMembershipDto,
@@ -35,6 +36,9 @@ import {
   RevokeMembershipDto,
   revokeMembershipSchema,
   MembershipAccessResponseDto,
+  ResetTenantAdministratorPasswordDto,
+  resetTenantAdministratorPasswordSchema,
+  TenantAdministratorPasswordResetResponseDto,
 } from "./access-admin.dto";
 import { AccessAdminService } from "./access-admin.service";
 import { ActiveRequestContextGuard } from "./guards/active-request-context.guard";
@@ -73,6 +77,8 @@ export class AccessAdminController {
     @Query("query") query?: string,
     @Query("status") status?: string,
     @Query("createdAfter") createdAfter?: string,
+    @Query("countryCode") countryCode?: string,
+    @Query("financialYear") financialYear?: string,
     @Query("sort") sort?: string,
     @Query("page") page?: string,
     @Query("pageSize") pageSize?: string,
@@ -81,10 +87,21 @@ export class AccessAdminController {
       query,
       status,
       createdAfter,
+      countryCode,
+      financialYear,
       sort,
       page: Number(page ?? "1"),
       pageSize: Number(pageSize ?? "10"),
     });
+  }
+
+  @Get("super-admin/tenant-list-filters")
+  @UseGuards(SupabaseAuthGuard, ActiveRequestContextGuard, PermissionGuard)
+  @RequirePermissions("tenant.read")
+  @ApiOperation({ summary: "List database-backed country and financial-year filters for the tenant directory." })
+  @ApiOkResponse()
+  listTenantFilters(@CurrentRequestContext() context: RequestContext) {
+    return this.service.listTenantFilters(context);
   }
 
   @Get("super-admin/tenants/:tenantId")
@@ -102,9 +119,9 @@ export class AccessAdminController {
   @Patch("super-admin/tenants/:tenantId/status")
   @HttpCode(200)
   @UseGuards(SupabaseAuthGuard, ActiveRequestContextGuard, PermissionGuard)
-  @RequirePermissions("tenant.suspend")
-  @ApiOperation({ summary: "Suspend or reactivate a tenant and enforce workspace access state." })
-  @ApiBody({ type: TenantStatusResponseDto })
+  @RequirePermissions("tenant.read")
+  @ApiOperation({ summary: "Suspend, reactivate, or permanently revoke a tenant workspace without deleting its data." })
+  @ApiBody({ type: UpdateTenantStatusDto })
   @ApiOkResponse({ type: TenantStatusResponseDto })
   @ApiUnauthorizedResponse({ type: ApiErrorResponseDto })
   @ApiForbiddenResponse({ type: ApiErrorResponseDto })
@@ -114,34 +131,34 @@ export class AccessAdminController {
     @Param("tenantId", ParseUUIDPipe) tenantId: string,
     @Body(new ZodValidationPipe(updateTenantStatusSchema)) body: UpdateTenantStatusRequest,
   ) {
-    return this.service.updateTenantStatus(context, tenantId, body.status, body.reason);
+    return this.service.updateTenantStatus(context, tenantId, body.status, body.suspensionDuration, body.reason);
   }
 
-  @Post("super-admin/tenants/:tenantId/invitation/cancel")
+  @Post("super-admin/tenants/:tenantId/password")
   @HttpCode(200)
   @UseGuards(SupabaseAuthGuard, ActiveRequestContextGuard, PermissionGuard)
-  @RequirePermissions("invitation.cancel")
-  @ApiOperation({ summary: "Cancel the pending Tenant Administrator invitation for a tenant." })
-  @ApiBody({ type: CloseInvitationDto })
-  @ApiOkResponse({ type: ClosedInvitationResponseDto })
+  @RequirePermissions("tenant.update")
+  @ApiOperation({ summary: "Set a new password for the active Tenant Administrator." })
+  @ApiBody({ type: ResetTenantAdministratorPasswordDto })
+  @ApiOkResponse({ type: TenantAdministratorPasswordResetResponseDto })
   @ApiUnauthorizedResponse({ type: ApiErrorResponseDto })
   @ApiForbiddenResponse({ type: ApiErrorResponseDto })
   @ApiConflictResponse({ type: ApiErrorResponseDto })
-  cancelTenantAdminInvitation(
+  resetTenantAdministratorPassword(
     @CurrentRequestContext() context: RequestContext,
     @Param("tenantId", ParseUUIDPipe) tenantId: string,
-    @Body(new ZodValidationPipe(closeInvitationSchema)) body: CloseInvitationDto,
-  ): Promise<ClosedInvitationResponseDto> {
-    return this.service.cancelTenantAdminInvitation(context, tenantId, body.reason);
+    @Body(new ZodValidationPipe(resetTenantAdministratorPasswordSchema)) body: ResetTenantAdministratorPasswordDto,
+  ): Promise<TenantAdministratorPasswordResetResponseDto> {
+    return this.service.resetTenantAdministratorPassword(context, tenantId, body);
   }
 
   @Post("super-admin/tenants")
   @UseGuards(SupabaseAuthGuard, ActiveRequestContextGuard, PermissionGuard)
   @RequirePermissions("tenant.create")
   @ApiOperation({
-    summary: "Create a pending tenant, financial year and Tenant Admin invitation.",
+    summary: "Create an active tenant, financial year and Tenant Administrator account.",
     description:
-      "Only a Super Admin can create a tenant. The administrator receives a Supabase invitation email when delivery is configured; no password is created or returned.",
+      "Only a Super Admin can create a tenant. The administrator password is sent only to Supabase Auth and no invitation email is created.",
   })
   @ApiBody({ type: CreateTenantWithOwnerInvitationDto })
   @ApiCreatedResponse({ type: CreateTenantWithOwnerInvitationResponseDto })

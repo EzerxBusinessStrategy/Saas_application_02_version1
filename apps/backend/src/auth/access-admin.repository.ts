@@ -29,8 +29,8 @@ export type CreateTenantWithOwnerInvitationInput = {
   readonly tenantAdministrator: {
     readonly fullName: string;
     readonly email: string;
+    readonly password: string;
     readonly phone?: string;
-    readonly expiresAt?: string;
   };
 };
 
@@ -80,9 +80,21 @@ export type TenantListRow = {
   readonly client_count: number;
   readonly created_at: Date;
   readonly usage_percent: number;
+  readonly administrator_membership_id?: string | null;
+  readonly administrator_name?: string | null;
+  readonly administrator_email?: string | null;
+  readonly administrator_membership_status?: string | null;
+  readonly administrator_last_login_at?: Date | null;
+  readonly administrator_last_logout_at?: Date | null;
+  readonly administrator_password_changed_at?: Date | null;
   // total_items is only present on list results (not single-tenant lookup).
   // pg returns bigint columns as strings, so we accept both.
   readonly total_items?: number | string;
+};
+
+export type TenantListFilterRow = {
+  readonly country_code: string;
+  readonly financial_year_label: string | null;
 };
 
 export type InvitationCreatedRow = {
@@ -115,7 +127,26 @@ export type MembershipAccessRow = {
 
 export type TenantStatusRow = {
   readonly tenant_id: string;
-  readonly status: "active" | "suspended";
+  readonly status: "active" | "suspended" | "revoked";
+  readonly suspension_ends_at: Date | null;
+  readonly revoked_at: Date | null;
+};
+
+export type TenantAdministratorAuthRow = {
+  readonly user_id: string;
+  readonly supabase_auth_user_id: string;
+  readonly email: string;
+};
+
+type TenantAdministratorAccessRow = {
+  readonly tenant_id: string;
+  readonly membership_id: string | null;
+  readonly administrator_name: string | null;
+  readonly administrator_email: string | null;
+  readonly membership_status: string | null;
+  readonly last_login_at: Date | null;
+  readonly last_logout_at: Date | null;
+  readonly password_changed_at: Date | null;
 };
 
 @Injectable()
@@ -155,7 +186,7 @@ export class AccessAdminRepository {
           input.tenantAdministrator.fullName,
           input.tenantAdministrator.email,
           input.tenantAdministrator.phone ?? null,
-          input.tenantAdministrator.expiresAt ?? null,
+          null,
         ],
       );
       return singleRow(result.rows);
@@ -181,6 +212,8 @@ export class AccessAdminRepository {
       readonly query?: string;
       readonly status?: string;
       readonly createdAfter?: string;
+      readonly countryCode?: string;
+      readonly financialYear?: string;
       readonly sort?: string;
       readonly page: number;
       readonly pageSize: number;
@@ -189,24 +222,28 @@ export class AccessAdminRepository {
     return this.withContext(context, async (client) => {
       const result = await client.query<TenantListRow>(
         `select *
-         from private.list_super_admin_tenants(
+         from private.list_super_admin_tenants_filtered(
            $1::text,
            $2::text,
            $3::date,
            $4::text,
-           $5::integer,
-           $6::integer
+           $5::text,
+           $6::text,
+           $7::integer,
+           $8::integer
          )`,
         [
           input.query ?? null,
           input.status ?? null,
           input.createdAfter ?? null,
+          input.countryCode ?? null,
+          input.financialYear ?? null,
           input.sort ?? "name",
           input.pageSize,
           (input.page - 1) * input.pageSize,
         ],
       );
-      return result.rows;
+      return this.withTenantAdministratorAccess(client, result.rows);
     });
   }
 
@@ -217,7 +254,7 @@ export class AccessAdminRepository {
          from private.get_super_admin_tenant($1::uuid)`,
         [tenantId],
       );
-      return result.rows[0] ?? null;
+      return (await this.withTenantAdministratorAccess(client, result.rows))[0] ?? null;
     });
   }
 
@@ -250,17 +287,12 @@ export class AccessAdminRepository {
     });
   }
 
-  async cancelPendingTenantAdminInvitation(
-    context: RequestContext,
-    tenantId: string,
-    reason?: string,
-  ): Promise<ClosedInvitationRow> {
+  async listTenantFilters(context: RequestContext): Promise<TenantListFilterRow[]> {
     return this.withContext(context, async (client) => {
-      const result = await client.query<ClosedInvitationRow>(
-        "select * from private.cancel_super_admin_tenant_invitation($1::uuid, $2::text)",
-        [tenantId, reason ?? null],
+      const result = await client.query<TenantListFilterRow>(
+        "select * from private.list_super_admin_tenant_list_filters()",
       );
-      return singleRow(result.rows);
+      return result.rows;
     });
   }
 
@@ -323,16 +355,81 @@ export class AccessAdminRepository {
     });
   }
 
+  async activateDirectTenantAdminTenant(context: RequestContext, tenantId: string): Promise<void> {
+    await this.withContext(context, async (client) => {
+      await client.query("select private.activate_direct_tenant_admin_tenant($1::uuid)", [tenantId]);
+    });
+  }
+
+  async setDirectTenantAdministratorPhone(
+    context: RequestContext,
+    tenantId: string,
+    userId: string,
+    phone: string,
+  ): Promise<void> {
+    await this.withContext(context, async (client) => {
+      await client.query("select private.set_direct_tenant_administrator_phone($1::uuid, $2::uuid, $3::text)", [tenantId, userId, phone]);
+    });
+  }
+
+  async getActiveTenantAdministrator(
+    context: RequestContext,
+    tenantId: string,
+  ): Promise<TenantAdministratorAuthRow | null> {
+    return this.withContext(context, async (client) => {
+      const result = await client.query<TenantAdministratorAuthRow>(
+        `select u.id as user_id, u.supabase_auth_user_id, u.email
+         from public.tenant_memberships tm
+         join public.users u on u.id = tm.user_id
+         join public.membership_roles mr
+           on mr.tenant_id = tm.tenant_id
+          and mr.membership_id = tm.id
+          and mr.status = 'active'
+         join public.roles r on r.id = mr.role_id and r.code = 'TENANT_ADMIN'
+         where tm.tenant_id = $1::uuid
+           and tm.status = 'active'
+           and u.status = 'active'
+         order by tm.joined_at asc
+         limit 1`,
+        [tenantId],
+      );
+      return result.rows[0] ?? null;
+    });
+  }
+
+  async auditTenantAdministratorPasswordReset(
+    context: RequestContext,
+    tenantId: string,
+    targetUserId: string,
+    result: "requested" | "succeeded" | "failed",
+  ): Promise<void> {
+    await this.withContext(context, async (client) => {
+      await client.query(
+        `select audit.write_audit_event(
+           $2::text,
+           'tenant',
+           $1::uuid,
+           $3::text,
+           null,
+           jsonb_build_object('targetUserId', $4::uuid)
+         )
+         from (select set_config('app.tenant_id', $1::text, true)) as request_tenant`,
+        [tenantId, `TENANT_ADMIN_PASSWORD_RESET_${result.toUpperCase()}`, result === "failed" ? "failed" : "succeeded", targetUserId],
+      );
+    });
+  }
+
   async setTenantStatus(
     context: RequestContext,
     tenantId: string,
-    status: "active" | "suspended",
+    status: "active" | "suspended" | "revoked",
+    suspensionDuration?: string,
     reason?: string,
   ): Promise<TenantStatusRow> {
     return this.withContext(context, async (client) => {
       const result = await client.query<TenantStatusRow>(
-        "select * from private.set_super_admin_tenant_status($1::uuid, $2::text, $3::text)",
-        [tenantId, status, reason ?? null],
+        "select * from private.set_super_admin_tenant_lifecycle($1::uuid, $2::text, $3::text, $4::text)",
+        [tenantId, status === "active" ? "reactivate" : status === "suspended" ? "suspend" : "revoke", suspensionDuration ?? null, reason ?? null],
       );
       return singleRow(result.rows);
     });
@@ -344,6 +441,31 @@ export class AccessAdminRepository {
   ): Promise<T> {
     if (!this.pool) throw databaseNotConfigured();
     return withDatabaseTransaction(this.pool, context, (_tx, client) => work(client));
+  }
+
+  private async withTenantAdministratorAccess(
+    client: PoolClient,
+    rows: readonly TenantListRow[],
+  ): Promise<TenantListRow[]> {
+    if (!rows.length) return [];
+    const result = await client.query<TenantAdministratorAccessRow>(
+      "select * from private.list_super_admin_tenant_administrator_access($1::uuid[])",
+      [rows.map((row) => row.id)],
+    );
+    const accessByTenant = new Map(result.rows.map((row) => [row.tenant_id, row]));
+    return rows.map((row) => {
+      const access = accessByTenant.get(row.id);
+      return {
+        ...row,
+        administrator_membership_id: access?.membership_id ?? null,
+        administrator_name: access?.administrator_name ?? null,
+        administrator_email: access?.administrator_email ?? null,
+        administrator_membership_status: access?.membership_status ?? null,
+        administrator_last_login_at: access?.last_login_at ?? null,
+        administrator_last_logout_at: access?.last_logout_at ?? null,
+        administrator_password_changed_at: access?.password_changed_at ?? null,
+      };
+    });
   }
 }
 

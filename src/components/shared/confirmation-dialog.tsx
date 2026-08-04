@@ -13,6 +13,8 @@ export function ConfirmationDialog({
   onConfirm,
   isConfirming = false,
   destructive = false,
+  warning = false,
+  confirmDisabled = false,
   children,
 }: {
   open: boolean;
@@ -23,6 +25,8 @@ export function ConfirmationDialog({
   onConfirm: () => void;
   isConfirming?: boolean;
   destructive?: boolean;
+  warning?: boolean;
+  confirmDisabled?: boolean;
   children?: ReactNode;
 }) {
   return (
@@ -42,9 +46,9 @@ export function ConfirmationDialog({
             </Button>
             <Button
               className={
-                destructive ? "bg-danger hover:bg-danger/90" : undefined
+                destructive ? "bg-danger hover:bg-danger/90" : warning ? "bg-warning text-white hover:bg-warning/90" : undefined
               }
-              disabled={isConfirming}
+              disabled={isConfirming || confirmDisabled}
               onClick={onConfirm}
             >
               {isConfirming ? "Working…" : confirmLabel}

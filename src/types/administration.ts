@@ -4,6 +4,7 @@ export const tenantStatuses = [
   "pending_activation",
   "active",
   "suspended",
+  "revoked",
   "cancelled",
   "archived",
   "pending_deletion",
@@ -22,6 +23,15 @@ export const tenantSchema = z.object({
   clientCount: z.number().int().nonnegative(),
   createdAt: z.string(),
   usagePercent: z.number().min(0).max(100),
+  tenantAdministrator: z.object({
+    membershipId: z.string(),
+    name: z.string(),
+    email: z.string(),
+    membershipStatus: z.string(),
+    lastLoginAt: z.string().nullable(),
+    lastLogoutAt: z.string().nullable(),
+    passwordChangedAt: z.string().nullable(),
+  }).nullable().optional(),
 });
 export type Tenant = z.infer<typeof tenantSchema>;
 
@@ -131,16 +141,6 @@ export const managerSchema = z.object({
 });
 export type Manager = z.infer<typeof managerSchema>;
 
-export const supportAccessSchema = z.object({
-  tenantId: z.string().min(1),
-  reason: z
-    .string()
-    .trim()
-    .min(10, "Explain the support need in at least 10 characters."),
-  durationMinutes: z.coerce.number().int().min(15).max(240),
-});
-export type SupportAccessRequest = z.infer<typeof supportAccessSchema>;
-
 export const legacyCreateTenantSchema = z.object({
   name: z.string().trim().min(2, "Enter the organisation name."),
   code: z
@@ -201,8 +201,8 @@ export const createTenantSchema = z.object({
   tenantAdministrator: z.object({
     fullName: z.string().trim().min(2, "Enter the Tenant Administrator name."),
     email: z.string().trim().email("Enter a valid work email."),
-    phone: z.string().trim().max(30).optional().or(z.literal("")),
-    expiresAt: z.string().optional(),
+    password: z.string().min(8, "Use at least 8 characters for the temporary password."),
+    phone: z.string().trim().min(1, "Enter the Tenant Administrator phone number.").max(30),
   }),
   confirm: z.boolean().refine((value) => value, "Confirm the tenant details before creating."),
 });
@@ -234,10 +234,8 @@ export type TenantCreationOptions = z.infer<typeof tenantCreationOptionsSchema>;
 export const createTenantResponseSchema = z.object({
   tenantId: z.string(),
   financialYearId: z.string(),
-  invitationId: z.string(),
-  tenantStatus: z.literal("pending_activation"),
-  invitationStatus: z.literal("pending"),
-  invitationDeliveryStatus: z.enum(["not_sent", "sent", "failed"]).optional(),
+  membershipId: z.string(),
+  tenantStatus: z.literal("active"),
 });
 export type CreateTenantResponse = z.infer<typeof createTenantResponseSchema>;
 
@@ -270,8 +268,16 @@ export type TenantListRequest = z.infer<typeof paginationSchema> & {
   query?: string;
   status?: (typeof tenantStatuses)[number];
   createdAfter?: string;
+  countryCode?: string;
+  financialYear?: string;
   sort?: "name" | "createdAt" | "employees";
 };
+
+export const tenantListFiltersSchema = z.object({
+  countries: z.array(z.string()),
+  financialYears: z.array(z.object({ countryCode: z.string(), label: z.string() })),
+});
+export type TenantListFilters = z.infer<typeof tenantListFiltersSchema>;
 
 export type ClientListRequest = z.infer<typeof paginationSchema> & {
   query?: string;
@@ -285,6 +291,7 @@ export type ClientListRequest = z.infer<typeof paginationSchema> & {
 };
 
 export type AuditListRequest = z.infer<typeof paginationSchema> & {
+  tenantId?: string;
   query?: string;
   result?: AuditRecord["result"];
   sort?: "timestamp" | "actor" | "tenant";

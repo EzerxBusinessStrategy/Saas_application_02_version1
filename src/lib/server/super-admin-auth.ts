@@ -78,11 +78,31 @@ export async function refreshSuperAdminSession(refreshToken: string): Promise<Pi
 }
 
 export async function createSuperAdminSessionPolicy(accessToken: string, rememberMe: boolean): Promise<boolean> {
+  return createSessionPolicy(accessToken, rememberMe, "super-admin");
+}
+
+export async function createTenantAdminSessionPolicy(accessToken: string, rememberMe: boolean): Promise<boolean> {
+  return createSessionPolicy(accessToken, rememberMe, "admin");
+}
+
+export async function revokeSessionPolicy(
+  accessToken: string,
+  workspace: "super-admin" | "admin",
+): Promise<void> {
+  await fetch(`${backendApiBaseUrl()}/auth/session-policy`, {
+    method: "DELETE",
+    headers: { authorization: `Bearer ${accessToken}`, "x-portal": workspace },
+    cache: "no-store",
+  }).catch(() => undefined);
+}
+
+async function createSessionPolicy(accessToken: string, rememberMe: boolean, portal: "super-admin" | "admin"): Promise<boolean> {
   const response = await fetch(`${backendApiBaseUrl()}/auth/session-policy`, {
     method: "POST",
     headers: {
       authorization: `Bearer ${accessToken}`,
       "content-type": "application/json",
+      "x-portal": portal,
     },
     body: JSON.stringify({ rememberMe }),
     cache: "no-store",
@@ -104,6 +124,17 @@ export async function fetchVerifiedSuperAdminMe(accessToken: string): Promise<Su
   if (!me.isPlatformAdmin || !me.roles.includes("SUPER_ADMIN") || me.activeMembership !== null) {
     return null;
   }
+  return me;
+}
+
+export async function fetchVerifiedTenantAdminMe(accessToken: string): Promise<SuperAdminMe | null> {
+  const response = await fetch(`${backendApiBaseUrl()}/me`, {
+    headers: { authorization: `Bearer ${accessToken}`, "x-portal": "admin" },
+    cache: "no-store",
+  });
+  if (!response.ok) return null;
+  const me = (await response.json()) as SuperAdminMe;
+  if (me.isPlatformAdmin || !me.roles.includes("TENANT_ADMIN") || !me.activeMembership) return null;
   return me;
 }
 
@@ -141,6 +172,10 @@ export function userFromSuperAdminMe(me: SuperAdminMe): User {
     role: "SUPER_ADMIN",
     permissions: rolePermissions.SUPER_ADMIN,
   };
+}
+
+export function userFromTenantAdminMe(me: SuperAdminMe): User {
+  return { name: me.user.displayName, email: me.user.email, initials: initialsFromName(me.user.displayName), role: "TENANT_ADMIN", permissions: rolePermissions.TENANT_ADMIN };
 }
 
 function backendApiBaseUrl(): string {

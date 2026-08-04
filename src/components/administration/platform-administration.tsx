@@ -52,20 +52,13 @@ import {
   updatePlatformConfiguration,
 } from "@/features/platform/api/super-admin-platform-configuration-api";
 import { cn } from "@/lib/utils";
+import { formatIndiaDateTime } from "@/lib/india-time";
 import { getSuperAdminDashboard } from "@/features/platform/api/super-admin-dashboard-api";
 import {
   type AuditRecord,
   type AuditListRequest,
 } from "@/types/administration";
 import type { PlatformConfiguration } from "@/types/platform-configuration";
-
-const dateTime = new Intl.DateTimeFormat("en-US", {
-  month: "short",
-  day: "numeric",
-  year: "numeric",
-  hour: "numeric",
-  minute: "2-digit",
-});
 
 export function PlatformReports() {
   const reportsQuery = useQuery({
@@ -223,7 +216,7 @@ export function GlobalAuditLog({ tenantName }: { tenantName?: string }) {
     {
       id: "timestamp",
       header: "Timestamp",
-      cell: ({ row }) => dateTime.format(new Date(row.original.timestamp)),
+      cell: ({ row }) => formatIndiaDateTime(row.original.timestamp),
     },
     { accessorKey: "ipAddress", header: "IP address" },
     {
@@ -423,7 +416,7 @@ export function GlobalAuditLog({ tenantName }: { tenantName?: string }) {
                   <dt className="text-muted-foreground">Network context</dt>
                   <dd className="mt-1">
                     {selected.ipAddress} ·{" "}
-                    {dateTime.format(new Date(selected.timestamp))}
+                    {formatIndiaDateTime(selected.timestamp)}
                   </dd>
                 </div>
               </dl>

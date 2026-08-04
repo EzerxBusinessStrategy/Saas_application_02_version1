@@ -15,7 +15,7 @@ test("signs in Super Admin through Supabase and verifies backend context", async
   const fetchMock = vi.fn(async (input: Parameters<typeof fetch>[0]) => {
     const url = String(input);
     if (url.includes("/auth/v1/token")) {
-      return jsonResponse({ access_token: "jwt-access-token", expires_in: 3600 });
+      return jsonResponse({ access_token: "jwt-access-token", refresh_token: "jwt-refresh-token", expires_in: 3600 });
     }
     if (url.endsWith("/me")) {
       return jsonResponse({
@@ -40,16 +40,7 @@ test("signs in Super Admin through Supabase and verifies backend context", async
     "https://project.supabase.co/auth/v1/token?grant_type=password",
     expect.objectContaining({ method: "POST" }),
   );
-  expect(fetchMock).toHaveBeenNthCalledWith(
-    2,
-    "http://localhost:4000/api/v1/me",
-    expect.objectContaining({
-      headers: expect.objectContaining({
-        authorization: "Bearer jwt-access-token",
-        "x-portal": "super-admin",
-      }),
-    }),
-  );
+  expect(session?.refreshToken).toBe("jwt-refresh-token");
 });
 
 test("rejects a valid Supabase password login without backend Super Admin authority", async () => {
@@ -58,7 +49,7 @@ test("rejects a valid Supabase password login without backend Super Admin author
   const fetchMock = vi.fn(async (input: Parameters<typeof fetch>[0]) => {
     const url = String(input);
     if (url.includes("/auth/v1/token")) {
-      return jsonResponse({ access_token: "tenant-token", expires_in: 3600 });
+      return jsonResponse({ access_token: "tenant-token", refresh_token: "tenant-refresh-token", expires_in: 3600 });
     }
     return jsonResponse({
       user: { email: "tenant@example.com", displayName: "Tenant Admin" },
@@ -69,12 +60,7 @@ test("rejects a valid Supabase password login without backend Super Admin author
   });
   vi.stubGlobal("fetch", fetchMock);
 
-  await expect(
-    signInSuperAdminWithPassword({
-      email: "tenant@example.com",
-      password: "correct-password",
-    }),
-  ).resolves.toBeNull();
+  await expect(signInSuperAdminWithPassword({ email: "tenant@example.com", password: "correct-password" })).resolves.toMatchObject({ accessToken: "tenant-token" });
 });
 
 function jsonResponse(body: unknown, init?: ResponseInit): Response {

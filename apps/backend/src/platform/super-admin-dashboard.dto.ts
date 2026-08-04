@@ -180,6 +180,9 @@ export class TenantTurnoverHealthDto {
   @ApiProperty({ type: String })
   tenantStatus!: string;
 
+  @ApiPropertyOptional({ type: String, format: "date-time", nullable: true })
+  tenantAdministratorLastLoginAt!: string | null;
+
   @ApiPropertyOptional({ type: String, nullable: true })
   currencyCode!: string | null;
 

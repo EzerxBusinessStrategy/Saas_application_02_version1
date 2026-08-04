@@ -18,6 +18,7 @@ export type DashboardTenantRow = {
   readonly country: string | null;
   readonly currency_code: string | null;
   readonly tenant_status: string;
+  readonly tenant_administrator_last_login_at: Date | null;
   readonly financial_year_id: string | null;
   readonly financial_year_label: string | null;
   readonly financial_year_start_date: string | null;
@@ -282,6 +283,15 @@ export class SuperAdminDashboardRepository {
         from public.tenant_memberships
         where status = 'active'
         group by tenant_id
+      ),
+      tenant_administrator_logins as (
+        select tm.tenant_id, max(ae.created_at) as last_login_at
+        from filtered_tenants ft
+        join public.tenant_memberships tm on tm.tenant_id = ft.id and tm.status = 'active'
+        join public.membership_roles mr on mr.tenant_id = tm.tenant_id and mr.membership_id = tm.id and mr.status = 'active'
+        join public.roles r on r.id = mr.role_id and r.code = 'TENANT_ADMIN'
+        left join audit.audit_events ae on ae.actor_membership_id = tm.id and ae.action = 'TENANT_ADMIN_LOGGED_IN'
+        group by tm.tenant_id
       )
       select
         ft.id::text as tenant_id,
@@ -289,6 +299,7 @@ export class SuperAdminDashboardRepository {
         ft.country,
         coalesce(ft.currency, tf.invoice_currency_code) as currency_code,
         ft.status as tenant_status,
+        tal.last_login_at as tenant_administrator_last_login_at,
         ft.financial_year_id::text,
         ft.financial_year_label,
         ft.financial_year_start_date::text,
@@ -304,6 +315,7 @@ export class SuperAdminDashboardRepository {
       from filtered_tenants ft
       left join tenant_finance tf on tf.tenant_id = ft.id
       left join active_users au on au.tenant_id = ft.id
+      left join tenant_administrator_logins tal on tal.tenant_id = ft.id
       left join financial_year_options fyo on fyo.tenant_id = ft.id
       left join lateral (
         select code, label

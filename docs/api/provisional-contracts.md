@@ -67,18 +67,26 @@ provisional frontend operations:
   `listClientContacts()`, `listEngagements()`, `listWorkGroups()`, and
   `listManagers()`. Audit list filtering, sorting, and pagination are validated
   by the same mock boundary as tenant and client lists.
-- `CreateTenantInput`, `ClientContactInput`, and `SupportAccessRequest` are
-  Zod-validated UI payloads. `WorkGroupInput` is
+- `CreateTenantInput` and `ClientContactInput` are Zod-validated UI payloads.
+  `WorkGroupInput` is
   validated for an explicitly session-local mock create/edit flow. None perform
   backend writes. Future mutations require server authorization, tenant-safe
   foreign keys/RLS where applicable, audit records, and idempotency rules.
 
 List filters, sort fields, and pagination are browser-controlled presentation
 parameters only. A live endpoint must validate and bound them server-side.
-Support access requires a server-created, reasoned, expiring audit session; the
-frontend mock only renders the required visible banner and exit control.
 
 ## Phase 3 operational contracts
+
+### Tenant analytics
+
+`GET /api/v1/super-admin/tenant-analytics` is a database-backed, Super
+Admin-only reporting read endpoint. It accepts an optional `tenantId` and
+either a tenant `financialYearId` or a paired `from` and `to` date range. It
+returns turnover, collections, outstanding amounts, task and SLA measures,
+employee/client counts, monthly financial trend, and top client turnover.
+No migration is required: it reads the existing tenants, financial years,
+invoices, payments, clients, employees, tasks, and assignments tables.
 
 `src/features/operations/api/operations-api.ts` is a replaceable, typed mock
 boundary for task, work-log, invoice, payment, document, client-request, and
@@ -146,16 +154,10 @@ slice:
   and email sender name. Updates are validated, written atomically, and audited;
   the browser must not treat local storage as a configuration source.
 
-- `POST /api/v1/tenants` creates a `pending_activation` tenant and a pending
-  Tenant Owner invitation for a Super Admin. It does not create or return a
-  reusable password.
-- Super Admin tenant list/detail responses include the pending Tenant Admin
-  invitation ID only while the invitation is still pending, so the frontend can
-  cancel that activation link.
-- Tenant creation returns invitation delivery status. Supabase email delivery
-  runs only when the backend has Supabase admin and public app URL settings.
-- `POST /api/v1/super-admin/tenants/{tenantId}/invitation/cancel` cancels the
-  pending Tenant Admin activation link from Super Admin tenant actions.
+- `POST /api/v1/super-admin/tenants` creates an `active` tenant, financial
+  year, and `TENANT_ADMIN` membership. The Super Admin supplies the first
+  administrator email and password; the password is sent directly to Supabase
+  Auth and is never returned or persisted in application tables.
 - `POST /api/v1/invitations` creates a tenant-scoped invitation with an
   administrator-selected role. The tenant, actor, and inviter authority come
   from the verified backend request context, not the browser payload.
@@ -171,10 +173,10 @@ slice:
 - `POST /api/v1/memberships/{membershipId}/reactivate` reactivates a membership
   with one reviewed role instead of restoring all previous authority.
 
-Supabase Auth remains the identity provider. Supabase invitation email delivery
-is still a backend/outbox integration step: no service-role or secret key may
-be placed in frontend code, and administrators must not distribute permanent
-passwords.
+Supabase Auth remains the identity provider. No service-role or secret key may
+be placed in frontend code. Suspending a tenant or revoking its active
+membership prevents its Tenant Administrator from obtaining or refreshing a
+workspace session.
 
 ## Professional progress contracts
 

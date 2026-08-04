@@ -18,6 +18,9 @@ import { SuperAdminPlatformConfigurationService } from "./super-admin-platform-c
 import { SuperAdminSearchController } from "./super-admin-search.controller";
 import { SuperAdminSearchRepository } from "./super-admin-search.repository";
 import { SuperAdminSearchService } from "./super-admin-search.service";
+import { TenantAnalyticsController } from "./tenant-analytics.controller";
+import { TenantAnalyticsRepository } from "./tenant-analytics.repository";
+import { TenantAnalyticsService } from "./tenant-analytics.service";
 
 @Module({
   imports: [AuthModule, DatabaseModule],
@@ -27,6 +30,7 @@ import { SuperAdminSearchService } from "./super-admin-search.service";
     SuperAdminSearchController,
     SuperAdminNotificationsController,
     SuperAdminPlatformConfigurationController,
+    TenantAnalyticsController,
   ],
   providers: [
     SuperAdminAuditLogRepository,
@@ -41,6 +45,8 @@ import { SuperAdminSearchService } from "./super-admin-search.service";
     SuperAdminNotificationsListener,
     SuperAdminPlatformConfigurationRepository,
     SuperAdminPlatformConfigurationService,
+    TenantAnalyticsRepository,
+    TenantAnalyticsService,
   ],
 })
 export class PlatformModule {}

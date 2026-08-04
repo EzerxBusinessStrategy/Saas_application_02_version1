@@ -4,7 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Check, ShieldCheck } from "lucide-react";
+import { Check, Eye, EyeOff, ShieldCheck } from "lucide-react";
 import type React from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
@@ -60,8 +60,8 @@ const defaultValues: CreateTenantInput = {
   tenantAdministrator: {
     fullName: "",
     email: "",
+    password: "",
     phone: "",
-    expiresAt: "",
   },
   confirm: false,
 };
@@ -148,8 +148,8 @@ export function TenantCreatePageForm() {
         "financialYear.startsOn",
         "financialYear.endsOn",
       ],
-      ["tenantAdministrator.fullName", "tenantAdministrator.email"],
-      ["tenantAdministrator.email", "confirm"],
+      ["tenantAdministrator.fullName", "tenantAdministrator.email", "tenantAdministrator.password", "tenantAdministrator.phone"],
+      ["tenantAdministrator.email", "tenantAdministrator.password", "tenantAdministrator.phone", "confirm"],
     ],
     [],
   );
@@ -177,7 +177,7 @@ export function TenantCreatePageForm() {
               </Button>
             ) : (
               <Button type="submit" form="create-tenant-form" disabled={mutation.isPending}>
-                {mutation.isPending ? "Creating..." : "Create tenant and send invitation"}
+                {mutation.isPending ? "Creating..." : "Create tenant and administrator account"}
               </Button>
             )}
           </div>
@@ -230,7 +230,7 @@ export function TenantCreatePageForm() {
           </Button>
         ) : (
           <Button type="submit" form="create-tenant-form" disabled={mutation.isPending}>
-            {mutation.isPending ? "Creating..." : "Create tenant and send invitation"}
+            {mutation.isPending ? "Creating..." : "Create tenant and administrator account"}
           </Button>
         )}
       </div>
@@ -468,7 +468,7 @@ function AdminStep({ form }: { form: ReturnType<typeof useForm<CreateTenantInput
       <CardHeader>
         <CardTitle>Tenant Administrator</CardTitle>
         <CardDescription>
-          The administrator receives an invitation and sets their own password.
+          Create the Tenant Administrator sign-in account. No invitation email is sent.
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-5 md:grid-cols-2">
@@ -480,13 +480,18 @@ function AdminStep({ form }: { form: ReturnType<typeof useForm<CreateTenantInput
         </Field>
         <Field
           label="Work email"
-          hint="Invitation link is sent only here"
           error={form.formState.errors.tenantAdministrator?.email?.message}
         >
           <Input type="email" {...form.register("tenantAdministrator.email")} />
         </Field>
-        <Field label="Phone number">
-          <Input {...form.register("tenantAdministrator.phone")} />
+        <Field
+          label="Initial password"
+          error={form.formState.errors.tenantAdministrator?.password?.message}
+        >
+          <PasswordInput {...form.register("tenantAdministrator.password")} />
+        </Field>
+        <Field label="Phone number" error={form.formState.errors.tenantAdministrator?.phone?.message}>
+          <Input type="tel" autoComplete="tel" {...form.register("tenantAdministrator.phone")} />
         </Field>
         <Field label="Role">
           <Input readOnly value="Tenant Administrator" />
@@ -526,11 +531,13 @@ function ReviewStep({
           />
         </dl>
         <Field
-          label="Invitation email"
-          hint="Tenant Administrator activation link"
+          label="Tenant Administrator email"
           error={form.formState.errors.tenantAdministrator?.email?.message}
         >
           <Input type="email" {...form.register("tenantAdministrator.email")} />
+        </Field>
+        <Field label="Temporary password" error={form.formState.errors.tenantAdministrator?.password?.message}>
+          <PasswordInput {...form.register("tenantAdministrator.password")} />
         </Field>
         <label className="flex items-start gap-3 text-sm">
           <input type="checkbox" className="mt-1" {...form.register("confirm")} />
@@ -548,6 +555,23 @@ function ReviewStep({
         ) : null}
       </CardContent>
     </Card>
+  );
+}
+
+function PasswordInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
+  const [visible, setVisible] = useState(false);
+  return (
+    <div className="relative">
+      <Input {...props} type={visible ? "text" : "password"} autoComplete="new-password" className="pr-11" />
+      <button
+        type="button"
+        className="absolute right-1 top-1/2 inline-flex size-8 -translate-y-1/2 items-center justify-center rounded-[var(--radius-control)] text-muted-foreground hover:bg-muted hover:text-foreground"
+        aria-label={visible ? "Hide password" : "Show password"}
+        onClick={() => setVisible((current) => !current)}
+      >
+        {visible ? <EyeOff className="size-4" aria-hidden="true" /> : <Eye className="size-4" aria-hidden="true" />}
+      </button>
+    </div>
   );
 }
 

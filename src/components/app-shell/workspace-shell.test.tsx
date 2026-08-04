@@ -202,3 +202,25 @@ test("uses database platform configuration in the super admin shell", async () =
     "#9AA4C6",
   );
 });
+
+test("shows Super Admin navigation as direct links without dropdown groups", () => {
+  mockPlatformConfigurationApi.getPlatformConfiguration.mockResolvedValueOnce({
+    platformName: "SaaS App",
+    defaultBrand: "#3C50E0",
+    senderName: "SaaS App",
+  });
+  const superAdmin = workspaceConfig("super-admin").user;
+  pathname.value = "/super-admin";
+  renderShell(
+    <WorkspaceShell workspace="super-admin" user={superAdmin}>
+      <p>Content</p>
+    </WorkspaceShell>,
+  );
+
+  expect(screen.getByRole("link", { name: "Reports" })).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Audit log" })).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Tenant list" })).toBeInTheDocument();
+  expect(screen.queryByRole("link", { name: "Support access" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Operations" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Platform" })).not.toBeInTheDocument();
+});

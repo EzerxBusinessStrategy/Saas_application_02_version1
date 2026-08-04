@@ -3,6 +3,7 @@ import { afterEach, describe, expect, test, vi } from "vitest";
 import { NestFastifyApplication } from "@nestjs/platform-fastify";
 import { createTestApp } from "../../helpers/test-app";
 import { AccessAdminRepository } from "../../../src/auth/access-admin.repository";
+import { AccessAdminService } from "../../../src/auth/access-admin.service";
 import { AuthContextRepository, AuthContextRow } from "../../../src/auth/auth-context.repository";
 import { SessionPolicyRepository } from "../../../src/auth/session-policy.repository";
 import { SupabaseJwtVerifier } from "../../../src/auth/supabase-jwt-verifier.service";
@@ -16,7 +17,7 @@ const invitationId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const createdTenantId = "cccccccc-1111-4111-8111-111111111111";
 const financialYearId = "dddddddd-1111-4111-8111-111111111111";
 
-describe("administrator-controlled invitation and membership access", () => {
+describe("administrator-controlled access and membership", () => {
   let app: NestFastifyApplication | undefined;
 
   afterEach(async () => {
@@ -56,10 +57,11 @@ describe("administrator-controlled invitation and membership access", () => {
   test("allows a platform Super Admin to create a tenant without tenant membership headers", async () => {
     mockVerifiedAuthUser("super-admin@example.com");
     mockPlatformAuthRows();
-    vi.spyOn(AccessAdminRepository.prototype, "createTenantWithOwnerInvitation").mockResolvedValue({
-      tenant_id: createdTenantId,
-      financial_year_id: financialYearId,
-      invitation_id: invitationId,
+    vi.spyOn(AccessAdminService.prototype, "createTenantWithOwnerInvitation").mockResolvedValue({
+      tenantId: createdTenantId,
+      financialYearId,
+      membershipId,
+      tenantStatus: "active",
     });
     vi.spyOn(AccessAdminRepository.prototype, "listTenantCreationTemplates").mockResolvedValue([
       {
@@ -104,6 +106,8 @@ describe("administrator-controlled invitation and membership access", () => {
         tenantAdministrator: {
           fullName: "Rahul Sharma",
           email: "rahul@abctech.com",
+          password: "tenant-admin-password",
+          phone: "+919876543210",
         },
       })
       .expect(201);
@@ -111,10 +115,8 @@ describe("administrator-controlled invitation and membership access", () => {
     expect(response.body).toEqual({
       tenantId: createdTenantId,
       financialYearId,
-      invitationId,
-      tenantStatus: "pending_activation",
-      invitationStatus: "pending",
-      invitationDeliveryStatus: "not_sent",
+      membershipId,
+      tenantStatus: "active",
     });
   });
 
@@ -137,44 +139,30 @@ describe("administrator-controlled invitation and membership access", () => {
     expect(response.body).toEqual({ invitationId, status: "cancelled" });
   });
 
-  test("allows a Super Admin to cancel a pending Tenant Admin invitation from tenant actions", async () => {
+  test("returns database-backed country and financial-year tenant filters to a Super Admin", async () => {
     mockVerifiedAuthUser("super-admin@example.com");
-    mockPlatformAuthRows(["invitation.cancel"]);
-    vi.spyOn(AccessAdminRepository.prototype, "cancelPendingTenantAdminInvitation").mockResolvedValue({
-      invitation_id: invitationId,
-      status: "cancelled",
+    mockPlatformAuthRows(["tenant.read"]);
+    vi.spyOn(AccessAdminService.prototype, "listTenantFilters").mockResolvedValue({
+      countries: ["IN"],
+      financialYears: [{ countryCode: "IN", label: "FY 2026-27" }],
     });
     app = await createAccessAdminTestApp();
 
     const response = await request(app.getHttpServer())
-      .post(`/api/v1/super-admin/tenants/${tenantId}/invitation/cancel`)
+      .get("/api/v1/super-admin/tenant-list-filters")
       .set("authorization", "Bearer verified-token")
       .set("x-portal", "super-admin")
-      .send({ reason: "Wrong Tenant Administrator email." })
       .expect(200);
 
-    expect(response.body).toEqual({ invitationId, status: "cancelled" });
-  });
-
-  test("returns a conflict when the Tenant Administrator invitation is no longer pending", async () => {
-    mockVerifiedAuthUser("super-admin@example.com");
-    mockPlatformAuthRows(["invitation.cancel"]);
-    vi.spyOn(AccessAdminRepository.prototype, "cancelPendingTenantAdminInvitation").mockRejectedValue({ code: "23505" });
-    app = await createAccessAdminTestApp();
-
-    const response = await request(app.getHttpServer())
-      .post(`/api/v1/super-admin/tenants/${tenantId}/invitation/cancel`)
-      .set("authorization", "Bearer verified-token")
-      .set("x-portal", "super-admin")
-      .send({ reason: "Wrong Tenant Administrator email." })
-      .expect(409);
-
-    expect(response.body.error.code).toBe("INVITATION_NOT_PENDING");
+    expect(response.body).toEqual({
+      countries: ["IN"],
+      financialYears: [{ countryCode: "IN", label: "FY 2026-27" }],
+    });
   });
 
   test("returns a conflict instead of a server error for an invalid tenant lifecycle transition", async () => {
     mockVerifiedAuthUser("super-admin@example.com");
-    mockPlatformAuthRows(["tenant.suspend"]);
+    mockPlatformAuthRows(["tenant.read", "tenant.suspend"]);
     vi.spyOn(AccessAdminRepository.prototype, "setTenantStatus").mockRejectedValue({ code: "P0001" });
     app = await createAccessAdminTestApp();
 
@@ -182,10 +170,50 @@ describe("administrator-controlled invitation and membership access", () => {
       .patch(`/api/v1/super-admin/tenants/${tenantId}/status`)
       .set("authorization", "Bearer verified-token")
       .set("x-portal", "super-admin")
-      .send({ status: "suspended" })
+      .send({ status: "suspended", suspensionDuration: "24h" })
       .expect(409);
 
     expect(response.body.error.code).toBe("TENANT_STATUS_TRANSITION_INVALID");
+  });
+
+  test("requires explicit confirmation before a Super Admin can revoke a tenant", async () => {
+    mockVerifiedAuthUser("super-admin@example.com");
+    mockPlatformAuthRows(["tenant.read", "tenant.revoke"]);
+    const repositorySpy = vi.spyOn(AccessAdminRepository.prototype, "setTenantStatus");
+    app = await createAccessAdminTestApp();
+
+    await request(app.getHttpServer())
+      .patch(`/api/v1/super-admin/tenants/${tenantId}/status`)
+      .set("authorization", "Bearer verified-token")
+      .set("x-portal", "super-admin")
+      .send({ status: "revoked" })
+      .expect(400);
+
+    expect(repositorySpy).not.toHaveBeenCalled();
+  });
+
+  test("allows a Super Admin to reset the active Tenant Administrator password", async () => {
+    mockVerifiedAuthUser("super-admin@example.com");
+    mockPlatformAuthRows(["tenant.update"]);
+    vi.spyOn(AccessAdminService.prototype, "resetTenantAdministratorPassword").mockResolvedValue({
+      tenantId,
+      email: "admin@tenant.test",
+      passwordChangedAt: "2026-08-04T00:00:00.000Z",
+    });
+    app = await createAccessAdminTestApp();
+
+    const response = await request(app.getHttpServer())
+      .post(`/api/v1/super-admin/tenants/${tenantId}/password`)
+      .set("authorization", "Bearer verified-token")
+      .set("x-portal", "super-admin")
+      .send({ password: "replacement-password" })
+      .expect(200);
+
+    expect(response.body).toEqual({
+      tenantId,
+      email: "admin@tenant.test",
+      passwordChangedAt: "2026-08-04T00:00:00.000Z",
+    });
   });
 
   test("denies Tenant Admin role escalation to Tenant Owner", async () => {
