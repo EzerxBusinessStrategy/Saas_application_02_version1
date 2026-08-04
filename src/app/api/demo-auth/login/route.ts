@@ -1,3 +1,8 @@
+/**
+ * @deprecated This route is preserved for backward compatibility.
+ * New sign-ins should use `/api/auth/login` which removes the role selector
+ * and resolves workspaces dynamically from the backend `/me` endpoint.
+ */
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { demoSessionCookie, loginRoles, validateDemoLogin } from "@/lib/demo-auth";

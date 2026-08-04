@@ -1,3 +1,6 @@
+"use client";
+
+import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, CalendarClock, CheckCircle2 } from "lucide-react";
 import { MetricCard } from "@/components/shared/metric-card";
 import { PageHeader } from "@/components/shared/page-header";
@@ -17,6 +20,27 @@ import {
 import { tasks } from "@/mocks/workspaces";
 
 export function TenantAdministrationOverview() {
+  const { data } = useQuery({
+    queryKey: ["tenant-operations-overview"],
+    queryFn: async () => {
+      const res = await fetch("/api/admin/operations-overview", { cache: "no-store" });
+      if (!res.ok) throw new Error("Failed to load operations overview");
+      return res.json();
+    },
+    staleTime: 10000,
+  });
+
+  const defaultRealMetrics = [
+    { label: "Active clients", value: "0", change: "0 active clients", trend: "flat" as const },
+    { label: "Total sales", value: "$0", change: "$0 recorded sales", trend: "flat" as const },
+    { label: "Open tasks", value: "0", change: "0 overdue", trend: "flat" as const },
+    { label: "SLA compliance", value: "0%", change: "Target 95%+", trend: "flat" as const },
+    { label: "Employee utilisation", value: "0%", change: "0 active staff", trend: "flat" as const },
+    { label: "Outstanding invoices", value: "$0", change: "$0 outstanding", trend: "flat" as const },
+  ];
+
+  const metrics = data?.metrics || defaultRealMetrics;
+
   return (
     <div className="flex flex-col gap-[30px]">
       <PageHeader
@@ -28,7 +52,7 @@ export function TenantAdministrationOverview() {
         className="grid overflow-hidden rounded-[var(--radius-card)] border border-border bg-border sm:grid-cols-2 xl:grid-cols-3"
         aria-label="Tenant administration metrics"
       >
-        {administrationOverview.metrics.map((metric) => (
+        {metrics.map((metric: any) => (
           <MetricCard
             key={metric.label}
             metric={metric}

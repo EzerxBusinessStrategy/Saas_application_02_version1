@@ -468,14 +468,14 @@ function mapTenantRow(row: {
     usagePercent: row.usage_percent,
     tenantAdministrator: row.administrator_membership_id
       ? {
-          membershipId: row.administrator_membership_id,
-          name: row.administrator_name ?? "Tenant Administrator",
-          email: row.administrator_email ?? "",
-          membershipStatus: row.administrator_membership_status ?? "active",
-          lastLoginAt: row.administrator_last_login_at?.toISOString() ?? null,
-          lastLogoutAt: row.administrator_last_logout_at?.toISOString() ?? null,
-          passwordChangedAt: row.administrator_password_changed_at?.toISOString() ?? null,
-        }
+        membershipId: row.administrator_membership_id,
+        name: row.administrator_name ?? "Tenant Administrator",
+        email: row.administrator_email ?? "",
+        membershipStatus: row.administrator_membership_status ?? "active",
+        lastLoginAt: row.administrator_last_login_at?.toISOString() ?? null,
+        lastLogoutAt: row.administrator_last_logout_at?.toISOString() ?? null,
+        passwordChangedAt: row.administrator_password_changed_at?.toISOString() ?? null,
+      }
       : null,
   };
 }

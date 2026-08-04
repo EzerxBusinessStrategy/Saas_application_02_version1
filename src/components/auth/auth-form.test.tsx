@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterAll, afterEach, beforeAll, expect, test, vi } from "vitest";
 import { AuthForm } from "@/components/auth/auth-form";
 
@@ -8,30 +8,119 @@ beforeAll(() => {
 afterEach(cleanup);
 afterAll(() => vi.restoreAllMocks());
 
-test("reports invalid sign-in credentials", async () => {
+test("shows email step first without portal access dropdown", () => {
   render(<AuthForm mode="login" />);
-  fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+  expect(screen.getByLabelText("Work email")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Continue" })).toBeInTheDocument();
+  // The portal access dropdown must not exist
+  expect(screen.queryByLabelText("Portal access")).not.toBeInTheDocument();
+});
+
+test("reports invalid email on empty submit", async () => {
+  render(<AuthForm mode="login" />);
+  fireEvent.click(screen.getByRole("button", { name: "Continue" }));
   expect(
-    await screen.findByText("Enter your sign-in identifier."),
+    await screen.findByText("Enter your work email."),
   ).toBeInTheDocument();
 });
 
-test("keeps email login for Client User", () => {
-  render(<AuthForm mode="login" />);
-  fireEvent.change(screen.getByLabelText("Portal access"), {
-    target: { value: "CLIENT_USER" },
+test("transitions to password step after email identification", async () => {
+  // Mock the identify endpoint
+  const mockFetch = vi.fn().mockResolvedValue({
+    ok: true,
+    json: () => Promise.resolve({ method: "password", displayName: "Sayantan" }),
   });
-  expect(screen.getByLabelText("Work email")).toHaveAttribute("type", "email");
+  vi.stubGlobal("fetch", mockFetch);
+
+  render(<AuthForm mode="login" />);
+  fireEvent.change(screen.getByLabelText("Work email"), {
+    target: { value: "test@company.com" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+
+  await waitFor(() => {
+    expect(screen.getByText(/Welcome back, Sayantan/)).toBeInTheDocument();
+  });
+
+  expect(screen.getByLabelText("Password")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Sign in" })).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Forgot password?" })).toHaveAttribute("href", "/forgot-password");
+
+  vi.unstubAllGlobals();
 });
 
-test("keeps recovery and session controls inside the login form", () => {
-  render(<AuthForm mode="login" />);
+test("shows SSO buttons in password step (disabled)", async () => {
+  const mockFetch = vi.fn().mockResolvedValue({
+    ok: true,
+    json: () => Promise.resolve({ method: "password" }),
+  });
+  vi.stubGlobal("fetch", mockFetch);
 
-  expect(screen.getByRole("link", { name: "Forgot password?" })).toHaveAttribute(
-    "href",
-    "/forgot-password",
-  );
-  expect(screen.getByRole("checkbox", { name: "Remember me" })).toBeInTheDocument();
+  render(<AuthForm mode="login" />);
+  fireEvent.change(screen.getByLabelText("Work email"), {
+    target: { value: "test@company.com" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+
+  await waitFor(() => {
+    expect(screen.getByRole("button", { name: "Sign in" })).toBeInTheDocument();
+  });
+
+  const microsoftBtn = screen.getByRole("button", { name: /Microsoft/ });
+  const googleBtn = screen.getByRole("button", { name: /Google/ });
+  expect(microsoftBtn).toBeDisabled();
+  expect(googleBtn).toBeDisabled();
+
+  vi.unstubAllGlobals();
+});
+
+test("allows going back from password step to email step", async () => {
+  const mockFetch = vi.fn().mockResolvedValue({
+    ok: true,
+    json: () => Promise.resolve({ method: "password" }),
+  });
+  vi.stubGlobal("fetch", mockFetch);
+
+  render(<AuthForm mode="login" />);
+  fireEvent.change(screen.getByLabelText("Work email"), {
+    target: { value: "test@company.com" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+
+  await waitFor(() => {
+    expect(screen.getByRole("button", { name: "Sign in" })).toBeInTheDocument();
+  });
+
+  fireEvent.click(screen.getByRole("button", { name: "Back to email" }));
+  expect(screen.getByLabelText("Work email")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Continue" })).toBeInTheDocument();
+
+  vi.unstubAllGlobals();
+});
+
+test("allows password visibility to be toggled in password step", async () => {
+  const mockFetch = vi.fn().mockResolvedValue({
+    ok: true,
+    json: () => Promise.resolve({ method: "password" }),
+  });
+  vi.stubGlobal("fetch", mockFetch);
+
+  render(<AuthForm mode="login" />);
+  fireEvent.change(screen.getByLabelText("Work email"), {
+    target: { value: "test@company.com" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+
+  await waitFor(() => {
+    expect(screen.getByLabelText("Password")).toBeInTheDocument();
+  });
+
+  const password = screen.getByLabelText("Password");
+  expect(password).toHaveAttribute("type", "password");
+  fireEvent.click(screen.getByRole("button", { name: "Show password" }));
+  expect(password).toHaveAttribute("type", "text");
+
+  vi.unstubAllGlobals();
 });
 
 test("keeps the operational network decorative", () => {
@@ -40,11 +129,4 @@ test("keeps the operational network decorative", () => {
     "tabindex",
     "-1",
   );
-});
-
-test("allows password visibility to be toggled", () => {
-  render(<AuthForm mode="login" />);
-  const password = screen.getByLabelText("Password");
-  fireEvent.click(screen.getByRole("button", { name: "Show password" }));
-  expect(password).toHaveAttribute("type", "text");
 });
