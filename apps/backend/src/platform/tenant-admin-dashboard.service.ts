@@ -44,7 +44,6 @@ export class TenantAdminDashboardService {
               }
             : null,
         openTasks: data.metrics.openTasks,
-        overdueTasks: data.metrics.overdueTasks,
         outstanding:
           hasFinancialYear && data.metrics.outstandingAmount !== null
             ? {
@@ -54,10 +53,120 @@ export class TenantAdminDashboardService {
             : null,
       },
       recentActivity: data.recentActivity.map((act) => ({
+        id: act.id,
         action: act.action,
+        label: humaniseActivity(act.action),
+        resourceType: act.resourceType,
+        resourceId: act.resourceId,
+        result: act.result,
+        metadata: act.metadata,
         actor: act.actor,
         createdAt: act.createdAt.toISOString(),
       })),
+      organisationSetup: mapOrganisationSetup(data.organisationSetup),
+      upcomingDeadlines: data.upcomingDeadlines.map((item) => ({
+        id: item.id,
+        taskId: item.taskId,
+        taskTitle: item.taskTitle,
+        clientId: item.clientId,
+        clientName: item.clientName,
+        dueAt: item.dueAt.toISOString(),
+        priority: item.priority,
+        status: item.status,
+        workGroupName: item.workGroupName,
+        assigneeCount: item.assigneeCount,
+      })),
     };
   }
+}
+
+const activityLabels: Record<string, string> = {
+  TASK_CREATED: "created a task",
+  TASK_UPDATED: "updated a task",
+  TASK_ASSIGNED: "assigned a task",
+  CLIENT_CREATED: "created a client",
+  INVOICE_CREATED: "created an invoice",
+  PAYMENT_RECORDED: "recorded a payment",
+  EMPLOYEE_CREATED: "created an employee",
+};
+
+function humaniseActivity(action: string): string {
+  return activityLabels[action] ?? action.toLowerCase().replaceAll("_", " ");
+}
+
+function mapOrganisationSetup(row: {
+  readonly tenantProfileComplete: boolean;
+  readonly financialYearComplete: boolean;
+  readonly managerComplete: boolean;
+  readonly employeesComplete: boolean;
+  readonly clientsComplete: boolean;
+  readonly servicesComplete: boolean;
+  readonly workGroupsComplete: boolean;
+  readonly deliveryRulesComplete: boolean;
+}) {
+  const items = [
+    {
+      key: "TENANT_PROFILE",
+      label: "Organisation profile",
+      description: "Configure country, currency and timezone.",
+      completed: row.tenantProfileComplete,
+      destination: "/tenant-administration/settings",
+    },
+    {
+      key: "FINANCIAL_YEAR",
+      label: "Financial year",
+      description: "Configure the current financial year.",
+      completed: row.financialYearComplete,
+      destination: null,
+    },
+    {
+      key: "MANAGERS",
+      label: "Manager access",
+      description: "Create at least one active manager.",
+      completed: row.managerComplete,
+      destination: "/tenant-administration/employees",
+    },
+    {
+      key: "EMPLOYEES",
+      label: "Employees",
+      description: "Create at least one active employee.",
+      completed: row.employeesComplete,
+      destination: "/tenant-administration/employees",
+    },
+    {
+      key: "CLIENTS",
+      label: "Clients",
+      description: "Create at least one active client.",
+      completed: row.clientsComplete,
+      destination: "/tenant-administration/clients",
+    },
+    {
+      key: "SERVICES",
+      label: "Services",
+      description: "Create at least one active service.",
+      completed: row.servicesComplete,
+      destination: "/tenant-administration/services",
+    },
+    {
+      key: "WORK_GROUPS",
+      label: "Work groups",
+      description: "Create at least one active work group with a member.",
+      completed: row.workGroupsComplete,
+      destination: "/tenant-administration/work-groups",
+    },
+    {
+      key: "DELIVERY_RULES",
+      label: "Delivery rules",
+      description: "Configure SLA policies or compliance calendar rules.",
+      completed: row.deliveryRulesComplete,
+      destination: "/tenant-administration/settings",
+    },
+  ];
+  const completed = items.filter((item) => item.completed).length;
+  return {
+    completed,
+    total: items.length,
+    completionPercent: Math.round((completed / items.length) * 100),
+    items,
+  };
 }

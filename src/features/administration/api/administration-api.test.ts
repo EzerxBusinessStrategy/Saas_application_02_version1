@@ -1,6 +1,7 @@
 import { afterEach, expect, test, vi } from "vitest";
 import {
   createTenant,
+  getTenantAdminEmailAvailability,
   listAuditRecords,
   listTenantListFilters,
   listTenants,
@@ -122,6 +123,24 @@ test("creates a tenant with its Tenant Administrator account", async () => {
       method: "POST",
       body: expect.stringContaining('"email":"admin@example.com"'),
     }),
+  );
+});
+
+test("checks Tenant Administrator email availability through the Super Admin API route", async () => {
+  const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+    new Response(JSON.stringify({ available: false, reason: "EMAIL_ALREADY_EXISTS" }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    }),
+  );
+
+  await expect(getTenantAdminEmailAvailability("admin@abc.com")).resolves.toEqual({
+    available: false,
+    reason: "EMAIL_ALREADY_EXISTS",
+  });
+  expect(fetchMock).toHaveBeenCalledWith(
+    "/api/super-admin/users/email-availability?email=admin%40abc.com",
+    { cache: "no-store" },
   );
 });
 

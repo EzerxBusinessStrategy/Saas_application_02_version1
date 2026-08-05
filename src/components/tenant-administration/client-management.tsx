@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
@@ -37,11 +37,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
+  createClientContact,
   getClient,
-  listClientContacts,
   listClients,
-  listEngagements,
   listWorkGroups,
+  updateClientContact,
 } from "@/features/administration/api/administration-api";
 import { clients, managers } from "@/mocks/administration";
 import {
@@ -55,11 +55,13 @@ import {
   workGroupInputSchema,
 } from "@/types/administration";
 
-const money = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD",
-  maximumFractionDigits: 0,
-});
+const revenueSteps = Array.from({ length: 10 }, (_, index) => (index + 1) * 10000);
+const formatMoney = (amount: number, currencyCode: string) =>
+  new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: currencyCode,
+    maximumFractionDigits: 0,
+  }).format(amount);
 const date = new Intl.DateTimeFormat("en-US", {
   month: "short",
   day: "numeric",
@@ -108,15 +110,15 @@ function ClientCard({
       metadata={
         <>
           <div>
-            <dt className="text-muted-foreground">Delivery health</dt>
-            <dd className="mt-0.5">
-              <StatusBadge status={client.deliveryHealth} />
+            <dt className="text-muted-foreground">Revenue</dt>
+            <dd className="mt-0.5 font-medium">
+              {formatMoney(client.revenueAmount, client.currencyCode)}
             </dd>
           </div>
           <div>
             <dt className="text-muted-foreground">Outstanding</dt>
             <dd className="mt-0.5 font-medium">
-              {money.format(client.outstandingAmount)}
+              {formatMoney(client.outstandingAmount, client.currencyCode)}
             </dd>
           </div>
           <div>
@@ -152,10 +154,11 @@ export function ClientDirectory() {
       status: searchParams.get("status") as ClientListRequest["status"],
       service: searchParams.get("service") ?? undefined,
       manager: searchParams.get("manager") ?? undefined,
-      deliveryHealth: searchParams.get(
-        "health",
-      ) as ClientListRequest["deliveryHealth"],
-      balance: searchParams.get("balance") as ClientListRequest["balance"],
+      revenueMin:
+        searchParams.get("revenueMin") &&
+        Number.isFinite(Number(searchParams.get("revenueMin")))
+          ? Number(searchParams.get("revenueMin"))
+          : undefined,
       deadline: searchParams.get("deadline") as ClientListRequest["deadline"],
       sort: (searchParams.get("sort") as ClientListRequest["sort"]) ?? "name",
       page: Math.max(1, Number(searchParams.get("page") ?? "1")),
@@ -171,17 +174,34 @@ export function ClientDirectory() {
   });
   const setParam = (key: string, value: string) =>
     updateUrl(pathname, new URLSearchParams(searchParams), router, key, value);
+  const setParams = (updates: Record<string, string>) => {
+    const next = new URLSearchParams(searchParams);
+    Object.entries(updates).forEach(([key, value]) => {
+      value ? next.set(key, value) : next.delete(key);
+      if (key !== "page") next.delete("page");
+    });
+    router.replace(`${pathname}${next.size ? `?${next}` : ""}`, {
+      scroll: false,
+    });
+  };
   const activeFilterCount = [
     request.query,
     request.status,
     request.service,
     request.manager,
-    request.deliveryHealth,
-    request.balance && request.balance !== "any" ? request.balance : undefined,
+    request.revenueMin,
     request.deadline && request.deadline !== "any"
       ? request.deadline
       : undefined,
   ].filter(Boolean).length;
+  const revenueSelectValue =
+    searchParams.get("revenueMode") === "custom"
+      ? "custom"
+      : request.revenueMin === undefined
+      ? ""
+      : revenueSteps.includes(request.revenueMin)
+        ? String(request.revenueMin)
+        : "custom";
   const columns: ColumnDef<Client>[] = [
     {
       id: "client",
@@ -244,9 +264,19 @@ export function ClientDirectory() {
       ),
     },
     {
-      id: "health",
-      header: "Delivery health",
-      cell: ({ row }) => <StatusBadge status={row.original.deliveryHealth} />,
+      id: "revenue",
+      header: () => (
+        <button
+          type="button"
+          className="inline-flex items-center gap-1"
+          onClick={() =>
+            setParam("sort", request.sort === "revenue" ? "name" : "revenue")
+          }
+        >
+          Revenue <ArrowUpDown className="size-3.5" aria-hidden="true" />
+        </button>
+      ),
+      cell: ({ row }) => formatMoney(row.original.revenueAmount, row.original.currencyCode),
     },
     {
       id: "balance",
@@ -255,13 +285,13 @@ export function ClientDirectory() {
           type="button"
           className="inline-flex items-center gap-1"
           onClick={() =>
-            setParam("sort", request.sort === "balance" ? "name" : "balance")
+            setParam("sort", request.sort === "outstanding" ? "name" : "outstanding")
           }
         >
           Outstanding <ArrowUpDown className="size-3.5" aria-hidden="true" />
         </button>
       ),
-      cell: ({ row }) => money.format(row.original.outstandingAmount),
+      cell: ({ row }) => formatMoney(row.original.outstandingAmount, row.original.currencyCode),
     },
     {
       id: "deadline",
@@ -328,7 +358,7 @@ export function ClientDirectory() {
         <CardHeader>
           <CardTitle>Client directory</CardTitle>
           <CardDescription>
-            Shareable filters and pagination are ready for a tenant-scoped API.
+            Tenant-scoped clients with billing totals, contacts, services, and deadlines.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-5">
@@ -337,7 +367,7 @@ export function ClientDirectory() {
               value: request.query ?? "",
               onChange: (value) => setParam("query", value),
               label: "Search clients",
-              placeholder: "Search client, code, or primary contact",
+              placeholder: "Search client name or ID",
             }}
             activeFilterCount={activeFilterCount}
             onClear={() => router.replace(pathname, { scroll: false })}
@@ -349,7 +379,8 @@ export function ClientDirectory() {
                 onChange={(event) => setParam("sort", event.target.value)}
               >
                 <option value="name">Name</option>
-                <option value="balance">Outstanding</option>
+                <option value="revenue">Revenue</option>
+                <option value="outstanding">Outstanding</option>
                 <option value="deadline">Deadline</option>
               </Select>
             }
@@ -376,11 +407,11 @@ export function ClientDirectory() {
                 onChange={(event) => setParam("service", event.target.value)}
               >
                 <option value="">All services</option>
-                <option value="Tax compliance">Tax compliance</option>
-                <option value="Accounting">Accounting</option>
-                <option value="Advisory">Advisory</option>
-                <option value="Payroll">Payroll</option>
-                <option value="Legal compliance">Legal compliance</option>
+                {(query.data?.filters.services ?? []).map((service) => (
+                  <option key={service.id} value={service.id}>
+                    {service.name}
+                  </option>
+                ))}
               </Select>
             </label>
             <label className="flex flex-col gap-1 text-sm font-medium">
@@ -391,38 +422,47 @@ export function ClientDirectory() {
                 onChange={(event) => setParam("manager", event.target.value)}
               >
                 <option value="">All managers</option>
-                {managers.map((manager) => (
-                  <option key={manager.id} value={manager.name}>
+                {(query.data?.filters.managers ?? []).map((manager) => (
+                  <option key={manager.id} value={manager.id}>
                     {manager.name}
                   </option>
                 ))}
               </Select>
             </label>
             <label className="flex flex-col gap-1 text-sm font-medium">
-              Delivery health
+              Revenue
               <Select
-                aria-label="Filter delivery health"
-                value={request.deliveryHealth ?? ""}
-                onChange={(event) => setParam("health", event.target.value)}
+                aria-label="Filter by revenue"
+                value={revenueSelectValue}
+                onChange={(event) =>
+                  setParams({
+                    revenueMode: event.target.value === "custom" ? "custom" : "",
+                    revenueMin: event.target.value === "custom" ? "" : event.target.value,
+                  })
+                }
               >
-                <option value="">All health states</option>
-                <option value="healthy">Healthy</option>
-                <option value="watch">Watch</option>
-                <option value="at-risk">At risk</option>
+                <option value="">Any revenue</option>
+                {revenueSteps.map((value) => (
+                  <option key={value} value={value}>
+                    {formatMoney(value, clients[0]?.currencyCode ?? "INR")}+
+                  </option>
+                ))}
+                <option value="custom">Custom</option>
               </Select>
             </label>
-            <label className="flex flex-col gap-1 text-sm font-medium">
-              Outstanding balance
-              <Select
-                aria-label="Filter outstanding balance"
-                value={request.balance ?? "any"}
-                onChange={(event) => setParam("balance", event.target.value)}
-              >
-                <option value="any">Any balance</option>
-                <option value="outstanding">Outstanding</option>
-                <option value="clear">Clear</option>
-              </Select>
-            </label>
+            {revenueSelectValue === "custom" ? (
+              <label className="flex flex-col gap-1 text-sm font-medium">
+                Custom revenue
+                <Input
+                  aria-label="Custom minimum revenue"
+                  inputMode="decimal"
+                  min="0"
+                  type="number"
+                  value={request.revenueMin ?? ""}
+                  onChange={(event) => setParam("revenueMin", event.target.value)}
+                />
+              </label>
+            ) : null}
             <label className="flex flex-col gap-1 text-sm font-medium">
               Upcoming deadline
               <Select
@@ -493,7 +533,7 @@ function ContactForm({
   onSave,
 }: {
   contact?: ClientContact;
-  onSave: () => void;
+  onSave: (values: ClientContactInput) => Promise<void>;
 }) {
   const form = useForm<ClientContactInput>({
     resolver: zodResolver(clientContactInputSchema),
@@ -587,7 +627,9 @@ function ContactForm({
         />
       </label>
       <div className="flex justify-end">
-        <Button type="submit">Validate contact</Button>
+        <Button type="submit" disabled={form.formState.isSubmitting}>
+          {form.formState.isSubmitting ? "Saving..." : "Save contact"}
+        </Button>
       </div>
     </form>
   );
@@ -607,8 +649,19 @@ function ProgressRow({ label, value }: { label: string; value: number }) {
   );
 }
 
+type DetailRecord = object;
+const recordText = (record: DetailRecord, key: string, fallback = "") =>
+  typeof (record as Record<string, unknown>)[key] === "string"
+    ? ((record as Record<string, unknown>)[key] as string)
+    : fallback;
+const recordNumber = (record: DetailRecord, key: string, fallback = 0) =>
+  typeof (record as Record<string, unknown>)[key] === "number"
+    ? ((record as Record<string, unknown>)[key] as number)
+    : fallback;
+
 export function ClientDetail({ clientId }: { clientId: string }) {
   const searchParams = useSearchParams();
+  const queryClient = useQueryClient();
   const [tab, setTab] = useState(searchParams.get("tab") ?? "overview");
   const [editingContact, setEditingContact] = useState<
     ClientContact | "new" | null
@@ -616,22 +669,9 @@ export function ClientDetail({ clientId }: { clientId: string }) {
   const [archiveTarget, setArchiveTarget] = useState<ClientContact | null>(
     null,
   );
-  const [archivedIds, setArchivedIds] = useState<Set<string>>(new Set());
   const clientQuery = useQuery({
     queryKey: ["client", clientId],
     queryFn: () => getClient(clientId),
-  });
-  const contactsQuery = useQuery({
-    queryKey: ["client-contacts", clientId],
-    queryFn: listClientContacts,
-  });
-  const engagementsQuery = useQuery({
-    queryKey: ["engagements", clientId],
-    queryFn: listEngagements,
-  });
-  const groupsQuery = useQuery({
-    queryKey: ["work-groups", clientId],
-    queryFn: listWorkGroups,
   });
   if (clientQuery.isPending)
     return <LoadingState label="Loading client details" rows={4} />;
@@ -650,20 +690,30 @@ export function ClientDetail({ clientId }: { clientId: string }) {
       />
     );
   const client = clientQuery.data;
-  const contacts = (contactsQuery.data ?? []).map((contact) => ({
-    ...contact,
-    status: archivedIds.has(contact.id)
-      ? ("archived" as const)
-      : contact.status,
-  }));
+  const contacts = client.contacts;
+  const saveContact = async (values: ClientContactInput) => {
+    if (editingContact === "new") {
+      await createClientContact(client.id, values);
+    } else if (editingContact) {
+      await updateClientContact(client.id, editingContact.id, values);
+    }
+    await queryClient.invalidateQueries({ queryKey: ["client", clientId] });
+    setEditingContact(null);
+  };
+  const archiveContact = async () => {
+    if (!archiveTarget) return;
+    await updateClientContact(client.id, archiveTarget.id, { status: "archived" });
+    await queryClient.invalidateQueries({ queryKey: ["client", clientId] });
+    setArchiveTarget(null);
+  };
   const panel =
     tab === "overview" ? (
       <section className="grid gap-[30px] xl:grid-cols-[1.2fr_1fr]">
         <Card>
           <CardHeader>
-            <CardTitle>Delivery overview</CardTitle>
+            <CardTitle>Client overview</CardTitle>
             <CardDescription>
-              Client health, current services, managers, tasks, and deadlines.
+              Contacts, services, managers, tasks, deadlines, and receivables.
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-5 sm:grid-cols-2">
@@ -675,10 +725,10 @@ export function ClientDetail({ clientId }: { clientId: string }) {
               </p>
             </div>
             <div>
-              <p className="text-sm text-muted-foreground">Delivery health</p>
-              <div className="mt-1">
-                <StatusBadge status={client.deliveryHealth} />
-              </div>
+              <p className="text-sm text-muted-foreground">Revenue</p>
+              <p className="mt-1 font-medium">
+                {formatMoney(client.revenueAmount, client.currencyCode)}
+              </p>
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Active services</p>
@@ -708,24 +758,30 @@ export function ClientDetail({ clientId }: { clientId: string }) {
         </Card>
         <Card>
           <CardHeader>
-            <CardTitle>Onboarding and document completion</CardTitle>
+            <CardTitle>Revenue and receivables</CardTitle>
             <CardDescription>
-              Progress makes missing setup visible without scoring people.
+              Amounts are calculated from successful payments and unpaid invoices.
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-5">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <p className="text-sm text-muted-foreground">Revenue</p>
+                <p className="mt-1 text-lg font-semibold">
+                  {formatMoney(client.revenueAmount, client.currencyCode)}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Outstanding</p>
+                <p className="mt-1 text-lg font-semibold">
+                  {formatMoney(client.outstandingAmount, client.currencyCode)}
+                </p>
+              </div>
+            </div>
             <ProgressRow
               label="Client onboarding"
               value={client.onboardingProgress}
             />
-            <ProgressRow
-              label="Required documents"
-              value={client.documentProgress}
-            />
-            <p className="text-sm text-muted-foreground">
-              Internal profitability is intentionally not exposed in this Tenant
-              Admin mock without a dedicated server-enforced permission.
-            </p>
           </CardContent>
         </Card>
       </section>
@@ -744,9 +800,7 @@ export function ClientDetail({ clientId }: { clientId: string }) {
           </Button>
         </CardHeader>
         <CardContent>
-          {contactsQuery.isPending ? (
-            <LoadingState label="Loading client contacts" rows={2} />
-          ) : (
+          {contacts.length ? (
             <ul className="flex flex-col divide-y">
               {contacts.map((contact) => (
                 <li
@@ -794,6 +848,11 @@ export function ClientDetail({ clientId }: { clientId: string }) {
                 </li>
               ))}
             </ul>
+          ) : (
+            <EmptyState
+              title="No contacts"
+              description="Add the first contact for this client."
+            />
           )}
         </CardContent>
       </Card>
@@ -807,18 +866,16 @@ export function ClientDetail({ clientId }: { clientId: string }) {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {engagementsQuery.isPending ? (
-            <LoadingState label="Loading service engagements" rows={2} />
-          ) : (
+          {client.engagements.length ? (
             <div className="grid gap-5">
-              {(engagementsQuery.data ?? []).map((engagement) => (
+              {client.engagements.map((engagement) => (
                 <article
-                  key={engagement.id}
+                  key={recordText(engagement, "id")}
                   className="border-b pb-5 last:border-0 last:pb-0"
                 >
                   <div className="flex flex-col justify-between gap-3 sm:flex-row">
                     <div>
-                      <p className="font-medium">{engagement.name}</p>
+                      <p className="font-medium">{recordText(engagement, "name")}</p>
                       <p className="mt-1 text-sm text-muted-foreground">
                         {engagement.code} · {engagement.service} ·{" "}
                         {engagement.billingModel}
@@ -851,6 +908,11 @@ export function ClientDetail({ clientId }: { clientId: string }) {
                 </article>
               ))}
             </div>
+          ) : (
+            <EmptyState
+              title="No service engagements"
+              description="Active engagements for this client will appear here."
+            />
           )}
         </CardContent>
       </Card>
@@ -863,19 +925,15 @@ export function ClientDetail({ clientId }: { clientId: string }) {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {groupsQuery.isPending ? (
-            <LoadingState label="Loading work groups" rows={2} />
-          ) : (
+          {client.workGroups.length ? (
             <ul className="flex flex-col divide-y">
-              {(groupsQuery.data ?? [])
-                .filter((group) => group.client === client.name)
-                .map((group) => (
+              {client.workGroups.map((group) => (
                   <li
-                    key={group.id}
+                    key={recordText(group, "id")}
                     className="flex flex-col gap-3 py-4 first:pt-0 sm:flex-row sm:justify-between"
                   >
                     <div>
-                      <p className="font-medium">{group.name}</p>
+                      <p className="font-medium">{recordText(group, "name")}</p>
                       <p className="mt-1 text-sm text-muted-foreground">
                         {group.manager} · {group.members} members ·{" "}
                         {group.openTasks} open tasks
@@ -888,6 +946,11 @@ export function ClientDetail({ clientId }: { clientId: string }) {
                   </li>
                 ))}
             </ul>
+          ) : (
+            <EmptyState
+              title="No work groups"
+              description="Work groups linked to this client will appear here."
+            />
           )}
         </CardContent>
       </Card>
@@ -900,10 +963,35 @@ export function ClientDetail({ clientId }: { clientId: string }) {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-muted-foreground">
-            {client.openTasks} active client tasks; {client.atRiskTasks} need
-            attention. Use Tasks to view assignees and work logs.
-          </p>
+          {client.tasks.length ? (
+            <ul className="flex flex-col divide-y">
+              {client.tasks.map((task) => (
+                <li key={recordText(task, "id")} className="py-4 first:pt-0">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <p className="font-medium">{recordText(task, "title")}</p>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        Due {recordText(task, "plannedDueAt", "No due date")}
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
+                      <span className="rounded-[var(--radius-control)] bg-muted px-2 py-1 text-xs capitalize text-muted-foreground">
+                        {recordText(task, "priority")}
+                      </span>
+                      <span className="rounded-[var(--radius-control)] bg-muted px-2 py-1 text-xs capitalize text-muted-foreground">
+                        {recordText(task, "status").replaceAll("_", " ")}
+                      </span>
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <EmptyState
+              title="No tasks"
+              description="Tasks linked to this client will appear here."
+            />
+          )}
         </CardContent>
       </Card>
     ) : tab === "billing" ? (
@@ -915,10 +1003,46 @@ export function ClientDetail({ clientId }: { clientId: string }) {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <p className="text-sm">
-            <strong>{money.format(client.outstandingAmount)}</strong>{" "}
-            outstanding across current invoices.
-          </p>
+          <div className="mb-5 grid gap-4 sm:grid-cols-2">
+            <div>
+              <p className="text-sm text-muted-foreground">Revenue</p>
+              <p className="mt-1 text-lg font-semibold">
+                {formatMoney(client.revenueAmount, client.currencyCode)}
+              </p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Outstanding</p>
+              <p className="mt-1 text-lg font-semibold">
+                {formatMoney(client.outstandingAmount, client.currencyCode)}
+              </p>
+            </div>
+          </div>
+          {client.invoices.length ? (
+            <ul className="flex flex-col divide-y">
+              {client.invoices.map((invoice) => (
+                <li
+                  key={recordText(invoice, "id")}
+                  className="flex flex-col gap-2 py-4 first:pt-0 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div>
+                    <p className="font-medium">{recordText(invoice, "invoiceNumber")}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Due {recordText(invoice, "dueOn")} - Paid{" "}
+                      {formatMoney(recordNumber(invoice, "paidAmount"), recordText(invoice, "currencyCode", client.currencyCode))}
+                    </p>
+                  </div>
+                  <div className="text-sm sm:text-right">
+                    <p className="font-medium">
+                      {formatMoney(recordNumber(invoice, "totalAmount"), recordText(invoice, "currencyCode", client.currencyCode))}
+                    </p>
+                    <p className="mt-1 text-muted-foreground">
+                      {formatMoney(recordNumber(invoice, "outstandingAmount"), recordText(invoice, "currencyCode", client.currencyCode))} outstanding
+                    </p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          ) : null}
         </CardContent>
       </Card>
     ) : tab === "agreements" ? (
@@ -927,10 +1051,10 @@ export function ClientDetail({ clientId }: { clientId: string }) {
           <CardTitle>Agreements</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-muted-foreground">
-            One active agreement is available for the current services. Document
-            download requires the tenant-scoped document permission.
-          </p>
+          <EmptyState
+            title="No agreements"
+            description="Agreement records connected to this client will appear here."
+          />
         </CardContent>
       </Card>
     ) : tab === "documents" ? (
@@ -939,9 +1063,9 @@ export function ClientDetail({ clientId }: { clientId: string }) {
           <CardTitle>Documents</CardTitle>
         </CardHeader>
         <CardContent>
-          <ProgressRow
-            label="Required document completion"
-            value={client.documentProgress}
+          <EmptyState
+            title="No documents"
+            description="Document records connected to this client will appear here."
           />
         </CardContent>
       </Card>
@@ -951,11 +1075,24 @@ export function ClientDetail({ clientId }: { clientId: string }) {
           <CardTitle>Client activity</CardTitle>
         </CardHeader>
         <CardContent>
-          <ol className="flex flex-col gap-4 text-sm">
-            <li>Client contact confirmed delivery dates · Today</li>
-            <li>Manager updated the engagement milestone · Yesterday</li>
-            <li>Required document request sent · Jul 18</li>
-          </ol>
+          {client.activity.length ? (
+            <ol className="flex flex-col gap-4 text-sm">
+              {client.activity.map((item) => (
+                <li key={recordText(item, "id")}>
+                  <span className="font-medium">{recordText(item, "action")}</span>
+                  <span className="text-muted-foreground">
+                    {" "}
+                    - {recordText(item, "resourceType", "client")} - {recordText(item, "createdAt")}
+                  </span>
+                </li>
+              ))}
+            </ol>
+          ) : (
+            <EmptyState
+              title="No activity"
+              description="Successful audit events linked to this client will appear here."
+            />
+          )}
         </CardContent>
       </Card>
     );
@@ -991,7 +1128,7 @@ export function ClientDetail({ clientId }: { clientId: string }) {
               ? "Create client contact"
               : "Edit client contact"
           }
-          description="Validate contact details before the future tenant-scoped API persists them."
+          description="Save this contact to the client record."
         >
           <ContactForm
             contact={
@@ -999,7 +1136,7 @@ export function ClientDetail({ clientId }: { clientId: string }) {
                 ? undefined
                 : (editingContact ?? undefined)
             }
-            onSave={() => setEditingContact(null)}
+            onSave={saveContact}
           />
         </DialogContent>
       </Dialog>
@@ -1010,11 +1147,7 @@ export function ClientDetail({ clientId }: { clientId: string }) {
         description={`Archive ${archiveTarget?.name}. Archived contacts stay in the record and cannot receive new delivery notifications.`}
         confirmLabel="Archive contact"
         destructive
-        onConfirm={() => {
-          if (archiveTarget)
-            setArchivedIds((current) => new Set(current).add(archiveTarget.id));
-          setArchiveTarget(null);
-        }}
+        onConfirm={() => void archiveContact()}
       />
     </div>
   );

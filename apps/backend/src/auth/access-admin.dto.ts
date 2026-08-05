@@ -102,6 +102,8 @@ export type AcceptInvitationRequest = z.infer<typeof acceptInvitationSchema>;
 export type RevokeMembershipRequest = z.infer<typeof revokeMembershipSchema>;
 export type ReactivateMembershipRequest = z.infer<typeof reactivateMembershipSchema>;
 
+export type EmailAvailabilityReason = "EMAIL_ALREADY_EXISTS";
+
 export class TenantStatusResponseDto {
   @ApiProperty({ type: String, format: "uuid" })
   tenantId!: string;
@@ -320,6 +322,14 @@ export class TenantCreationOptionsResponseDto {
 
   @ApiPropertyOptional({ type: String })
   guidance?: string;
+}
+
+export class EmailAvailabilityResponseDto {
+  @ApiProperty({ type: Boolean })
+  available!: boolean;
+
+  @ApiPropertyOptional({ enum: ["EMAIL_ALREADY_EXISTS"] })
+  reason?: EmailAvailabilityReason;
 }
 
 export class InvitationResponseDto {

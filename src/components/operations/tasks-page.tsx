@@ -8,11 +8,16 @@ import { Plus } from "lucide-react";
 import { toast } from "sonner";
 import {
   decideTenantTaskApproval,
+  createTenantAdminTask,
   listOperationalTasks,
-  listTaskClients,
+  listTenantAdminTaskOptions,
+  listTenantAdminTasks,
   listWorkLogs,
   startEmployeeTask,
   submitEmployeeTaskForReview,
+  type CreateTenantAdminTaskInput,
+  type TenantAdminTask,
+  type TenantAdminTaskOptions,
 } from "@/features/operations/api/operations-api";
 import { TaskBoard } from "@/components/operations/task-board";
 import { TaskDetailsDrawer } from "@/components/operations/task-details-drawer";
@@ -89,30 +94,41 @@ export function TasksPage({
   const [reviewSubmission, setReviewSubmission] =
     useState<OperationalTask | null>(null);
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+  const tenantTaskOptionsQuery = useQuery({
+    queryKey: ["tenant-admin-task-options"],
+    queryFn: listTenantAdminTaskOptions,
+    enabled: workspace === "admin",
+  });
   const tasksQuery = useQuery({
     queryKey: ["operational-tasks", workspace, selectedClientId, query, status, priority],
-    queryFn: () =>
-      listOperationalTasks(workspace, {
+    queryFn: async () => {
+      if (workspace === "admin") {
+        return (await listTenantAdminTasks(selectedClientId ?? undefined)).map(
+          mapTenantAdminTask,
+        );
+      }
+
+      return listOperationalTasks(workspace, {
         query,
         status: status || undefined,
         priority: priority || undefined,
-        client: selectedClient?.name,
-      }),
+      });
+    },
     enabled: workspace !== "admin" || Boolean(selectedClientId),
-  });
-  const clientsQuery = useQuery({
-    queryKey: ["task-clients", workspace],
-    queryFn: () => listTaskClients(workspace),
-    enabled: workspace === "admin",
   });
   const logsQuery = useQuery({
     queryKey: ["operational-work-logs", workspace, selectedClientId],
     queryFn: () => listWorkLogs(workspace),
-    enabled: workspace !== "admin" || Boolean(selectedClientId),
+    enabled: workspace !== "admin",
   });
-  const selectedClient = clientsQuery.data?.find((client) => client.id === selectedClientId);
+  const selectedClient = tenantTaskOptionsQuery.data?.clients.find(
+    (client) => client.id === selectedClientId,
+  );
   const tasks = useMemo(() => {
-    const items = [...(tasksQuery.data ?? []), ...createdTasks].map(
+    const items = [
+      ...(tasksQuery.data ?? []),
+      ...(workspace === "admin" ? [] : createdTasks),
+    ].map(
       (task) => overrides[task.id] ?? task,
     );
     return items.filter(
@@ -121,7 +137,7 @@ export function TasksPage({
         (!status || task.status === status) &&
         (!priority || task.priority === priority),
     );
-  }, [createdTasks, overrides, priority, query, status, tasksQuery.data]);
+  }, [createdTasks, overrides, priority, query, status, tasksQuery.data, workspace]);
   const visibleTasks =
     workspace === "admin" && tenantApprovalView === "awaiting-tenant-approval"
       ? tasks.filter(
@@ -144,6 +160,10 @@ export function TasksPage({
     setSelected((current) => (current?.id === next.id ? next : current));
   };
   const updateTask = (next: OperationalTask) => {
+    if (workspace === "admin") {
+      toast.error("Task updates must be saved through the backend workflow.");
+      return;
+    }
     syncTask(next);
     toast.success("Task change saved for this mock session.");
   };
@@ -248,13 +268,18 @@ export function TasksPage({
     },
     { accessorKey: "dueDate", header: "Due" },
   ];
-  if (clientsQuery.isPending || ((workspace !== "admin" || selectedClientId) && (tasksQuery.isPending || logsQuery.isPending)))
+  if (
+    (workspace === "admin" && tenantTaskOptionsQuery.isPending) ||
+    ((workspace !== "admin" || selectedClientId) &&
+      (tasksQuery.isPending || logsQuery.isPending))
+  )
     return <LoadingState label="Loading task delivery workflow" rows={5} />;
-  if (tasksQuery.isError || logsQuery.isError)
+  if ((workspace === "admin" && tenantTaskOptionsQuery.isError) || tasksQuery.isError || logsQuery.isError)
     return (
       <ErrorState
         title="Tasks could not load"
         onRetry={() => {
+          void tenantTaskOptionsQuery.refetch();
           void tasksQuery.refetch();
           void logsQuery.refetch();
         }}
@@ -268,37 +293,48 @@ export function TasksPage({
         description={workspace === "admin" ? "Select a client to plan, assign, review and manage all work within their active scope." : "Plan, assign, complete, review, and approve client work within the active scope."}
         actions={
           canCreate && (workspace !== "admin" || selectedClient) ? (
-            <CreateTaskAction
-              onCreate={(title) => {
-                const task: OperationalTask = {
-                  id: `TASK-MOCK-${createdTasks.length + 1}`,
-                  tenantId: "acme",
-                  clientId: selectedClient?.id ?? "northstar",
-                  client: selectedClient?.name ?? "Northstar Labs",
-                  engagement: selectedClient?.engagement ?? "GST Filing",
-                  workGroup: "GST Review",
-                  managerId: "mgr-avery",
-                  manager: "Avery Patel",
-                  assigneeId: "emp-riley",
-                  assignee: "Riley Shah",
-                  title,
-                  description: "New task created in the current mock session.",
-                  priority: "medium",
-                  complexity: "standard",
-                  status: "to-do",
-                  sla: "on-track",
-                  dueDate: "2026-07-25",
-                  checklist: [],
-                  dependencyIds: [],
-                  attachmentCount: 0,
-                  commentCount: 0,
-                  reviewStatus: "not-required",
-                  approvalStatus: "not-required",
-                  blocked: false,
-                };
-                setCreatedTasks((current) => [task, ...current]);
-              }}
-            />
+            workspace === "admin" && selectedClientId && tenantTaskOptionsQuery.data ? (
+              <TenantAdminCreateTaskAction
+                clientId={selectedClientId}
+                options={tenantTaskOptionsQuery.data}
+                onCreated={() => {
+                  void queryClient.invalidateQueries({ queryKey: ["operational-tasks", workspace] });
+                  void queryClient.invalidateQueries({ queryKey: ["admin-operations-overview"] });
+                }}
+              />
+            ) : (
+              <CreateTaskAction
+                onCreate={(title) => {
+                  const task: OperationalTask = {
+                    id: `TASK-MOCK-${createdTasks.length + 1}`,
+                    tenantId: "acme",
+                    clientId: "northstar",
+                    client: "Northstar Labs",
+                    engagement: "GST Filing",
+                    workGroup: "GST Review",
+                    managerId: "mgr-avery",
+                    manager: "Avery Patel",
+                    assigneeId: "emp-riley",
+                    assignee: "Riley Shah",
+                    title,
+                    description: "New task created in the current mock session.",
+                    priority: "medium",
+                    complexity: "standard",
+                    status: "to-do",
+                    sla: "on-track",
+                    dueDate: "2026-07-25",
+                    checklist: [],
+                    dependencyIds: [],
+                    attachmentCount: 0,
+                    commentCount: 0,
+                    reviewStatus: "not-required",
+                    approvalStatus: "not-required",
+                    blocked: false,
+                  };
+                  setCreatedTasks((current) => [task, ...current]);
+                }}
+              />
+            )
           ) : undefined
         }
       />
@@ -319,10 +355,14 @@ export function TasksPage({
                 }}
               >
                 <option value="">Search and select a client</option>
-                {(clientsQuery.data ?? []).map((client) => <option key={client.id} value={client.id}>{client.name} · Manager: {client.manager}</option>)}
+                {(tenantTaskOptionsQuery.data?.clients ?? []).map((client) => (
+                  <option key={client.id} value={client.id}>
+                    {client.name}
+                  </option>
+                ))}
               </Select>
             </label>
-            {selectedClient ? <p className="text-sm text-muted-foreground">{selectedClient.name} · {selectedClient.engagement} · Manager: {selectedClient.manager}</p> : null}
+            {selectedClient ? <p className="text-sm text-muted-foreground">{selectedClient.name}</p> : null}
           </CardContent>
         </Card>
       ) : null}
@@ -468,8 +508,8 @@ export function TasksPage({
         workLogs={logsQuery.data ?? []}
         canUpdate={canUpdate}
         canChangeStatus={workspace !== "employee" && workspace !== "admin" && canUpdate}
-        canManageAssignment={workspace !== "employee" && canUpdate}
-        canTenantApprove={workspace === "admin" && canUpdate}
+        canManageAssignment={workspace !== "employee" && workspace !== "admin" && canUpdate}
+        canTenantApprove={false}
         onTenantApproval={handleTenantApproval}
         onUpdate={updateTask}
       />
@@ -488,6 +528,252 @@ export function TasksPage({
       </ConfirmationDialog>
       </>}
     </div>
+  );
+}
+
+function mapTenantAdminTask(task: TenantAdminTask): OperationalTask {
+  const assignee = task.assignees.length
+    ? task.assignees.map((item) => item.name).join(", ")
+    : "Unassigned";
+
+  return {
+    id: task.id,
+    tenantId: "authenticated",
+    clientId: task.clientId,
+    client: task.clientName,
+    engagement: task.serviceName,
+    workGroup: task.workGroupName ?? "No work group",
+    managerId: "",
+    manager: "Manager not assigned",
+    assigneeId: task.assignees[0]?.id ?? "",
+    assignee: task.assigneeCount > 1 ? `${task.assigneeCount} employees` : assignee,
+    title: task.title,
+    description: task.description ?? "No description recorded.",
+    priority: mapTaskPriority(task.priority),
+    complexity: "standard",
+    status: mapTaskStatus(task.status),
+    sla: task.slaStatus === "near_breach" || task.slaStatus === "breached" ? "at-risk" : "on-track",
+    dueDate: task.plannedDueAt ? formatTaskDate(task.plannedDueAt) : "No due date",
+    checklist: [],
+    dependencyIds: [],
+    attachmentCount: 0,
+    commentCount: 0,
+    reviewStatus:
+      task.status === "tenant_approval"
+        ? "approved"
+        : ["submitted", "manager_review", "approved"].includes(task.status)
+          ? "pending"
+          : task.status === "returned"
+            ? "changes-requested"
+            : "not-required",
+    approvalStatus: task.status === "tenant_approval" ? "pending" : "not-required",
+    blocked: task.status === "returned",
+  };
+}
+
+function mapTaskPriority(priority: TenantAdminTask["priority"]): OperationalTask["priority"] {
+  if (priority === "urgent" || priority === "high") return "high";
+  if (priority === "normal") return "medium";
+  return "low";
+}
+
+function mapTaskStatus(status: TenantAdminTask["status"]): OperationalTask["status"] {
+  if (status === "in_progress") return "in-progress";
+  if (["submitted", "manager_review", "tenant_approval", "approved"].includes(status)) return "review";
+  if (status === "returned") return "rejected";
+  if (status === "completed") return "done";
+  return "to-do";
+}
+
+function formatTaskDate(value: string) {
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(value));
+}
+
+const emptyTenantTaskInput = {
+  serviceId: "",
+  title: "",
+  description: "",
+  priority: "normal" as CreateTenantAdminTaskInput["priority"],
+  plannedDueAt: "",
+  workGroupId: "",
+  employeeIds: [] as string[],
+};
+
+function TenantAdminCreateTaskAction({
+  clientId,
+  options,
+  onCreated,
+}: {
+  clientId: string;
+  options: TenantAdminTaskOptions;
+  onCreated: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [input, setInput] = useState(emptyTenantTaskInput);
+  const [isSaving, setIsSaving] = useState(false);
+  const workGroups = options.workGroups.filter(
+    (group) => !group.clientId || group.clientId === clientId,
+  );
+  const toggleEmployee = (employeeId: string) => {
+    setInput((current) => ({
+      ...current,
+      employeeIds: current.employeeIds.includes(employeeId)
+        ? current.employeeIds.filter((id) => id !== employeeId)
+        : [...current.employeeIds, employeeId],
+    }));
+  };
+  const submit = async () => {
+    setIsSaving(true);
+    try {
+      await createTenantAdminTask({
+        clientId,
+        serviceId: input.serviceId,
+        title: input.title.trim(),
+        description: input.description.trim(),
+        priority: input.priority,
+        plannedDueAt: input.plannedDueAt ? new Date(input.plannedDueAt).toISOString() : undefined,
+        workGroupId: input.workGroupId || undefined,
+        employeeIds: input.employeeIds,
+      });
+      toast.success("Task created.");
+      setOpen(false);
+      setInput(emptyTenantTaskInput);
+      onCreated();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Task could not be created.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button>
+          <Plus data-icon="inline-start" />
+          Create task
+        </Button>
+      </DialogTrigger>
+      <DialogContent title="Create task" description="Create a tenant-scoped client task." className="max-w-2xl">
+        <div className="pr-8">
+          <h2 className="text-lg font-semibold">Create task</h2>
+          <div className="mt-5 grid gap-4 sm:grid-cols-2">
+            <label className="text-sm font-medium">
+              Service
+              <Select
+                className="mt-1"
+                value={input.serviceId}
+                onChange={(event) => setInput((current) => ({ ...current, serviceId: event.target.value }))}
+              >
+                <option value="">Select service</option>
+                {options.services.map((service) => (
+                  <option key={service.id} value={service.id}>
+                    {service.name}
+                  </option>
+                ))}
+              </Select>
+            </label>
+            <label className="text-sm font-medium">
+              Priority
+              <Select
+                className="mt-1"
+                value={input.priority}
+                onChange={(event) =>
+                  setInput((current) => ({
+                    ...current,
+                    priority: event.target.value as CreateTenantAdminTaskInput["priority"],
+                  }))
+                }
+              >
+                <option value="normal">Normal</option>
+                <option value="high">High</option>
+                <option value="urgent">Urgent</option>
+                <option value="low">Low</option>
+              </Select>
+            </label>
+            <label className="text-sm font-medium sm:col-span-2">
+              Task title
+              <Input
+                className="mt-1"
+                value={input.title}
+                maxLength={200}
+                onChange={(event) => setInput((current) => ({ ...current, title: event.target.value }))}
+              />
+            </label>
+            <label className="text-sm font-medium sm:col-span-2">
+              Description
+              <textarea
+                className="mt-1 min-h-24 w-full rounded-[var(--radius-control)] border bg-input p-3 text-sm outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
+                value={input.description}
+                maxLength={2000}
+                onChange={(event) => setInput((current) => ({ ...current, description: event.target.value }))}
+              />
+            </label>
+            <label className="text-sm font-medium">
+              Due date and time
+              <Input
+                className="mt-1"
+                type="datetime-local"
+                value={input.plannedDueAt}
+                onChange={(event) => setInput((current) => ({ ...current, plannedDueAt: event.target.value }))}
+              />
+            </label>
+            <label className="text-sm font-medium">
+              Work group
+              <Select
+                className="mt-1"
+                value={input.workGroupId}
+                onChange={(event) => setInput((current) => ({ ...current, workGroupId: event.target.value }))}
+              >
+                <option value="">No work group</option>
+                {workGroups.map((group) => (
+                  <option key={group.id} value={group.id}>
+                    {group.name}
+                  </option>
+                ))}
+              </Select>
+            </label>
+          </div>
+          <fieldset className="mt-5">
+            <legend className="text-sm font-medium">Assign employees</legend>
+            <div className="mt-2 grid max-h-48 gap-2 overflow-y-auto rounded-[var(--radius-control)] border p-3 sm:grid-cols-2">
+              {options.employees.length ? (
+                options.employees.map((employee) => (
+                  <label key={employee.id} className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      className="size-4 accent-primary"
+                      checked={input.employeeIds.includes(employee.id)}
+                      onChange={() => toggleEmployee(employee.id)}
+                    />
+                    <span>{employee.name}</span>
+                  </label>
+                ))
+              ) : (
+                <p className="text-sm text-muted-foreground">No active employees are available.</p>
+              )}
+            </div>
+            <p className="mt-2 text-xs text-muted-foreground">
+              If no employee is selected, an active work group assigns the task to its active members.
+            </p>
+          </fieldset>
+          <div className="mt-6 flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              disabled={isSaving || !input.serviceId || input.title.trim().length < 3}
+              onClick={() => void submit()}
+            >
+              {isSaving ? "Creating..." : "Create task"}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 

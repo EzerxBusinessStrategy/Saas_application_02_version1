@@ -25,6 +25,7 @@ import {
   CreateTenantWithOwnerInvitationDto,
   createTenantWithOwnerInvitationSchema,
   CreateTenantWithOwnerInvitationResponseDto,
+  EmailAvailabilityResponseDto,
   InvitationResponseDto,
   TenantCreationOptionsResponseDto,
   TenantStatusResponseDto,
@@ -93,6 +94,18 @@ export class AccessAdminController {
       page: Number(page ?? "1"),
       pageSize: Number(pageSize ?? "10"),
     });
+  }
+
+  @Get("super-admin/users/email-availability")
+  @UseGuards(SupabaseAuthGuard, ActiveRequestContextGuard, PermissionGuard)
+  @RequirePermissions("tenant.create")
+  @ApiOperation({ summary: "Check whether a Tenant Administrator email is available." })
+  @ApiOkResponse({ type: EmailAvailabilityResponseDto })
+  getEmailAvailability(
+    @CurrentRequestContext() context: RequestContext,
+    @Query("email") email: string,
+  ): Promise<EmailAvailabilityResponseDto> {
+    return this.service.getEmailAvailability(context, email);
   }
 
   @Get("super-admin/tenant-list-filters")

@@ -9,10 +9,9 @@ import { Server, Socket } from "socket.io";
 import { RequestContextResolver } from "../auth/request-context-resolver.service";
 import { SessionPolicyRepository } from "../auth/session-policy.repository";
 import { SupabaseJwtVerifier } from "../auth/supabase-jwt-verifier.service";
+import { superAdminAccessTokenCookie } from "../auth/auth-cookie-names";
 import { NotificationItemDto } from "./super-admin-notifications.dto";
 import { SuperAdminNotificationsRepository } from "./super-admin-notifications.repository";
-
-const superAdminAccessTokenCookie = "saas-super-admin-access-token";
 
 @WebSocketGateway({
   namespace: "/super-admin/notifications",

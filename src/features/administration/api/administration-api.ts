@@ -1,8 +1,5 @@
 import { z } from "zod";
 import {
-  clientContacts,
-  clients,
-  engagements,
   managers,
   workGroups,
 } from "@/mocks/administration";
@@ -10,9 +7,11 @@ import { redirectToLoginOnUnauthorized } from "@/lib/client/silent-auth-redirect
 import {
   auditRecordSchema,
   clientContactSchema,
+  clientDetailSchema,
+  clientOptionSchema,
   clientSchema,
   createTenantResponseSchema,
-  engagementSchema,
+  emailAvailabilitySchema,
   managerSchema,
   paginationSchema,
   tenantSchema,
@@ -20,27 +19,12 @@ import {
   tenantListFiltersSchema,
   workGroupSchema,
   type AuditListRequest,
+  type ClientContactInput,
   type ClientListRequest,
+  type ClientListResponse,
   type CreateTenantInput,
-  type PaginatedResponse,
   type TenantListRequest,
 } from "@/types/administration";
-
-const asPage = <T>(
-  items: T[],
-  page: number,
-  pageSize: number,
-): PaginatedResponse<T> => ({
-  items: items.slice((page - 1) * pageSize, page * pageSize),
-  page,
-  pageSize,
-  pageCount: Math.max(1, Math.ceil(items.length / pageSize)),
-  totalItems: items.length,
-});
-
-const includes = (values: Array<string | undefined>, query?: string) =>
-  !query ||
-  values.some((value) => value?.toLowerCase().includes(query.toLowerCase()));
 
 export async function listTenants(request: TenantListRequest) {
   const { page, pageSize } = paginationSchema.parse(request);
@@ -137,6 +121,16 @@ export async function createTenant(input: CreateTenantInput) {
   return createTenantResponseSchema.parse(await response.json());
 }
 
+export async function getTenantAdminEmailAvailability(email: string) {
+  const params = new URLSearchParams({ email });
+  const response = await fetch(`/api/super-admin/users/email-availability?${params.toString()}`, {
+    cache: "no-store",
+  });
+  await redirectToLoginOnUnauthorized(response);
+  if (!response.ok) throw new Error("Tenant Administrator email could not be checked.");
+  return emailAvailabilitySchema.parse(await response.json());
+}
+
 export async function listTenantListFilters() {
   const response = await fetch("/api/super-admin/tenant-list-filters", { cache: "no-store" });
   await redirectToLoginOnUnauthorized(response);
@@ -211,55 +205,19 @@ export async function listAuditRecords(
 
 export async function listClients(request: ClientListRequest) {
   const { page, pageSize } = paginationSchema.parse(request);
-  const filtered = clients
-    .filter((client) =>
-      includes(
-        [
-          client.name,
-          client.code,
-          client.primaryContact.name,
-          client.primaryContact.email,
-        ],
-        request.query,
-      ),
-    )
-    .filter((client) => !request.status || client.status === request.status)
-    .filter(
-      (client) => !request.service || client.services.includes(request.service),
-    )
-    .filter(
-      (client) => !request.manager || client.managers.includes(request.manager),
-    )
-    .filter(
-      (client) =>
-        !request.deliveryHealth ||
-        client.deliveryHealth === request.deliveryHealth,
-    )
-    .filter(
-      (client) =>
-        !request.balance ||
-        request.balance === "any" ||
-        (request.balance === "outstanding"
-          ? client.outstandingAmount > 0
-          : client.outstandingAmount === 0),
-    )
-    .filter(
-      (client) =>
-        !request.deadline ||
-        request.deadline === "any" ||
-        (request.deadline === "upcoming"
-          ? Boolean(client.upcomingDeadline)
-          : !client.upcomingDeadline),
-    )
-    .sort((left, right) => {
-      if (request.sort === "balance")
-        return right.outstandingAmount - left.outstandingAmount;
-      if (request.sort === "deadline")
-        return (left.upcomingDeadline ?? "9999").localeCompare(
-          right.upcomingDeadline ?? "9999",
-        );
-      return left.name.localeCompare(right.name);
-    });
+  const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+  if (request.query) params.set("query", request.query);
+  if (request.status) params.set("status", request.status);
+  if (request.service) params.set("service", request.service);
+  if (request.manager) params.set("manager", request.manager);
+  if (request.deadline) params.set("deadline", request.deadline);
+  if (typeof request.revenueMin === "number" && Number.isFinite(request.revenueMin)) {
+    params.set("revenueMin", String(request.revenueMin));
+  }
+  if (request.sort) params.set("sort", request.sort);
+  const response = await fetch(`/api/tenant-admin/clients?${params.toString()}`, { cache: "no-store" });
+  await redirectToLoginOnUnauthorized(response);
+  if (!response.ok) throw new Error("Client directory could not load.");
   return z
     .object({
       items: z.array(clientSchema),
@@ -267,22 +225,45 @@ export async function listClients(request: ClientListRequest) {
       pageSize: z.number(),
       pageCount: z.number(),
       totalItems: z.number(),
+      filters: z.object({
+        services: z.array(clientOptionSchema),
+        managers: z.array(clientOptionSchema),
+      }),
     })
-    .parse(asPage(filtered, page, pageSize));
+    .parse(await response.json()) satisfies ClientListResponse;
 }
 
 export async function getClient(clientId: string) {
-  return clientSchema
-    .nullable()
-    .parse(clients.find((client) => client.id === clientId) ?? null);
+  const response = await fetch(`/api/tenant-admin/clients/${encodeURIComponent(clientId)}`, { cache: "no-store" });
+  await redirectToLoginOnUnauthorized(response);
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error("Client details could not load.");
+  return clientDetailSchema.parse(await response.json());
 }
 
-export async function listClientContacts() {
-  return z.array(clientContactSchema).parse(clientContacts);
+export async function createClientContact(clientId: string, input: ClientContactInput) {
+  const response = await fetch(`/api/tenant-admin/clients/${encodeURIComponent(clientId)}/contacts`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  await redirectToLoginOnUnauthorized(response);
+  if (!response.ok) throw new Error("Client contact could not be created.");
+  return clientContactSchema.parse(await response.json());
 }
 
-export async function listEngagements() {
-  return z.array(engagementSchema).parse(engagements);
+export async function updateClientContact(clientId: string, contactId: string, input: Partial<ClientContactInput> & { status?: "active" | "archived" }) {
+  const response = await fetch(
+    `/api/tenant-admin/clients/${encodeURIComponent(clientId)}/contacts/${encodeURIComponent(contactId)}`,
+    {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(input),
+    },
+  );
+  await redirectToLoginOnUnauthorized(response);
+  if (!response.ok) throw new Error("Client contact could not be updated.");
+  return clientContactSchema.parse(await response.json());
 }
 
 export async function listWorkGroups() {

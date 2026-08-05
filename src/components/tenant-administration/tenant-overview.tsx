@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, CalendarClock, CheckCircle2, RefreshCw, ShieldAlert } from "lucide-react";
+import { CalendarClock, CheckCircle2, RefreshCw, ShieldAlert } from "lucide-react";
 import { MetricCard } from "@/components/shared/metric-card";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
@@ -34,16 +34,45 @@ type DashboardResponse = {
       currencyCode: string;
     } | null;
     openTasks: number;
-    overdueTasks: number;
     outstanding: {
       amount: string;
       currencyCode: string;
     } | null;
   };
   recentActivity: {
+    id: string;
     action: string;
+    label: string;
+    resourceType: string;
+    resourceId: string | null;
+    result: string;
+    metadata: Record<string, unknown>;
     actor: string;
     createdAt: string;
+  }[];
+  organisationSetup: {
+    completed: number;
+    total: number;
+    completionPercent: number;
+    items: {
+      key: string;
+      label: string;
+      description: string;
+      completed: boolean;
+      destination: string | null;
+    }[];
+  };
+  upcomingDeadlines: {
+    id: string;
+    taskId: string;
+    taskTitle: string;
+    clientId: string;
+    clientName: string;
+    dueAt: string;
+    priority: string;
+    status: string;
+    workGroupName: string | null;
+    assigneeCount: number;
   }[];
 };
 
@@ -73,6 +102,20 @@ function formatDate(dateStr: string): string {
   }
 }
 
+function formatDateTime(dateStr: string): string {
+  try {
+    return new Intl.DateTimeFormat(undefined, {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(new Date(dateStr));
+  } catch {
+    return dateStr;
+  }
+}
+
 function relativeTime(value: string): string {
   const seconds = Math.max(0, Math.floor((Date.now() - new Date(value).getTime()) / 1000));
   if (seconds < 60) return "Just now";
@@ -82,6 +125,19 @@ function relativeTime(value: string): string {
   if (hours < 24) return `${hours} hr${hours === 1 ? "" : "s"} ago`;
   const days = Math.floor(hours / 24);
   return `${days} day${days === 1 ? "" : "s"} ago`;
+}
+
+function timeRemaining(value: string): string {
+  const minutes = Math.max(0, Math.ceil((new Date(value).getTime() - Date.now()) / 60_000));
+  if (minutes < 60) return `${minutes} min remaining`;
+  const hours = Math.ceil(minutes / 60);
+  if (hours < 24) return `${hours} hr${hours === 1 ? "" : "s"} remaining`;
+  const days = Math.ceil(hours / 24);
+  return `${days} day${days === 1 ? "" : "s"} remaining`;
+}
+
+function humanise(value: string): string {
+  return value.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
 export function TenantAdministrationOverview() {
@@ -112,8 +168,10 @@ export function TenantAdministrationOverview() {
     );
   }
 
-  const { metrics, financialYear, financialDataAvailable, recentActivity, tenant } = data;
+  const { metrics, financialYear, financialDataAvailable, recentActivity: rawRecentActivity, tenant, organisationSetup, upcomingDeadlines } = data;
   const currency = tenant.currencyCode || "INR";
+  const recentActivity = rawRecentActivity.map((item) => ({ ...item, action: item.label }));
+  const incompleteSetup = organisationSetup.items.filter((item) => !item.completed);
 
   const financialYearText = financialYear
     ? `${financialYear.label} (${formatDate(financialYear.startsOn)} – ${formatDate(financialYear.endsOn)})`
@@ -137,8 +195,8 @@ export function TenantAdministrationOverview() {
     {
       label: "Open tasks",
       value: metrics.openTasks.toString(),
-      change: metrics.overdueTasks > 0 ? `${metrics.overdueTasks} overdue` : "0 overdue",
-      trend: metrics.overdueTasks > 0 ? ("down" as const) : ("flat" as const),
+      change: metrics.openTasks > 0 ? "Awaiting completion" : "No open tasks",
+      trend: metrics.openTasks > 0 ? ("up" as const) : ("flat" as const),
     },
     {
       label: "Outstanding invoices",
@@ -184,26 +242,7 @@ export function TenantAdministrationOverview() {
           />
         ))}
       </section>
-      <section className="grid gap-[30px] xl:grid-cols-[1.2fr_1fr]">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <AlertTriangle
-                className="size-[18px] text-warning"
-                aria-hidden="true"
-              />
-              At-risk work and deadlines
-            </CardTitle>
-            <CardDescription>
-              Delivery signals that need a manager or administrator response.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="py-6 text-center text-sm text-muted-foreground">
-              No at-risk work found.
-            </div>
-          </CardContent>
-        </Card>
+      <section className="grid gap-[30px] xl:grid-cols-[0.95fr_1.05fr]">
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -218,13 +257,28 @@ export function TenantAdministrationOverview() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="py-6 text-center text-sm text-muted-foreground">
-              Organisation setup is complete.
-            </div>
+            {incompleteSetup.length === 0 ? (
+              <div className="py-6 text-center">
+                <CheckCircle2 className="mx-auto mb-2 size-6 text-primary" aria-hidden="true" />
+                <p className="font-medium">Organisation setup is complete.</p>
+              </div>
+            ) : (
+              <>
+                <div className="mb-4">
+                  <p className="mb-2 text-sm font-medium">
+                    {organisationSetup.completed} of {organisationSetup.total} completed
+                  </p>
+                  <ProgressBar value={organisationSetup.completionPercent} />
+                </div>
+                <div className="divide-y">
+                  {incompleteSetup.slice(0, 4).map((item) => (
+                    <SetupItem key={item.key} item={item} />
+                  ))}
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
-      </section>
-      <section className="grid gap-[30px] lg:grid-cols-2">
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -239,11 +293,33 @@ export function TenantAdministrationOverview() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="py-6 text-center text-sm text-muted-foreground">
-              No upcoming deadlines found.
-            </div>
+            {upcomingDeadlines.length === 0 ? (
+              <div className="py-6 text-center text-sm text-muted-foreground">
+                No upcoming deadlines found.
+              </div>
+            ) : (
+              <ol className="flex flex-col gap-4 text-sm">
+                {upcomingDeadlines.map((item) => (
+                  <li key={item.id} className="rounded-md border p-3">
+                    <p className="font-medium">{item.taskTitle}</p>
+                    <p className="text-muted-foreground">{item.clientName}</p>
+                    <p className="mt-2">
+                      Due {formatDateTime(item.dueAt)} - {timeRemaining(item.dueAt)}
+                    </p>
+                    <p className="text-muted-foreground">
+                      Assigned to: {item.workGroupName ?? (item.assigneeCount > 0 ? `${item.assigneeCount} employee${item.assigneeCount === 1 ? "" : "s"}` : "Unassigned")}
+                    </p>
+                    <p className="mt-1 text-muted-foreground">
+                      {humanise(item.priority)} priority - {humanise(item.status)}
+                    </p>
+                  </li>
+                ))}
+              </ol>
+            )}
           </CardContent>
         </Card>
+      </section>
+      <section>
         <Card>
           <CardHeader>
             <CardTitle>Recent activity</CardTitle>
@@ -256,9 +332,9 @@ export function TenantAdministrationOverview() {
               <p className="py-6 text-center text-sm text-muted-foreground">No recent activity recorded.</p>
             ) : (
               <ol className="flex flex-col gap-4 text-sm">
-                {recentActivity.map((item, idx) => (
-                  <li key={idx}>
-                    <strong>{item.actor}</strong> {item.action} · {relativeTime(item.createdAt)}
+                {recentActivity.map((item) => (
+                  <li key={item.id}>
+                    <strong>{item.actor}</strong> {item.action} - {relativeTime(item.createdAt)}
                   </li>
                 ))}
               </ol>
@@ -266,6 +342,39 @@ export function TenantAdministrationOverview() {
           </CardContent>
         </Card>
       </section>
+    </div>
+  );
+}
+
+function ProgressBar({ value }: { value: number }) {
+  const width = Math.max(0, Math.min(100, value));
+  return (
+    <div className="h-2 overflow-hidden rounded-full bg-muted" role="progressbar" aria-label={`${width}% complete`} aria-valuenow={width} aria-valuemin={0} aria-valuemax={100}>
+      <div className="h-full rounded-full bg-primary" style={{ width: `${width}%` }} />
+    </div>
+  );
+}
+
+function SetupItem({
+  item,
+}: {
+  item: {
+    label: string;
+    description: string;
+    destination: string | null;
+  };
+}) {
+  return (
+    <div className="flex items-start justify-between gap-3 py-3 text-sm">
+      <div>
+        <p className="font-medium">{item.label}</p>
+        <p className="text-muted-foreground">{item.description}</p>
+      </div>
+      {item.destination ? (
+        <a href={item.destination} className="shrink-0 text-primary hover:underline">
+          Open
+        </a>
+      ) : null}
     </div>
   );
 }

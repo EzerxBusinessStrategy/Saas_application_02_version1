@@ -78,6 +78,68 @@ export function getWorkLogConsistency() {
 }
 
 const taskListSchema = z.array(taskSchema);
+const tenantAdminTaskPrioritySchema = z.enum(["low", "normal", "high", "urgent"]);
+const tenantAdminTaskStatusSchema = z.enum([
+  "draft",
+  "requested",
+  "open",
+  "assigned",
+  "in_progress",
+  "submitted",
+  "manager_review",
+  "returned",
+  "tenant_approval",
+  "approved",
+  "completed",
+  "cancelled",
+]);
+const tenantAdminTaskSlaStatusSchema = z.enum([
+  "not_started",
+  "running",
+  "met",
+  "near_breach",
+  "breached",
+  "not_applicable",
+]);
+const taskOptionSchema = z.object({ id: z.string(), name: z.string() });
+const tenantAdminTaskOptionsSchema = z.object({
+  clients: z.array(taskOptionSchema),
+  services: z.array(taskOptionSchema),
+  employees: z.array(taskOptionSchema.extend({ employeeCode: z.string().nullable() })),
+  workGroups: z.array(taskOptionSchema.extend({ clientId: z.string().nullable() })),
+});
+const tenantAdminTaskSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  description: z.string().nullable(),
+  clientId: z.string(),
+  clientName: z.string(),
+  serviceId: z.string(),
+  serviceName: z.string(),
+  workGroupId: z.string().nullable(),
+  workGroupName: z.string().nullable(),
+  priority: tenantAdminTaskPrioritySchema,
+  status: tenantAdminTaskStatusSchema,
+  slaStatus: tenantAdminTaskSlaStatusSchema,
+  plannedDueAt: z.string().nullable(),
+  assigneeCount: z.number(),
+  assignees: z.array(taskOptionSchema),
+});
+const tenantAdminTasksResponseSchema = z.object({
+  tasks: z.array(tenantAdminTaskSchema),
+});
+export type TenantAdminTaskOptions = z.infer<typeof tenantAdminTaskOptionsSchema>;
+export type TenantAdminTask = z.infer<typeof tenantAdminTaskSchema>;
+export type CreateTenantAdminTaskInput = {
+  clientId: string;
+  serviceId: string;
+  title: string;
+  description?: string;
+  priority: z.infer<typeof tenantAdminTaskPrioritySchema>;
+  plannedDueAt?: string;
+  workGroupId?: string;
+  employeeIds: string[];
+};
 const employeeId = "emp-riley";
 const managerId = "mgr-avery";
 const clientId = "northstar";
@@ -406,6 +468,41 @@ export async function listTaskClients(workspace: Workspace) {
       { id: task.clientId, name: task.client, manager: task.manager, engagement: task.engagement },
     ]),
   ).values()];
+}
+
+async function parseJsonResponse(response: Response) {
+  const body = await response.json().catch(() => null);
+  if (!response.ok) {
+    const message =
+      typeof body?.message === "string"
+        ? body.message
+        : typeof body?.error?.message === "string"
+          ? body.error.message
+          : "Request failed.";
+    throw new Error(message);
+  }
+  return body;
+}
+
+export async function listTenantAdminTaskOptions(): Promise<TenantAdminTaskOptions> {
+  const response = await fetch("/api/tenant-admin/tasks/options", { cache: "no-store" });
+  return tenantAdminTaskOptionsSchema.parse(await parseJsonResponse(response));
+}
+
+export async function listTenantAdminTasks(clientId?: string): Promise<TenantAdminTask[]> {
+  const params = new URLSearchParams();
+  if (clientId) params.set("clientId", clientId);
+  const response = await fetch(`/api/tenant-admin/tasks${params.size ? `?${params}` : ""}`, { cache: "no-store" });
+  return tenantAdminTasksResponseSchema.parse(await parseJsonResponse(response)).tasks;
+}
+
+export async function createTenantAdminTask(input: CreateTenantAdminTaskInput): Promise<TenantAdminTask> {
+  const response = await fetch("/api/tenant-admin/tasks", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  return tenantAdminTaskSchema.parse(await parseJsonResponse(response));
 }
 
 export async function listWorkLogs(workspace: Workspace) {

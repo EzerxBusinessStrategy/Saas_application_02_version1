@@ -1,6 +1,7 @@
 import { Inject, Injectable } from "@nestjs/common";
 import {
   applicationUserNotFound,
+  ambiguousTenantMembership,
   forbiddenPortal,
   inactiveMembership,
   invalidTenantSelection,
@@ -107,8 +108,9 @@ function selectMembership(
   const active = memberships.filter(
     (row) => row.tenant_status === "active" && row.membership_status === "active",
   );
-  if (active.length >= 1) return active[0];
-  return memberships[0];
+  if (active.length === 1) return active[0];
+  if (active.length > 1) throw ambiguousTenantMembership();
+  return undefined;
 }
 
 function selectPlatformRow(

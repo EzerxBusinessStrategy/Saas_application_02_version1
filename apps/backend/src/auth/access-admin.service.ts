@@ -8,6 +8,7 @@ import {
   CreateInvitationRequest,
   CreateTenantWithOwnerInvitationRequest,
   CreateTenantWithOwnerInvitationResponseDto,
+  EmailAvailabilityResponseDto,
   TenantCreationOptionsResponseDto,
   MembershipAccessResponseDto,
   ReactivateMembershipRequest,
@@ -59,35 +60,41 @@ export class AccessAdminService {
     if (!this.config.supabaseUrl || !this.config.supabaseAdminKey) {
       throw new ServiceUnavailableException({ code: "AUTH_PROVISIONING_UNAVAILABLE", message: "Tenant Administrator account provisioning is unavailable." });
     }
+    const normalizedEmail = normalizeEmail(request.tenantAdministrator.email);
+    if (await this.isTenantAdminEmailTaken(context, normalizedEmail)) throw emailAlreadyExists();
+
     const client = createClient(this.config.supabaseUrl, this.config.supabaseAdminKey, {
       auth: { autoRefreshToken: false, persistSession: false },
     });
     const { data, error } = await client.auth.admin.createUser({
-      email: request.tenantAdministrator.email,
+      email: normalizedEmail,
       password: request.tenantAdministrator.password,
       email_confirm: true,
       user_metadata: { full_name: request.tenantAdministrator.fullName },
     });
-    if (error || !data.user) throw new ConflictException({ code: "TENANT_ADMIN_ACCOUNT_CONFLICT", message: "A Tenant Administrator account already exists for this email." });
+    if (error || !data.user) throw emailAlreadyExists();
     try {
-      const created = await this.createTenantOrThrowConflict(context, request);
-      const accepted = await this.repository.acceptInvitation(
-        { authUserId: data.user.id, email: request.tenantAdministrator.email, issuer: "supabase-admin", audience: [], expiresAt: new Date(Date.now() + 60_000) },
-        created.invitation_id,
-        request.tenantAdministrator.fullName,
-      );
-      await this.repository.setDirectTenantAdministratorPhone(
-        context,
-        created.tenant_id,
-        accepted.user_id,
-        request.tenantAdministrator.phone,
-      );
-      await this.repository.activateDirectTenantAdminTenant(context, created.tenant_id);
-      return { tenantId: created.tenant_id, financialYearId: created.financial_year_id, membershipId: accepted.membership_id, tenantStatus: "active" as const };
+      const created = await this.createTenantOrThrowConflict(context, {
+        ...request,
+        tenantAdministrator: { ...request.tenantAdministrator, email: normalizedEmail },
+      }, data.user.id);
+      return { tenantId: created.tenant_id, financialYearId: created.financial_year_id, membershipId: created.membership_id, tenantStatus: "active" as const };
     } catch (provisioningError) {
       await client.auth.admin.deleteUser(data.user.id).catch(() => undefined);
       throw provisioningError;
     }
+  }
+
+  async getEmailAvailability(context: RequestContext, email: string): Promise<EmailAvailabilityResponseDto> {
+    if (!context.isPlatformAdmin || !context.permissions.includes("tenant.create")) {
+      throw permissionDenied();
+    }
+    const normalizedEmail = normalizeEmail(email);
+    if (!isValidEmail(normalizedEmail)) {
+      throw new BadRequestException({ code: "INVALID_EMAIL", message: "Enter a valid email address." });
+    }
+    const exists = await this.isTenantAdminEmailTaken(context, normalizedEmail);
+    return exists ? { available: false, reason: "EMAIL_ALREADY_EXISTS" } : { available: true };
   }
 
   private async validateTenantCreation(
@@ -151,10 +158,14 @@ export class AccessAdminService {
   private async createTenantOrThrowConflict(
     context: RequestContext,
     request: CreateTenantWithOwnerInvitationRequest,
+    supabaseAuthUserId: string,
   ) {
     try {
-      return await this.repository.createTenantWithOwnerInvitation(context, request);
+      return await this.repository.createTenantWithDirectTenantAdministrator(context, request, supabaseAuthUserId);
     } catch (error) {
+      if (isTenantAdminEmailConflict(error)) {
+        throw emailAlreadyExists();
+      }
       if (isPgUniqueError(error)) {
         throw new ConflictException({
           code: "TENANT_CREATE_CONFLICT",
@@ -175,6 +186,24 @@ export class AccessAdminService {
       console.error("[createTenant] Unhandled DB error:", { pgCode, pgMessage, pgDetail, pgHint, error });
       throw error;
     }
+  }
+
+  private async isTenantAdminEmailTaken(context: RequestContext, normalizedEmail: string): Promise<boolean> {
+    if (await this.repository.userEmailExists(context, normalizedEmail)) return true;
+    if (!this.config.supabaseUrl || !this.config.supabaseAdminKey) {
+      throw new ServiceUnavailableException({ code: "AUTH_PROVISIONING_UNAVAILABLE", message: "Tenant Administrator account lookup is unavailable." });
+    }
+    const client = createClient(this.config.supabaseUrl, this.config.supabaseAdminKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    for (let page = 1; page <= 100; page += 1) {
+      const { data, error } = await client.auth.admin.listUsers({ page, perPage: 1000 });
+      if (error) throw new ServiceUnavailableException({ code: "AUTH_PROVISIONING_UNAVAILABLE", message: "Tenant Administrator account lookup is unavailable." });
+      const users = data.users ?? [];
+      if (users.some((user) => normalizeEmail(user.email ?? "") === normalizedEmail)) return true;
+      if (users.length < 1000) return false;
+    }
+    throw new ServiceUnavailableException({ code: "AUTH_PROVISIONING_UNAVAILABLE", message: "Tenant Administrator account lookup is unavailable." });
   }
 
   async getTenantCreationOptions(
@@ -557,4 +586,23 @@ function isPgCheckError(error: unknown): boolean {
 
 function isPgInvalidStatusTransition(error: unknown): boolean {
   return typeof error === "object" && error !== null && "code" in error && error.code === "P0001";
+}
+
+function isTenantAdminEmailConflict(error: unknown): boolean {
+  return isPgUniqueError(error) && String((error as Record<string, unknown>).message ?? "").includes("Tenant Administrator email");
+}
+
+function normalizeEmail(email: string): string {
+  return email.trim().toLowerCase();
+}
+
+function isValidEmail(email: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+function emailAlreadyExists(): ConflictException {
+  return new ConflictException({
+    code: "EMAIL_ALREADY_EXISTS",
+    message: "This email is already associated with an existing user or tenant. Please provide a unique email address for the new Tenant Admin.",
+  });
 }

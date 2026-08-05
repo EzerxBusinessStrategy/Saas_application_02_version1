@@ -10,6 +10,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import {
   createTenant,
+  getTenantAdminEmailAvailability,
   getTenantCreationOptions,
 } from "@/features/administration/api/administration-api";
 import {
@@ -77,6 +78,10 @@ export function TenantCreatePageForm() {
   const countryCode = form.watch("company.countryCode");
   const incorporationDate = form.watch("company.incorporationDate");
   const fySource = form.watch("financialYear.source");
+  const adminEmail = form.watch("tenantAdministrator.email");
+  const normalizedAdminEmail = adminEmail.trim().toLowerCase();
+  const adminEmailLooksValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedAdminEmail);
+  const [emailToCheck, setEmailToCheck] = useState("");
 
   const options = useQuery({
     queryKey: ["tenant-creation-options", countryCode, incorporationDate],
@@ -87,6 +92,18 @@ export function TenantCreatePageForm() {
     mutationFn: createTenant,
     onSuccess: (created) => router.replace(`/super-admin/tenants/${created.tenantId}`),
   });
+  const emailAvailability = useQuery({
+    queryKey: ["tenant-admin-email-availability", emailToCheck],
+    queryFn: () => getTenantAdminEmailAvailability(emailToCheck),
+    enabled: Boolean(emailToCheck),
+    staleTime: 30_000,
+  });
+  const emailUnavailable = emailToCheck === normalizedAdminEmail && emailAvailability.data?.available === false;
+  const emailCheckPending =
+    adminEmailLooksValid &&
+    (emailToCheck !== normalizedAdminEmail || emailAvailability.isFetching);
+  const blockCreate = mutation.isPending || emailUnavailable || emailCheckPending;
+  const blockContinue = step === 2 && (emailUnavailable || emailCheckPending);
 
   // Track previous countryCode so we can detect changes
   const prevCountryRef = useRef(countryCode);
@@ -131,6 +148,27 @@ export function TenantCreatePageForm() {
     if (!form.getValues("company.tenantCode")) form.setValue("company.tenantCode", codeFromName(displayName));
   }, [displayName, form]);
 
+  useEffect(() => {
+    if (!adminEmailLooksValid) {
+      setEmailToCheck("");
+      return;
+    }
+    const timeout = window.setTimeout(() => setEmailToCheck(normalizedAdminEmail), 500);
+    return () => window.clearTimeout(timeout);
+  }, [adminEmailLooksValid, normalizedAdminEmail]);
+
+  useEffect(() => {
+    const emailError = form.formState.errors.tenantAdministrator?.email;
+    if (emailUnavailable) {
+      form.setError("tenantAdministrator.email", {
+        type: "manual",
+        message: "Email already exists. This email is already associated with an existing user or tenant. Please provide a unique email address for the new Tenant Admin.",
+      });
+    } else if (emailError?.type === "manual") {
+      form.clearErrors("tenantAdministrator.email");
+    }
+  }, [emailUnavailable, form, form.formState.errors.tenantAdministrator?.email]);
+
   const fieldGroups = useMemo(
     () => [
       [
@@ -156,6 +194,7 @@ export function TenantCreatePageForm() {
 
   async function continueStep() {
     const valid = await form.trigger(fieldGroups[step] as Parameters<typeof form.trigger>[0]);
+    if (step === 2 && (emailUnavailable || emailCheckPending)) return;
     if (valid) setStep((current) => Math.min(current + 1, steps.length - 1));
   }
 
@@ -172,11 +211,11 @@ export function TenantCreatePageForm() {
               Cancel
             </Link>
             {step < steps.length - 1 ? (
-              <Button type="button" onClick={continueStep}>
+              <Button type="button" onClick={continueStep} disabled={blockContinue}>
                 Save and continue
               </Button>
             ) : (
-              <Button type="submit" form="create-tenant-form" disabled={mutation.isPending}>
+              <Button type="submit" form="create-tenant-form" disabled={blockCreate}>
                 {mutation.isPending ? "Creating..." : "Create tenant and administrator account"}
               </Button>
             )}
@@ -200,7 +239,9 @@ export function TenantCreatePageForm() {
       <form
         id="create-tenant-form"
         noValidate
-        onSubmit={form.handleSubmit((values) => mutation.mutate(values))}
+        onSubmit={form.handleSubmit((values) => {
+          if (!blockCreate) mutation.mutate(values);
+        })}
       >
         {step === 0 ? (
           <CompanyStep
@@ -212,7 +253,7 @@ export function TenantCreatePageForm() {
         {step === 1 ? (
           <FinancialStep form={form} options={options.data} isLoading={options.isLoading} />
         ) : null}
-        {step === 2 ? <AdminStep form={form} /> : null}
+        {step === 2 ? <AdminStep form={form} isCheckingEmail={emailCheckPending} /> : null}
         {step === 3 ? <ReviewStep form={form} error={mutation.error?.message} /> : null}
       </form>
       <div className="flex justify-between">
@@ -225,11 +266,11 @@ export function TenantCreatePageForm() {
           Back
         </Button>
         {step < steps.length - 1 ? (
-          <Button type="button" onClick={continueStep}>
+          <Button type="button" onClick={continueStep} disabled={blockContinue}>
             Save and continue
           </Button>
         ) : (
-          <Button type="submit" form="create-tenant-form" disabled={mutation.isPending}>
+          <Button type="submit" form="create-tenant-form" disabled={blockCreate}>
             {mutation.isPending ? "Creating..." : "Create tenant and administrator account"}
           </Button>
         )}
@@ -462,7 +503,13 @@ function FinancialStep({
   );
 }
 
-function AdminStep({ form }: { form: ReturnType<typeof useForm<CreateTenantInput>> }) {
+function AdminStep({
+  form,
+  isCheckingEmail,
+}: {
+  form: ReturnType<typeof useForm<CreateTenantInput>>;
+  isCheckingEmail: boolean;
+}) {
   return (
     <Card>
       <CardHeader>
@@ -480,6 +527,7 @@ function AdminStep({ form }: { form: ReturnType<typeof useForm<CreateTenantInput
         </Field>
         <Field
           label="Work email"
+          hint={isCheckingEmail ? "Checking availability" : undefined}
           error={form.formState.errors.tenantAdministrator?.email?.message}
         >
           <Input type="email" {...form.register("tenantAdministrator.email")} />

@@ -20,11 +20,12 @@ type BadgeStatus =
   | WorkloadRisk
   | Tenant["status"]
   | Client["status"]
-  | Client["deliveryHealth"]
   | ServiceEngagement["status"]
   | ServiceEngagement["slaStatus"]
   | WorkGroup["status"]
   | WorkGroup["slaStatus"]
+  | "healthy"
+  | "watch"
   | "not_logged_in";
 
 const tone: Record<

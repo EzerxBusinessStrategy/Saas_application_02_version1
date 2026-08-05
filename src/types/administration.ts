@@ -53,11 +53,12 @@ export const clientSchema = z.object({
   id: z.string(),
   name: z.string(),
   code: z.string(),
+  currencyCode: z.string().default("INR"),
   primaryContact: z.object({ name: z.string(), email: z.string() }),
   activeServices: z.number().int().nonnegative(),
   services: z.array(z.string()),
   managers: z.array(z.string()),
-  deliveryHealth: z.enum(deliveryHealthStates),
+  revenueAmount: z.number().nonnegative(),
   outstandingAmount: z.number().nonnegative(),
   upcomingDeadline: z.string().nullable(),
   status: z.enum(["active", "onboarding", "paused", "archived"]),
@@ -68,6 +69,12 @@ export const clientSchema = z.object({
   documentProgress: z.number().min(0).max(100),
 });
 export type Client = z.infer<typeof clientSchema>;
+
+export const clientOptionSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+});
+export type ClientOption = z.infer<typeof clientOptionSchema>;
 
 export const clientContactSchema = z.object({
   id: z.string(),
@@ -107,6 +114,25 @@ export const engagementSchema = z.object({
   milestones: z.array(z.string()),
 });
 export type ServiceEngagement = z.infer<typeof engagementSchema>;
+
+export const clientDetailSchema = clientSchema.extend({
+  contacts: z.array(clientContactSchema),
+  engagements: z.array(engagementSchema),
+  workGroups: z.array(z.object({
+    id: z.string(),
+    name: z.string(),
+    engagement: z.string(),
+    manager: z.string(),
+    members: z.number().int().nonnegative(),
+    openTasks: z.number().int().nonnegative(),
+    slaStatus: z.enum(["on-track", "watch", "at-risk"]),
+    status: z.enum(["active", "on-hold", "complete"]),
+  })),
+  tasks: z.array(z.record(z.string(), z.unknown())),
+  invoices: z.array(z.record(z.string(), z.unknown())),
+  activity: z.array(z.record(z.string(), z.unknown())),
+});
+export type ClientDetail = z.infer<typeof clientDetailSchema>;
 
 export const workGroupSchema = z.object({
   id: z.string(),
@@ -239,6 +265,12 @@ export const createTenantResponseSchema = z.object({
 });
 export type CreateTenantResponse = z.infer<typeof createTenantResponseSchema>;
 
+export const emailAvailabilitySchema = z.object({
+  available: z.boolean(),
+  reason: z.literal("EMAIL_ALREADY_EXISTS").optional(),
+});
+export type EmailAvailability = z.infer<typeof emailAvailabilitySchema>;
+
 export const tenantBrandingDraftSchema = z.object({
   companyName: z.string().trim().min(2, "Enter a company name.").max(80),
   primaryColour: z.string().regex(/^#[0-9A-Fa-f]{6}$/, "Use a six-digit hex colour."),
@@ -284,10 +316,16 @@ export type ClientListRequest = z.infer<typeof paginationSchema> & {
   status?: Client["status"];
   service?: string;
   manager?: string;
-  deliveryHealth?: Client["deliveryHealth"];
-  balance?: "any" | "outstanding" | "clear";
+  revenueMin?: number;
   deadline?: "any" | "upcoming" | "none";
-  sort?: "name" | "balance" | "deadline";
+  sort?: "name" | "revenue" | "outstanding" | "deadline";
+};
+
+export type ClientListResponse = PaginatedResponse<Client> & {
+  filters: {
+    services: ClientOption[];
+    managers: ClientOption[];
+  };
 };
 
 export type AuditListRequest = z.infer<typeof paginationSchema> & {

@@ -1,5 +1,7 @@
-export const demoSessionCookie = "ezerx-demo-role";
-export const superAdminAccessTokenCookie = "saas-super-admin-access-token";
-export const superAdminRefreshTokenCookie = "saas-super-admin-refresh-token";
-export const superAdminRememberMeCookie = "saas-super-admin-remember-me";
-export const authenticatedWorkspaceCookie = "saas-authenticated-workspace";
+export {
+  authenticatedWorkspaceCookie,
+  demoSessionCookie,
+  superAdminAccessTokenCookie,
+  superAdminRefreshTokenCookie,
+  superAdminRememberMeCookie,
+} from "../../apps/backend/src/auth/auth-cookie-names";

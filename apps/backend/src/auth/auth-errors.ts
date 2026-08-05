@@ -69,6 +69,13 @@ export function invalidTenantSelection(): ForbiddenException {
   });
 }
 
+export function ambiguousTenantMembership(): ForbiddenException {
+  return new ForbiddenException({
+    code: "AMBIGUOUS_TENANT_MEMBERSHIP",
+    message: "User has more than one active tenant membership. Tenant access is not configured correctly.",
+  });
+}
+
 export function invalidTenantSelectionInput(message: string): BadRequestException {
   return new BadRequestException({
     code: "INVALID_TENANT_SELECTION_INPUT",

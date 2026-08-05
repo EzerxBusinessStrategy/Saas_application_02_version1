@@ -12,6 +12,12 @@ import {
   ClientDetail,
   WorkGroupDirectory,
 } from "@/components/tenant-administration/client-management";
+import {
+  clientContacts,
+  clients,
+  engagements,
+  workGroups,
+} from "@/mocks/administration";
 
 const replace = vi.fn();
 const push = vi.fn();
@@ -34,19 +40,54 @@ function renderWithQuery(ui: React.ReactElement) {
 beforeEach(() => {
   replace.mockClear();
   push.mockClear();
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/api/tenant-admin/clients/cl-101")) {
+        return Response.json({
+          ...clients[0],
+          contacts: clientContacts,
+          engagements,
+          workGroups,
+          tasks: [],
+          invoices: [],
+          activity: [],
+        });
+      }
+      if (url.includes("/api/tenant-admin/clients")) {
+        return Response.json({
+          items: clients,
+          page: 1,
+          pageSize: 5,
+          pageCount: 1,
+          totalItems: clients.length,
+          filters: {
+            services: [
+              { id: "svc-tax", name: "Tax compliance" },
+              { id: "svc-accounting", name: "Accounting" },
+            ],
+            managers: [{ id: "mgr-avery", name: "Avery Patel" }],
+          },
+        });
+      }
+      return Response.json({}, { status: 404 });
+    }),
+  );
 });
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  vi.unstubAllGlobals();
 });
 
-test("stores client delivery-health filtering in the URL", async () => {
+test("stores client revenue filtering in the URL", async () => {
   renderWithQuery(<ClientDirectory />);
   await screen.findAllByText("Northstar Labs");
-  fireEvent.change(screen.getByLabelText("Filter delivery health"), {
-    target: { value: "watch" },
+  fireEvent.change(screen.getByLabelText("Filter by revenue"), {
+    target: { value: "20000" },
   });
-  expect(replace).toHaveBeenCalledWith("/admin/clients?health=watch", {
+  expect(replace).toHaveBeenCalledWith("/admin/clients?revenueMin=20000", {
     scroll: false,
   });
 });
@@ -57,7 +98,7 @@ test("supports client detail tab navigation and contact validation", async () =>
   fireEvent.click(screen.getByRole("tab", { name: "Contacts" }));
   await screen.findByText("Client contacts");
   fireEvent.click(screen.getByRole("button", { name: "Add contact" }));
-  fireEvent.click(screen.getByRole("button", { name: "Validate contact" }));
+  fireEvent.click(screen.getByRole("button", { name: "Save contact" }));
   expect(await screen.findByText("Invalid email address")).toBeInTheDocument();
 });
 

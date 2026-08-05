@@ -212,7 +212,7 @@ describe("Phase 3 Supabase authentication and trusted context", () => {
     expect(roleResponse.body.error.code).toBe("ROLE_NOT_ASSIGNED");
   });
 
-  test("requires tenant selection for users with multiple active memberships", async () => {
+  test("rejects users with multiple active memberships as invalid configuration", async () => {
     mockAuthRows(defaultRows());
     mockVerifiedAuthUser(authUserB);
     app = await createAuthTestApp();
@@ -220,9 +220,9 @@ describe("Phase 3 Supabase authentication and trusted context", () => {
     const response = await request(app.getHttpServer())
       .get("/api/v1/me")
       .set("authorization", "Bearer verified-token")
-      .expect(409);
+      .expect(403);
 
-    expect(response.body.error.code).toBe("TENANT_SELECTION_REQUIRED");
+    expect(response.body.error.code).toBe("AMBIGUOUS_TENANT_MEMBERSHIP");
   });
 
   test("keeps concurrent request contexts isolated", async () => {

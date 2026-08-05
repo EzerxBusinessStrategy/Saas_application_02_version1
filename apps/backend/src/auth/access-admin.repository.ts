@@ -47,6 +47,10 @@ export type TenantInvitationCreatedRow = {
   readonly invitation_id: string;
 };
 
+export type DirectTenantAdminCreatedRow = TenantInvitationCreatedRow & {
+  readonly membership_id: string;
+};
+
 export type TenantCreationTemplateRow = {
   readonly id: string;
   readonly country_code: string;
@@ -284,6 +288,74 @@ export class AccessAdminRepository {
         [invitationId, status, reason ?? null],
       );
       return singleRow(result.rows);
+    });
+  }
+
+  async createTenantWithDirectTenantAdministrator(
+    context: RequestContext,
+    input: CreateTenantWithOwnerInvitationInput,
+    supabaseAuthUserId: string,
+  ): Promise<DirectTenantAdminCreatedRow> {
+    return this.withContext(context, async (client) => {
+      const created = await client.query<TenantInvitationCreatedRow>(
+        `select *
+         from private.create_super_admin_tenant(
+           $1::text, $2::text, $3::text, $4::text, $5::text,
+           $6::text, $7::text, $8::text, $9::text, $10::text,
+           $11::text, $12::text, $13::date, $14::date, $15::uuid,
+           $16::text, $17::text, $18::text, $19::text, $20::timestamptz
+         )`,
+        [
+          input.company.displayName,
+          input.company.legalName,
+          input.company.tenantCode,
+          input.company.slug,
+          input.company.countryCode,
+          input.company.reportingCurrencyCode,
+          input.company.timezone,
+          input.company.industry ?? null,
+          input.company.registrationNumber ?? null,
+          input.company.taxIdentifier ?? null,
+          input.financialYear.source,
+          input.financialYear.label,
+          input.financialYear.startsOn,
+          input.financialYear.endsOn,
+          input.financialYear.templateId ?? null,
+          input.financialYear.overrideReason ?? null,
+          input.tenantAdministrator.fullName,
+          input.tenantAdministrator.email,
+          input.tenantAdministrator.phone ?? null,
+          null,
+        ],
+      );
+      const tenant = singleRow(created.rows);
+      const accepted = await client.query<AcceptedInvitationRow>(
+        "select * from private.accept_invitation($1::uuid, $2::uuid, $3::text, $4::text)",
+        [tenant.invitation_id, supabaseAuthUserId, input.tenantAdministrator.email, input.tenantAdministrator.fullName],
+      );
+      const membership = singleRow(accepted.rows);
+      await client.query("select private.set_direct_tenant_administrator_phone($1::uuid, $2::uuid, $3::text)", [
+        tenant.tenant_id,
+        membership.user_id,
+        input.tenantAdministrator.phone,
+      ]);
+      await client.query("select private.activate_direct_tenant_admin_tenant($1::uuid)", [tenant.tenant_id]);
+      return { ...tenant, membership_id: membership.membership_id };
+    });
+  }
+
+  async userEmailExists(context: RequestContext, normalizedEmail: string): Promise<boolean> {
+    return this.withContext(context, async (client) => {
+      const result = await client.query<{ exists: boolean }>(
+        `select exists (
+           select 1
+           from public.users
+           where email_normalized = $1::text
+              or lower(trim(email)) = $1::text
+         )`,
+        [normalizedEmail],
+      );
+      return result.rows[0]?.exists ?? false;
     });
   }
 

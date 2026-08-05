@@ -21,13 +21,20 @@ import { SuperAdminSearchService } from "./super-admin-search.service";
 import { TenantAdminDashboardController } from "./tenant-admin-dashboard.controller";
 import { TenantAdminDashboardRepository } from "./tenant-admin-dashboard.repository";
 import { TenantAdminDashboardService } from "./tenant-admin-dashboard.service";
+import { TenantAdminClientsController } from "./tenant-admin-clients.controller";
+import { TenantAdminClientsRepository } from "./tenant-admin-clients.repository";
+import { TenantAdminClientsService } from "./tenant-admin-clients.service";
 import { TenantAdminEmployeePerformanceController } from "./tenant-admin-employee-performance.controller";
 import { TenantAdminEmployeePerformanceRepository } from "./tenant-admin-employee-performance.repository";
 import { TenantAdminEmployeePerformanceService } from "./tenant-admin-employee-performance.service";
 import { TenantAdminNotificationsController } from "./tenant-admin-notifications.controller";
 import { TenantAdminNotificationsGateway } from "./tenant-admin-notifications.gateway";
+import { TenantAdminNotificationsListener } from "./tenant-admin-notifications-listener.service";
 import { TenantAdminNotificationsRepository } from "./tenant-admin-notifications.repository";
 import { TenantAdminNotificationsService } from "./tenant-admin-notifications.service";
+import { TenantAdminTasksController } from "./tenant-admin-tasks.controller";
+import { TenantAdminTasksRepository } from "./tenant-admin-tasks.repository";
+import { TenantAdminTasksService } from "./tenant-admin-tasks.service";
 import { TenantAnalyticsController } from "./tenant-analytics.controller";
 import { TenantAnalyticsRepository } from "./tenant-analytics.repository";
 import { TenantAnalyticsService } from "./tenant-analytics.service";
@@ -41,8 +48,10 @@ import { TenantAnalyticsService } from "./tenant-analytics.service";
     SuperAdminNotificationsController,
     SuperAdminPlatformConfigurationController,
     TenantAdminDashboardController,
+    TenantAdminClientsController,
     TenantAdminEmployeePerformanceController,
     TenantAdminNotificationsController,
+    TenantAdminTasksController,
     TenantAnalyticsController,
   ],
   providers: [
@@ -60,11 +69,16 @@ import { TenantAnalyticsService } from "./tenant-analytics.service";
     SuperAdminPlatformConfigurationService,
     TenantAdminDashboardRepository,
     TenantAdminDashboardService,
+    TenantAdminClientsRepository,
+    TenantAdminClientsService,
     TenantAdminEmployeePerformanceRepository,
     TenantAdminEmployeePerformanceService,
     TenantAdminNotificationsRepository,
     TenantAdminNotificationsService,
     TenantAdminNotificationsGateway,
+    TenantAdminNotificationsListener,
+    TenantAdminTasksRepository,
+    TenantAdminTasksService,
     TenantAnalyticsRepository,
     TenantAnalyticsService,
   ],

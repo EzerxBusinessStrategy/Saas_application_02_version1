@@ -9,10 +9,10 @@ import { Server, Socket } from "socket.io";
 import { RequestContextResolver } from "../auth/request-context-resolver.service";
 import { SessionPolicyRepository } from "../auth/session-policy.repository";
 import { SupabaseJwtVerifier } from "../auth/supabase-jwt-verifier.service";
+import { superAdminAccessTokenCookie } from "../auth/auth-cookie-names";
 import { NotificationItemDto } from "./super-admin-notifications.dto";
+import { requireTenantAdminContext } from "./tenant-admin-context";
 import { TenantAdminNotificationsRepository } from "./tenant-admin-notifications.repository";
-
-const tenantAdminAccessTokenCookie = "saas-admin-access-token";
 
 @WebSocketGateway({
   namespace: "/tenant-admin/notifications",
@@ -46,24 +46,21 @@ export class TenantAdminNotificationsGateway implements OnGatewayConnection {
         { portal: "admin" },
         randomUUID(),
       );
-      if (resolved.context.isPlatformAdmin || !resolved.context.tenantId || !resolved.context.membershipId) {
-        client.disconnect(true);
-        return;
-      }
-      await this.sessionPolicies.assertActive(resolved.context, verified.sessionId);
+      const tenantContext = requireTenantAdminContext(resolved.context);
+      await this.sessionPolicies.assertActive(tenantContext, verified.sessionId);
 
-      client.data.userId = resolved.context.userId;
-      client.data.tenantId = resolved.context.tenantId;
-      client.join(userRoom(resolved.context.userId));
-      client.emit("notification:ready", { userId: resolved.context.userId, tenantId: resolved.context.tenantId });
+      client.data.userId = tenantContext.userId;
+      client.data.tenantId = tenantContext.tenantId;
+      client.join(tenantUserRoom(tenantContext.tenantId, tenantContext.userId));
+      client.emit("notification:ready", { userId: tenantContext.userId, tenantId: tenantContext.tenantId });
       disconnectAtTokenExpiry(client, verified.expiresAt);
     } catch {
       client.disconnect(true);
     }
   }
 
-  emitNewNotification(userId: string, item: NotificationItemDto): void {
-    this.server?.to(userRoom(userId)).emit("notification:new", item);
+  emitNewNotification(userId: string, tenantId: string, item: NotificationItemDto): void {
+    this.server?.to(tenantUserRoom(tenantId, userId)).emit("notification:new", item);
     void this.repository.markDelivered(userId, item.id);
   }
 }
@@ -78,7 +75,7 @@ function tokenFromSocket(client: Socket): string | undefined {
   if (typeof authToken === "string" && authToken.trim()) return authToken.trim();
   const authorization = client.handshake.headers.authorization;
   if (authorization?.startsWith("Bearer ")) return authorization.slice("Bearer ".length).trim();
-  return cookieValue(client.handshake.headers.cookie, tenantAdminAccessTokenCookie);
+  return cookieValue(client.handshake.headers.cookie, superAdminAccessTokenCookie);
 }
 
 function cookieValue(header: string | undefined, name: string): string | undefined {
@@ -90,6 +87,6 @@ function cookieValue(header: string | undefined, name: string): string | undefin
   return undefined;
 }
 
-function userRoom(userId: string): string {
-  return `user:${userId}`;
+function tenantUserRoom(tenantId: string, userId: string): string {
+  return `tenant:${tenantId}:user:${userId}`;
 }

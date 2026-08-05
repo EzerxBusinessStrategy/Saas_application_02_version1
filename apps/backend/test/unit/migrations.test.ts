@@ -104,4 +104,33 @@ describe("database migrations", () => {
     expect(sql).toContain("previous_status not in ('active', 'pending_activation')");
     expect(sql).toContain("previous_status not in ('active', 'suspended', 'pending_activation')");
   });
+
+  test("allows tenant notification reads only through current tenant context", () => {
+    expect(migrationNames).toContain("0040_tenant_admin_notifications_rls.sql");
+
+    const sql = readFileSync(
+      resolve(__dirname, "../../drizzle/migrations/0040_tenant_admin_notifications_rls.sql"),
+      "utf8",
+    );
+
+    expect(sql).toContain("private.has_tenant_context(tenant_id)");
+    expect(sql).toContain("recipient_user_id = private.current_user_id()");
+    expect(sql).toContain("private.notification_belongs_to_current_tenant(notification_recipients.notification_id)");
+    expect(sql).toContain("security definer");
+  });
+
+  test("normalizes and blocks duplicate Tenant Administrator emails during tenant creation", () => {
+    expect(migrationNames).toContain("0041_tenant_admin_email_uniqueness.sql");
+
+    const sql = readFileSync(
+      resolve(__dirname, "../../drizzle/migrations/0041_tenant_admin_email_uniqueness.sql"),
+      "utf8",
+    );
+
+    expect(sql).toContain("normalized_admin_email text := lower(trim(p_admin_email))");
+    expect(sql).toContain("from public.users");
+    expect(sql).toContain("email_normalized = normalized_admin_email");
+    expect(sql).toContain("raise exception 'Tenant Administrator email already exists.'");
+    expect(sql).toContain("where code = 'TENANT_ADMIN'");
+  });
 });

@@ -160,6 +160,25 @@ describe("administrator-controlled access and membership", () => {
     });
   });
 
+  test("checks Tenant Administrator email availability for tenant creation", async () => {
+    mockVerifiedAuthUser("super-admin@example.com");
+    mockPlatformAuthRows();
+    vi.spyOn(AccessAdminService.prototype, "getEmailAvailability").mockResolvedValue({
+      available: false,
+      reason: "EMAIL_ALREADY_EXISTS",
+    });
+    app = await createAccessAdminTestApp();
+
+    const response = await request(app.getHttpServer())
+      .get("/api/v1/super-admin/users/email-availability")
+      .query({ email: "admin@abc.com" })
+      .set("authorization", "Bearer verified-token")
+      .set("x-portal", "super-admin")
+      .expect(200);
+
+    expect(response.body).toEqual({ available: false, reason: "EMAIL_ALREADY_EXISTS" });
+  });
+
   test("returns a conflict instead of a server error for an invalid tenant lifecycle transition", async () => {
     mockVerifiedAuthUser("super-admin@example.com");
     mockPlatformAuthRows(["tenant.read", "tenant.suspend"]);

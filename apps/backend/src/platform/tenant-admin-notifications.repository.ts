@@ -4,6 +4,7 @@ import { databaseNotConfigured } from "../auth/auth-errors";
 import { DATABASE_POOL } from "../database/database.tokens";
 import { withDatabaseTransaction } from "../database/transaction-context";
 import { TenantAdminRequestContext } from "./tenant-admin-context";
+import { tenantAdminNotificationTypeList } from "./tenant-admin-notification-policy";
 
 export type TenantNotificationRow = {
   readonly id: string;
@@ -49,9 +50,10 @@ export class TenantAdminNotificationsRepository {
           where nr.notification_id = $1
             and n.id = nr.notification_id
             and n.tenant_id = $3
+            and n.type = any($4::text[])
             and nr.recipient_user_id = $2
         `,
-        [notificationId, context.userId, context.tenantId],
+        [notificationId, context.userId, context.tenantId, tenantAdminNotificationTypeList],
       );
     });
   }
@@ -67,8 +69,9 @@ export class TenantAdminNotificationsRepository {
             and nr.recipient_user_id = $1
             and nr.read_at is null
             and n.tenant_id = $2
+            and n.type = any($3::text[])
         `,
-        [context.userId, context.tenantId],
+        [context.userId, context.tenantId, tenantAdminNotificationTypeList],
       );
     });
   }
@@ -86,6 +89,38 @@ export class TenantAdminNotificationsRepository {
     );
   }
 
+  async getForDelivery(
+    userId: string,
+    tenantId: string,
+    notificationId: string,
+  ): Promise<TenantNotificationRow | null> {
+    if (!this.pool) throw databaseNotConfigured();
+    return withDatabaseTransaction(this.pool, { userId, tenantId, isPlatformAdmin: false }, async (_tx, client) => {
+      const result = await client.query<TenantNotificationRow>(
+        `
+          select
+            n.id,
+            n.type,
+            n.title,
+            n.message,
+            n.severity,
+            n.tenant_id,
+            n.action_url,
+            n.created_at,
+            nr.read_at
+          from public.notification_recipients nr
+          join public.notifications n on n.id = nr.notification_id
+          where nr.recipient_user_id = $1
+            and nr.notification_id = $2
+            and n.tenant_id = $3
+            and n.type = any($4::text[])
+        `,
+        [userId, notificationId, tenantId, tenantAdminNotificationTypeList],
+      );
+      return result.rows[0] ?? null;
+    });
+  }
+
   private async unreadCountForClient(
     client: PoolClient,
     userId: string,
@@ -99,8 +134,9 @@ export class TenantAdminNotificationsRepository {
         where nr.recipient_user_id = $1
           and nr.read_at is null
           and n.tenant_id = $2
+          and n.type = any($3::text[])
       `,
-      [userId, tenantId],
+      [userId, tenantId, tenantAdminNotificationTypeList],
     );
     return Number(result.rows[0]?.count ?? 0);
   }
@@ -115,11 +151,12 @@ export class TenantAdminNotificationsRepository {
     const params: unknown[] = [userId, tenantId];
     const conditions = ["nr.recipient_user_id = $1"];
     conditions.push("n.tenant_id = $2");
+    conditions.push(`n.type = any($3::text[])`);
 
     if (status === "UNREAD") conditions.push("nr.read_at is null");
     if (status === "READ") conditions.push("nr.read_at is not null");
 
-    params.push(limit);
+    params.push(tenantAdminNotificationTypeList, limit);
 
     const result = await client.query<TenantNotificationRow>(
       `
