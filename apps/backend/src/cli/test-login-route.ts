@@ -1,3 +1,5 @@
+export {};
+
 async function test() {
   console.log("Calling POST http://localhost:3000/api/auth/login...");
   const start = Date.now();

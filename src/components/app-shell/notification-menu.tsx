@@ -21,6 +21,11 @@ import {
   markAllSuperAdminNotificationsRead,
   markSuperAdminNotificationRead,
 } from "@/features/platform/api/super-admin-notifications-api";
+import {
+  getTenantAdminNotifications,
+  markAllTenantAdminNotificationsRead,
+  markTenantAdminNotificationRead,
+} from "@/features/tenant-admin/api/tenant-admin-notifications-api";
 import { cn } from "@/lib/utils";
 import type { Notification } from "@/types/app-shell";
 import type { Workspace } from "@/types/domain";
@@ -31,8 +36,11 @@ import type {
 
 export type NotificationMenuState = "ready" | "loading" | "error" | "empty";
 
-const notificationsQueryKey = ["super-admin-notifications", "recent"] as const;
-const soundPreferenceKey = "super-admin-notification-sound-enabled";
+const superAdminNotificationsQueryKey = ["super-admin-notifications", "recent"] as const;
+const tenantAdminNotificationsQueryKey = ["tenant-admin-notifications", "recent"] as const;
+
+const superAdminSoundPreferenceKey = "super-admin-notification-sound-enabled";
+const tenantAdminSoundPreferenceKey = "tenant-admin-notification-sound-enabled";
 
 export function NotificationMenu({
   workspace,
@@ -48,6 +56,9 @@ export function NotificationMenu({
   if (workspace === "super-admin") {
     return <SuperAdminNotificationMenu open={open} />;
   }
+  if (workspace === "admin") {
+    return <TenantAdminNotificationMenu open={open} />;
+  }
   return <MockNotificationMenu workspace={workspace} initialItems={initialItems} state={state} open={open} />;
 }
 
@@ -57,7 +68,7 @@ function SuperAdminNotificationMenu({ open }: { open?: boolean }) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const query = useQuery({
-    queryKey: notificationsQueryKey,
+    queryKey: superAdminNotificationsQueryKey,
     queryFn: () => getSuperAdminNotifications({ status: "ALL", limit: 20 }),
     refetchOnWindowFocus: true,
   });
@@ -68,7 +79,7 @@ function SuperAdminNotificationMenu({ open }: { open?: boolean }) {
   const markRead = useMutation({
     mutationFn: markSuperAdminNotificationRead,
     onSuccess: (_result, notificationId) => {
-      queryClient.setQueryData<SuperAdminNotificationsResponse>(notificationsQueryKey, (current) =>
+      queryClient.setQueryData<SuperAdminNotificationsResponse>(superAdminNotificationsQueryKey, (current) =>
         current ? markItemRead(current, notificationId) : current,
       );
     },
@@ -76,7 +87,7 @@ function SuperAdminNotificationMenu({ open }: { open?: boolean }) {
   const markAllRead = useMutation({
     mutationFn: markAllSuperAdminNotificationsRead,
     onSuccess: () => {
-      queryClient.setQueryData<SuperAdminNotificationsResponse>(notificationsQueryKey, (current) =>
+      queryClient.setQueryData<SuperAdminNotificationsResponse>(superAdminNotificationsQueryKey, (current) =>
         current
           ? {
               unreadCount: 0,
@@ -88,7 +99,7 @@ function SuperAdminNotificationMenu({ open }: { open?: boolean }) {
   });
 
   useEffect(() => {
-    const stored = window.localStorage.getItem(soundPreferenceKey);
+    const stored = window.localStorage.getItem(superAdminSoundPreferenceKey);
     setSoundEnabled(stored !== "false");
     audioRef.current = new Audio("/sounds/notification.wav");
     audioRef.current.volume = 0.45;
@@ -104,7 +115,7 @@ function SuperAdminNotificationMenu({ open }: { open?: boolean }) {
     socket.on("notification:new", (item: SuperAdminNotification) => {
       if (processedIds.current.has(item.id)) return;
       processedIds.current.add(item.id);
-      queryClient.setQueryData<SuperAdminNotificationsResponse>(notificationsQueryKey, (current) => {
+      queryClient.setQueryData<SuperAdminNotificationsResponse>(superAdminNotificationsQueryKey, (current) => {
         if (!current) return { unreadCount: 1, items: [item] };
         if (current.items.some((existing) => existing.id === item.id)) return current;
         return { unreadCount: current.unreadCount + 1, items: [item, ...current.items].slice(0, 20) };
@@ -114,11 +125,11 @@ function SuperAdminNotificationMenu({ open }: { open?: boolean }) {
     });
 
     socket.on("connect", () => {
-      void queryClient.invalidateQueries({ queryKey: notificationsQueryKey });
+      void queryClient.invalidateQueries({ queryKey: superAdminNotificationsQueryKey });
     });
 
     socket.on("reconnect", () => {
-      void queryClient.invalidateQueries({ queryKey: notificationsQueryKey });
+      void queryClient.invalidateQueries({ queryKey: superAdminNotificationsQueryKey });
     });
 
     return () => {
@@ -128,7 +139,7 @@ function SuperAdminNotificationMenu({ open }: { open?: boolean }) {
 
   const toggleSound = () => {
     setSoundEnabled((enabled) => {
-      window.localStorage.setItem(soundPreferenceKey, String(!enabled));
+      window.localStorage.setItem(superAdminSoundPreferenceKey, String(!enabled));
       return !enabled;
     });
   };
@@ -179,7 +190,7 @@ function SuperAdminNotificationMenu({ open }: { open?: boolean }) {
           <div className="px-3 py-5 text-sm text-muted-foreground">You&apos;re all caught up.</div>
         ) : null}
         {!query.isLoading && !query.isError && items.length ? (
-          <NotificationList items={items} onRead={(id) => markRead.mutate(id)} />
+          <NotificationList items={items} onRead={(id) => markRead.mutate(id)} defaultHref="/super-admin" />
         ) : null}
         <DropdownMenuSeparator className="my-1 h-px bg-border" />
         <DropdownMenuItem asChild>
@@ -190,12 +201,155 @@ function SuperAdminNotificationMenu({ open }: { open?: boolean }) {
   );
 }
 
+function TenantAdminNotificationMenu({ open }: { open?: boolean }) {
+  const queryClient = useQueryClient();
+  const processedIds = useRef(new Set<string>());
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [soundEnabled, setSoundEnabled] = useState(true);
+
+  const query = useQuery({
+    queryKey: tenantAdminNotificationsQueryKey,
+    queryFn: () => getTenantAdminNotifications({ status: "ALL", limit: 20 }),
+    refetchOnWindowFocus: true,
+  });
+  const data = query.data;
+  const items = data?.items ?? [];
+  const unreadCount = data?.unreadCount ?? 0;
+
+  const markRead = useMutation({
+    mutationFn: markTenantAdminNotificationRead,
+    onSuccess: (_result, notificationId) => {
+      queryClient.setQueryData<SuperAdminNotificationsResponse>(tenantAdminNotificationsQueryKey, (current) =>
+        current ? markItemRead(current, notificationId) : current,
+      );
+    },
+  });
+
+  const markAllRead = useMutation({
+    mutationFn: markAllTenantAdminNotificationsRead,
+    onSuccess: () => {
+      queryClient.setQueryData<SuperAdminNotificationsResponse>(tenantAdminNotificationsQueryKey, (current) =>
+        current
+          ? {
+              unreadCount: 0,
+              items: current.items.map((item) => ({ ...item, readAt: item.readAt ?? new Date().toISOString() })),
+            }
+          : current,
+      );
+    },
+  });
+
+  useEffect(() => {
+    const stored = window.localStorage.getItem(tenantAdminSoundPreferenceKey);
+    setSoundEnabled(stored !== "false");
+    audioRef.current = new Audio("/sounds/notification.wav");
+    audioRef.current.volume = 0.45;
+  }, []);
+
+  useEffect(() => {
+    const socket = io(`${socketBaseUrl()}/tenant-admin/notifications`, {
+      path: "/socket.io",
+      withCredentials: true,
+      transports: ["websocket", "polling"],
+    });
+
+    socket.on("notification:new", (item: SuperAdminNotification) => {
+      if (processedIds.current.has(item.id)) return;
+      processedIds.current.add(item.id);
+      queryClient.setQueryData<SuperAdminNotificationsResponse>(tenantAdminNotificationsQueryKey, (current) => {
+        if (!current) return { unreadCount: 1, items: [item] };
+        if (current.items.some((existing) => existing.id === item.id)) return current;
+        return { unreadCount: current.unreadCount + 1, items: [item, ...current.items].slice(0, 20) };
+      });
+      toast(item.title, { description: item.message });
+      if (soundEnabled) void playNotificationSound(audioRef.current);
+    });
+
+    socket.on("connect", () => {
+      void queryClient.invalidateQueries({ queryKey: tenantAdminNotificationsQueryKey });
+    });
+
+    socket.on("reconnect", () => {
+      void queryClient.invalidateQueries({ queryKey: tenantAdminNotificationsQueryKey });
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, [queryClient, soundEnabled]);
+
+  const toggleSound = () => {
+    setSoundEnabled((enabled) => {
+      window.localStorage.setItem(tenantAdminSoundPreferenceKey, String(!enabled));
+      return !enabled;
+    });
+  };
+
+  return (
+    <DropdownMenu open={open}>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="ghost"
+          size="sm"
+          aria-label={unreadCount ? `Notifications, ${unreadCount} unread` : "Notifications"}
+          className="relative size-10 p-0"
+        >
+          <Bell className="size-[18px]" aria-hidden="true" />
+          {unreadCount ? (
+            <span
+              className="tenant-admin-notification-signal absolute right-1 top-1 grid size-4 place-items-center rounded-full bg-danger text-[10px] font-semibold text-destructive-foreground"
+              aria-hidden="true"
+            >
+              {unreadCount > 99 ? "99+" : unreadCount}
+            </span>
+          ) : null}
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align="end"
+        className="w-[min(24rem,calc(100vw-2rem))] max-md:!fixed max-md:!inset-x-4 max-md:!bottom-4 max-md:!top-auto"
+      >
+        <div className="flex items-center justify-between gap-2 px-3 py-2">
+          <DropdownMenuLabel className="p-0 font-semibold">Notifications</DropdownMenuLabel>
+          <div className="flex items-center gap-1">
+            <Button variant="ghost" size="sm" onClick={toggleSound} title="Toggle notification sound">
+              {soundEnabled ? <Volume2 className="size-4" aria-hidden="true" /> : <VolumeX className="size-4" aria-hidden="true" />}
+              <span className="sr-only">Toggle notification sound</span>
+            </Button>
+            {unreadCount ? (
+              <Button variant="ghost" size="sm" onClick={() => markAllRead.mutate()}>
+                <CheckCheck className="size-4" aria-hidden="true" />
+                Mark all read
+              </Button>
+            ) : null}
+          </div>
+        </div>
+        <DropdownMenuSeparator className="my-1 h-px bg-border" />
+        {query.isLoading ? <NotificationLoading /> : null}
+        {query.isError ? <NotificationError /> : null}
+        {!query.isLoading && !query.isError && !items.length ? (
+          <div className="px-3 py-5 text-sm text-muted-foreground">You&apos;re all caught up.</div>
+        ) : null}
+        {!query.isLoading && !query.isError && items.length ? (
+          <NotificationList items={items} onRead={(id) => markRead.mutate(id)} defaultHref="/admin" />
+        ) : null}
+        <DropdownMenuSeparator className="my-1 h-px bg-border" />
+        <DropdownMenuItem asChild>
+          <Link href="/admin">View all notifications</Link>
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 function NotificationList({
   items,
   onRead,
+  defaultHref,
 }: {
   items: SuperAdminNotification[];
   onRead: (id: string) => void;
+  defaultHref: string;
 }) {
   return (
     <div className="max-h-80 overflow-y-auto p-1">
@@ -205,7 +359,7 @@ function NotificationList({
         return (
           <DropdownMenuItem key={item.id} className="items-start whitespace-normal p-0" asChild>
             <Link
-              href={item.actionUrl ?? "/super-admin"}
+              href={item.actionUrl ?? defaultHref}
               className={cn("flex w-full gap-3 px-3 py-3", unread && "bg-muted/70")}
               onClick={() => {
                 if (unread) onRead(item.id);

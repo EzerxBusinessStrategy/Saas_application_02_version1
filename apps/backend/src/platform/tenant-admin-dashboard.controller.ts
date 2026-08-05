@@ -1,0 +1,39 @@
+import { Controller, Get, Inject, UseGuards } from "@nestjs/common";
+import {
+  ApiBearerAuth,
+  ApiForbiddenResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiTags,
+  ApiUnauthorizedResponse,
+} from "@nestjs/swagger";
+import { ActiveRequestContextGuard } from "../auth/guards/active-request-context.guard";
+import { PermissionGuard } from "../auth/guards/permission.guard";
+import { SupabaseAuthGuard } from "../auth/guards/supabase-auth.guard";
+import { RequirePermissions } from "../auth/permissions.decorator";
+import { CurrentRequestContext } from "../auth/request-context.decorator";
+import { RequestContext } from "../auth/request-context";
+import { ApiErrorResponseDto } from "../common/errors/api-error.dto";
+import { TenantAdminDashboardResponseDto } from "./tenant-admin-dashboard.dto";
+import { TenantAdminDashboardService } from "./tenant-admin-dashboard.service";
+
+@ApiTags("Tenant Admin")
+@ApiBearerAuth()
+@Controller("tenant-admin/dashboard")
+@UseGuards(SupabaseAuthGuard, ActiveRequestContextGuard, PermissionGuard)
+export class TenantAdminDashboardController {
+  constructor(
+    @Inject(TenantAdminDashboardService)
+    private readonly service: TenantAdminDashboardService,
+  ) {}
+
+  @Get()
+  @RequirePermissions("tenant.read")
+  @ApiOperation({ summary: "Read tenant-scoped operational overview dashboard data for the authenticated Tenant Admin." })
+  @ApiOkResponse({ type: TenantAdminDashboardResponseDto })
+  @ApiUnauthorizedResponse({ type: ApiErrorResponseDto })
+  @ApiForbiddenResponse({ type: ApiErrorResponseDto })
+  getDashboard(@CurrentRequestContext() context: RequestContext): Promise<TenantAdminDashboardResponseDto> {
+    return this.service.getDashboard(context);
+  }
+}

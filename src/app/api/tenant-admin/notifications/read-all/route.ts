@@ -1,9 +1,10 @@
 import { proxyTenantAdminBackend } from "@/lib/server/tenant-admin-backend-proxy";
 
-export async function GET() {
+export async function PATCH() {
   return proxyTenantAdminBackend({
-    path: "/tenant-admin/dashboard",
+    path: "/tenant-admin/notifications/read-all",
+    init: { method: "PATCH" },
     unauthenticatedMessage: "Tenant Admin session required.",
-    unavailableMessage: "Performance SLA service unavailable.",
+    unavailableMessage: "Tenant Admin notifications service unavailable.",
   });
 }
