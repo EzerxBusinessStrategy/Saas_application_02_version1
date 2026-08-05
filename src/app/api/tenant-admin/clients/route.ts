@@ -9,3 +9,15 @@ export async function GET(request: NextRequest) {
     unavailableMessage: "Clients unavailable.",
   });
 }
+
+export async function POST(request: NextRequest) {
+  return proxyTenantAdminBackend({
+    path: "/tenant-admin/clients",
+    init: {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: await request.text(),
+    },
+    unavailableMessage: "Client could not be created.",
+  });
+}

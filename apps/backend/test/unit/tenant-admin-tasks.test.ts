@@ -111,4 +111,57 @@ describe("TenantAdminTasksRepository", () => {
       assigneeCount: 1,
     });
   });
+
+  it("validates existing task rates against tenant, client, service, and active dates", async () => {
+    type QueryClient = {
+      query(sqlText: string, params: readonly unknown[]): Promise<{ rows: Array<Record<string, unknown>> }>;
+    };
+
+    const queries: string[] = [];
+    const params: unknown[][] = [];
+    const client: QueryClient = {
+      query: vi.fn(async (sqlText: string, values: readonly unknown[]) => {
+        queries.push(sqlText);
+        params.push([...values]);
+        return { rows: [{ id: "rate-1", rate_amount: "1500.00", currency_code: "INR" }] };
+      }),
+    };
+    const repository = new TenantAdminTasksRepository(null);
+    const resolveBillingRate = (
+      repository as unknown as {
+        resolveBillingRate(
+          client: QueryClient,
+          context: unknown,
+          input: unknown,
+          defaultCurrencyCode: string,
+        ): Promise<{ rateCardItemId: string; quantity: number; unitRate: number; currencyCode: string }>;
+      }
+    ).resolveBillingRate.bind(repository);
+
+    const result = await resolveBillingRate(
+      client,
+      { tenantId: "tenant-1", membershipId: "member-1" },
+      {
+        clientId: "client-1",
+        serviceId: "service-1",
+        billing: { rateSource: "existing", rateCardItemId: "rate-1", quantity: 1 },
+      },
+      "INR",
+    );
+    const sql = queries.join("\n");
+
+    expect(result).toEqual({
+      rateCardItemId: "rate-1",
+      quantity: 1,
+      unitRate: 1500,
+      currencyCode: "INR",
+    });
+    expect(sql).toContain("rci.tenant_id = $1");
+    expect(sql).toContain("rci.service_id = $3");
+    expect(sql).toContain("(rc.client_id = $4 or rc.client_id is null)");
+    expect(sql).toContain("rci.status = 'active'");
+    expect(sql).toContain("rc.status = 'active'");
+    expect(sql).toContain("current_date between rc.effective_from");
+    expect(params[0]).toEqual(["tenant-1", "rate-1", "service-1", "client-1"]);
+  });
 });

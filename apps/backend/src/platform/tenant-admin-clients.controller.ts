@@ -9,9 +9,11 @@ import { RequestContext } from "../auth/request-context";
 import { ZodValidationPipe } from "../common/validation/zod-validation.pipe";
 import {
   tenantAdminClientsQuerySchema,
+  tenantAdminClientCreateSchema,
   tenantAdminContactInputSchema,
   tenantAdminContactUpdateSchema,
   TenantAdminClientContactDto,
+  TenantAdminClientCreateInput,
   TenantAdminClientDetailDto,
   TenantAdminClientsQuery,
   TenantAdminClientsResponseDto,
@@ -35,6 +37,17 @@ export class TenantAdminClientsController {
     @Query(new ZodValidationPipe(tenantAdminClientsQuerySchema)) query: TenantAdminClientsQuery,
   ): Promise<TenantAdminClientsResponseDto> {
     return this.service.list(context, query);
+  }
+
+  @Post()
+  @RequirePermissions("client.update")
+  @ApiOperation({ summary: "Create a tenant-scoped client." })
+  @ApiOkResponse({ type: TenantAdminClientDetailDto })
+  create(
+    @CurrentRequestContext() context: RequestContext,
+    @Body(new ZodValidationPipe(tenantAdminClientCreateSchema)) body: TenantAdminClientCreateInput,
+  ): Promise<TenantAdminClientDetailDto> {
+    return this.service.create(context, body);
   }
 
   @Get(":clientRef")

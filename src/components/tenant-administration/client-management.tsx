@@ -7,6 +7,7 @@ import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ArrowUpDown, MoreHorizontal, Plus } from "lucide-react";
+import { toast } from "sonner";
 import { DataTable } from "@/components/operations/data-table";
 import { ConfirmationDialog } from "@/components/shared/confirmation-dialog";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -37,6 +38,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
+  createClient,
   createClientContact,
   getClient,
   listClients,
@@ -45,9 +47,11 @@ import {
 } from "@/features/administration/api/administration-api";
 import { clients, managers } from "@/mocks/administration";
 import {
+  clientCreateInputSchema,
   clientContactInputSchema,
   type Client,
   type ClientContact,
+  type ClientCreateInput,
   type ClientContactInput,
   type ClientListRequest,
   type WorkGroup,
@@ -62,6 +66,7 @@ const formatMoney = (amount: number, currencyCode: string) =>
     currency: currencyCode,
     maximumFractionDigits: 0,
   }).format(amount);
+const billingUnitLabel = (value: string) => value.replace("per_", "per ");
 const date = new Intl.DateTimeFormat("en-US", {
   month: "short",
   day: "numeric",
@@ -148,6 +153,8 @@ export function ClientDirectory() {
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const queryClient = useQueryClient();
+  const [createOpen, setCreateOpen] = useState(false);
   const request = useMemo<ClientListRequest>(
     () => ({
       query: searchParams.get("query") ?? undefined,
@@ -172,6 +179,13 @@ export function ClientDirectory() {
     queryKey: ["clients", request],
     queryFn: () => listClients(request),
   });
+  const saveClient = async (values: ClientCreateInput) => {
+    const client = await createClient(values);
+    await queryClient.invalidateQueries({ queryKey: ["clients"] });
+    setCreateOpen(false);
+    toast.success("Client created.");
+    router.push(`/admin/clients/${client.id}`);
+  };
   const setParam = (key: string, value: string) =>
     updateUrl(pathname, new URLSearchParams(searchParams), router, key, value);
   const setParams = (updates: Record<string, string>) => {
@@ -353,6 +367,12 @@ export function ClientDirectory() {
         eyebrow="Tenant Admin"
         title="Clients"
         description="Manage client delivery context, contacts, service engagements, and due work."
+        actions={
+          <Button onClick={() => setCreateOpen(true)}>
+            <Plus className="size-4" aria-hidden="true" />
+            Create client
+          </Button>
+        }
       />
       <Card>
         <CardHeader>
@@ -524,7 +544,107 @@ export function ClientDirectory() {
           )}
         </CardContent>
       </Card>
+      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+        <DialogContent
+          title="Create client"
+          description="Create a tenant-scoped client record and primary contact."
+        >
+          <CreateClientForm onClose={() => setCreateOpen(false)} onSave={saveClient} />
+        </DialogContent>
+      </Dialog>
     </div>
+  );
+}
+
+function CreateClientForm({
+  onClose,
+  onSave,
+}: {
+  onClose: () => void;
+  onSave: (values: ClientCreateInput) => Promise<void>;
+}) {
+  const form = useForm<ClientCreateInput>({
+    resolver: zodResolver(clientCreateInputSchema),
+    defaultValues: {
+      displayName: "",
+      legalName: "",
+      code: "",
+      primaryContact: {
+        name: "",
+        role: "",
+        email: "",
+        phone: "",
+      },
+    },
+  });
+  return (
+    <form className="grid gap-4" noValidate onSubmit={form.handleSubmit(onSave)}>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <label className="text-sm font-medium sm:col-span-2">
+          Client name
+          <Input
+            className="mt-1"
+            aria-invalid={Boolean(form.formState.errors.displayName)}
+            {...form.register("displayName")}
+          />
+          {form.formState.errors.displayName ? (
+            <span className="mt-1 block text-xs text-danger">{form.formState.errors.displayName.message}</span>
+          ) : null}
+        </label>
+        <label className="text-sm font-medium">
+          Legal name
+          <Input className="mt-1" {...form.register("legalName")} />
+        </label>
+        <label className="text-sm font-medium">
+          Client ID
+          <Input className="mt-1 uppercase" placeholder="Auto-generated if empty" {...form.register("code")} />
+        </label>
+      </div>
+      <div className="border-t pt-4">
+        <h2 className="text-sm font-semibold">Primary contact</h2>
+        <div className="mt-3 grid gap-4 sm:grid-cols-2">
+          <label className="text-sm font-medium">
+            Name
+            <Input
+              className="mt-1"
+              aria-invalid={Boolean(form.formState.errors.primaryContact?.name)}
+              {...form.register("primaryContact.name")}
+            />
+            {form.formState.errors.primaryContact?.name ? (
+              <span className="mt-1 block text-xs text-danger">{form.formState.errors.primaryContact.name.message}</span>
+            ) : null}
+          </label>
+          <label className="text-sm font-medium">
+            Role
+            <Input className="mt-1" {...form.register("primaryContact.role")} />
+          </label>
+          <label className="text-sm font-medium">
+            Email
+            <Input
+              className="mt-1"
+              type="email"
+              aria-invalid={Boolean(form.formState.errors.primaryContact?.email)}
+              {...form.register("primaryContact.email")}
+            />
+            {form.formState.errors.primaryContact?.email ? (
+              <span className="mt-1 block text-xs text-danger">{form.formState.errors.primaryContact.email.message}</span>
+            ) : null}
+          </label>
+          <label className="text-sm font-medium">
+            Phone
+            <Input className="mt-1" {...form.register("primaryContact.phone")} />
+          </label>
+        </div>
+      </div>
+      <div className="flex justify-end gap-2">
+        <Button type="button" variant="outline" onClick={onClose}>
+          Cancel
+        </Button>
+        <Button type="submit" disabled={form.formState.isSubmitting}>
+          {form.formState.isSubmitting ? "Creating..." : "Create client"}
+        </Button>
+      </div>
+    </form>
   );
 }
 
@@ -1016,6 +1136,64 @@ export function ClientDetail({ clientId }: { clientId: string }) {
                 {formatMoney(client.outstandingAmount, client.currencyCode)}
               </p>
             </div>
+          </div>
+          <div className="mb-6">
+            <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <p className="font-medium">Rate Card</p>
+                <p className="text-sm text-muted-foreground">
+                  Active reusable rates and task-only archived rates for this client.
+                </p>
+              </div>
+            </div>
+            {client.rateItems.length ? (
+              <div className="overflow-x-auto border">
+                <table className="min-w-full divide-y text-sm">
+                  <thead className="bg-muted/40 text-left text-xs uppercase text-muted-foreground">
+                    <tr>
+                      <th className="px-4 py-3 font-medium">Service</th>
+                      <th className="px-4 py-3 font-medium">Task type</th>
+                      <th className="px-4 py-3 font-medium">Unit</th>
+                      <th className="px-4 py-3 font-medium">Rate</th>
+                      <th className="px-4 py-3 font-medium">Effective</th>
+                      <th className="px-4 py-3 font-medium">Status</th>
+                      <th className="px-4 py-3 font-medium">Tasks</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {client.rateItems.map((rate) => (
+                      <tr key={rate.id}>
+                        <td className="px-4 py-3">{rate.service}</td>
+                        <td className="px-4 py-3">
+                          <p className="font-medium">{rate.taskType}</p>
+                          <p className="text-xs text-muted-foreground">{rate.rateCardName}</p>
+                        </td>
+                        <td className="px-4 py-3 capitalize">{billingUnitLabel(rate.billingUnit)}</td>
+                        <td className="px-4 py-3 font-medium">
+                          {formatMoney(rate.rateAmount, rate.currencyCode)}
+                          {rate.taxCode ? (
+                            <span className="ml-1 text-xs text-muted-foreground">+ {rate.taxCode}</span>
+                          ) : null}
+                        </td>
+                        <td className="px-4 py-3 text-muted-foreground">
+                          {date.format(new Date(rate.effectiveFrom))}
+                          {rate.effectiveTo ? ` - ${date.format(new Date(rate.effectiveTo))}` : ""}
+                        </td>
+                        <td className="px-4 py-3">
+                          <StatusBadge status={rate.status} />
+                        </td>
+                        <td className="px-4 py-3">{rate.tasksUsingRate}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <EmptyState
+                title="No rate-card items"
+                description="Rates created from the task form will appear here."
+              />
+            )}
           </div>
           {client.invoices.length ? (
             <ul className="flex flex-col divide-y">

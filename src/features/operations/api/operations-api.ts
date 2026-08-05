@@ -102,11 +102,23 @@ const tenantAdminTaskSlaStatusSchema = z.enum([
   "not_applicable",
 ]);
 const taskOptionSchema = z.object({ id: z.string(), name: z.string() });
+const tenantAdminRateItemSchema = z.object({
+  id: z.string(),
+  clientId: z.string().nullable(),
+  serviceId: z.string(),
+  label: z.string(),
+  taskType: z.string(),
+  unitType: z.enum(["per_task", "per_hour", "per_filing", "per_unit"]),
+  rateAmount: z.number(),
+  currencyCode: z.string(),
+  taxCode: z.string().nullable(),
+});
 const tenantAdminTaskOptionsSchema = z.object({
   clients: z.array(taskOptionSchema),
   services: z.array(taskOptionSchema),
   employees: z.array(taskOptionSchema.extend({ employeeCode: z.string().nullable() })),
   workGroups: z.array(taskOptionSchema.extend({ clientId: z.string().nullable() })),
+  rateItems: z.array(tenantAdminRateItemSchema),
 });
 const tenantAdminTaskSchema = z.object({
   id: z.string(),
@@ -139,6 +151,24 @@ export type CreateTenantAdminTaskInput = {
   plannedDueAt?: string;
   workGroupId?: string;
   employeeIds: string[];
+  billing:
+    | {
+        rateSource: "existing";
+        rateCardItemId: string;
+        quantity: number;
+      }
+    | {
+        rateSource: "new";
+        taskType: string;
+        unitType: "per_task" | "per_hour" | "per_filing" | "per_unit";
+        rateAmount: number;
+        currencyCode: string;
+        taxCode?: string;
+        effectiveFrom: string;
+        saveToRateCard: boolean;
+        oneTimeReason?: string;
+        quantity: number;
+      };
 };
 const employeeId = "emp-riley";
 const managerId = "mgr-avery";

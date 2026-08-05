@@ -19,6 +19,19 @@ export const tenantAdminClientsQuerySchema = z.object({
 });
 export type TenantAdminClientsQuery = z.infer<typeof tenantAdminClientsQuerySchema>;
 
+export const tenantAdminClientCreateSchema = z.object({
+  displayName: z.string().trim().min(2).max(160),
+  legalName: z.string().trim().max(220).optional().default(""),
+  code: z.string().trim().max(40).optional().default(""),
+  primaryContact: z.object({
+    name: z.string().trim().min(2).max(160),
+    role: z.string().trim().max(160).optional().default(""),
+    email: z.string().trim().email(),
+    phone: z.string().trim().max(40).optional().default(""),
+  }).optional(),
+});
+export type TenantAdminClientCreateInput = z.infer<typeof tenantAdminClientCreateSchema>;
+
 export const tenantAdminContactInputSchema = z.object({
   name: z.string().trim().min(2).max(160).optional(),
   role: z.string().trim().max(160).optional().default(""),
@@ -160,6 +173,44 @@ export class TenantAdminClientsResponseDto {
   filters!: TenantAdminClientFiltersDto;
 }
 
+export class TenantAdminClientRateItemDto {
+  @ApiProperty({ type: String, format: "uuid" })
+  id!: string;
+
+  @ApiProperty({ type: String })
+  rateCardName!: string;
+
+  @ApiProperty({ type: String })
+  service!: string;
+
+  @ApiProperty({ type: String })
+  taskType!: string;
+
+  @ApiProperty({ type: String })
+  billingUnit!: string;
+
+  @ApiProperty({ type: Number })
+  rateAmount!: number;
+
+  @ApiProperty({ type: String })
+  currencyCode!: string;
+
+  @ApiPropertyOptional({ type: String, nullable: true })
+  taxCode!: string | null;
+
+  @ApiProperty({ type: String, format: "date" })
+  effectiveFrom!: string;
+
+  @ApiPropertyOptional({ type: String, format: "date", nullable: true })
+  effectiveTo!: string | null;
+
+  @ApiProperty({ enum: ["active", "archived"] })
+  status!: "active" | "archived";
+
+  @ApiProperty({ type: Number })
+  tasksUsingRate!: number;
+}
+
 export class TenantAdminClientDetailDto extends TenantAdminClientItemDto {
   @ApiProperty({ type: () => [TenantAdminClientContactDto] })
   contacts!: readonly TenantAdminClientContactDto[];
@@ -175,6 +226,9 @@ export class TenantAdminClientDetailDto extends TenantAdminClientItemDto {
 
   @ApiProperty({ type: Array })
   invoices!: readonly Record<string, unknown>[];
+
+  @ApiProperty({ type: () => [TenantAdminClientRateItemDto] })
+  rateItems!: readonly TenantAdminClientRateItemDto[];
 
   @ApiProperty({ type: Array })
   activity!: readonly Record<string, unknown>[];

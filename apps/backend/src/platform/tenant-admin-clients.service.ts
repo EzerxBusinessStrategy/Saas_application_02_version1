@@ -2,6 +2,7 @@ import { Inject, Injectable } from "@nestjs/common";
 import { RequestContext } from "../auth/request-context";
 import { requireTenantAdminContext } from "./tenant-admin-context";
 import {
+  TenantAdminClientCreateInput,
   TenantAdminClientDetailDto,
   TenantAdminClientsQuery,
   TenantAdminClientsResponseDto,
@@ -23,6 +24,10 @@ export class TenantAdminClientsService {
 
   detail(context: RequestContext, clientRef: string): Promise<TenantAdminClientDetailDto> {
     return this.repository.detail(requireTenantAdminContext(context), clientRef);
+  }
+
+  create(context: RequestContext, input: TenantAdminClientCreateInput): Promise<TenantAdminClientDetailDto> {
+    return this.repository.create(requireTenantAdminContext(context), input);
   }
 
   createContact(

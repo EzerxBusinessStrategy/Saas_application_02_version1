@@ -70,6 +70,19 @@ export const clientSchema = z.object({
 });
 export type Client = z.infer<typeof clientSchema>;
 
+export const clientCreateInputSchema = z.object({
+  displayName: z.string().trim().min(2, "Enter the client name.").max(160),
+  legalName: z.string().trim().max(220).optional().or(z.literal("")),
+  code: z.string().trim().max(40).optional().or(z.literal("")),
+  primaryContact: z.object({
+    name: z.string().trim().min(2, "Enter the contact name.").max(160),
+    role: z.string().trim().max(160).optional().or(z.literal("")),
+    email: z.string().trim().email("Enter a valid email."),
+    phone: z.string().trim().max(40).optional().or(z.literal("")),
+  }),
+});
+export type ClientCreateInput = z.infer<typeof clientCreateInputSchema>;
+
 export const clientOptionSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -115,6 +128,22 @@ export const engagementSchema = z.object({
 });
 export type ServiceEngagement = z.infer<typeof engagementSchema>;
 
+export const clientRateItemSchema = z.object({
+  id: z.string(),
+  rateCardName: z.string(),
+  service: z.string(),
+  taskType: z.string(),
+  billingUnit: z.string(),
+  rateAmount: z.number(),
+  currencyCode: z.string(),
+  taxCode: z.string().nullable(),
+  effectiveFrom: z.string(),
+  effectiveTo: z.string().nullable(),
+  status: z.enum(["active", "archived"]),
+  tasksUsingRate: z.number().int().nonnegative(),
+});
+export type ClientRateItem = z.infer<typeof clientRateItemSchema>;
+
 export const clientDetailSchema = clientSchema.extend({
   contacts: z.array(clientContactSchema),
   engagements: z.array(engagementSchema),
@@ -130,6 +159,7 @@ export const clientDetailSchema = clientSchema.extend({
   })),
   tasks: z.array(z.record(z.string(), z.unknown())),
   invoices: z.array(z.record(z.string(), z.unknown())),
+  rateItems: z.array(clientRateItemSchema),
   activity: z.array(z.record(z.string(), z.unknown())),
 });
 export type ClientDetail = z.infer<typeof clientDetailSchema>;

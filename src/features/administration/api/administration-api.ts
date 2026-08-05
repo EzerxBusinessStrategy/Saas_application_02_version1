@@ -20,6 +20,7 @@ import {
   workGroupSchema,
   type AuditListRequest,
   type ClientContactInput,
+  type ClientCreateInput,
   type ClientListRequest,
   type ClientListResponse,
   type CreateTenantInput,
@@ -238,6 +239,20 @@ export async function getClient(clientId: string) {
   await redirectToLoginOnUnauthorized(response);
   if (response.status === 404) return null;
   if (!response.ok) throw new Error("Client details could not load.");
+  return clientDetailSchema.parse(await response.json());
+}
+
+export async function createClient(input: ClientCreateInput) {
+  const response = await fetch("/api/tenant-admin/clients", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  await redirectToLoginOnUnauthorized(response);
+  if (!response.ok) {
+    const body = await response.json().catch(() => null);
+    throw new Error(body?.error?.message ?? body?.message ?? "Client could not be created.");
+  }
   return clientDetailSchema.parse(await response.json());
 }
 

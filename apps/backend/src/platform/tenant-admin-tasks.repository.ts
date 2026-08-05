@@ -19,6 +19,18 @@ export type TenantAdminWorkGroupOption = TenantAdminTaskOption & {
   readonly clientId: string | null;
 };
 
+export type TenantAdminRateCardItemOption = {
+  readonly id: string;
+  readonly clientId: string | null;
+  readonly serviceId: string;
+  readonly label: string;
+  readonly taskType: string;
+  readonly unitType: "per_task" | "per_hour" | "per_filing" | "per_unit";
+  readonly rateAmount: number;
+  readonly currencyCode: string;
+  readonly taxCode: string | null;
+};
+
 export type TenantAdminTaskRow = {
   readonly id: string;
   readonly title: string;
@@ -60,6 +72,14 @@ export type TenantAdminTaskOptions = {
   readonly services: readonly TenantAdminTaskOption[];
   readonly employees: readonly TenantAdminEmployeeOption[];
   readonly workGroups: readonly TenantAdminWorkGroupOption[];
+  readonly rateItems: readonly TenantAdminRateCardItemOption[];
+};
+
+type TaskPricing = {
+  readonly rateCardItemId: string;
+  readonly quantity: number;
+  readonly unitRate: number;
+  readonly currencyCode: string;
 };
 
 @Injectable()
@@ -72,6 +92,7 @@ export class TenantAdminTasksRepository {
       services: await this.getServices(client, context.tenantId),
       employees: await this.getEmployees(client, context.tenantId),
       workGroups: await this.getWorkGroups(client, context.tenantId),
+      rateItems: await this.getRateItems(client, context.tenantId),
     }));
   }
 
@@ -102,6 +123,7 @@ export class TenantAdminTasksRepository {
       if (input.workGroupId) {
         await this.assertWorkGroupExists(client, context.tenantId, input.workGroupId, input.clientId);
       }
+      const pricing = await this.resolveBillingRate(client, context, input, tenant.currencyCode ?? "INR");
 
       const employeeIds = await this.resolveEmployeeIds(client, context.tenantId, input.employeeIds, input.workGroupId);
       const taskResult = await client.query<{ id: string }>(
@@ -118,6 +140,8 @@ export class TenantAdminTasksRepository {
             priority,
             status,
             planned_due_at,
+            rate_card_item_id,
+            billable_status,
             created_by,
             updated_by
           )
@@ -134,7 +158,9 @@ export class TenantAdminTasksRepository {
             $10,
             $11,
             $12,
-            $12
+            'pending_completion',
+            $13,
+            $13
           )
           returning id::text
         `,
@@ -150,6 +176,7 @@ export class TenantAdminTasksRepository {
           input.priority,
           employeeIds.length ? "assigned" : "open",
           input.plannedDueAt ? new Date(input.plannedDueAt) : null,
+          pricing.rateCardItemId,
           context.membershipId,
         ],
       );
@@ -157,6 +184,8 @@ export class TenantAdminTasksRepository {
       if (!taskId) {
         throw new ConflictException({ code: "TASK_CREATE_FAILED", message: "Task could not be created." });
       }
+
+      await this.createPendingBillableEntry(client, context.tenantId, taskId, input.clientId, pricing);
 
       for (const employeeId of employeeIds) {
         await client.query(
@@ -190,6 +219,8 @@ export class TenantAdminTasksRepository {
             serviceId: input.serviceId,
             workGroupId: input.workGroupId ?? null,
             assigneeCount: employeeIds.length,
+            rateCardItemId: pricing.rateCardItemId,
+            rateSource: input.billing.rateSource,
           }),
         ],
       );
@@ -264,12 +295,239 @@ export class TenantAdminTasksRepository {
     return result.rows.map((row) => ({ id: row.id, name: row.name, clientId: row.client_id }));
   }
 
-  private async getTenantProfile(client: PoolClient, tenantId: string): Promise<{ readonly countryCode: string | null } | null> {
-    const result = await client.query<{ country_code: string | null }>(
-      "select country as country_code from public.tenants where id = $1",
+  private async getRateItems(client: PoolClient, tenantId: string): Promise<readonly TenantAdminRateCardItemOption[]> {
+    const result = await client.query<{
+      id: string;
+      client_id: string | null;
+      service_id: string;
+      task_type: string;
+      unit_type: TenantAdminRateCardItemOption["unitType"];
+      rate_amount: string;
+      currency_code: string;
+      tax_code: string | null;
+    }>(
+      `
+        select
+          rci.id::text,
+          rc.client_id::text,
+          rci.service_id::text,
+          rci.task_type,
+          rci.unit_type,
+          rci.rate_amount,
+          rc.currency_code,
+          rci.tax_code
+        from public.rate_card_items rci
+        join public.rate_cards rc
+          on rc.id = rci.rate_card_id
+         and rc.tenant_id = rci.tenant_id
+        where rci.tenant_id = $1
+          and rci.status = 'active'
+          and rc.status = 'active'
+          and current_date between rc.effective_from and coalesce(rc.effective_to, '9999-12-31'::date)
+        order by rc.client_id nulls last, rci.task_type asc, rci.rate_amount asc
+      `,
       [tenantId],
     );
-    return result.rows[0] ? { countryCode: result.rows[0].country_code } : null;
+    return result.rows.map((row) => ({
+      id: row.id,
+      clientId: row.client_id,
+      serviceId: row.service_id,
+      taskType: row.task_type,
+      unitType: row.unit_type,
+      rateAmount: Number(row.rate_amount),
+      currencyCode: row.currency_code,
+      taxCode: row.tax_code,
+      label: `${row.task_type} - ${formatCurrency(Number(row.rate_amount), row.currency_code)} ${unitLabel(row.unit_type)}`,
+    }));
+  }
+
+  private async getTenantProfile(
+    client: PoolClient,
+    tenantId: string,
+  ): Promise<{ readonly countryCode: string | null; readonly currencyCode: string | null } | null> {
+    const result = await client.query<{ country_code: string | null; currency_code: string | null }>(
+      "select country as country_code, currency as currency_code from public.tenants where id = $1",
+      [tenantId],
+    );
+    return result.rows[0] ? { countryCode: result.rows[0].country_code, currencyCode: result.rows[0].currency_code } : null;
+  }
+
+  private async resolveBillingRate(
+    client: PoolClient,
+    context: TenantAdminRequestContext,
+    input: CreateTenantAdminTaskRequest,
+    defaultCurrencyCode: string,
+  ): Promise<TaskPricing> {
+    if (input.billing.rateSource === "existing") {
+      const result = await client.query<{ id: string; rate_amount: string; currency_code: string }>(
+        `
+          select rci.id::text, rci.rate_amount, rc.currency_code
+          from public.rate_card_items rci
+          join public.rate_cards rc
+            on rc.id = rci.rate_card_id
+           and rc.tenant_id = rci.tenant_id
+          where rci.tenant_id = $1
+            and rci.id = $2
+            and rci.service_id = $3
+            and rci.status = 'active'
+            and rc.status = 'active'
+            and (rc.client_id = $4 or rc.client_id is null)
+            and current_date between rc.effective_from and coalesce(rc.effective_to, '9999-12-31'::date)
+          order by rc.client_id nulls last
+          limit 1
+        `,
+        [context.tenantId, input.billing.rateCardItemId, input.serviceId, input.clientId],
+      );
+      if (!result.rows[0]) {
+        throw new BadRequestException({ code: "RATE_NOT_AVAILABLE", message: "Select an active rate for this client and service." });
+      }
+      return {
+        rateCardItemId: result.rows[0].id,
+        quantity: input.billing.quantity,
+        unitRate: Number(result.rows[0].rate_amount),
+        currencyCode: result.rows[0].currency_code,
+      };
+    }
+
+    const rateCardId = await this.getOrCreateRateCard(
+      client,
+      context,
+      input.clientId,
+      input.billing.currencyCode || defaultCurrencyCode,
+      input.billing.effectiveFrom,
+    );
+    const inserted = await client.query<{ id: string }>(
+      `
+        insert into public.rate_card_items (
+          tenant_id, rate_card_id, service_id, task_type, unit_type, rate_amount, tax_code, status
+        )
+        values ($1, $2, $3, $4, $5, $6, nullif($7, ''), $8)
+        returning id::text
+      `,
+      [
+        context.tenantId,
+        rateCardId,
+        input.serviceId,
+        input.billing.taskType,
+        input.billing.unitType,
+        input.billing.rateAmount,
+        input.billing.taxCode ?? "",
+        input.billing.saveToRateCard ? "active" : "archived",
+      ],
+    );
+    const rateCardItemId = inserted.rows[0]?.id;
+    if (!rateCardItemId) throw new ConflictException({ code: "RATE_CREATE_FAILED", message: "Rate could not be created." });
+
+    await client.query(
+      "select audit.write_audit_event('RATE_CARD_ITEM_CREATED_FROM_TASK', 'rate_card_item', $1::uuid, 'succeeded', null, $2::jsonb)",
+      [
+        rateCardItemId,
+        JSON.stringify({
+          clientId: input.clientId,
+          serviceId: input.serviceId,
+          taskType: input.billing.taskType,
+          rateAmount: input.billing.rateAmount,
+          currencyCode: input.billing.currencyCode,
+          saveToRateCard: input.billing.saveToRateCard,
+          oneTimeReason: input.billing.oneTimeReason || null,
+        }),
+      ],
+    );
+    return {
+      rateCardItemId,
+      quantity: input.billing.quantity,
+      unitRate: input.billing.rateAmount,
+      currencyCode: input.billing.currencyCode || defaultCurrencyCode,
+    };
+  }
+
+  private async createPendingBillableEntry(
+    client: PoolClient,
+    tenantId: string,
+    taskId: string,
+    clientId: string,
+    pricing: TaskPricing,
+  ): Promise<void> {
+    const grossAmount = pricing.quantity * pricing.unitRate;
+    await client.query(
+      `
+        insert into public.billable_task_entries (
+          tenant_id,
+          task_id,
+          client_id,
+          rate_card_item_id,
+          currency_code,
+          quantity,
+          unit_rate,
+          gross_amount,
+          discount_type,
+          discount_value,
+          discount_amount,
+          tax_amount,
+          net_amount,
+          status
+        )
+        values ($1, $2, $3, $4, $5, $6, $7, $8, null, null, 0, 0, $8, 'pending_completion')
+      `,
+      [
+        tenantId,
+        taskId,
+        clientId,
+        pricing.rateCardItemId,
+        pricing.currencyCode,
+        pricing.quantity,
+        pricing.unitRate,
+        grossAmount,
+      ],
+    );
+  }
+
+  private async getOrCreateRateCard(
+    client: PoolClient,
+    context: TenantAdminRequestContext,
+    clientId: string,
+    currencyCode: string,
+    effectiveFrom: string,
+  ): Promise<string> {
+    const existing = await client.query<{ id: string }>(
+      `
+        select id::text
+        from public.rate_cards
+        where tenant_id = $1
+          and client_id = $2
+          and currency_code = $3
+          and status = 'active'
+        order by effective_from desc
+        limit 1
+      `,
+      [context.tenantId, clientId, currencyCode],
+    );
+    if (existing.rows[0]) return existing.rows[0].id;
+
+    const clientRow = await client.query<{ name: string }>(
+      "select display_name as name from public.clients where tenant_id = $1 and id = $2",
+      [context.tenantId, clientId],
+    );
+    const inserted = await client.query<{ id: string }>(
+      `
+        insert into public.rate_cards (
+          tenant_id, client_id, name, country_code, currency_code, effective_from, created_by
+        )
+        values ($1, $2, $3, null, $4, $5, $6)
+        returning id::text
+      `,
+      [
+        context.tenantId,
+        clientId,
+        `Default Rate Card - ${clientRow.rows[0]?.name ?? "Client"}`,
+        currencyCode,
+        effectiveFrom,
+        context.membershipId,
+      ],
+    );
+    const rateCardId = inserted.rows[0]?.id;
+    if (!rateCardId) throw new ConflictException({ code: "RATE_CARD_CREATE_FAILED", message: "Rate card could not be created." });
+    return rateCardId;
   }
 
   private async getCurrentFinancialYearId(client: PoolClient, tenantId: string): Promise<string | null> {
@@ -496,4 +754,19 @@ export class TenantAdminTasksRepository {
     if (!this.pool) throw databaseNotConfigured();
     return withDatabaseTransaction(this.pool, context, (_tx, client) => work(client));
   }
+}
+
+function formatCurrency(amount: number, currencyCode: string): string {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: currencyCode,
+    maximumFractionDigits: 2,
+  }).format(amount);
+}
+
+function unitLabel(unitType: TenantAdminRateCardItemOption["unitType"]): string {
+  if (unitType === "per_hour") return "per hour";
+  if (unitType === "per_filing") return "per filing";
+  if (unitType === "per_unit") return "per unit";
+  return "per task";
 }

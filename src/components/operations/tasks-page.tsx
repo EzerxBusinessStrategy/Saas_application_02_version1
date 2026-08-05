@@ -600,6 +600,17 @@ const emptyTenantTaskInput = {
   plannedDueAt: "",
   workGroupId: "",
   employeeIds: [] as string[],
+  rateSource: "existing" as "existing" | "new",
+  rateCardItemId: "",
+  taskType: "",
+  unitType: "per_task" as "per_task" | "per_hour" | "per_filing" | "per_unit",
+  rateAmount: "",
+  currencyCode: "INR",
+  taxCode: "",
+  effectiveFrom: new Date().toISOString().slice(0, 10),
+  saveToRateCard: true,
+  oneTimeReason: "",
+  quantity: "1",
 };
 
 function TenantAdminCreateTaskAction({
@@ -617,6 +628,26 @@ function TenantAdminCreateTaskAction({
   const workGroups = options.workGroups.filter(
     (group) => !group.clientId || group.clientId === clientId,
   );
+  const matchingRates = options.rateItems.filter(
+    (rate) =>
+      rate.serviceId === input.serviceId &&
+      (!rate.clientId || rate.clientId === clientId) &&
+      (!input.taskType || rate.taskType.toLowerCase().includes(input.taskType.toLowerCase())),
+  );
+  const selectedRate = matchingRates.find((rate) => rate.id === input.rateCardItemId);
+  const quantity = Math.max(0, Number(input.quantity) || 0);
+  const unitRate =
+    input.rateSource === "existing"
+      ? (selectedRate?.rateAmount ?? 0)
+      : Math.max(0, Number(input.rateAmount) || 0);
+  const estimatedAmount = quantity * unitRate;
+  const estimateCurrency = selectedRate?.currencyCode ?? input.currencyCode;
+  const safeCurrency = /^[A-Z]{3}$/.test(estimateCurrency) ? estimateCurrency : "INR";
+  const money = new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: safeCurrency,
+    maximumFractionDigits: 2,
+  });
   const toggleEmployee = (employeeId: string) => {
     setInput((current) => ({
       ...current,
@@ -637,6 +668,25 @@ function TenantAdminCreateTaskAction({
         plannedDueAt: input.plannedDueAt ? new Date(input.plannedDueAt).toISOString() : undefined,
         workGroupId: input.workGroupId || undefined,
         employeeIds: input.employeeIds,
+        billing:
+          input.rateSource === "existing"
+            ? {
+                rateSource: "existing",
+                rateCardItemId: input.rateCardItemId,
+                quantity,
+              }
+            : {
+                rateSource: "new",
+                taskType: input.taskType.trim(),
+                unitType: input.unitType,
+                rateAmount: unitRate,
+                currencyCode: input.currencyCode,
+                taxCode: input.taxCode.trim() || undefined,
+                effectiveFrom: input.effectiveFrom,
+                saveToRateCard: input.saveToRateCard,
+                oneTimeReason: input.saveToRateCard ? undefined : input.oneTimeReason.trim(),
+                quantity,
+              },
       });
       toast.success("Task created.");
       setOpen(false);
@@ -666,7 +716,9 @@ function TenantAdminCreateTaskAction({
               <Select
                 className="mt-1"
                 value={input.serviceId}
-                onChange={(event) => setInput((current) => ({ ...current, serviceId: event.target.value }))}
+                onChange={(event) =>
+                  setInput((current) => ({ ...current, serviceId: event.target.value, rateCardItemId: "" }))
+                }
               >
                 <option value="">Select service</option>
                 {options.services.map((service) => (
@@ -760,12 +812,175 @@ function TenantAdminCreateTaskAction({
               If no employee is selected, an active work group assigns the task to its active members.
             </p>
           </fieldset>
+          <fieldset className="mt-5 rounded-[var(--radius-card)] border p-4">
+            <legend className="px-1 text-sm font-semibold">Billing and Rate</legend>
+            <div className="mt-3 grid gap-4 sm:grid-cols-2">
+              <div className="flex gap-4 text-sm sm:col-span-2">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    className="size-4 accent-primary"
+                    checked={input.rateSource === "existing"}
+                    onChange={() => setInput((current) => ({ ...current, rateSource: "existing" }))}
+                  />
+                  Use existing rate
+                </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    className="size-4 accent-primary"
+                    checked={input.rateSource === "new"}
+                    onChange={() => setInput((current) => ({ ...current, rateSource: "new" }))}
+                  />
+                  Create new rate
+                </label>
+              </div>
+              {input.rateSource === "existing" ? (
+                <label className="text-sm font-medium sm:col-span-2">
+                  Existing rate
+                  <Select
+                    className="mt-1"
+                    value={input.rateCardItemId}
+                    onChange={(event) => setInput((current) => ({ ...current, rateCardItemId: event.target.value }))}
+                  >
+                    <option value="">Select rate</option>
+                    {matchingRates.map((rate) => (
+                      <option key={rate.id} value={rate.id}>
+                        {rate.label}
+                      </option>
+                    ))}
+                  </Select>
+                  {input.serviceId && !matchingRates.length ? (
+                    <span className="mt-1 block text-xs text-muted-foreground">
+                      No active rate exists for this client and service. Create a new rate below.
+                    </span>
+                  ) : null}
+                </label>
+              ) : (
+                <>
+                  <label className="text-sm font-medium">
+                    Task type
+                    <Input
+                      className="mt-1"
+                      value={input.taskType}
+                      onChange={(event) => setInput((current) => ({ ...current, taskType: event.target.value }))}
+                    />
+                  </label>
+                  <label className="text-sm font-medium">
+                    Billing unit
+                    <Select
+                      className="mt-1"
+                      value={input.unitType}
+                      onChange={(event) =>
+                        setInput((current) => ({
+                          ...current,
+                          unitType: event.target.value as typeof input.unitType,
+                        }))
+                      }
+                    >
+                      <option value="per_task">Per task</option>
+                      <option value="per_hour">Per hour</option>
+                      <option value="per_filing">Per filing</option>
+                      <option value="per_unit">Per unit</option>
+                    </Select>
+                  </label>
+                  <label className="text-sm font-medium">
+                    Rate
+                    <Input
+                      className="mt-1"
+                      min="0"
+                      step="0.01"
+                      type="number"
+                      value={input.rateAmount}
+                      onChange={(event) => setInput((current) => ({ ...current, rateAmount: event.target.value }))}
+                    />
+                  </label>
+                  <label className="text-sm font-medium">
+                    Currency
+                    <Input
+                      className="mt-1 uppercase"
+                      maxLength={3}
+                      value={input.currencyCode}
+                      onChange={(event) =>
+                        setInput((current) => ({ ...current, currencyCode: event.target.value.toUpperCase() }))
+                      }
+                    />
+                  </label>
+                  <label className="text-sm font-medium">
+                    Tax code
+                    <Input
+                      className="mt-1"
+                      value={input.taxCode}
+                      onChange={(event) => setInput((current) => ({ ...current, taxCode: event.target.value }))}
+                    />
+                  </label>
+                  <label className="text-sm font-medium">
+                    Effective from
+                    <Input
+                      className="mt-1"
+                      type="date"
+                      value={input.effectiveFrom}
+                      onChange={(event) => setInput((current) => ({ ...current, effectiveFrom: event.target.value }))}
+                    />
+                  </label>
+                  <label className="flex items-center gap-2 text-sm sm:col-span-2">
+                    <input
+                      type="checkbox"
+                      className="size-4 accent-primary"
+                      checked={input.saveToRateCard}
+                      onChange={(event) =>
+                        setInput((current) => ({ ...current, saveToRateCard: event.target.checked }))
+                      }
+                    />
+                    Save to Rate Card and reuse
+                  </label>
+                  {!input.saveToRateCard ? (
+                    <label className="text-sm font-medium sm:col-span-2">
+                      One-time rate reason
+                      <Input
+                        className="mt-1"
+                        value={input.oneTimeReason}
+                        onChange={(event) => setInput((current) => ({ ...current, oneTimeReason: event.target.value }))}
+                      />
+                    </label>
+                  ) : null}
+                </>
+              )}
+              <label className="text-sm font-medium">
+                Quantity
+                <Input
+                  className="mt-1"
+                  min="0.0001"
+                  step="0.0001"
+                  type="number"
+                  value={input.quantity}
+                  onChange={(event) => setInput((current) => ({ ...current, quantity: event.target.value }))}
+                />
+              </label>
+              <div className="text-sm">
+                <p className="text-muted-foreground">Estimated amount</p>
+                <p className="mt-1 text-lg font-semibold">{money.format(estimatedAmount)}</p>
+              </div>
+            </div>
+          </fieldset>
           <div className="mt-6 flex justify-end gap-2">
             <Button variant="outline" onClick={() => setOpen(false)}>
               Cancel
             </Button>
             <Button
-              disabled={isSaving || !input.serviceId || input.title.trim().length < 3}
+              disabled={
+                isSaving ||
+                !input.serviceId ||
+                input.title.trim().length < 3 ||
+                quantity <= 0 ||
+                (input.rateSource === "existing" && !input.rateCardItemId) ||
+                (input.rateSource === "new" &&
+                  (!input.taskType.trim() ||
+                    !input.rateAmount ||
+                    !input.currencyCode ||
+                    !input.effectiveFrom ||
+                    (!input.saveToRateCard && !input.oneTimeReason.trim())))
+              }
               onClick={() => void submit()}
             >
               {isSaving ? "Creating..." : "Create task"}

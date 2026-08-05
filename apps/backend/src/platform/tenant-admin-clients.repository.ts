@@ -1,10 +1,10 @@
-import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { Pool, PoolClient } from "pg";
 import { databaseNotConfigured } from "../auth/auth-errors";
 import { DATABASE_POOL } from "../database/database.tokens";
 import { withDatabaseTransaction } from "../database/transaction-context";
 import { TenantAdminRequestContext } from "./tenant-admin-context";
-import { TenantAdminClientsQuery, TenantAdminContactInput } from "./tenant-admin-clients.dto";
+import { TenantAdminClientCreateInput, TenantAdminClientsQuery, TenantAdminContactInput } from "./tenant-admin-clients.dto";
 
 type ClientRow = {
   readonly id: string;
@@ -68,6 +68,86 @@ export class TenantAdminClientsRepository {
         workGroups: await this.getWorkGroups(client, context.tenantId, clientId),
         tasks: await this.getTasks(client, context.tenantId, clientId),
         invoices: await this.getInvoices(client, context.tenantId, clientId),
+        rateItems: await this.getRateItems(client, context.tenantId, clientId),
+        activity: await this.getActivity(client, context.tenantId, clientId),
+      };
+    });
+  }
+
+  async create(context: TenantAdminRequestContext, input: TenantAdminClientCreateInput) {
+    return this.withContext(context, async (client) => {
+      const code = input.code ? normalizeClientCode(input.code) : await this.nextClientCode(client, context.tenantId);
+      const inserted = await client.query<{ id: string }>(
+        `
+          insert into public.clients (
+            tenant_id,
+            code,
+            legal_name,
+            display_name,
+            status,
+            onboarding_status
+          )
+          values ($1, $2, $3, $4, 'active', 'pending')
+          returning id::text
+        `,
+        [context.tenantId, code, input.legalName || input.displayName, input.displayName],
+      ).catch((error: unknown) => {
+        if (isUniqueViolation(error)) {
+          throw new ConflictException({ code: "CLIENT_CODE_EXISTS", message: "A client with this code already exists." });
+        }
+        throw error;
+      });
+      const clientId = inserted.rows[0]?.id;
+      if (!clientId) throw new ConflictException({ code: "CLIENT_CREATE_FAILED", message: "Client could not be created." });
+
+      if (input.primaryContact) {
+        await client.query(
+          `
+            insert into public.client_contacts (
+              tenant_id,
+              client_id,
+              name,
+              role_title,
+              email,
+              phone,
+              preference,
+              primary_contact,
+              notes,
+              status
+            )
+            values ($1, $2, $3, $4, $5, $6, 'email', true, '', 'active')
+          `,
+          [
+            context.tenantId,
+            clientId,
+            input.primaryContact.name,
+            input.primaryContact.role ?? "",
+            input.primaryContact.email,
+            input.primaryContact.phone ?? "",
+          ],
+        );
+      }
+
+      await client.query(
+        "select audit.write_audit_event('CLIENT_CREATED', 'client', $1::uuid, 'succeeded', null, $2::jsonb)",
+        [clientId, JSON.stringify({ clientId, code, displayName: input.displayName })],
+      );
+      const rows = await this.getClientRows(client, context.tenantId, {
+        page: 1,
+        pageSize: 1,
+        sort: "name",
+        deadline: "any",
+        clientId,
+      } as TenantAdminClientsQuery & { clientId: string });
+      if (!rows[0]) throw new ConflictException({ code: "CLIENT_CREATE_FAILED", message: "Client could not be loaded after creation." });
+      return {
+        ...mapClient(rows[0]),
+        contacts: await this.getContacts(client, context.tenantId, clientId),
+        engagements: [],
+        workGroups: [],
+        tasks: [],
+        invoices: [],
+        rateItems: [],
         activity: await this.getActivity(client, context.tenantId, clientId),
       };
     });
@@ -316,6 +396,19 @@ export class TenantAdminClientsRepository {
     return id;
   }
 
+  private async nextClientCode(client: PoolClient, tenantId: string): Promise<string> {
+    const result = await client.query<{ next_number: string }>(
+      `
+        select coalesce(max(substring(code from '^CL-([0-9]+)$')::int), 100) + 1 as next_number
+        from public.clients
+        where tenant_id = $1
+          and code ~ '^CL-[0-9]+$'
+      `,
+      [tenantId],
+    );
+    return `CL-${String(Number(result.rows[0]?.next_number ?? 101)).padStart(3, "0")}`;
+  }
+
   private async getServiceOptions(client: PoolClient, tenantId: string) {
     const result = await client.query<{ id: string; name: string }>(
       "select id::text, name from public.services where tenant_id = $1 and status = 'active' order by name",
@@ -457,6 +550,45 @@ export class TenantAdminClientsRepository {
     return result.rows;
   }
 
+  private async getRateItems(client: PoolClient, tenantId: string, clientId: string) {
+    const result = await client.query(
+      `
+        select
+          rci.id::text,
+          rc.name as "rateCardName",
+          s.name as service,
+          rci.task_type as "taskType",
+          rci.unit_type as "billingUnit",
+          rci.rate_amount::float as "rateAmount",
+          rc.currency_code as "currencyCode",
+          rci.tax_code as "taxCode",
+          rc.effective_from::text as "effectiveFrom",
+          rc.effective_to::text as "effectiveTo",
+          case when rci.status = 'archived' then 'archived' else 'active' end as status,
+          count(distinct t.id)::int as "tasksUsingRate"
+        from public.rate_card_items rci
+        join public.rate_cards rc
+          on rc.id = rci.rate_card_id
+         and rc.tenant_id = rci.tenant_id
+        join public.services s
+          on s.id = rci.service_id
+         and s.tenant_id = rci.tenant_id
+        left join public.tasks t
+          on t.rate_card_item_id = rci.id
+         and t.tenant_id = rci.tenant_id
+         and t.client_id = $2
+        where rci.tenant_id = $1
+          and (rc.client_id = $2 or rc.client_id is null)
+          and rc.status = 'active'
+          and rci.status in ('active', 'archived')
+        group by rci.id, rc.name, s.name, rci.task_type, rci.unit_type, rci.rate_amount, rc.currency_code, rci.tax_code, rc.effective_from, rc.effective_to, rci.status
+        order by rci.status asc, s.name asc, rci.task_type asc
+      `,
+      [tenantId, clientId],
+    );
+    return result.rows;
+  }
+
   private async getActivity(client: PoolClient, tenantId: string, clientId: string) {
     const result = await client.query(
       `
@@ -500,4 +632,12 @@ function mapClient(row: ClientRow) {
     onboardingProgress: Number(row.onboarding_progress),
     documentProgress: Number(row.document_progress),
   };
+}
+
+function normalizeClientCode(code: string): string {
+  return code.trim().toUpperCase().replace(/\s+/g, "-");
+}
+
+function isUniqueViolation(error: unknown): boolean {
+  return typeof error === "object" && error !== null && "code" in error && error.code === "23505";
 }
