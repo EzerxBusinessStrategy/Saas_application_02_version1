@@ -17,6 +17,7 @@ import {
   OrganisationManagement,
   TenantSettings,
 } from "@/components/tenant-administration/workforce-administration";
+import { TenantEmployeePerformancePage } from "@/components/tenant-administration/employee-performance";
 import { ClientPortal } from "@/components/operations/client-portal";
 import { EmployeeWorkspace } from "@/components/operations/employee-workspace";
 import { FinanceDocuments } from "@/components/operations/finance-documents";
@@ -43,6 +44,14 @@ export default async function Section({
     return (
       <FeatureBoundary role={user.role} permissions={access.permissions ?? []}>
         <EmployeeDirectory />
+      </FeatureBoundary>
+    );
+  }
+  if (section === "employee-performance" && workspace === "admin") {
+    const user = workspaceConfig(workspace).user;
+    return (
+      <FeatureBoundary role={user.role} permissions={["employee.read"]}>
+        <TenantEmployeePerformancePage />
       </FeatureBoundary>
     );
   }

@@ -5,39 +5,46 @@ import type { DashboardMetricsResult } from "../../src/platform/tenant-admin-das
 import { TenantAdminDashboardRepository } from "../../src/platform/tenant-admin-dashboard.repository";
 
 describe("TenantAdminDashboardService", () => {
-  it("allows platform-admin request context to access tenant dashboard data via fallback tenant", async () => {
-    const repository = {
-      getDashboardData: vi.fn().mockResolvedValue({
-        tenant: { id: "tenant-1", name: "Demo12", currencyCode: "INR" },
-        financialYear: null,
-        metrics: {
-          activeClients: 2,
-          totalSalesAmount: null,
-          collectedAmount: null,
-          outstandingAmount: null,
-          currencyCode: "INR",
-          openTasks: 5,
-          overdueTasks: 0,
-          slaCompliancePercent: null,
-          employeeUtilisationPercent: null,
-        },
-        recentActivity: [],
-      }),
-    } as unknown as TenantAdminDashboardRepository;
+  it("rejects platform admin and incomplete tenant contexts before querying", async () => {
+    const repository = { getDashboardData: vi.fn() } as unknown as TenantAdminDashboardRepository;
     const service = new TenantAdminDashboardService(repository);
 
-    const platformContext: RequestContext = {
-      userId: "user-1",
-      authUserId: "auth-user-1",
-      isPlatformAdmin: true,
-      roles: ["SUPER_ADMIN"],
-      permissions: [],
-      requestId: "req-1",
-    };
+    const deniedContexts: RequestContext[] = [
+      {
+        userId: "user-1",
+        authUserId: "auth-user-1",
+        isPlatformAdmin: true,
+        roles: ["SUPER_ADMIN"],
+        permissions: [],
+        requestId: "req-1",
+      },
+      {
+        userId: "user-2",
+        authUserId: "auth-user-2",
+        tenantId: "tenant-1",
+        isPlatformAdmin: false,
+        roles: ["TENANT_ADMIN"],
+        permissions: ["tenant.read"],
+        requestId: "req-2",
+      },
+      {
+        userId: "user-3",
+        authUserId: "auth-user-3",
+        tenantId: "tenant-1",
+        membershipId: "member-1",
+        isPlatformAdmin: false,
+        roles: ["EMPLOYEE"],
+        permissions: ["tenant.read"],
+        requestId: "req-3",
+      },
+    ];
 
-    const res = await service.getDashboard(platformContext);
-    expect(res.tenant.name).toBe("Demo12");
-    expect(repository.getDashboardData).toHaveBeenCalledWith(platformContext);
+    for (const context of deniedContexts) {
+      await expect(service.getDashboard(context)).rejects.toThrow(
+        "Selected portal is not available for this membership.",
+      );
+    }
+    expect(repository.getDashboardData).not.toHaveBeenCalled();
   });
 
   it("automatically uses current active financial year and formats dashboard metrics", async () => {
@@ -53,8 +60,6 @@ describe("TenantAdminDashboardService", () => {
           currencyCode: "INR",
           openTasks: 12,
           overdueTasks: 2,
-          slaCompliancePercent: null,
-          employeeUtilisationPercent: null,
         },
         recentActivity: [
           { action: "Created tenant invoice", actor: "Priya Nair", createdAt: new Date("2026-08-05T10:00:00Z") },
@@ -99,8 +104,6 @@ describe("TenantAdminDashboardService", () => {
           currencyCode: "USD",
           openTasks: 8,
           overdueTasks: 0,
-          slaCompliancePercent: 100,
-          employeeUtilisationPercent: null,
         },
         recentActivity: [],
       }),
@@ -151,8 +154,6 @@ describe("TenantAdminDashboardService", () => {
               collected: "400.00",
               open_tasks: 3,
               overdue_tasks: 1,
-              sla_measured: 2,
-              sla_met: 1,
             },
           ],
         };
@@ -173,9 +174,9 @@ describe("TenantAdminDashboardService", () => {
     const result = await getMetrics(client, "tenant-1", "fy-1", "INR");
 
     expect(queries.join("\n")).not.toContain("public.credit_notes");
+    expect(queries.join("\n")).not.toContain("sla_status");
     expect(result.totalSalesAmount).toBe("1000.00");
     expect(result.collectedAmount).toBe("400.00");
     expect(result.outstandingAmount).toBe("600.00");
-    expect(result.slaCompliancePercent).toBe(50);
   });
 });

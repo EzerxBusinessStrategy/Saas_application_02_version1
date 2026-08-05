@@ -4,13 +4,9 @@ import { TenantAdminEmployeePerformanceService } from "../../src/platform/tenant
 import { TenantAdminEmployeePerformanceRepository } from "../../src/platform/tenant-admin-employee-performance.repository";
 
 describe("TenantAdminEmployeePerformanceService", () => {
-  it("allows platform admin request context to access employee performance data via fallback tenant", async () => {
+  it("rejects platform admin context before querying employee performance data", async () => {
     const repository = {
-      getPerformanceData: vi.fn().mockResolvedValue({
-        period: { from: "2026-04-01", to: "2027-03-31", label: "FY 2026–27" },
-        tenantCurrency: "INR",
-        rows: [],
-      }),
+      getPerformanceData: vi.fn(),
     } as unknown as TenantAdminEmployeePerformanceRepository;
     const service = new TenantAdminEmployeePerformanceService(repository);
 
@@ -23,15 +19,16 @@ describe("TenantAdminEmployeePerformanceService", () => {
       requestId: "req-1",
     };
 
-    const res = await service.getPerformanceList(platformContext, {});
-    expect(res.period.label).toBe("FY 2026–27");
-    expect(repository.getPerformanceData).toHaveBeenCalled();
+    await expect(service.getPerformanceList(platformContext, {})).rejects.toThrow(
+      "Selected portal is not available for this membership.",
+    );
+    expect(repository.getPerformanceData).not.toHaveBeenCalled();
   });
 
   it("ranks eligible employees using SLA efficiency and completion scores", async () => {
     const repository = {
       getPerformanceData: vi.fn().mockResolvedValue({
-        period: { from: "2026-04-01", to: "2027-03-31", label: "FY 2026–27" },
+        period: { from: "2026-04-01", to: "2027-03-31", label: "FY 2026-27" },
         tenantCurrency: "INR",
         rows: [
           {
@@ -49,8 +46,8 @@ describe("TenantAdminEmployeePerformanceService", () => {
             on_time_completed_tasks: 8,
             sla_measured_tasks: 9,
             sla_met_tasks: 8,
-            total_actual_sla_minutes: 900, // 100m avg
-            total_target_sla_minutes: 1800, // SLA ratio = 0.50 (very fast!)
+            total_actual_sla_minutes: 900,
+            total_target_sla_minutes: 1800,
             sla_minutes_array: [90, 100, 110, 100, 95, 105, 100, 100, 100],
             attributed_revenue: 150000,
             currency_code: "INR",
@@ -70,8 +67,8 @@ describe("TenantAdminEmployeePerformanceService", () => {
             on_time_completed_tasks: 2,
             sla_measured_tasks: 4,
             sla_met_tasks: 2,
-            total_actual_sla_minutes: 1200, // 300m avg
-            total_target_sla_minutes: 1000, // SLA ratio = 1.20 (slow)
+            total_actual_sla_minutes: 1200,
+            total_target_sla_minutes: 1000,
             sla_minutes_array: [300, 300, 300, 300],
             attributed_revenue: 50000,
             currency_code: "INR",
@@ -115,7 +112,7 @@ describe("TenantAdminEmployeePerformanceService", () => {
   it("marks employees with fewer than 3 completed tasks as ineligible for top ranking", async () => {
     const repository = {
       getPerformanceData: vi.fn().mockResolvedValue({
-        period: { from: "2026-04-01", to: "2027-03-31", label: "FY 2026–27" },
+        period: { from: "2026-04-01", to: "2027-03-31", label: "FY 2026-27" },
         tenantCurrency: "INR",
         rows: [
           {

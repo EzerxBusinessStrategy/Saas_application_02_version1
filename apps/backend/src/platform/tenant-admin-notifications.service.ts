@@ -9,6 +9,7 @@ import {
   TenantAdminNotificationsRepository,
   TenantNotificationRow,
 } from "./tenant-admin-notifications.repository";
+import { requireTenantAdminContext } from "./tenant-admin-context";
 
 @Injectable()
 export class TenantAdminNotificationsService {
@@ -18,7 +19,7 @@ export class TenantAdminNotificationsService {
   ) {}
 
   async list(context: RequestContext, query: SuperAdminNotificationsQuery): Promise<NotificationsResponseDto> {
-    const rows = await this.repository.list(context, query.status, query.limit);
+    const rows = await this.repository.list(requireTenantAdminContext(context), query.status, query.limit);
     return {
       unreadCount: rows.unreadCount,
       items: rows.items.map(mapNotification),
@@ -26,15 +27,15 @@ export class TenantAdminNotificationsService {
   }
 
   async unreadCount(context: RequestContext): Promise<number> {
-    return this.repository.unreadCount(context);
+    return this.repository.unreadCount(requireTenantAdminContext(context));
   }
 
   async markRead(context: RequestContext, notificationId: string): Promise<void> {
-    await this.repository.markRead(context, notificationId);
+    await this.repository.markRead(requireTenantAdminContext(context), notificationId);
   }
 
   async markAllRead(context: RequestContext): Promise<void> {
-    await this.repository.markAllRead(context);
+    await this.repository.markAllRead(requireTenantAdminContext(context));
   }
 }
 

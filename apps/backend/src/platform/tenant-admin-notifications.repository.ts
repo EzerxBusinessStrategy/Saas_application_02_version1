@@ -1,9 +1,9 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { Pool, PoolClient } from "pg";
 import { databaseNotConfigured } from "../auth/auth-errors";
-import { RequestContext } from "../auth/request-context";
 import { DATABASE_POOL } from "../database/database.tokens";
 import { withDatabaseTransaction } from "../database/transaction-context";
+import { TenantAdminRequestContext } from "./tenant-admin-context";
 
 export type TenantNotificationRow = {
   readonly id: string;
@@ -22,7 +22,7 @@ export class TenantAdminNotificationsRepository {
   constructor(@Inject(DATABASE_POOL) private readonly pool: Pool | null) {}
 
   async list(
-    context: RequestContext,
+    context: TenantAdminRequestContext,
     status?: "ALL" | "UNREAD" | "READ",
     limit: number = 20,
   ): Promise<{ readonly unreadCount: number; readonly items: readonly TenantNotificationRow[] }> {
@@ -33,27 +33,30 @@ export class TenantAdminNotificationsRepository {
     });
   }
 
-  async unreadCount(context: RequestContext): Promise<number> {
+  async unreadCount(context: TenantAdminRequestContext): Promise<number> {
     return this.withContext(context, (client) =>
       this.unreadCountForClient(client, context.userId, context.tenantId),
     );
   }
 
-  async markRead(context: RequestContext, notificationId: string): Promise<void> {
+  async markRead(context: TenantAdminRequestContext, notificationId: string): Promise<void> {
     await this.withContext(context, async (client) => {
       await client.query(
         `
-          update public.notification_recipients
+          update public.notification_recipients nr
           set read_at = coalesce(read_at, now())
-          where notification_id = $1
-            and recipient_user_id = $2
+          from public.notifications n
+          where nr.notification_id = $1
+            and n.id = nr.notification_id
+            and n.tenant_id = $3
+            and nr.recipient_user_id = $2
         `,
-        [notificationId, context.userId],
+        [notificationId, context.userId, context.tenantId],
       );
     });
   }
 
-  async markAllRead(context: RequestContext): Promise<void> {
+  async markAllRead(context: TenantAdminRequestContext): Promise<void> {
     await this.withContext(context, async (client) => {
       await client.query(
         `
@@ -63,7 +66,7 @@ export class TenantAdminNotificationsRepository {
           where n.id = nr.notification_id
             and nr.recipient_user_id = $1
             and nr.read_at is null
-            and (n.tenant_id = $2 or n.tenant_id is null)
+            and n.tenant_id = $2
         `,
         [context.userId, context.tenantId],
       );
@@ -86,15 +89,8 @@ export class TenantAdminNotificationsRepository {
   private async unreadCountForClient(
     client: PoolClient,
     userId: string,
-    tenantId: string | undefined,
+    tenantId: string,
   ): Promise<number> {
-    const params: unknown[] = [userId];
-    let tenantClause = "";
-    if (tenantId) {
-      params.push(tenantId);
-      tenantClause = `and (n.tenant_id = $2 or n.tenant_id is null)`;
-    }
-
     const result = await client.query<{ count: string }>(
       `
         select count(*) as count
@@ -102,9 +98,9 @@ export class TenantAdminNotificationsRepository {
         join public.notifications n on n.id = nr.notification_id
         where nr.recipient_user_id = $1
           and nr.read_at is null
-          ${tenantClause}
+          and n.tenant_id = $2
       `,
-      params,
+      [userId, tenantId],
     );
     return Number(result.rows[0]?.count ?? 0);
   }
@@ -112,17 +108,13 @@ export class TenantAdminNotificationsRepository {
   private async itemsForClient(
     client: PoolClient,
     userId: string,
-    tenantId: string | undefined,
+    tenantId: string,
     status?: "ALL" | "UNREAD" | "READ",
     limit: number = 20,
   ): Promise<readonly TenantNotificationRow[]> {
-    const params: unknown[] = [userId];
+    const params: unknown[] = [userId, tenantId];
     const conditions = ["nr.recipient_user_id = $1"];
-
-    if (tenantId) {
-      params.push(tenantId);
-      conditions.push(`(n.tenant_id = $${params.length} or n.tenant_id is null)`);
-    }
+    conditions.push("n.tenant_id = $2");
 
     if (status === "UNREAD") conditions.push("nr.read_at is null");
     if (status === "READ") conditions.push("nr.read_at is not null");
@@ -153,7 +145,7 @@ export class TenantAdminNotificationsRepository {
   }
 
   private async withContext<T>(
-    context: RequestContext,
+    context: TenantAdminRequestContext,
     work: (client: PoolClient) => Promise<T>,
   ): Promise<T> {
     if (!this.pool) throw databaseNotConfigured();

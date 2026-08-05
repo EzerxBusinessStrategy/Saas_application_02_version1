@@ -4,9 +4,9 @@ import { TenantAdminNotificationsService } from "../../src/platform/tenant-admin
 import { TenantAdminNotificationsRepository } from "../../src/platform/tenant-admin-notifications.repository";
 
 describe("TenantAdminNotificationsService", () => {
-  it("allows platform-admin request context to access tenant notifications", async () => {
+  it("rejects platform admin context before querying tenant notifications", async () => {
     const repository = {
-      list: vi.fn().mockResolvedValue({ unreadCount: 0, items: [] }),
+      list: vi.fn(),
     } as unknown as TenantAdminNotificationsRepository;
     const service = new TenantAdminNotificationsService(repository);
 
@@ -19,9 +19,10 @@ describe("TenantAdminNotificationsService", () => {
       requestId: "req-1",
     };
 
-    const res = await service.list(platformContext, {});
-    expect(res.unreadCount).toBe(0);
-    expect(repository.list).toHaveBeenCalledWith(platformContext, undefined, undefined);
+    await expect(service.list(platformContext, {})).rejects.toThrow(
+      "Selected portal is not available for this membership.",
+    );
+    expect(repository.list).not.toHaveBeenCalled();
   });
 
   it("returns tenant admin notifications list and unread count", async () => {

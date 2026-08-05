@@ -1,9 +1,9 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { Pool, PoolClient } from "pg";
 import { databaseNotConfigured } from "../auth/auth-errors";
-import { RequestContext } from "../auth/request-context";
 import { DATABASE_POOL } from "../database/database.tokens";
 import { withDatabaseTransaction } from "../database/transaction-context";
+import { TenantAdminRequestContext } from "./tenant-admin-context";
 
 export type TenantInfoResult = {
   readonly id: string;
@@ -26,8 +26,6 @@ export type DashboardMetricsResult = {
   readonly currencyCode: string;
   readonly openTasks: number;
   readonly overdueTasks: number;
-  readonly slaCompliancePercent: number | null;
-  readonly employeeUtilisationPercent: number | null;
 };
 
 export type RecentActivityResult = {
@@ -47,14 +45,11 @@ export type TenantAdminDashboardData = {
 export class TenantAdminDashboardRepository {
   constructor(@Inject(DATABASE_POOL) private readonly pool: Pool | null) {}
 
-  async getDashboardData(context: RequestContext): Promise<TenantAdminDashboardData> {
+  async getDashboardData(context: TenantAdminRequestContext): Promise<TenantAdminDashboardData> {
     if (!this.pool) throw databaseNotConfigured();
 
     return withDatabaseTransaction(this.pool, context, async (_tx, client) => {
-      const tenantId = context.tenantId ?? (await this.getFirstTenantId(client));
-      if (!tenantId) {
-        throw new Error("No tenant found in the database");
-      }
+      const tenantId = context.tenantId;
       await client.query("select set_config('app.tenant_id', $1, true)", [tenantId]);
 
       const tenant = await this.getTenantInfo(client, tenantId);
@@ -69,13 +64,6 @@ export class TenantAdminDashboardRepository {
         recentActivity,
       };
     });
-  }
-
-  private async getFirstTenantId(client: PoolClient): Promise<string | null> {
-    const res = await client.query<{ id: string }>(
-      `select id::text from public.tenants order by created_at asc limit 1`,
-    );
-    return res.rows[0]?.id ?? null;
   }
 
   private async getTenantInfo(client: PoolClient, tenantId: string): Promise<TenantInfoResult> {
@@ -130,24 +118,17 @@ export class TenantAdminDashboardRepository {
         active_clients: number;
         open_tasks: number;
         overdue_tasks: number;
-        sla_measured: number;
-        sla_met: number;
       }>(
         `
           select
             (select count(*)::int from public.clients where tenant_id = $1 and status = 'active') as active_clients,
             (select count(*)::int from public.tasks where tenant_id = $1 and status not in ('completed', 'cancelled')) as open_tasks,
-            (select count(*)::int from public.tasks where tenant_id = $1 and status not in ('completed', 'cancelled') and planned_due_at < now()) as overdue_tasks,
-            (select count(*)::int from public.tasks where tenant_id = $1 and sla_status in ('met', 'breached')) as sla_measured,
-            (select count(*)::int from public.tasks where tenant_id = $1 and sla_status = 'met') as sla_met
+            (select count(*)::int from public.tasks where tenant_id = $1 and status not in ('completed', 'cancelled') and planned_due_at < now()) as overdue_tasks
         `,
         [tenantId],
       );
 
       const row = opResult.rows[0];
-      const slaMeasured = Number(row?.sla_measured ?? 0);
-      const slaMet = Number(row?.sla_met ?? 0);
-      const slaCompliancePercent = slaMeasured > 0 ? Math.round((slaMet / slaMeasured) * 100) : null;
 
       return {
         activeClients: Number(row?.active_clients ?? 0),
@@ -157,8 +138,6 @@ export class TenantAdminDashboardRepository {
         currencyCode,
         openTasks: Number(row?.open_tasks ?? 0),
         overdueTasks: Number(row?.overdue_tasks ?? 0),
-        slaCompliancePercent,
-        employeeUtilisationPercent: null,
       };
     }
 
@@ -184,9 +163,7 @@ export class TenantAdminDashboardRepository {
         (select sales from invoice_gross) as total_sales,
         (select collected from payment_total) as collected,
         (select count(*)::int from public.tasks where tenant_id = $1 and status not in ('completed', 'cancelled')) as open_tasks,
-        (select count(*)::int from public.tasks where tenant_id = $1 and status not in ('completed', 'cancelled') and planned_due_at < now()) as overdue_tasks,
-        (select count(*)::int from public.tasks where tenant_id = $1 and sla_status in ('met', 'breached')) as sla_measured,
-        (select count(*)::int from public.tasks where tenant_id = $1 and sla_status = 'met') as sla_met;
+        (select count(*)::int from public.tasks where tenant_id = $1 and status not in ('completed', 'cancelled') and planned_due_at < now()) as overdue_tasks;
     `;
 
     const result = await client.query<{
@@ -195,18 +172,12 @@ export class TenantAdminDashboardRepository {
       collected: string | number | null;
       open_tasks: number;
       overdue_tasks: number;
-      sla_measured: number;
-      sla_met: number;
     }>(query, [tenantId, financialYearId]);
 
     const row = result.rows[0];
     const rawSales = Math.max(0, Number(row?.total_sales ?? 0));
     const rawCollected = Math.max(0, Number(row?.collected ?? 0));
     const rawOutstanding = Math.max(0, rawSales - rawCollected);
-
-    const slaMeasured = Number(row?.sla_measured ?? 0);
-    const slaMet = Number(row?.sla_met ?? 0);
-    const slaCompliancePercent = slaMeasured > 0 ? Math.round((slaMet / slaMeasured) * 100) : null;
 
     return {
       activeClients: Number(row?.active_clients ?? 0),
@@ -216,8 +187,6 @@ export class TenantAdminDashboardRepository {
       currencyCode,
       openTasks: Number(row?.open_tasks ?? 0),
       overdueTasks: Number(row?.overdue_tasks ?? 0),
-      slaCompliancePercent,
-      employeeUtilisationPercent: null,
     };
   }
 

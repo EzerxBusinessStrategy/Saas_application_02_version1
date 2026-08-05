@@ -10,6 +10,7 @@ import {
   RawEmployeePerformanceRow,
   TenantAdminEmployeePerformanceRepository,
 } from "./tenant-admin-employee-performance.repository";
+import { requireTenantAdminContext } from "./tenant-admin-context";
 
 const MINIMUM_COMPLETED_TASKS_FOR_RANKING = 3;
 
@@ -24,7 +25,8 @@ export class TenantAdminEmployeePerformanceService {
     context: RequestContext,
     query: QueryEmployeePerformanceDto,
   ): Promise<TenantAdminEmployeePerformanceResponseDto> {
-    const { period, rows, tenantCurrency } = await this.repository.getPerformanceData(context, {
+    const tenantContext = requireTenantAdminContext(context);
+    const { period, rows, tenantCurrency } = await this.repository.getPerformanceData(tenantContext, {
       from: query.from,
       to: query.to,
       clientId: query.clientId,
@@ -62,8 +64,9 @@ export class TenantAdminEmployeePerformanceService {
     employeeId: string,
     query: { from?: string; to?: string },
   ): Promise<EmployeePerformanceDetailDto> {
+    const tenantContext = requireTenantAdminContext(context);
     const { period, employeeRow, clientBreakdown, taskHistory, tenantCurrency } =
-      await this.repository.getEmployeeDetail(context, employeeId, query);
+      await this.repository.getEmployeeDetail(tenantContext, employeeId, query);
 
     if (!employeeRow) {
       throw new Error(`Employee with ID ${employeeId} not found`);

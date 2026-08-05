@@ -46,12 +46,6 @@ export class TenantAdminMetricsDto {
   @ApiProperty({ type: Number })
   overdueTasks!: number;
 
-  @ApiPropertyOptional({ type: Number, nullable: true })
-  slaCompliancePercent!: number | null;
-
-  @ApiPropertyOptional({ type: Number, nullable: true })
-  employeeUtilisationPercent!: number | null;
-
   @ApiPropertyOptional({ type: () => MoneyDto, nullable: true })
   outstanding!: MoneyDto | null;
 }

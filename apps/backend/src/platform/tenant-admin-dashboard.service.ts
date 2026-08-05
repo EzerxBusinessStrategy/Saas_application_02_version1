@@ -1,5 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { RequestContext } from "../auth/request-context";
+import { requireTenantAdminContext } from "./tenant-admin-context";
 import { TenantAdminDashboardResponseDto } from "./tenant-admin-dashboard.dto";
 import { TenantAdminDashboardRepository } from "./tenant-admin-dashboard.repository";
 
@@ -11,7 +12,8 @@ export class TenantAdminDashboardService {
   ) {}
 
   async getDashboard(context: RequestContext): Promise<TenantAdminDashboardResponseDto> {
-    const data = await this.repository.getDashboardData(context);
+    const tenantContext = requireTenantAdminContext(context);
+    const data = await this.repository.getDashboardData(tenantContext);
     const hasFinancialYear = data.financialYear !== null;
 
     return {
@@ -43,8 +45,6 @@ export class TenantAdminDashboardService {
             : null,
         openTasks: data.metrics.openTasks,
         overdueTasks: data.metrics.overdueTasks,
-        slaCompliancePercent: data.metrics.slaCompliancePercent,
-        employeeUtilisationPercent: data.metrics.employeeUtilisationPercent,
         outstanding:
           hasFinancialYear && data.metrics.outstandingAmount !== null
             ? {

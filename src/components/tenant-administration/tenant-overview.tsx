@@ -35,7 +35,6 @@ type DashboardResponse = {
     } | null;
     openTasks: number;
     overdueTasks: number;
-    employeeUtilisationPercent: number | null;
     outstanding: {
       amount: string;
       currencyCode: string;
@@ -142,12 +141,6 @@ export function TenantAdministrationOverview() {
       trend: metrics.overdueTasks > 0 ? ("down" as const) : ("flat" as const),
     },
     {
-      label: "Employee utilisation",
-      value: metrics.employeeUtilisationPercent !== null ? `${metrics.employeeUtilisationPercent}%` : "Not available",
-      change: "Capacity metrics",
-      trend: "flat" as const,
-    },
-    {
       label: "Outstanding invoices",
       value: metrics.outstanding
         ? formatMoney(metrics.outstanding.amount, metrics.outstanding.currencyCode || currency)
@@ -180,7 +173,7 @@ export function TenantAdministrationOverview() {
       ) : null}
 
       <section
-        className="grid overflow-hidden rounded-[var(--radius-card)] border border-border bg-border sm:grid-cols-2 lg:grid-cols-5"
+        className="grid overflow-hidden rounded-[var(--radius-card)] border border-border bg-border sm:grid-cols-2 lg:grid-cols-4"
         aria-label="Tenant administration metrics"
       >
         {cards.map((metric) => (

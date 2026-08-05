@@ -1,9 +1,9 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { Pool, PoolClient } from "pg";
 import { databaseNotConfigured } from "../auth/auth-errors";
-import { RequestContext } from "../auth/request-context";
 import { DATABASE_POOL } from "../database/database.tokens";
 import { withDatabaseTransaction } from "../database/transaction-context";
+import { TenantAdminRequestContext } from "./tenant-admin-context";
 
 export type RawEmployeePerformanceRow = {
   employee_id: string;
@@ -67,7 +67,7 @@ export class TenantAdminEmployeePerformanceRepository {
   constructor(@Inject(DATABASE_POOL) private readonly pool: Pool | null) {}
 
   async getPerformanceData(
-    context: RequestContext,
+    context: TenantAdminRequestContext,
     params: {
       from?: string;
       to?: string;
@@ -83,10 +83,7 @@ export class TenantAdminEmployeePerformanceRepository {
     if (!this.pool) throw databaseNotConfigured();
 
     return withDatabaseTransaction(this.pool, context, async (_tx, client) => {
-      const tenantId = context.tenantId ?? (await this.getFirstTenantId(client));
-      if (!tenantId) {
-        throw new Error("No tenant found in database");
-      }
+      const tenantId = context.tenantId;
 
       const period = await this.resolvePeriod(client, tenantId, params.from, params.to);
       const tenantCurrency = await this.getTenantCurrency(client, tenantId);
@@ -102,7 +99,7 @@ export class TenantAdminEmployeePerformanceRepository {
   }
 
   async getEmployeeDetail(
-    context: RequestContext,
+    context: TenantAdminRequestContext,
     employeeId: string,
     params: { from?: string; to?: string },
   ): Promise<{
@@ -115,10 +112,7 @@ export class TenantAdminEmployeePerformanceRepository {
     if (!this.pool) throw databaseNotConfigured();
 
     return withDatabaseTransaction(this.pool, context, async (_tx, client) => {
-      const tenantId = context.tenantId ?? (await this.getFirstTenantId(client));
-      if (!tenantId) {
-        throw new Error("No tenant found in database");
-      }
+      const tenantId = context.tenantId;
 
       const period = await this.resolvePeriod(client, tenantId, params.from, params.to);
       const tenantCurrency = await this.getTenantCurrency(client, tenantId);
@@ -143,13 +137,6 @@ export class TenantAdminEmployeePerformanceRepository {
         tenantCurrency,
       };
     });
-  }
-
-  private async getFirstTenantId(client: PoolClient): Promise<string | null> {
-    const res = await client.query<{ id: string }>(
-      `select id::text from public.tenants order by created_at asc limit 1`,
-    );
-    return res.rows[0]?.id ?? null;
   }
 
   private async getTenantCurrency(client: PoolClient, tenantId: string): Promise<string> {
@@ -220,10 +207,10 @@ export class TenantAdminEmployeePerformanceRepository {
 
     const query = `
       with task_assignee_counts as (
-        select ta_all.task_id, count(distinct ta_all.employee_id)::int as assignee_count
+        select ta_all.tenant_id, ta_all.task_id, count(distinct ta_all.employee_id)::int as assignee_count
         from public.task_assignments ta_all
         where ta_all.tenant_id = $1 and ta_all.status = 'active'
-        group by ta_all.task_id
+        group by ta_all.tenant_id, ta_all.task_id
       ),
       scoped_tasks as (
         select
@@ -252,7 +239,7 @@ export class TenantAdminEmployeePerformanceRepository {
             (t.actual_completed_at >= $2::timestamp and t.actual_completed_at <= $3::timestamp + interval '1 day')
             or (t.actual_completed_at is null and ta.assigned_at >= $2::timestamp and ta.assigned_at <= $3::timestamp + interval '1 day')
           )
-        left join task_assignee_counts tac on tac.task_id = t.id
+        left join task_assignee_counts tac on tac.task_id = t.id and tac.tenant_id = t.tenant_id
         left join public.billable_task_entries bte on bte.task_id = t.id and bte.tenant_id = t.tenant_id
         where e.tenant_id = $1
           ${filterSql}
