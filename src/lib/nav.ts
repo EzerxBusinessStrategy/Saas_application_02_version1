@@ -54,6 +54,12 @@ const common: NavigationItem[] = [
         permissions: ["employee.read"],
       },
       {
+        label: "Employee Performance",
+        href: "/employee-performance",
+        icon: Award,
+        permissions: ["employee.read"],
+      },
+      {
         label: "Documents",
         href: "/documents",
         icon: FileText,
@@ -156,7 +162,12 @@ const superAdminItems = new Set([
   "Tenant analytics",
   "Tenant password",
 ]);
-const tenantAdminOnlyItems = new Set(["Managers", "Organisation", "Settings"]);
+const tenantAdminOnlyItems = new Set([
+  "Managers",
+  "Organisation",
+  "Settings",
+  "Employee Performance",
+]);
 const platformOnlyItems = new Set([
   "Tenant list",
   "Platform configuration",

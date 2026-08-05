@@ -37,8 +37,8 @@ export class TenantAdminMetricsDto {
   @ApiProperty({ type: Number })
   activeClients!: number;
 
-  @ApiProperty({ type: () => MoneyDto })
-  totalSales!: MoneyDto;
+  @ApiPropertyOptional({ type: () => MoneyDto, nullable: true })
+  totalSales!: MoneyDto | null;
 
   @ApiProperty({ type: Number })
   openTasks!: number;
@@ -52,8 +52,8 @@ export class TenantAdminMetricsDto {
   @ApiPropertyOptional({ type: Number, nullable: true })
   employeeUtilisationPercent!: number | null;
 
-  @ApiProperty({ type: () => MoneyDto })
-  outstanding!: MoneyDto;
+  @ApiPropertyOptional({ type: () => MoneyDto, nullable: true })
+  outstanding!: MoneyDto | null;
 }
 
 export class RecentActivityItemDto {
@@ -73,6 +73,12 @@ export class TenantAdminDashboardResponseDto {
 
   @ApiPropertyOptional({ type: () => FinancialYearInfoDto, nullable: true })
   financialYear!: FinancialYearInfoDto | null;
+
+  @ApiProperty({ type: Boolean, example: true })
+  financialDataAvailable!: boolean;
+
+  @ApiPropertyOptional({ type: String, nullable: true, example: "CURRENT_FINANCIAL_YEAR_NOT_CONFIGURED" })
+  financialDataUnavailableReason!: string | null;
 
   @ApiProperty({ type: () => TenantAdminMetricsDto })
   metrics!: TenantAdminMetricsDto;

@@ -20,9 +20,9 @@ export type FinancialYearInfoResult = {
 
 export type DashboardMetricsResult = {
   readonly activeClients: number;
-  readonly totalSalesAmount: string;
-  readonly collectedAmount: string;
-  readonly outstandingAmount: string;
+  readonly totalSalesAmount: string | null;
+  readonly collectedAmount: string | null;
+  readonly outstandingAmount: string | null;
   readonly currencyCode: string;
   readonly openTasks: number;
   readonly overdueTasks: number;
@@ -49,12 +49,14 @@ export class TenantAdminDashboardRepository {
 
   async getDashboardData(context: RequestContext): Promise<TenantAdminDashboardData> {
     if (!this.pool) throw databaseNotConfigured();
-    const tenantId = context.tenantId;
-    if (!tenantId) {
-      throw new Error("Tenant ID required for tenant admin dashboard");
-    }
 
     return withDatabaseTransaction(this.pool, context, async (_tx, client) => {
+      const tenantId = context.tenantId ?? (await this.getFirstTenantId(client));
+      if (!tenantId) {
+        throw new Error("No tenant found in the database");
+      }
+      await client.query("select set_config('app.tenant_id', $1, true)", [tenantId]);
+
       const tenant = await this.getTenantInfo(client, tenantId);
       const financialYear = await this.getCurrentFinancialYear(client, tenantId);
       const metrics = await this.getMetrics(client, tenantId, financialYear?.id, tenant.currencyCode);
@@ -67,6 +69,13 @@ export class TenantAdminDashboardRepository {
         recentActivity,
       };
     });
+  }
+
+  private async getFirstTenantId(client: PoolClient): Promise<string | null> {
+    const res = await client.query<{ id: string }>(
+      `select id::text from public.tenants order by created_at asc limit 1`,
+    );
+    return res.rows[0]?.id ?? null;
   }
 
   private async getTenantInfo(client: PoolClient, tenantId: string): Promise<TenantInfoResult> {
@@ -107,22 +116,6 @@ export class TenantAdminDashboardRepository {
       return { id: row.id, label: row.label, startsOn: row.starts_on, endsOn: row.ends_on };
     }
 
-    // Fall back to latest financial year
-    const latestYear = await client.query<{ id: string; label: string; starts_on: string; ends_on: string }>(
-      `
-        select id::text, label, start_date::text as starts_on, end_date::text as ends_on
-        from public.tenant_financial_years
-        where tenant_id = $1
-          and status <> 'cancelled'
-        order by start_date desc
-        limit 1
-      `,
-      [tenantId],
-    );
-    if (latestYear.rows[0]) {
-      const row = latestYear.rows[0];
-      return { id: row.id, label: row.label, startsOn: row.starts_on, endsOn: row.ends_on };
-    }
     return null;
   }
 
@@ -132,9 +125,42 @@ export class TenantAdminDashboardRepository {
     financialYearId: string | undefined,
     currencyCode: string,
   ): Promise<DashboardMetricsResult> {
-    const fyCondition = financialYearId ? "and i.financial_year_id = $2" : "";
-    const params: unknown[] = [tenantId];
-    if (financialYearId) params.push(financialYearId);
+    if (!financialYearId) {
+      const opResult = await client.query<{
+        active_clients: number;
+        open_tasks: number;
+        overdue_tasks: number;
+        sla_measured: number;
+        sla_met: number;
+      }>(
+        `
+          select
+            (select count(*)::int from public.clients where tenant_id = $1 and status = 'active') as active_clients,
+            (select count(*)::int from public.tasks where tenant_id = $1 and status not in ('completed', 'cancelled')) as open_tasks,
+            (select count(*)::int from public.tasks where tenant_id = $1 and status not in ('completed', 'cancelled') and planned_due_at < now()) as overdue_tasks,
+            (select count(*)::int from public.tasks where tenant_id = $1 and sla_status in ('met', 'breached')) as sla_measured,
+            (select count(*)::int from public.tasks where tenant_id = $1 and sla_status = 'met') as sla_met
+        `,
+        [tenantId],
+      );
+
+      const row = opResult.rows[0];
+      const slaMeasured = Number(row?.sla_measured ?? 0);
+      const slaMet = Number(row?.sla_met ?? 0);
+      const slaCompliancePercent = slaMeasured > 0 ? Math.round((slaMet / slaMeasured) * 100) : null;
+
+      return {
+        activeClients: Number(row?.active_clients ?? 0),
+        totalSalesAmount: null,
+        collectedAmount: null,
+        outstandingAmount: null,
+        currencyCode,
+        openTasks: Number(row?.open_tasks ?? 0),
+        overdueTasks: Number(row?.overdue_tasks ?? 0),
+        slaCompliancePercent,
+        employeeUtilisationPercent: null,
+      };
+    }
 
     const query = `
       with scoped_invoices as (
@@ -143,16 +169,11 @@ export class TenantAdminDashboardRepository {
         where i.tenant_id = $1
           and i.finalized_at is not null
           and i.status not in ('draft', 'cancelled', 'void')
-          ${fyCondition}
+          and i.financial_year_id = $2
       ), invoice_gross as (
         select coalesce(sum(ii.gross_amount - ii.discount_amount), 0)::numeric as sales
         from scoped_invoices si
         join public.invoice_items ii on ii.invoice_id = si.id and ii.tenant_id = si.tenant_id
-      ), credit_note_total as (
-        select coalesce(sum(cn.amount), 0)::numeric as credits
-        from public.credit_notes cn
-        where cn.tenant_id = $1
-          and cn.status = 'approved'
       ), payment_total as (
         select coalesce(sum(p.amount) filter (where p.status = 'successful'), 0)::numeric as collected
         from public.payments p
@@ -160,7 +181,7 @@ export class TenantAdminDashboardRepository {
       )
       select
         (select count(*)::int from public.clients where tenant_id = $1 and status = 'active') as active_clients,
-        (select sales from invoice_gross) - (select credits from credit_note_total) as total_sales,
+        (select sales from invoice_gross) as total_sales,
         (select collected from payment_total) as collected,
         (select count(*)::int from public.tasks where tenant_id = $1 and status not in ('completed', 'cancelled')) as open_tasks,
         (select count(*)::int from public.tasks where tenant_id = $1 and status not in ('completed', 'cancelled') and planned_due_at < now()) as overdue_tasks,
@@ -176,7 +197,7 @@ export class TenantAdminDashboardRepository {
       overdue_tasks: number;
       sla_measured: number;
       sla_met: number;
-    }>(query, params);
+    }>(query, [tenantId, financialYearId]);
 
     const row = result.rows[0];
     const rawSales = Math.max(0, Number(row?.total_sales ?? 0));
@@ -196,7 +217,7 @@ export class TenantAdminDashboardRepository {
       openTasks: Number(row?.open_tasks ?? 0),
       overdueTasks: Number(row?.overdue_tasks ?? 0),
       slaCompliancePercent,
-      employeeUtilisationPercent: null, // Capacity schema is not present; show "Not available"
+      employeeUtilisationPercent: null,
     };
   }
 

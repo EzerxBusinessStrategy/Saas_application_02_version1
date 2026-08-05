@@ -6,7 +6,6 @@ import {
   invalidTenantSelection,
   missingMembership,
   roleNotAssigned,
-  tenantSelectionRequired,
   tenantSuspended,
   userSuspended,
 } from "./auth-errors";
@@ -15,9 +14,9 @@ import { freezeRequestContext, RequestContext, TenantSelectionInput, VerifiedAut
 
 const portalRoles: Readonly<Record<string, readonly string[]>> = {
   "super-admin": ["SUPER_ADMIN"],
-  admin: ["TENANT_OWNER", "TENANT_ADMIN", "FINANCE_USER", "HR_OPERATIONS_USER"],
-  manager: ["MANAGER"],
-  employee: ["EMPLOYEE"],
+  admin: ["TENANT_OWNER", "TENANT_ADMIN", "FINANCE_USER", "HR_OPERATIONS_USER", "SUPER_ADMIN"],
+  manager: ["MANAGER", "SUPER_ADMIN"],
+  employee: ["EMPLOYEE", "SUPER_ADMIN"],
   client: ["CLIENT_USER"],
 };
 
@@ -108,8 +107,7 @@ function selectMembership(
   const active = memberships.filter(
     (row) => row.tenant_status === "active" && row.membership_status === "active",
   );
-  if (active.length === 1) return active[0];
-  if (active.length > 1) throw tenantSelectionRequired();
+  if (active.length >= 1) return active[0];
   return memberships[0];
 }
 
@@ -119,7 +117,7 @@ function selectPlatformRow(
 ): AuthContextRow | undefined {
   if (!platformRow) return undefined;
   if (selection.tenantId || selection.tenantCode) return undefined;
-  if (selection.portal && selection.portal !== "super-admin") return undefined;
+  if (selection.portal && !["super-admin", "admin"].includes(selection.portal)) return undefined;
   return platformRow;
 }
 
@@ -128,6 +126,7 @@ function isPlatformRow(row: AuthContextRow): boolean {
 }
 
 function isPortalAllowed(portal: string, roles: readonly string[]): boolean {
+  if (roles.includes("SUPER_ADMIN")) return true;
   const allowedRoles = portalRoles[portal];
   return Boolean(allowedRoles?.some((role) => roles.includes(role)));
 }

@@ -9,6 +9,10 @@ export const sectionAccess: Record<
     permissions: ["task.read", "task.read.assigned"],
   },
   employees: { workspaces: ["admin", "manager"] },
+  "employee-performance": {
+    workspaces: ["admin"],
+    permissions: ["employee.read"],
+  },
   clients: {
     workspaces: ["admin", "manager", "client"],
     permissions: ["client.read", "client.read.assigned"],

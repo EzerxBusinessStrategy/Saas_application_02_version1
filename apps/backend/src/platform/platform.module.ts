@@ -21,6 +21,9 @@ import { SuperAdminSearchService } from "./super-admin-search.service";
 import { TenantAdminDashboardController } from "./tenant-admin-dashboard.controller";
 import { TenantAdminDashboardRepository } from "./tenant-admin-dashboard.repository";
 import { TenantAdminDashboardService } from "./tenant-admin-dashboard.service";
+import { TenantAdminEmployeePerformanceController } from "./tenant-admin-employee-performance.controller";
+import { TenantAdminEmployeePerformanceRepository } from "./tenant-admin-employee-performance.repository";
+import { TenantAdminEmployeePerformanceService } from "./tenant-admin-employee-performance.service";
 import { TenantAdminNotificationsController } from "./tenant-admin-notifications.controller";
 import { TenantAdminNotificationsGateway } from "./tenant-admin-notifications.gateway";
 import { TenantAdminNotificationsRepository } from "./tenant-admin-notifications.repository";
@@ -38,6 +41,7 @@ import { TenantAnalyticsService } from "./tenant-analytics.service";
     SuperAdminNotificationsController,
     SuperAdminPlatformConfigurationController,
     TenantAdminDashboardController,
+    TenantAdminEmployeePerformanceController,
     TenantAdminNotificationsController,
     TenantAnalyticsController,
   ],
@@ -56,6 +60,8 @@ import { TenantAnalyticsService } from "./tenant-analytics.service";
     SuperAdminPlatformConfigurationService,
     TenantAdminDashboardRepository,
     TenantAdminDashboardService,
+    TenantAdminEmployeePerformanceRepository,
+    TenantAdminEmployeePerformanceService,
     TenantAdminNotificationsRepository,
     TenantAdminNotificationsService,
     TenantAdminNotificationsGateway,

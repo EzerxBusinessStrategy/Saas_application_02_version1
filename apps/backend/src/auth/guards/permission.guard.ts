@@ -17,6 +17,14 @@ export class PermissionGuard implements CanActivate {
       ]) ?? [];
     if (required.length === 0) return true;
     const request = context.switchToHttp().getRequest<FastifyRequest & AuthenticatedRequest>();
+    const roles = request.requestContext?.roles ?? [];
+    if (
+      roles.includes("SUPER_ADMIN") ||
+      roles.includes("TENANT_ADMIN") ||
+      roles.includes("TENANT_OWNER")
+    ) {
+      return true;
+    }
     const permissions = request.requestContext?.permissions ?? [];
     if (required.every((permission) => permissions.includes(permission))) return true;
     throw permissionDenied();

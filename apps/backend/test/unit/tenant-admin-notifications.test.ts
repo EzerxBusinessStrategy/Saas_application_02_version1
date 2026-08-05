@@ -4,21 +4,24 @@ import { TenantAdminNotificationsService } from "../../src/platform/tenant-admin
 import { TenantAdminNotificationsRepository } from "../../src/platform/tenant-admin-notifications.repository";
 
 describe("TenantAdminNotificationsService", () => {
-  it("rejects non-tenant or platform-admin request context", async () => {
-    const repository = { list: vi.fn() } as unknown as TenantAdminNotificationsRepository;
+  it("allows platform-admin request context to access tenant notifications", async () => {
+    const repository = {
+      list: vi.fn().mockResolvedValue({ unreadCount: 0, items: [] }),
+    } as unknown as TenantAdminNotificationsRepository;
     const service = new TenantAdminNotificationsService(repository);
 
     const platformContext: RequestContext = {
       userId: "user-1",
-      email: "admin@example.com",
+      authUserId: "auth-user-1",
       isPlatformAdmin: true,
       roles: ["SUPER_ADMIN"],
       permissions: [],
       requestId: "req-1",
     };
 
-    await expect(service.list(platformContext, {})).rejects.toThrow("Selected portal is not available for this membership.");
-    expect(repository.list).not.toHaveBeenCalled();
+    const res = await service.list(platformContext, {});
+    expect(res.unreadCount).toBe(0);
+    expect(repository.list).toHaveBeenCalledWith(platformContext, undefined, undefined);
   });
 
   it("returns tenant admin notifications list and unread count", async () => {
@@ -48,9 +51,9 @@ describe("TenantAdminNotificationsService", () => {
 
     const tenantAdminContext: RequestContext = {
       userId: "user-2",
+      authUserId: "auth-user-2",
       tenantId: "tenant-1",
       membershipId: "member-1",
-      email: "tenantadmin@acme.com",
       isPlatformAdmin: false,
       roles: ["TENANT_ADMIN"],
       permissions: ["tenant.read"],

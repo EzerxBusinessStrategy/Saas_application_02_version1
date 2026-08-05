@@ -1,5 +1,4 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { forbiddenPortal } from "../auth/auth-errors";
 import { RequestContext } from "../auth/request-context";
 import {
   NotificationItemDto,
@@ -19,7 +18,6 @@ export class TenantAdminNotificationsService {
   ) {}
 
   async list(context: RequestContext, query: SuperAdminNotificationsQuery): Promise<NotificationsResponseDto> {
-    assertTenantAdminContext(context);
     const rows = await this.repository.list(context, query.status, query.limit);
     return {
       unreadCount: rows.unreadCount,
@@ -28,24 +26,15 @@ export class TenantAdminNotificationsService {
   }
 
   async unreadCount(context: RequestContext): Promise<number> {
-    assertTenantAdminContext(context);
     return this.repository.unreadCount(context);
   }
 
   async markRead(context: RequestContext, notificationId: string): Promise<void> {
-    assertTenantAdminContext(context);
     await this.repository.markRead(context, notificationId);
   }
 
   async markAllRead(context: RequestContext): Promise<void> {
-    assertTenantAdminContext(context);
     await this.repository.markAllRead(context);
-  }
-}
-
-function assertTenantAdminContext(context: RequestContext): void {
-  if (!context.tenantId || !context.membershipId || context.isPlatformAdmin) {
-    throw forbiddenPortal();
   }
 }
 

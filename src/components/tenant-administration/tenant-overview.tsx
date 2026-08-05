@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, CalendarClock, CheckCircle2, RefreshCw } from "lucide-react";
+import { AlertTriangle, CalendarClock, CheckCircle2, RefreshCw, ShieldAlert } from "lucide-react";
 import { MetricCard } from "@/components/shared/metric-card";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
@@ -25,20 +25,21 @@ type DashboardResponse = {
     startsOn: string;
     endsOn: string;
   } | null;
+  financialDataAvailable: boolean;
+  financialDataUnavailableReason: string | null;
   metrics: {
     activeClients: number;
     totalSales: {
       amount: string;
       currencyCode: string;
-    };
+    } | null;
     openTasks: number;
     overdueTasks: number;
-    slaCompliancePercent: number | null;
     employeeUtilisationPercent: number | null;
     outstanding: {
       amount: string;
       currencyCode: string;
-    };
+    } | null;
   };
   recentActivity: {
     action: string;
@@ -57,6 +58,19 @@ function formatMoney(amount: string, currencyCode: string): string {
     }).format(num);
   } catch {
     return `${currencyCode} ${num.toFixed(2)}`;
+  }
+}
+
+function formatDate(dateStr: string): string {
+  try {
+    const date = new Date(dateStr);
+    return new Intl.DateTimeFormat(undefined, {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    }).format(date);
+  } catch {
+    return dateStr;
   }
 }
 
@@ -99,8 +113,12 @@ export function TenantAdministrationOverview() {
     );
   }
 
-  const { metrics, financialYear, recentActivity, tenant } = data;
+  const { metrics, financialYear, financialDataAvailable, recentActivity, tenant } = data;
   const currency = tenant.currencyCode || "INR";
+
+  const financialYearText = financialYear
+    ? `${financialYear.label} (${formatDate(financialYear.startsOn)} – ${formatDate(financialYear.endsOn)})`
+    : null;
 
   const cards = [
     {
@@ -111,21 +129,17 @@ export function TenantAdministrationOverview() {
     },
     {
       label: "Total sales",
-      value: formatMoney(metrics.totalSales.amount, metrics.totalSales.currencyCode || currency),
-      change: financialYear ? financialYear.label : "Total invoiced sales",
-      trend: Number(metrics.totalSales.amount) > 0 ? ("up" as const) : ("flat" as const),
+      value: metrics.totalSales
+        ? formatMoney(metrics.totalSales.amount, metrics.totalSales.currencyCode || currency)
+        : "Not available",
+      change: financialYear ? financialYear.label : "Financial year unconfigured",
+      trend: metrics.totalSales && Number(metrics.totalSales.amount) > 0 ? ("up" as const) : ("flat" as const),
     },
     {
       label: "Open tasks",
       value: metrics.openTasks.toString(),
       change: metrics.overdueTasks > 0 ? `${metrics.overdueTasks} overdue` : "0 overdue",
       trend: metrics.overdueTasks > 0 ? ("down" as const) : ("flat" as const),
-    },
-    {
-      label: "SLA compliance",
-      value: metrics.slaCompliancePercent !== null ? `${metrics.slaCompliancePercent}%` : "Not available",
-      change: "Target 95%+",
-      trend: (metrics.slaCompliancePercent ?? 0) >= 95 ? ("up" as const) : ("down" as const),
     },
     {
       label: "Employee utilisation",
@@ -135,9 +149,11 @@ export function TenantAdministrationOverview() {
     },
     {
       label: "Outstanding invoices",
-      value: formatMoney(metrics.outstanding.amount, metrics.outstanding.currencyCode || currency),
-      change: Number(metrics.outstanding.amount) > 0 ? "Pending collection" : "0 outstanding",
-      trend: Number(metrics.outstanding.amount) > 0 ? ("down" as const) : ("flat" as const),
+      value: metrics.outstanding
+        ? formatMoney(metrics.outstanding.amount, metrics.outstanding.currencyCode || currency)
+        : "Not available",
+      change: metrics.outstanding && Number(metrics.outstanding.amount) > 0 ? "Pending collection" : "0 outstanding",
+      trend: metrics.outstanding && Number(metrics.outstanding.amount) > 0 ? ("down" as const) : ("flat" as const),
     },
   ];
 
@@ -146,10 +162,25 @@ export function TenantAdministrationOverview() {
       <PageHeader
         eyebrow={`Tenant Admin · ${tenant.name}`}
         title="Operations overview"
-        description="Monitor client delivery, workforce capacity, billing follow-up, and organisation readiness."
+        description={
+          financialYearText
+            ? `Current Financial Year: ${financialYearText}`
+            : "Monitor client delivery, workforce capacity, billing follow-up, and organisation readiness."
+        }
       />
+
+      {!financialDataAvailable ? (
+        <div className="flex items-center gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-4 text-amber-600 dark:text-amber-400" role="alert">
+          <ShieldAlert className="size-5 shrink-0" aria-hidden="true" />
+          <div>
+            <p className="font-semibold">Current financial year not configured</p>
+            <p className="text-sm">Current financial year is not configured for this tenant. Please contact the Super Admin.</p>
+          </div>
+        </div>
+      ) : null}
+
       <section
-        className="grid overflow-hidden rounded-[var(--radius-card)] border border-border bg-border sm:grid-cols-2 xl:grid-cols-3"
+        className="grid overflow-hidden rounded-[var(--radius-card)] border border-border bg-border sm:grid-cols-2 lg:grid-cols-5"
         aria-label="Tenant administration metrics"
       >
         {cards.map((metric) => (
@@ -250,7 +281,7 @@ function TenantOverviewSkeleton() {
   return (
     <div className="flex flex-col gap-[30px]" aria-busy="true">
       <div className="h-16 w-1/3 animate-pulse rounded bg-muted" />
-      <div className="grid h-36 grid-cols-2 gap-4 rounded bg-muted xl:grid-cols-3 animate-pulse" />
+      <div className="grid h-36 grid-cols-2 gap-4 rounded bg-muted lg:grid-cols-5 animate-pulse" />
       <div className="grid h-48 grid-cols-2 gap-4 rounded bg-muted animate-pulse" />
     </div>
   );
