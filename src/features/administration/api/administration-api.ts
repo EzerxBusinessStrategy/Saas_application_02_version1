@@ -256,6 +256,17 @@ export async function createClient(input: ClientCreateInput) {
   return clientDetailSchema.parse(await response.json());
 }
 
+export async function deleteClient(clientId: string) {
+  const response = await fetch(`/api/tenant-admin/clients/${encodeURIComponent(clientId)}`, {
+    method: "DELETE",
+  });
+  await redirectToLoginOnUnauthorized(response);
+  if (!response.ok) {
+    const body = await response.json().catch(() => null);
+    throw new Error(body?.error?.message ?? body?.message ?? "Client could not be deleted.");
+  }
+}
+
 export async function createClientContact(clientId: string, input: ClientContactInput) {
   const response = await fetch(`/api/tenant-admin/clients/${encodeURIComponent(clientId)}/contacts`, {
     method: "POST",

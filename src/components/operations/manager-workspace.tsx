@@ -10,7 +10,6 @@ import {
   getOperationalWorkspace,
 } from "@/features/operations/api/operations-api";
 import { ManagerRecognition } from "@/components/operations/gamification-workflows";
-import { SupportTicketWorkspace } from "@/components/operations/support-ticket-workspace";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ErrorState } from "@/components/shared/error-state";
 import { LoadingState } from "@/components/shared/loading-state";
@@ -37,8 +36,7 @@ export type ManagerSection =
   | "reports"
   | "notifications"
   | "profile"
-  | "recognition"
-  | "tickets";
+  | "recognition";
 
 export function ManagerWorkspace({
   section = "overview",
@@ -57,13 +55,12 @@ export function ManagerWorkspace({
         title="Manager workspace could not load"
         onRetry={() => void query.refetch()}
       />
-    );
+  );
   const data = query.data;
   const pendingTaskReviews = data.tasks.filter(
     (task) => task.status === "review" && task.reviewStatus === "pending",
   );
   if (section === "recognition") return <ManagerRecognition />;
-  if (section === "tickets") return <SupportTicketWorkspace workspace="manager" />;
   if (section === "reviews")
     return (
       <TaskReviewQueue

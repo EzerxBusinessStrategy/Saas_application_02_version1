@@ -49,6 +49,9 @@ export const migrationNames = [
   "0039_pending_tenant_lifecycle_actions.sql",
   "0040_tenant_admin_notifications_rls.sql",
   "0041_tenant_admin_email_uniqueness.sql",
+  "0042_client_portal_accounts.sql",
+  "0043_tenant_document_metadata.sql",
+  "0044_client_portal_profile_preferences.sql",
 ] as const;
 
 export async function runMigrations(

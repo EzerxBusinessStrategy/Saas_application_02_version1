@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { demoSessionCookie, isWorkspaceAllowed, roleFromSession } from "@/lib/demo-auth";
-import { superAdminAccessTokenCookie } from "@/lib/auth-cookies";
+import { authenticatedWorkspaceCookie, superAdminAccessTokenCookie } from "@/lib/auth-cookies";
 import type { Workspace } from "@/types/domain";
 
 const protectedWorkspaces = new Set<Workspace>([
@@ -19,6 +19,13 @@ export function middleware(request: NextRequest) {
     return request.cookies.get(superAdminAccessTokenCookie)?.value
       ? NextResponse.next()
       : NextResponse.redirect(new URL("/login", request.url));
+  }
+
+  if (
+    request.cookies.get(superAdminAccessTokenCookie)?.value &&
+    request.cookies.get(authenticatedWorkspaceCookie)?.value === workspace
+  ) {
+    return NextResponse.next();
   }
 
   const role = roleFromSession(request.cookies.get(demoSessionCookie)?.value);

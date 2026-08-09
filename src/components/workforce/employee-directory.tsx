@@ -1,11 +1,16 @@
 "use client";
 /* eslint-disable @next/next/no-img-element -- tenant API avatars may use a configured external CDN. */
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Plus } from "lucide-react";
+import { toast } from "sonner";
 import type { ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@/components/operations/data-table";
 import { FilterToolbar } from "@/components/shared/filter-toolbar";
+import { ErrorState } from "@/components/shared/error-state";
+import { LoadingState } from "@/components/shared/loading-state";
 import { MobileEntityCard } from "@/components/shared/mobile-entity-card";
 import { Pagination } from "@/components/shared/pagination";
 import { PageHeader } from "@/components/shared/page-header";
@@ -19,7 +24,14 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Select } from "@/components/ui/select";
-import { employees } from "@/mocks/workforce";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import {
+  createTenantAdminEmployee,
+  listTenantAdminEmployees,
+  setTenantAdminEmployeeManager,
+  updateTenantAdminEmployeeCapacity,
+} from "@/features/operations/api/operations-api";
 import type { Employee, EmployeeDirectoryFilters } from "@/types/workforce";
 
 const labelFor = (value: string) =>
@@ -129,12 +141,9 @@ function matchesFilters(employee: Employee, filters: EmployeeDirectoryFilters) {
     (!filters.department || employee.department === filters.department) &&
     (!filters.category || employee.categories.includes(filters.category)) &&
     (!filters.managerId || employee.manager?.id === filters.managerId) &&
-    (!filters.experienceLevel ||
-      employee.experienceLevel === filters.experienceLevel) &&
     (!filters.availability || employee.availability === filters.availability) &&
     (!filters.employmentStatus ||
-      employee.employmentStatus === filters.employmentStatus) &&
-    (!filters.workloadRisk || employee.workload.risk === filters.workloadRisk)
+      employee.employmentStatus === filters.employmentStatus)
   );
 }
 
@@ -142,24 +151,25 @@ export function EmployeeDirectory() {
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const queryClient = useQueryClient();
+  const [createOpen, setCreateOpen] = useState(false);
+  const [capacityEmployee, setCapacityEmployee] = useState<Employee | null>(null);
+  const employeesQuery = useQuery({
+    queryKey: ["tenant-admin-employees"],
+    queryFn: listTenantAdminEmployees,
+  });
   const filters = useMemo<EmployeeDirectoryFilters>(
     () => ({
       query: searchParams.get("query") ?? undefined,
       department: searchParams.get("department") ?? undefined,
       category: searchParams.get("category") ?? undefined,
       managerId: searchParams.get("managerId") ?? undefined,
-      experienceLevel: searchParams.get(
-        "experienceLevel",
-      ) as EmployeeDirectoryFilters["experienceLevel"],
       availability: searchParams.get(
         "availability",
       ) as EmployeeDirectoryFilters["availability"],
       employmentStatus: searchParams.get(
         "employmentStatus",
       ) as EmployeeDirectoryFilters["employmentStatus"],
-      workloadRisk: searchParams.get(
-        "workloadRisk",
-      ) as EmployeeDirectoryFilters["workloadRisk"],
     }),
     [searchParams],
   );
@@ -171,6 +181,36 @@ export function EmployeeDirectory() {
   const requestedPage = Number(searchParams.get("page") ?? "1");
   const page =
     Number.isFinite(requestedPage) && requestedPage > 0 ? requestedPage : 1;
+  const employees = useMemo<Employee[]>(
+    () =>
+      (employeesQuery.data ?? []).map((employee) => ({
+        id: employee.id,
+        code: employee.employeeCode ?? "-",
+        name: employee.name,
+        department: "Unassigned",
+        categories: employee.categories,
+        skills: employee.skills,
+        experienceLevel: employee.experienceLevel,
+        manager:
+          employee.managerId && employee.managerName
+            ? { id: employee.managerId, name: employee.managerName }
+            : null,
+        workload: { allocatedHours: 0, capacityHours: employee.weeklyCapacityHours, risk: "balanced" },
+        utilisationPercent: 0,
+        activeTasks: employee.activeTasks,
+        availability:
+          employee.employmentStatus === "on_leave" ? "unavailable" : "available",
+        employmentStatus:
+          employee.employmentStatus === "on_leave"
+            ? "on-leave"
+            : employee.employmentStatus === "inactive"
+              ? "inactive"
+              : "active",
+        workGroups: employee.workGroups,
+        isManager: employee.isManager,
+      })),
+    [employeesQuery],
+  );
   const options = useMemo(
     () => ({
       departments: [
@@ -185,7 +225,7 @@ export function EmployeeDirectory() {
           employees.some((candidate) => candidate.manager?.id === employee.id),
       ),
     }),
-    [],
+    [employees],
   );
   const filteredEmployees = useMemo(
     () =>
@@ -196,7 +236,7 @@ export function EmployeeDirectory() {
             ? right.workload.allocatedHours - left.workload.allocatedHours
             : left.name.localeCompare(right.name),
         ),
-    [filters, sort],
+    [employees, filters, sort],
   );
   const totalPages = Math.max(
     1,
@@ -244,10 +284,16 @@ export function EmployeeDirectory() {
       header: "Skills & level",
       cell: ({ row }) => (
         <span>
-          {row.original.skills.join(", ")}
-          <span className="mt-1 block text-xs text-muted-foreground">
-            {labelFor(row.original.experienceLevel)}
-          </span>
+          {row.original.skills.length ? (
+            row.original.skills.join(", ")
+          ) : (
+            <span className="text-muted-foreground">Not set</span>
+          )}
+          {row.original.experienceLevel ? (
+            <span className="mt-1 block text-xs text-muted-foreground">
+              {labelFor(row.original.experienceLevel)}
+            </span>
+          ) : null}
         </span>
       ),
     },
@@ -272,6 +318,9 @@ export function EmployeeDirectory() {
             {row.original.utilisationPercent}% utilised ·{" "}
             {row.original.activeTasks} active tasks
           </span>
+          <Button className="mt-2 h-7 px-2 text-xs" variant="outline" size="sm" onClick={() => setCapacityEmployee(row.original)}>
+            Edit
+          </Button>
         </span>
       ),
     },
@@ -289,23 +338,44 @@ export function EmployeeDirectory() {
       id: "actions",
       header: "Actions",
       cell: ({ row }) => (
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => openProfile(row.original)}
-        >
-          View profile
-        </Button>
+        <div className="flex items-center gap-3">
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={Boolean(row.original.isManager)}
+              onChange={async (event) => {
+                try {
+                  await setTenantAdminEmployeeManager(row.original.id, event.target.checked);
+                  await queryClient.invalidateQueries({ queryKey: ["tenant-admin-employees"] });
+                  toast.success(event.target.checked ? "Manager added." : "Manager removed.");
+                } catch (error) {
+                  toast.error(error instanceof Error ? error.message : "Manager role could not be updated.");
+                }
+              }}
+            />
+            Manager
+          </label>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => openProfile(row.original)}
+          >
+            View profile
+          </Button>
+        </div>
       ),
     },
   ];
 
   return (
     <div className="flex flex-col gap-[30px]">
+      {employeesQuery.isPending ? <LoadingState label="Loading employees" rows={4} /> : null}
+      {employeesQuery.isError ? <ErrorState title="Employees could not load" onRetry={() => void employeesQuery.refetch()} /> : null}
       <PageHeader
         eyebrow="Workforce"
         title="All employees"
         description="Monitor capability, availability, and work allocation across your tenant."
+        actions={<Button onClick={() => setCreateOpen(true)}><Plus data-icon="inline-start" />Create employee</Button>}
       />
       <Card>
         <CardHeader className="gap-4">
@@ -321,7 +391,7 @@ export function EmployeeDirectory() {
               value: filters.query ?? "",
               onChange: (value) => updateParam("query", value),
               label: "Search employees",
-              placeholder: "Search name, code, skill, or department",
+              placeholder: "Search name or code",
             }}
             activeFilterCount={activeFilterCount}
             onClear={clearFilters}
@@ -368,13 +438,6 @@ export function EmployeeDirectory() {
               }
             />
             <Filter
-              label="Experience level"
-              value={filters.experienceLevel}
-              onChange={(value) => updateParam("experienceLevel", value)}
-              options={["junior", "mid", "senior", "lead"]}
-              optionLabel={labelFor}
-            />
-            <Filter
               label="Availability"
               value={filters.availability}
               onChange={(value) => updateParam("availability", value)}
@@ -386,13 +449,6 @@ export function EmployeeDirectory() {
               value={filters.employmentStatus}
               onChange={(value) => updateParam("employmentStatus", value)}
               options={["active", "on-leave", "inactive"]}
-              optionLabel={labelFor}
-            />
-            <Filter
-              label="Workload risk"
-              value={filters.workloadRisk}
-              onChange={(value) => updateParam("workloadRisk", value)}
-              options={["balanced", "at-risk", "overloaded"]}
               optionLabel={labelFor}
             />
           </FilterToolbar>
@@ -460,7 +516,126 @@ export function EmployeeDirectory() {
           ) : null}
         </CardContent>
       </Card>
+      <CreateEmployeeDialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        onCreated={async () => {
+          setCreateOpen(false);
+          await queryClient.invalidateQueries({ queryKey: ["tenant-admin-employees"] });
+        }}
+      />
+      <CapacityDialog
+        employee={capacityEmployee}
+        onOpenChange={(open) => !open && setCapacityEmployee(null)}
+        onSaved={async (weeklyCapacityHours) => {
+          if (!capacityEmployee) return;
+          await updateTenantAdminEmployeeCapacity(capacityEmployee.id, weeklyCapacityHours);
+          await queryClient.invalidateQueries({ queryKey: ["tenant-admin-employees"] });
+          setCapacityEmployee(null);
+          toast.success("Capacity updated.");
+        }}
+      />
     </div>
+  );
+}
+
+function CreateEmployeeDialog({
+  open,
+  onOpenChange,
+  onCreated,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onCreated: () => Promise<void>;
+}) {
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [employeeCode, setEmployeeCode] = useState("");
+  const [skills, setSkills] = useState("");
+  const [experienceLevel, setExperienceLevel] = useState("");
+  const [isManager, setIsManager] = useState(false);
+  const [weeklyCapacityHours, setWeeklyCapacityHours] = useState("40");
+  const [saving, setSaving] = useState(false);
+  const save = async () => {
+    if (!name.trim() || !email.trim() || password.length < 8) return;
+    setSaving(true);
+    try {
+      await createTenantAdminEmployee({
+        name,
+        email,
+        password,
+        employeeCode,
+        isManager,
+        skills: skills.split(",").map((value) => value.trim()).filter(Boolean),
+        experienceLevel: experienceLevel ? (experienceLevel as "junior" | "mid" | "senior" | "lead") : undefined,
+        weeklyCapacityHours: Number(weeklyCapacityHours) || 40,
+      });
+      toast.success("Employee created.");
+      setName("");
+      setEmail("");
+      setPassword("");
+      setEmployeeCode("");
+      setSkills("");
+      setExperienceLevel("");
+      setIsManager(false);
+      setWeeklyCapacityHours("40");
+      await onCreated();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Employee could not be created.");
+    } finally {
+      setSaving(false);
+    }
+  };
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent title="Create employee" description="Add an active employee to this tenant." className="max-w-md">
+        <div className="grid gap-4 pr-8">
+          <label className="text-sm font-medium">Name<Input className="mt-1" value={name} onChange={(event) => setName(event.target.value)} /></label>
+          <label className="text-sm font-medium">Email<Input className="mt-1" type="email" value={email} onChange={(event) => setEmail(event.target.value)} /></label>
+          <label className="text-sm font-medium">Password<Input className="mt-1" type="password" minLength={8} value={password} onChange={(event) => setPassword(event.target.value)} /></label>
+          <label className="text-sm font-medium">Employee code<Input className="mt-1" placeholder="Auto-generated if empty" value={employeeCode} onChange={(event) => setEmployeeCode(event.target.value)} /></label>
+          <label className="text-sm font-medium">Skills (optional)<Input className="mt-1" placeholder="GST, Payroll, Compliance" value={skills} onChange={(event) => setSkills(event.target.value)} /></label>
+          <label className="text-sm font-medium">Level (optional)<Select className="mt-1" value={experienceLevel} onChange={(event) => setExperienceLevel(event.target.value)}><option value="">Not set</option><option value="junior">Junior</option><option value="mid">Mid</option><option value="senior">Senior</option><option value="lead">Lead</option></Select></label>
+          <label className="text-sm font-medium">Weekly capacity hours<Input className="mt-1" type="number" min="1" max="168" value={weeklyCapacityHours} onChange={(event) => setWeeklyCapacityHours(event.target.value)} /></label>
+          <label className="flex items-center gap-2 text-sm font-medium"><input type="checkbox" checked={isManager} onChange={(event) => setIsManager(event.target.checked)} />Make this employee a manager</label>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+            <Button disabled={saving || !name.trim() || !email.trim() || password.length < 8 || !Number(weeklyCapacityHours)} onClick={() => void save()}>{saving ? "Creating..." : "Create employee"}</Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function CapacityDialog({
+  employee,
+  onOpenChange,
+  onSaved,
+}: {
+  employee: Employee | null;
+  onOpenChange: (open: boolean) => void;
+  onSaved: (weeklyCapacityHours: number) => Promise<void>;
+}) {
+  const [value, setValue] = useState("");
+  const open = Boolean(employee);
+  const currentEmployeeId = employee?.id;
+  useEffect(() => {
+    setValue(employee ? String(employee.workload.capacityHours) : "");
+  }, [employee]);
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent title="Edit capacity" description="Update weekly capacity hours." className="max-w-sm">
+        <div className="grid gap-4 pr-8">
+          <label className="text-sm font-medium">Weekly capacity hours<Input className="mt-1" type="number" min="1" max="168" value={value} onChange={(event) => setValue(event.target.value)} /></label>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => { setValue(""); onOpenChange(false); }}>Cancel</Button>
+            <Button disabled={!currentEmployeeId || !Number(value)} onClick={() => void onSaved(Number(value))}>Save</Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 

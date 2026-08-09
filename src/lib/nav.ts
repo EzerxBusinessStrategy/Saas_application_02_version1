@@ -36,6 +36,12 @@ const common: NavigationItem[] = [
         permissions: ["client.read", "client.read.assigned"],
       },
       {
+        label: "Services",
+        href: "/services",
+        icon: Handshake,
+        permissions: ["client.read"],
+      },
+      {
         label: "Work groups",
         href: "/work-groups",
         icon: Users,
@@ -72,10 +78,10 @@ const common: NavigationItem[] = [
         permissions: ["invoice.create"],
       },
       {
-        label: "Reports",
-        href: "/reports",
-        icon: BarChart3,
-        permissions: ["report.read"],
+        label: "Agreements",
+        href: "/agreements",
+        icon: FileText,
+        permissions: ["document.read"],
       },
       {
         label: "Audit log",
@@ -96,27 +102,9 @@ const common: NavigationItem[] = [
         permissions: ["employee.read"],
       },
       {
-        label: "Organisation",
-        href: "/organisation",
-        icon: Building2,
-        permissions: ["employee.read"],
-      },
-      {
         label: "Settings",
         href: "/settings",
         icon: Settings,
-        permissions: ["client.update"],
-      },
-      {
-        label: "Progress settings",
-        href: "/gamification",
-        icon: Award,
-        permissions: ["client.update"],
-      },
-      {
-        label: "Support tickets",
-        href: "/tickets",
-        icon: ClipboardList,
         permissions: ["client.update"],
       },
     ],
@@ -164,7 +152,6 @@ const superAdminItems = new Set([
 ]);
 const tenantAdminOnlyItems = new Set([
   "Managers",
-  "Organisation",
   "Settings",
   "Employee Performance",
 ]);
@@ -179,7 +166,6 @@ const managerNavigation: NavigationItem[] = [
   { label: "Dashboard", href: "", icon: LayoutDashboard },
   { label: "Tasks", href: "/tasks", icon: CheckSquare },
   { label: "Assigned clients", href: "/clients", icon: Building2 },
-  { label: "Support tickets", href: "/tickets", icon: ClipboardList },
   { label: "Work groups", href: "/work-groups", icon: Users },
   { label: "Assigned employees", href: "/employees", icon: Users },
   { label: "Review queue", href: "/reviews", icon: ClipboardList },
@@ -209,15 +195,11 @@ const employeeNavigation: NavigationItem[] = [
 const clientNavigation: NavigationItem[] = [
   { label: "Dashboard", href: "", icon: LayoutDashboard },
   { label: "Active services", href: "/services", icon: Handshake },
-  { label: "Onboarding", href: "/onboarding", icon: ClipboardList },
   { label: "Deliverables", href: "/deliverables", icon: FileText },
   { label: "Requests", href: "/requests", icon: ClipboardList },
   { label: "Invoices", href: "/invoices", icon: ReceiptText },
   { label: "Payments", href: "/payments", icon: ReceiptText },
   { label: "Agreements", href: "/agreements", icon: FileText },
-  { label: "Documents", href: "/documents", icon: FileText },
-  { label: "Support", href: "/support", icon: ClipboardList },
-  { label: "Notifications", href: "/notifications", icon: Bell },
   { label: "Profile", href: "/profile", icon: Users },
 ];
 
@@ -254,6 +236,10 @@ const superAdminNavigation = filterForWorkspace(common, "super-admin").flatMap(
 export const navigationFor = (workspace: Workspace) =>
   workspace === "super-admin"
     ? superAdminNavigation
+    : workspace === "admin"
+      ? filterForWorkspace(common, workspace).flatMap(
+          (item) => item.children ?? [item],
+        )
     : workspace === "manager"
     ? managerNavigation
     : workspace === "employee"

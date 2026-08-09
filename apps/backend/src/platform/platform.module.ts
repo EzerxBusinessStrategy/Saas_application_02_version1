@@ -1,6 +1,21 @@
 import { Module } from "@nestjs/common";
 import { AuthModule } from "../auth/auth.module";
 import { DatabaseModule } from "../database/database.module";
+import { ClientPortalNotificationsController } from "./client-portal-notifications.controller";
+import { ClientPortalDeliverablesController } from "./client-portal-deliverables.controller";
+import { ClientPortalDeliverablesRepository } from "./client-portal-deliverables.repository";
+import { ClientPortalDeliverablesService } from "./client-portal-deliverables.service";
+import { ClientPortalDashboardController } from "./client-portal-dashboard.controller";
+import { ClientPortalDashboardRepository } from "./client-portal-dashboard.repository";
+import { ClientPortalDashboardService } from "./client-portal-dashboard.service";
+import { ClientPortalNotificationsRepository } from "./client-portal-notifications.repository";
+import { ClientPortalNotificationsService } from "./client-portal-notifications.service";
+import { ClientPortalProfileController } from "./client-portal-profile.controller";
+import { ClientPortalProfileRepository } from "./client-portal-profile.repository";
+import { ClientPortalProfileService } from "./client-portal-profile.service";
+import { ClientPortalRequestsController } from "./client-portal-requests.controller";
+import { ClientPortalRequestsRepository } from "./client-portal-requests.repository";
+import { ClientPortalRequestsService } from "./client-portal-requests.service";
 import { SuperAdminAuditLogController } from "./super-admin-audit-log.controller";
 import { SuperAdminAuditLogRepository } from "./super-admin-audit-log.repository";
 import { SuperAdminAuditLogService } from "./super-admin-audit-log.service";
@@ -27,11 +42,17 @@ import { TenantAdminClientsService } from "./tenant-admin-clients.service";
 import { TenantAdminEmployeePerformanceController } from "./tenant-admin-employee-performance.controller";
 import { TenantAdminEmployeePerformanceRepository } from "./tenant-admin-employee-performance.repository";
 import { TenantAdminEmployeePerformanceService } from "./tenant-admin-employee-performance.service";
+import { TenantAdminFinanceController } from "./tenant-admin-finance.controller";
+import { TenantAdminFinanceRepository } from "./tenant-admin-finance.repository";
+import { TenantAdminFinanceService } from "./tenant-admin-finance.service";
 import { TenantAdminNotificationsController } from "./tenant-admin-notifications.controller";
 import { TenantAdminNotificationsGateway } from "./tenant-admin-notifications.gateway";
 import { TenantAdminNotificationsListener } from "./tenant-admin-notifications-listener.service";
 import { TenantAdminNotificationsRepository } from "./tenant-admin-notifications.repository";
 import { TenantAdminNotificationsService } from "./tenant-admin-notifications.service";
+import { TenantAdminServicesController } from "./tenant-admin-services.controller";
+import { TenantAdminServicesRepository } from "./tenant-admin-services.repository";
+import { TenantAdminServicesService } from "./tenant-admin-services.service";
 import { TenantAdminTasksController } from "./tenant-admin-tasks.controller";
 import { TenantAdminTasksRepository } from "./tenant-admin-tasks.repository";
 import { TenantAdminTasksService } from "./tenant-admin-tasks.service";
@@ -47,10 +68,17 @@ import { TenantAnalyticsService } from "./tenant-analytics.service";
     SuperAdminSearchController,
     SuperAdminNotificationsController,
     SuperAdminPlatformConfigurationController,
+    ClientPortalDashboardController,
+    ClientPortalDeliverablesController,
+    ClientPortalNotificationsController,
+    ClientPortalProfileController,
+    ClientPortalRequestsController,
     TenantAdminDashboardController,
     TenantAdminClientsController,
     TenantAdminEmployeePerformanceController,
+    TenantAdminFinanceController,
     TenantAdminNotificationsController,
+    TenantAdminServicesController,
     TenantAdminTasksController,
     TenantAnalyticsController,
   ],
@@ -67,16 +95,30 @@ import { TenantAnalyticsService } from "./tenant-analytics.service";
     SuperAdminNotificationsListener,
     SuperAdminPlatformConfigurationRepository,
     SuperAdminPlatformConfigurationService,
+    ClientPortalDashboardRepository,
+    ClientPortalDashboardService,
+    ClientPortalDeliverablesRepository,
+    ClientPortalDeliverablesService,
+    ClientPortalNotificationsRepository,
+    ClientPortalNotificationsService,
+    ClientPortalProfileRepository,
+    ClientPortalProfileService,
+    ClientPortalRequestsRepository,
+    ClientPortalRequestsService,
     TenantAdminDashboardRepository,
     TenantAdminDashboardService,
     TenantAdminClientsRepository,
     TenantAdminClientsService,
     TenantAdminEmployeePerformanceRepository,
     TenantAdminEmployeePerformanceService,
+    TenantAdminFinanceRepository,
+    TenantAdminFinanceService,
     TenantAdminNotificationsRepository,
     TenantAdminNotificationsService,
     TenantAdminNotificationsGateway,
     TenantAdminNotificationsListener,
+    TenantAdminServicesRepository,
+    TenantAdminServicesService,
     TenantAdminTasksRepository,
     TenantAdminTasksService,
     TenantAnalyticsRepository,

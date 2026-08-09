@@ -301,14 +301,14 @@ export const sharedDocuments: SharedDocument[] = [
     title: "GST filing evidence checklist", fileName: "gst-filing-evidence-checklist.pdf",
     fileType: "PDF", sizeBytes: 284000, category: "evidence", engagement: "GST Filing", task: "Confirm onboarding checklist",
     uploadedBy: "Avery Patel", uploadedByRole: "manager", uploadedById: "mgr-avery", updatedOn: "2026-07-21",
-    status: "active", recipientEmployeeIds: ["emp-riley"], recipientManagerIds: ["mgr-avery"], recipientClientIds: ["northstar"], tenantAdminVisible: true,
+    status: "active", clientDecisionStatus: "pending", clientDecisionAt: null, clientDecisionBy: null, clientDecisionComment: null, recipientEmployeeIds: ["emp-riley"], recipientManagerIds: ["mgr-avery"], recipientClientIds: ["northstar"], tenantAdminVisible: true,
     activity: [{ id: "DOC-ACT-1", action: "Uploaded and shared", actor: "Avery Patel", at: "2026-07-21 09:15" }],
   },
   {
     id: "DOC-1049", tenantId: "acme", clientId: "wellspring", client: "Wellspring Co.",
     title: "Monthly delivery report", fileName: "monthly-delivery-report.docx", fileType: "DOCX", sizeBytes: 138000, category: "deliverable", engagement: "Compliance Review", task: "Publish monthly delivery report",
     uploadedBy: "Tenant Administration", uploadedByRole: "admin", uploadedById: "tenant-admin", updatedOn: "2026-07-20",
-    status: "active", recipientEmployeeIds: [], recipientManagerIds: ["mgr-avery"], recipientClientIds: ["wellspring"], tenantAdminVisible: true,
+    status: "active", clientDecisionStatus: "pending", clientDecisionAt: null, clientDecisionBy: null, clientDecisionComment: null, recipientEmployeeIds: [], recipientManagerIds: ["mgr-avery"], recipientClientIds: ["wellspring"], tenantAdminVisible: true,
     activity: [{ id: "DOC-ACT-2", action: "Uploaded and shared", actor: "Tenant Administration", at: "2026-07-20 16:40" }],
   },
 ];

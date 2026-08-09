@@ -29,6 +29,11 @@ export const tenantAdminClientCreateSchema = z.object({
     email: z.string().trim().email(),
     phone: z.string().trim().max(40).optional().default(""),
   }).optional(),
+  portalAccess: z.object({
+    email: z.string().trim().email().transform((value) => value.toLowerCase()),
+    phone: z.string().trim().max(40).optional().default(""),
+    password: z.string().min(8).max(128),
+  }),
 });
 export type TenantAdminClientCreateInput = z.infer<typeof tenantAdminClientCreateSchema>;
 

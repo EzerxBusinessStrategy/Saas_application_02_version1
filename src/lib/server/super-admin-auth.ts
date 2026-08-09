@@ -85,9 +85,13 @@ export async function createTenantAdminSessionPolicy(accessToken: string, rememb
   return createSessionPolicy(accessToken, rememberMe, "admin");
 }
 
+export async function createClientPortalSessionPolicy(accessToken: string, rememberMe: boolean): Promise<boolean> {
+  return createSessionPolicy(accessToken, rememberMe, "client");
+}
+
 export async function revokeSessionPolicy(
   accessToken: string,
-  workspace: "super-admin" | "admin",
+  workspace: "super-admin" | "admin" | "client",
 ): Promise<void> {
   await fetch(`${backendApiBaseUrl()}/auth/session-policy`, {
     method: "DELETE",
@@ -96,7 +100,7 @@ export async function revokeSessionPolicy(
   }).catch(() => undefined);
 }
 
-async function createSessionPolicy(accessToken: string, rememberMe: boolean, portal: "super-admin" | "admin"): Promise<boolean> {
+async function createSessionPolicy(accessToken: string, rememberMe: boolean, portal: "super-admin" | "admin" | "client"): Promise<boolean> {
   const response = await fetch(`${backendApiBaseUrl()}/auth/session-policy`, {
     method: "POST",
     headers: {
@@ -117,7 +121,8 @@ export async function fetchVerifiedSuperAdminMe(accessToken: string): Promise<Su
       "x-portal": "super-admin",
     },
     cache: "no-store",
-  });
+  }).catch(() => null);
+  if (!response) return null;
   if (!response.ok) return null;
 
   const me = (await response.json()) as SuperAdminMe;
@@ -131,10 +136,23 @@ export async function fetchVerifiedTenantAdminMe(accessToken: string): Promise<S
   const response = await fetch(`${backendApiBaseUrl()}/me`, {
     headers: { authorization: `Bearer ${accessToken}`, "x-portal": "admin" },
     cache: "no-store",
-  });
+  }).catch(() => null);
+  if (!response) return null;
   if (!response.ok) return null;
   const me = (await response.json()) as SuperAdminMe;
   if (me.isPlatformAdmin || !me.roles.includes("TENANT_ADMIN") || !me.activeMembership) return null;
+  return me;
+}
+
+export async function fetchVerifiedClientPortalMe(accessToken: string): Promise<SuperAdminMe | null> {
+  const response = await fetch(`${backendApiBaseUrl()}/me`, {
+    headers: { authorization: `Bearer ${accessToken}`, "x-portal": "client" },
+    cache: "no-store",
+  }).catch(() => null);
+  if (!response) return null;
+  if (!response.ok) return null;
+  const me = (await response.json()) as SuperAdminMe;
+  if (me.isPlatformAdmin || !me.roles.includes("CLIENT_USER") || !me.activeMembership) return null;
   return me;
 }
 
@@ -176,6 +194,10 @@ export function userFromSuperAdminMe(me: SuperAdminMe): User {
 
 export function userFromTenantAdminMe(me: SuperAdminMe): User {
   return { name: me.user.displayName, email: me.user.email, initials: initialsFromName(me.user.displayName), role: "TENANT_ADMIN", permissions: rolePermissions.TENANT_ADMIN };
+}
+
+export function userFromClientPortalMe(me: SuperAdminMe): User {
+  return { name: me.user.displayName, email: me.user.email, initials: initialsFromName(me.user.displayName), role: "CLIENT_USER", permissions: rolePermissions.CLIENT_USER };
 }
 
 function backendApiBaseUrl(): string {

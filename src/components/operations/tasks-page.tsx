@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
 import {
   decideTenantTaskApproval,
+  createTenantAdminEmployee,
   createTenantAdminTask,
   listOperationalTasks,
   listTenantAdminTaskOptions,
@@ -16,11 +17,14 @@ import {
   startEmployeeTask,
   submitEmployeeTaskForReview,
   type CreateTenantAdminTaskInput,
+  type TenantAdminEmployeeOption,
+  type TenantAdminService,
   type TenantAdminTask,
   type TenantAdminTaskOptions,
 } from "@/features/operations/api/operations-api";
 import { TaskBoard } from "@/components/operations/task-board";
 import { TaskDetailsDrawer } from "@/components/operations/task-details-drawer";
+import { NewServiceDialog } from "@/components/tenant-administration/service-management";
 import { DataTable } from "@/components/operations/data-table";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ConfirmationDialog } from "@/components/shared/confirmation-dialog";
@@ -70,8 +74,6 @@ export function TasksPage({
   canUpdate?: boolean;
 }) {
   const searchParams = useSearchParams();
-  const router = useRouter();
-  const pathname = usePathname();
   const queryClient = useQueryClient();
   const [view, setView] = useState<"board" | "list">(
     workspace === "admin" ? "list" : "board",
@@ -94,11 +96,6 @@ export function TasksPage({
   const [reviewSubmission, setReviewSubmission] =
     useState<OperationalTask | null>(null);
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
-  const tenantTaskOptionsQuery = useQuery({
-    queryKey: ["tenant-admin-task-options"],
-    queryFn: listTenantAdminTaskOptions,
-    enabled: workspace === "admin",
-  });
   const tasksQuery = useQuery({
     queryKey: ["operational-tasks", workspace, selectedClientId, query, status, priority],
     queryFn: async () => {
@@ -114,16 +111,13 @@ export function TasksPage({
         priority: priority || undefined,
       });
     },
-    enabled: workspace !== "admin" || Boolean(selectedClientId),
+    enabled: true,
   });
   const logsQuery = useQuery({
     queryKey: ["operational-work-logs", workspace, selectedClientId],
     queryFn: () => listWorkLogs(workspace),
     enabled: workspace !== "admin",
   });
-  const selectedClient = tenantTaskOptionsQuery.data?.clients.find(
-    (client) => client.id === selectedClientId,
-  );
   const tasks = useMemo(() => {
     const items = [
       ...(tasksQuery.data ?? []),
@@ -268,20 +262,15 @@ export function TasksPage({
     },
     { accessorKey: "dueDate", header: "Due" },
   ];
-  if (
-    (workspace === "admin" && tenantTaskOptionsQuery.isPending) ||
-    ((workspace !== "admin" || selectedClientId) &&
-      (tasksQuery.isPending || logsQuery.isPending))
-  )
+  if (tasksQuery.isPending || (workspace !== "admin" && logsQuery.isPending))
     return <LoadingState label="Loading task delivery workflow" rows={5} />;
-  if ((workspace === "admin" && tenantTaskOptionsQuery.isError) || tasksQuery.isError || logsQuery.isError)
+  if (tasksQuery.isError || (workspace !== "admin" && logsQuery.isError))
     return (
       <ErrorState
         title="Tasks could not load"
         onRetry={() => {
-          void tenantTaskOptionsQuery.refetch();
           void tasksQuery.refetch();
-          void logsQuery.refetch();
+          if (workspace !== "admin") void logsQuery.refetch();
         }}
       />
     );
@@ -292,11 +281,10 @@ export function TasksPage({
         title={workspace === "admin" ? "Client tasks" : "Tasks"}
         description={workspace === "admin" ? "Select a client to plan, assign, review and manage all work within their active scope." : "Plan, assign, complete, review, and approve client work within the active scope."}
         actions={
-          canCreate && (workspace !== "admin" || selectedClient) ? (
-            workspace === "admin" && selectedClientId && tenantTaskOptionsQuery.data ? (
+          canCreate ? (
+            workspace === "admin" ? (
               <TenantAdminCreateTaskAction
-                clientId={selectedClientId}
-                options={tenantTaskOptionsQuery.data}
+                initialClientId={selectedClientId ?? undefined}
                 onCreated={() => {
                   void queryClient.invalidateQueries({ queryKey: ["operational-tasks", workspace] });
                   void queryClient.invalidateQueries({ queryKey: ["admin-operations-overview"] });
@@ -338,37 +326,7 @@ export function TasksPage({
           ) : undefined
         }
       />
-      {workspace === "admin" ? (
-        <Card>
-          <CardContent className="grid gap-3 py-5 md:grid-cols-[minmax(0,360px)_1fr] md:items-end">
-            <label className="flex flex-col gap-1.5 text-sm font-medium">
-              Select client
-              <Select
-                aria-label="Select client"
-                value={selectedClientId ?? ""}
-                onChange={(event) => {
-                  const params = new URLSearchParams(searchParams.toString());
-                  if (event.target.value) params.set("clientId", event.target.value);
-                  else params.delete("clientId");
-                  params.delete("task");
-                  router.replace(`${pathname}?${params.toString()}`);
-                }}
-              >
-                <option value="">Search and select a client</option>
-                {(tenantTaskOptionsQuery.data?.clients ?? []).map((client) => (
-                  <option key={client.id} value={client.id}>
-                    {client.name}
-                  </option>
-                ))}
-              </Select>
-            </label>
-            {selectedClient ? <p className="text-sm text-muted-foreground">{selectedClient.name}</p> : null}
-          </CardContent>
-        </Card>
-      ) : null}
-      {workspace === "admin" && !selectedClientId ? (
-        <EmptyState title="Select a client to manage tasks" description="Choose a client to view their current work, assignments, submissions, review queue and task history." />
-      ) : <>
+      <>
       {workspace === "employee" ? <ActiveTaskTimer tasks={tasks} /> : null}
       {workspace === "admin" ? (
         <ResponsiveTabs
@@ -526,7 +484,7 @@ export function TasksPage({
           Assigned manager: {reviewSubmission?.manager}
         </p>
       </ConfirmationDialog>
-      </>}
+      </>
     </div>
   );
 }
@@ -594,13 +552,13 @@ function formatTaskDate(value: string) {
 
 const emptyTenantTaskInput = {
   serviceId: "",
+  countryCode: "",
   title: "",
   description: "",
   priority: "normal" as CreateTenantAdminTaskInput["priority"],
   plannedDueAt: "",
   workGroupId: "",
   employeeIds: [] as string[],
-  rateSource: "existing" as "existing" | "new",
   rateCardItemId: "",
   taskType: "",
   unitType: "per_task" as "per_task" | "per_hour" | "per_filing" | "per_unit",
@@ -610,39 +568,70 @@ const emptyTenantTaskInput = {
   effectiveFrom: new Date().toISOString().slice(0, 10),
   saveToRateCard: true,
   oneTimeReason: "",
-  quantity: "1",
+  discountType: "" as "" | "percentage" | "fixed",
+  discountValue: "",
 };
 
+function findBestServiceRate(
+  rateItems: TenantAdminTaskOptions["rateItems"],
+  serviceId: string,
+  clientId: string,
+) {
+  return (
+    rateItems.find((rate) => rate.serviceId === serviceId && rate.clientId === clientId) ??
+    rateItems.find((rate) => rate.serviceId === serviceId && !rate.clientId)
+  );
+}
+
 function TenantAdminCreateTaskAction({
-  clientId,
-  options,
+  initialClientId,
   onCreated,
 }: {
-  clientId: string;
-  options: TenantAdminTaskOptions;
+  initialClientId?: string;
   onCreated: () => void;
 }) {
+  const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
+  const [clientId, setClientId] = useState(initialClientId ?? "");
   const [input, setInput] = useState(emptyTenantTaskInput);
   const [isSaving, setIsSaving] = useState(false);
+  const optionsQuery = useQuery({
+    queryKey: ["tenant-admin-task-options"],
+    queryFn: listTenantAdminTaskOptions,
+  });
+  const refetchTaskOptions = optionsQuery.refetch;
+  const options: TenantAdminTaskOptions = optionsQuery.data ?? {
+    clients: [],
+    services: [],
+    employees: [],
+    workGroups: [],
+    rateItems: [],
+    countries: [],
+  };
+  useEffect(() => {
+    if (open) void refetchTaskOptions();
+  }, [open, refetchTaskOptions]);
+  const isLoadingOptions = optionsQuery.isPending;
+  useEffect(() => setClientId(initialClientId ?? ""), [initialClientId]);
   const workGroups = options.workGroups.filter(
     (group) => !group.clientId || group.clientId === clientId,
   );
-  const matchingRates = options.rateItems.filter(
-    (rate) =>
-      rate.serviceId === input.serviceId &&
-      (!rate.clientId || rate.clientId === clientId) &&
-      (!input.taskType || rate.taskType.toLowerCase().includes(input.taskType.toLowerCase())),
-  );
-  const selectedRate = matchingRates.find((rate) => rate.id === input.rateCardItemId);
-  const quantity = Math.max(0, Number(input.quantity) || 0);
-  const unitRate =
-    input.rateSource === "existing"
-      ? (selectedRate?.rateAmount ?? 0)
-      : Math.max(0, Number(input.rateAmount) || 0);
+  const selectedRate = useMemo(() => {
+    const matchingRate = options.rateItems.find(
+      (rate) =>
+        rate.id === input.rateCardItemId &&
+        rate.serviceId === input.serviceId &&
+        (!rate.clientId || rate.clientId === clientId),
+    );
+    return matchingRate ?? findBestServiceRate(options.rateItems, input.serviceId, clientId);
+  }, [clientId, input.rateCardItemId, input.serviceId, options.rateItems]);
+  const quantity = 1;
+  const unitRate = selectedRate?.rateAmount ?? 0;
   const estimatedAmount = quantity * unitRate;
   const estimateCurrency = selectedRate?.currencyCode ?? input.currencyCode;
   const safeCurrency = /^[A-Z]{3}$/.test(estimateCurrency) ? estimateCurrency : "INR";
+  const hasActiveEmployees = options.employees.length > 0;
+  const selectedCountry = options.countries.find((country) => country.countryCode === input.countryCode);
   const money = new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: safeCurrency,
@@ -656,12 +645,95 @@ function TenantAdminCreateTaskAction({
         : [...current.employeeIds, employeeId],
     }));
   };
+  const selectServiceRate = (serviceId: string) => {
+    const rate = findBestServiceRate(options.rateItems, serviceId, clientId);
+    setInput((current) => ({
+      ...current,
+      serviceId,
+      rateCardItemId: rate?.id ?? "",
+      taskType: rate?.taskType ?? current.taskType,
+      unitType: rate?.unitType ?? current.unitType,
+      rateAmount: rate ? String(rate.rateAmount) : current.rateAmount,
+      currencyCode: rate?.currencyCode ?? current.currencyCode,
+    }));
+  };
+  useEffect(() => {
+    if (!clientId || !input.serviceId || input.rateCardItemId) return;
+    const rate = findBestServiceRate(options.rateItems, input.serviceId, clientId);
+    if (!rate) return;
+    setInput((current) => ({
+      ...current,
+      rateCardItemId: rate.id,
+      taskType: rate.taskType,
+      unitType: rate.unitType,
+      rateAmount: String(rate.rateAmount),
+      currencyCode: rate.currencyCode,
+    }));
+  }, [clientId, input.rateCardItemId, input.serviceId, options.rateItems]);
+  useEffect(() => {
+    if (!open || input.countryCode || !options.countries[0]) return;
+    setInput((current) => ({ ...current, countryCode: options.countries[0]?.countryCode ?? "" }));
+  }, [input.countryCode, open, options.countries]);
+  const handleServiceCreated = (service: TenantAdminService) => {
+    const rate = service.rates[0];
+    queryClient.setQueryData<TenantAdminTaskOptions>(["tenant-admin-task-options"], (current) => ({
+      clients: current?.clients ?? [],
+      employees: current?.employees ?? [],
+      workGroups: current?.workGroups ?? [],
+      countries: current?.countries ?? [],
+      services: [...(current?.services ?? []).filter((item) => item.id !== service.id), { id: service.id, name: service.name }],
+      rateItems: rate
+        ? [
+            ...(current?.rateItems ?? []).filter((item) => item.id !== rate.id),
+            {
+              id: rate.id,
+              clientId: null,
+              serviceId: service.id,
+              label: `${rate.taskType} - ${formatRateMoney(rate.rateAmount, rate.currencyCode)} ${billingUnitLabel(rate.unitType)}`,
+              taskType: rate.taskType,
+              unitType: rate.unitType,
+              rateAmount: rate.rateAmount,
+              currencyCode: rate.currencyCode,
+              taxCode: rate.taxCode,
+            },
+          ]
+        : (current?.rateItems ?? []),
+    }));
+    if (rate) {
+      setInput((current) => ({
+        ...current,
+        serviceId: service.id,
+        rateCardItemId: rate.id,
+        taskType: rate.taskType,
+        unitType: rate.unitType,
+        rateAmount: String(rate.rateAmount),
+        currencyCode: rate.currencyCode,
+      }));
+    } else {
+      setInput((current) => ({ ...current, serviceId: service.id, rateCardItemId: "" }));
+    }
+  };
+  const handleEmployeeCreated = (employee: TenantAdminEmployeeOption) => {
+    queryClient.setQueryData<TenantAdminTaskOptions>(["tenant-admin-task-options"], (current) => ({
+      clients: current?.clients ?? [],
+      services: current?.services ?? [],
+      workGroups: current?.workGroups ?? [],
+      rateItems: current?.rateItems ?? [],
+      countries: current?.countries ?? [],
+      employees: [...(current?.employees ?? []).filter((item) => item.id !== employee.id), employee],
+    }));
+    setInput((current) => ({
+      ...current,
+      employeeIds: current.employeeIds.includes(employee.id) ? current.employeeIds : [...current.employeeIds, employee.id],
+    }));
+  };
   const submit = async () => {
     setIsSaving(true);
     try {
       await createTenantAdminTask({
         clientId,
         serviceId: input.serviceId,
+        countryCode: input.countryCode,
         title: input.title.trim(),
         description: input.description.trim(),
         priority: input.priority,
@@ -669,24 +741,13 @@ function TenantAdminCreateTaskAction({
         workGroupId: input.workGroupId || undefined,
         employeeIds: input.employeeIds,
         billing:
-          input.rateSource === "existing"
-            ? {
-                rateSource: "existing",
-                rateCardItemId: input.rateCardItemId,
-                quantity,
-              }
-            : {
-                rateSource: "new",
-                taskType: input.taskType.trim(),
-                unitType: input.unitType,
-                rateAmount: unitRate,
-                currencyCode: input.currencyCode,
-                taxCode: input.taxCode.trim() || undefined,
-                effectiveFrom: input.effectiveFrom,
-                saveToRateCard: input.saveToRateCard,
-                oneTimeReason: input.saveToRateCard ? undefined : input.oneTimeReason.trim(),
-                quantity,
-              },
+          {
+            rateSource: "existing",
+            rateCardItemId: selectedRate?.id ?? input.rateCardItemId,
+            quantity: 1,
+            discountType: input.discountType || undefined,
+            discountValue: Number(input.discountValue || 0),
+          },
       });
       toast.success("Task created.");
       setOpen(false);
@@ -700,34 +761,85 @@ function TenantAdminCreateTaskAction({
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        setOpen(nextOpen);
+        if (nextOpen) setClientId(initialClientId ?? "");
+      }}
+    >
       <DialogTrigger asChild>
         <Button>
           <Plus data-icon="inline-start" />
           Create task
         </Button>
       </DialogTrigger>
-      <DialogContent title="Create task" description="Create a tenant-scoped client task." className="max-w-2xl">
+      <DialogContent
+        title="Create task"
+        description="Create a tenant-scoped client task."
+        className="max-h-[calc(100dvh-2rem)] max-w-2xl overflow-y-auto"
+      >
         <div className="pr-8">
           <h2 className="text-lg font-semibold">Create task</h2>
+          {isLoadingOptions ? (
+            <p className="mt-2 rounded-[var(--radius-control)] border px-3 py-2 text-sm text-muted-foreground">
+              Loading clients, services, employees, work groups and rates...
+            </p>
+          ) : null}
+          {optionsQuery.isError ? (
+            <div className="mt-2 flex items-center justify-between gap-3 rounded-[var(--radius-control)] border border-destructive/30 px-3 py-2">
+              <p className="text-sm text-destructive">Task form options could not load.</p>
+              <Button variant="outline" size="sm" onClick={() => void optionsQuery.refetch()}>
+                Retry
+              </Button>
+            </div>
+          ) : null}
           <div className="mt-5 grid gap-4 sm:grid-cols-2">
-            <label className="text-sm font-medium">
-              Service
+            <label className="text-sm font-medium sm:col-span-2">
+              Client
               <Select
                 className="mt-1"
-                value={input.serviceId}
-                onChange={(event) =>
-                  setInput((current) => ({ ...current, serviceId: event.target.value, rateCardItemId: "" }))
-                }
+                disabled={isLoadingOptions || optionsQuery.isError}
+                value={clientId}
+                onChange={(event) => {
+                  setClientId(event.target.value);
+                  setInput((current) => ({ ...current, workGroupId: "", rateCardItemId: "" }));
+                }}
               >
-                <option value="">Select service</option>
+                <option value="">{isLoadingOptions ? "Loading clients..." : "Select client"}</option>
+                {options.clients.map((client) => (
+                  <option key={client.id} value={client.id}>
+                    {client.name}
+                  </option>
+                ))}
+              </Select>
+            </label>
+            <div className="text-sm font-medium">
+              <div className="flex items-center justify-between gap-2">
+                <span>Service</span>
+                <NewServiceDialog
+                  triggerLabel="Custom service"
+                  triggerSize="sm"
+                  onCreated={() => {
+                    void queryClient.invalidateQueries({ queryKey: ["tenant-admin-services"] });
+                  }}
+                  onCreatedService={handleServiceCreated}
+                />
+              </div>
+              <Select
+                className="mt-1"
+                disabled={isLoadingOptions || optionsQuery.isError}
+                value={input.serviceId}
+                onChange={(event) => selectServiceRate(event.target.value)}
+              >
+                <option value="">{isLoadingOptions ? "Loading services..." : "Select service"}</option>
                 {options.services.map((service) => (
                   <option key={service.id} value={service.id}>
                     {service.name}
                   </option>
                 ))}
               </Select>
-            </label>
+            </div>
             <label className="text-sm font-medium">
               Priority
               <Select
@@ -745,6 +857,27 @@ function TenantAdminCreateTaskAction({
                 <option value="urgent">Urgent</option>
                 <option value="low">Low</option>
               </Select>
+            </label>
+            <label className="text-sm font-medium">
+              Country calendar
+              <Select
+                className="mt-1"
+                disabled={isLoadingOptions || optionsQuery.isError}
+                value={input.countryCode}
+                onChange={(event) => setInput((current) => ({ ...current, countryCode: event.target.value }))}
+              >
+                <option value="">{isLoadingOptions ? "Loading countries..." : "Select country"}</option>
+                {options.countries.map((country) => (
+                  <option key={country.countryCode} value={country.countryCode}>
+                    {country.name}
+                  </option>
+                ))}
+              </Select>
+              {selectedCountry ? (
+                <span className="mt-1 block text-xs text-muted-foreground">
+                  {selectedCountry.financialYearLabel}: {selectedCountry.startsOn} to {selectedCountry.endsOn}
+                </span>
+              ) : null}
             </label>
             <label className="text-sm font-medium sm:col-span-2">
               Task title
@@ -777,6 +910,7 @@ function TenantAdminCreateTaskAction({
               Work group
               <Select
                 className="mt-1"
+                disabled={isLoadingOptions || optionsQuery.isError || !hasActiveEmployees}
                 value={input.workGroupId}
                 onChange={(event) => setInput((current) => ({ ...current, workGroupId: event.target.value }))}
               >
@@ -787,10 +921,18 @@ function TenantAdminCreateTaskAction({
                   </option>
                 ))}
               </Select>
+              {!hasActiveEmployees ? (
+                <span className="mt-1 block text-xs text-muted-foreground">
+                  Create at least one active employee before creating or assigning a work group.
+                </span>
+              ) : null}
             </label>
           </div>
           <fieldset className="mt-5">
-            <legend className="text-sm font-medium">Assign employees</legend>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-sm font-medium">Assign employees</span>
+              <NewEmployeeDialog onCreated={handleEmployeeCreated} />
+            </div>
             <div className="mt-2 grid max-h-48 gap-2 overflow-y-auto rounded-[var(--radius-control)] border p-3 sm:grid-cols-2">
               {options.employees.length ? (
                 options.employees.map((employee) => (
@@ -798,6 +940,7 @@ function TenantAdminCreateTaskAction({
                     <input
                       type="checkbox"
                       className="size-4 accent-primary"
+                      disabled={isLoadingOptions || optionsQuery.isError}
                       checked={input.employeeIds.includes(employee.id)}
                       onChange={() => toggleEmployee(employee.id)}
                     />
@@ -809,158 +952,48 @@ function TenantAdminCreateTaskAction({
               )}
             </div>
             <p className="mt-2 text-xs text-muted-foreground">
-              If no employee is selected, an active work group assigns the task to its active members.
+              Select at least one employee. Work group is optional.
             </p>
           </fieldset>
           <fieldset className="mt-5 rounded-[var(--radius-card)] border p-4">
             <legend className="px-1 text-sm font-semibold">Billing and Rate</legend>
             <div className="mt-3 grid gap-4 sm:grid-cols-2">
-              <div className="flex gap-4 text-sm sm:col-span-2">
-                <label className="flex items-center gap-2">
-                  <input
-                    type="radio"
-                    className="size-4 accent-primary"
-                    checked={input.rateSource === "existing"}
-                    onChange={() => setInput((current) => ({ ...current, rateSource: "existing" }))}
-                  />
-                  Use existing rate
-                </label>
-                <label className="flex items-center gap-2">
-                  <input
-                    type="radio"
-                    className="size-4 accent-primary"
-                    checked={input.rateSource === "new"}
-                    onChange={() => setInput((current) => ({ ...current, rateSource: "new" }))}
-                  />
-                  Create new rate
-                </label>
-              </div>
-              {input.rateSource === "existing" ? (
-                <label className="text-sm font-medium sm:col-span-2">
-                  Existing rate
-                  <Select
-                    className="mt-1"
-                    value={input.rateCardItemId}
-                    onChange={(event) => setInput((current) => ({ ...current, rateCardItemId: event.target.value }))}
-                  >
-                    <option value="">Select rate</option>
-                    {matchingRates.map((rate) => (
-                      <option key={rate.id} value={rate.id}>
-                        {rate.label}
-                      </option>
-                    ))}
-                  </Select>
-                  {input.serviceId && !matchingRates.length ? (
-                    <span className="mt-1 block text-xs text-muted-foreground">
-                      No active rate exists for this client and service. Create a new rate below.
-                    </span>
-                  ) : null}
-                </label>
-              ) : (
-                <>
-                  <label className="text-sm font-medium">
-                    Task type
-                    <Input
-                      className="mt-1"
-                      value={input.taskType}
-                      onChange={(event) => setInput((current) => ({ ...current, taskType: event.target.value }))}
-                    />
-                  </label>
-                  <label className="text-sm font-medium">
-                    Billing unit
-                    <Select
-                      className="mt-1"
-                      value={input.unitType}
-                      onChange={(event) =>
-                        setInput((current) => ({
-                          ...current,
-                          unitType: event.target.value as typeof input.unitType,
-                        }))
-                      }
-                    >
-                      <option value="per_task">Per task</option>
-                      <option value="per_hour">Per hour</option>
-                      <option value="per_filing">Per filing</option>
-                      <option value="per_unit">Per unit</option>
-                    </Select>
-                  </label>
-                  <label className="text-sm font-medium">
-                    Rate
-                    <Input
-                      className="mt-1"
-                      min="0"
-                      step="0.01"
-                      type="number"
-                      value={input.rateAmount}
-                      onChange={(event) => setInput((current) => ({ ...current, rateAmount: event.target.value }))}
-                    />
-                  </label>
-                  <label className="text-sm font-medium">
-                    Currency
-                    <Input
-                      className="mt-1 uppercase"
-                      maxLength={3}
-                      value={input.currencyCode}
-                      onChange={(event) =>
-                        setInput((current) => ({ ...current, currencyCode: event.target.value.toUpperCase() }))
-                      }
-                    />
-                  </label>
-                  <label className="text-sm font-medium">
-                    Tax code
-                    <Input
-                      className="mt-1"
-                      value={input.taxCode}
-                      onChange={(event) => setInput((current) => ({ ...current, taxCode: event.target.value }))}
-                    />
-                  </label>
-                  <label className="text-sm font-medium">
-                    Effective from
-                    <Input
-                      className="mt-1"
-                      type="date"
-                      value={input.effectiveFrom}
-                      onChange={(event) => setInput((current) => ({ ...current, effectiveFrom: event.target.value }))}
-                    />
-                  </label>
-                  <label className="flex items-center gap-2 text-sm sm:col-span-2">
-                    <input
-                      type="checkbox"
-                      className="size-4 accent-primary"
-                      checked={input.saveToRateCard}
-                      onChange={(event) =>
-                        setInput((current) => ({ ...current, saveToRateCard: event.target.checked }))
-                      }
-                    />
-                    Save to Rate Card and reuse
-                  </label>
-                  {!input.saveToRateCard ? (
-                    <label className="text-sm font-medium sm:col-span-2">
-                      One-time rate reason
-                      <Input
-                        className="mt-1"
-                        value={input.oneTimeReason}
-                        onChange={(event) => setInput((current) => ({ ...current, oneTimeReason: event.target.value }))}
-                      />
-                    </label>
-                  ) : null}
-                </>
-              )}
-              <label className="text-sm font-medium">
-                Quantity
-                <Input
-                  className="mt-1"
-                  min="0.0001"
-                  step="0.0001"
-                  type="number"
-                  value={input.quantity}
-                  onChange={(event) => setInput((current) => ({ ...current, quantity: event.target.value }))}
-                />
-              </label>
+              {selectedRate ? (
+                <dl className="grid gap-3 rounded-[var(--radius-control)] border bg-muted/30 p-3 text-sm sm:col-span-2 sm:grid-cols-3">
+                  <div>
+                    <dt className="text-muted-foreground">Task type</dt>
+                    <dd className="mt-1 font-medium">{selectedRate.taskType}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-muted-foreground">Billing unit</dt>
+                    <dd className="mt-1 font-medium capitalize">{billingUnitLabel(selectedRate.unitType)}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-muted-foreground">Unit rate</dt>
+                    <dd className="mt-1 font-medium">{formatRateMoney(selectedRate.rateAmount, selectedRate.currencyCode)}</dd>
+                  </div>
+                </dl>
+              ) : input.serviceId ? (
+                <p className="rounded-[var(--radius-control)] border px-3 py-2 text-sm text-muted-foreground sm:col-span-2">
+                  No active rate exists for this service. Use Custom service to add the service and rate first.
+                </p>
+              ) : null}
               <div className="text-sm">
                 <p className="text-muted-foreground">Estimated amount</p>
                 <p className="mt-1 text-lg font-semibold">{money.format(estimatedAmount)}</p>
               </div>
+              <label className="text-sm font-medium">
+                Discount
+                <Select className="mt-1" value={input.discountType} onChange={(event) => setInput((current) => ({ ...current, discountType: event.target.value as typeof current.discountType }))}>
+                  <option value="">No discount</option>
+                  <option value="percentage">Percentage</option>
+                  <option value="fixed">Fixed amount</option>
+                </Select>
+              </label>
+              <label className="text-sm font-medium">
+                Discount value
+                <Input className="mt-1" type="number" min="0" disabled={!input.discountType} value={input.discountValue} onChange={(event) => setInput((current) => ({ ...current, discountValue: event.target.value }))} />
+              </label>
             </div>
           </fieldset>
           <div className="mt-6 flex justify-end gap-2">
@@ -970,16 +1003,14 @@ function TenantAdminCreateTaskAction({
             <Button
               disabled={
                 isSaving ||
+                isLoadingOptions ||
+                optionsQuery.isError ||
+                !clientId ||
                 !input.serviceId ||
+                !input.countryCode ||
                 input.title.trim().length < 3 ||
-                quantity <= 0 ||
-                (input.rateSource === "existing" && !input.rateCardItemId) ||
-                (input.rateSource === "new" &&
-                  (!input.taskType.trim() ||
-                    !input.rateAmount ||
-                    !input.currencyCode ||
-                    !input.effectiveFrom ||
-                    (!input.saveToRateCard && !input.oneTimeReason.trim())))
+                !selectedRate ||
+                input.employeeIds.length === 0
               }
               onClick={() => void submit()}
             >
@@ -990,6 +1021,123 @@ function TenantAdminCreateTaskAction({
       </DialogContent>
     </Dialog>
   );
+}
+
+function NewEmployeeDialog({ onCreated }: { onCreated: (employee: TenantAdminEmployeeOption) => void }) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [employeeCode, setEmployeeCode] = useState("");
+  const [skills, setSkills] = useState("");
+  const [experienceLevel, setExperienceLevel] = useState("");
+  const [weeklyCapacityHours, setWeeklyCapacityHours] = useState("40");
+  const [isManager, setIsManager] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const submit = async () => {
+    setSaving(true);
+    try {
+      const employee = await createTenantAdminEmployee({
+        name: name.trim(),
+        email: email.trim(),
+        password,
+        employeeCode: employeeCode.trim() || undefined,
+        isManager,
+        skills: skills.split(",").map((value) => value.trim()).filter(Boolean),
+        experienceLevel: experienceLevel ? (experienceLevel as "junior" | "mid" | "senior" | "lead") : undefined,
+        weeklyCapacityHours: Number(weeklyCapacityHours) || 40,
+      });
+      onCreated(employee);
+      setName("");
+      setEmail("");
+      setPassword("");
+      setEmployeeCode("");
+      setSkills("");
+      setExperienceLevel("");
+      setWeeklyCapacityHours("40");
+      setIsManager(false);
+      setOpen(false);
+      toast.success("Employee created and selected.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Employee could not be created.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="outline" size="sm">
+          <Plus data-icon="inline-start" />
+          Create employee
+        </Button>
+      </DialogTrigger>
+      <DialogContent title="Create employee" description="Add an active employee for task assignment." className="max-w-md">
+        <div className="grid gap-4 pr-8">
+          <label className="text-sm font-medium">
+            Name
+            <Input className="mt-1" value={name} onChange={(event) => setName(event.target.value)} />
+          </label>
+          <label className="text-sm font-medium">
+            Email
+            <Input className="mt-1" type="email" value={email} onChange={(event) => setEmail(event.target.value)} />
+          </label>
+          <label className="text-sm font-medium">
+            Password
+            <Input className="mt-1" type="password" value={password} minLength={8} onChange={(event) => setPassword(event.target.value)} />
+          </label>
+          <label className="text-sm font-medium">
+            Employee code
+            <Input className="mt-1" value={employeeCode} placeholder="Auto-generated if empty" onChange={(event) => setEmployeeCode(event.target.value)} />
+          </label>
+          <label className="text-sm font-medium">
+            Skills (optional)
+            <Input className="mt-1" value={skills} placeholder="GST, Payroll, Compliance" onChange={(event) => setSkills(event.target.value)} />
+          </label>
+          <label className="text-sm font-medium">
+            Level (optional)
+            <Select className="mt-1" value={experienceLevel} onChange={(event) => setExperienceLevel(event.target.value)}>
+              <option value="">Not set</option>
+              <option value="junior">Junior</option>
+              <option value="mid">Mid</option>
+              <option value="senior">Senior</option>
+              <option value="lead">Lead</option>
+            </Select>
+          </label>
+          <label className="text-sm font-medium">
+            Weekly capacity hours
+            <Input className="mt-1" type="number" min="1" max="168" value={weeklyCapacityHours} onChange={(event) => setWeeklyCapacityHours(event.target.value)} />
+          </label>
+          <label className="flex items-center gap-2 text-sm font-medium">
+            <input type="checkbox" checked={isManager} onChange={(event) => setIsManager(event.target.checked)} />
+            Make this employee a manager
+          </label>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setOpen(false)}>
+              Cancel
+            </Button>
+            <Button disabled={saving || name.trim().length < 2 || !email.trim() || password.length < 8 || !Number(weeklyCapacityHours)} onClick={() => void submit()}>
+              {saving ? "Creating..." : "Create employee"}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function formatRateMoney(amount: number, currencyCode: string) {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: /^[A-Z]{3}$/.test(currencyCode) ? currencyCode : "INR",
+    maximumFractionDigits: 2,
+  }).format(amount);
+}
+
+function billingUnitLabel(unit: string) {
+  return unit.replace("per_", "per ");
 }
 
 function ActiveTaskTimer({ tasks }: { tasks: OperationalTask[] }) {

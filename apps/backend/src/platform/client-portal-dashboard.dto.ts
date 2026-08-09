@@ -1,0 +1,48 @@
+import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
+
+export class ClientPortalDashboardServiceDto {
+  @ApiProperty({ type: String }) id!: string;
+  @ApiProperty({ type: String }) engagementName!: string;
+  @ApiProperty({ type: String }) serviceName!: string;
+  @ApiProperty({ type: String }) status!: string;
+  @ApiPropertyOptional({ type: String, nullable: true }) nextDueAt!: string | null;
+  @ApiProperty({ type: Number }) openTasks!: number;
+  @ApiProperty({ type: Number }) completedTasks!: number;
+  @ApiProperty({ type: Number }) totalTasks!: number;
+}
+
+export class ClientPortalDashboardRequestDto {
+  @ApiProperty({ type: String }) id!: string;
+  @ApiProperty({ type: String }) title!: string;
+  @ApiProperty({ type: String }) status!: string;
+  @ApiProperty({ type: String }) serviceName!: string;
+  @ApiProperty({ type: String }) countryCode!: string;
+  @ApiPropertyOptional({ type: String, nullable: true }) requestedDueDate!: string | null;
+  @ApiProperty({ type: String }) submittedAt!: string;
+  @ApiProperty({ type: String }) updatedAt!: string;
+}
+
+export class ClientPortalDashboardInvoiceDto {
+  @ApiProperty({ type: String }) id!: string;
+  @ApiProperty({ type: String }) invoiceNumber!: string;
+  @ApiProperty({ type: String }) status!: string;
+  @ApiProperty({ type: String }) issuedOn!: string;
+  @ApiPropertyOptional({ type: String, nullable: true }) dueOn!: string | null;
+  @ApiProperty({ type: String }) currencyCode!: string;
+  @ApiProperty({ type: Number }) totalAmount!: number;
+  @ApiProperty({ type: Number }) paidAmount!: number;
+  @ApiProperty({ type: Number }) outstandingAmount!: number;
+}
+
+export class ClientPortalDashboardResponseDto {
+  @ApiProperty({ type: Number }) activeServices!: number;
+  @ApiProperty({ type: Number }) openRequests!: number;
+  @ApiProperty({ type: Number }) outstandingInvoices!: number;
+  @ApiProperty({ type: String }) currencyCode!: string;
+  @ApiProperty({ type: () => ClientPortalDashboardServiceDto, isArray: true })
+  services!: readonly ClientPortalDashboardServiceDto[];
+  @ApiProperty({ type: () => ClientPortalDashboardRequestDto, isArray: true })
+  requests!: readonly ClientPortalDashboardRequestDto[];
+  @ApiProperty({ type: () => ClientPortalDashboardInvoiceDto, isArray: true })
+  invoices!: readonly ClientPortalDashboardInvoiceDto[];
+}

@@ -40,11 +40,19 @@ import {
 import {
   createClient,
   createClientContact,
+  deleteClient,
   getClient,
   listClients,
-  listWorkGroups,
   updateClientContact,
 } from "@/features/administration/api/administration-api";
+import {
+  createTenantAdminWorkGroup,
+  listTenantAdminEmployees,
+  listTenantAdminWorkGroups,
+  updateTenantAdminWorkGroup,
+  type TenantAdminEmployeeOption,
+  type TenantAdminWorkGroup,
+} from "@/features/operations/api/operations-api";
 import { clients, managers } from "@/mocks/administration";
 import {
   clientCreateInputSchema,
@@ -54,9 +62,6 @@ import {
   type ClientCreateInput,
   type ClientContactInput,
   type ClientListRequest,
-  type WorkGroup,
-  type WorkGroupInput,
-  workGroupInputSchema,
 } from "@/types/administration";
 
 const revenueSteps = Array.from({ length: 10 }, (_, index) => (index + 1) * 10000);
@@ -155,6 +160,7 @@ export function ClientDirectory() {
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
   const [createOpen, setCreateOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Client | null>(null);
   const request = useMemo<ClientListRequest>(
     () => ({
       query: searchParams.get("query") ?? undefined,
@@ -347,6 +353,9 @@ export function ClientDirectory() {
             >
               Manage contacts
             </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => setDeleteTarget(row.original)}>
+              Delete
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       ),
@@ -416,7 +425,7 @@ export function ClientDirectory() {
                 <option value="active">Active</option>
                 <option value="onboarding">Onboarding</option>
                 <option value="paused">Paused</option>
-                <option value="archived">Archived</option>
+                <option value="archived">Deleted clients</option>
               </Select>
             </label>
             <label className="flex flex-col gap-1 text-sm font-medium">
@@ -552,6 +561,28 @@ export function ClientDirectory() {
           <CreateClientForm onClose={() => setCreateOpen(false)} onSave={saveClient} />
         </DialogContent>
       </Dialog>
+      <ConfirmationDialog
+        open={Boolean(deleteTarget)}
+        title="Delete client"
+        description={`Move ${deleteTarget?.name ?? "this client"} to deleted clients. History, tasks, invoices and audit logs will be preserved.`}
+        confirmLabel="Delete client"
+        destructive
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) setDeleteTarget(null);
+        }}
+        onConfirm={async () => {
+          if (!deleteTarget) return;
+          try {
+            await deleteClient(deleteTarget.id);
+            await queryClient.invalidateQueries({ queryKey: ["clients"] });
+            setDeleteTarget(null);
+            setParam("status", "archived");
+            toast.success("Client moved to deleted clients.");
+          } catch (error) {
+            toast.error(error instanceof Error ? error.message : "Client could not be deleted.");
+          }
+        }}
+      />
     </div>
   );
 }
@@ -575,10 +606,25 @@ function CreateClientForm({
         email: "",
         phone: "",
       },
+      portalAccess: {
+        email: "",
+        phone: "",
+        password: "",
+      },
     },
   });
   return (
-    <form className="grid gap-4" noValidate onSubmit={form.handleSubmit(onSave)}>
+    <form
+      className="grid gap-4"
+      noValidate
+      onSubmit={form.handleSubmit(async (values) => {
+        try {
+          await onSave(values);
+        } catch (error) {
+          toast.error(error instanceof Error ? error.message : "Client could not be created.");
+        }
+      })}
+    >
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="text-sm font-medium sm:col-span-2">
           Client name
@@ -633,6 +679,40 @@ function CreateClientForm({
           <label className="text-sm font-medium">
             Phone
             <Input className="mt-1" {...form.register("primaryContact.phone")} />
+          </label>
+        </div>
+      </div>
+      <div className="border-t pt-4">
+        <h2 className="text-sm font-semibold">Client portal login</h2>
+        <div className="mt-3 grid gap-4 sm:grid-cols-2">
+          <label className="text-sm font-medium">
+            Login email
+            <Input
+              className="mt-1"
+              type="email"
+              aria-invalid={Boolean(form.formState.errors.portalAccess?.email)}
+              {...form.register("portalAccess.email")}
+            />
+            {form.formState.errors.portalAccess?.email ? (
+              <span className="mt-1 block text-xs text-danger">{form.formState.errors.portalAccess.email.message}</span>
+            ) : null}
+          </label>
+          <label className="text-sm font-medium">
+            Phone
+            <Input className="mt-1" {...form.register("portalAccess.phone")} />
+          </label>
+          <label className="text-sm font-medium sm:col-span-2">
+            Temporary password
+            <Input
+              className="mt-1"
+              type="password"
+              autoComplete="new-password"
+              aria-invalid={Boolean(form.formState.errors.portalAccess?.password)}
+              {...form.register("portalAccess.password")}
+            />
+            {form.formState.errors.portalAccess?.password ? (
+              <span className="mt-1 block text-xs text-danger">{form.formState.errors.portalAccess.password.message}</span>
+            ) : null}
           </label>
         </div>
       </div>
@@ -1331,142 +1411,124 @@ export function ClientDetail({ clientId }: { clientId: string }) {
   );
 }
 
+type WorkGroupFormValues = {
+  name: string;
+  clientId: string;
+  managerEmployeeId: string;
+  employeeIds: string[];
+  status: "active" | "inactive" | "archived";
+};
+
 function WorkGroupForm({
   workGroup,
+  employees,
+  clientOptions,
   onClose,
   onSubmit,
 }: {
-  workGroup?: WorkGroup;
+  workGroup?: TenantAdminWorkGroup;
+  employees: readonly TenantAdminEmployeeOption[];
+  clientOptions: readonly { id: string; name: string }[];
   onClose: () => void;
-  onSubmit: (values: WorkGroupInput) => void;
+  onSubmit: (values: WorkGroupFormValues) => void;
 }) {
-  const form = useForm<WorkGroupInput>({
-    resolver: zodResolver(workGroupInputSchema),
-    defaultValues: workGroup
-      ? {
-          name: workGroup.name,
-          client: workGroup.client,
-          engagement: workGroup.engagement,
-          manager: workGroup.manager,
-          members: workGroup.members,
-          capacityPercent: workGroup.capacityPercent,
-          workloadPercent: workGroup.workloadPercent,
-          openTasks: workGroup.openTasks,
-          slaStatus: workGroup.slaStatus,
-          status: workGroup.status,
-        }
-      : {
-          name: "",
-          client: clients[0]?.name ?? "",
-          engagement: "",
-          manager: managers[0]?.name ?? "",
-          members: 1,
-          capacityPercent: 100,
-          workloadPercent: 0,
-          openTasks: 0,
-          slaStatus: "on-track",
-          status: "active",
-        },
+  const [values, setValues] = useState<WorkGroupFormValues>({
+    name: workGroup?.name ?? "",
+    clientId: workGroup?.clientId ?? "",
+    managerEmployeeId: workGroup?.managerEmployeeId ?? employees[0]?.id ?? "",
+    employeeIds: workGroup?.members.map((member) => member.id) ?? [],
+    status: (workGroup?.status as WorkGroupFormValues["status"]) ?? "active",
   });
+  const selectedEmployees = new Set(values.employeeIds);
+  const submitDisabled =
+    values.name.trim().length < 2 ||
+    !values.managerEmployeeId ||
+    selectedEmployees.size === 0;
   return (
     <form
       className="flex max-h-[70vh] flex-col gap-4 overflow-y-auto pr-2"
-      onSubmit={form.handleSubmit(onSubmit)}
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (!submitDisabled) onSubmit({ ...values, employeeIds: [...selectedEmployees] });
+      }}
     >
-      <div className="grid gap-4 sm:grid-cols-2">
-        <label className="text-sm font-medium sm:col-span-2">
-          Work-group name
-          <Input className="mt-1" {...form.register("name")} />
-          {form.formState.errors.name ? (
-            <span className="mt-1 block text-xs text-danger">
-              {form.formState.errors.name.message}
-            </span>
-          ) : null}
-        </label>
-        <label className="text-sm font-medium">
-          Client
-          <Select className="mt-1" {...form.register("client")}>
-            {clients.map((client) => (
-              <option key={client.id} value={client.name}>
-                {client.name}
-              </option>
-            ))}
-          </Select>
-        </label>
-        <label className="text-sm font-medium">
-          Service engagement
-          <Input className="mt-1" {...form.register("engagement")} />
-        </label>
-        <label className="text-sm font-medium">
-          Manager
-          <Select className="mt-1" {...form.register("manager")}>
-            {managers.map((manager) => (
-              <option key={manager.id} value={manager.name}>
-                {manager.name}
-              </option>
-            ))}
-          </Select>
-        </label>
-        <label className="text-sm font-medium">
-          Members
-          <Input
-            type="number"
-            min="0"
-            className="mt-1"
-            {...form.register("members", { valueAsNumber: true })}
-          />
-        </label>
-        <label className="text-sm font-medium">
-          Capacity percentage
-          <Input
-            type="number"
-            min="0"
-            max="200"
-            className="mt-1"
-            {...form.register("capacityPercent", { valueAsNumber: true })}
-          />
-        </label>
-        <label className="text-sm font-medium">
-          Workload percentage
-          <Input
-            type="number"
-            min="0"
-            max="100"
-            className="mt-1"
-            {...form.register("workloadPercent", { valueAsNumber: true })}
-          />
-        </label>
-        <label className="text-sm font-medium">
-          Open tasks
-          <Input
-            type="number"
-            min="0"
-            className="mt-1"
-            {...form.register("openTasks", { valueAsNumber: true })}
-          />
-        </label>
-        <label className="text-sm font-medium">
-          SLA status
-          <Select className="mt-1" {...form.register("slaStatus")}>
-            <option value="on-track">On track</option>
-            <option value="watch">Watch</option>
-            <option value="at-risk">At risk</option>
-          </Select>
-        </label>
-        <label className="text-sm font-medium">
-          Status
-          <Select className="mt-1" {...form.register("status")}>
-            <option value="active">Active</option>
-            <option value="on-hold">On hold</option>
-            <option value="complete">Complete</option>
-          </Select>
-        </label>
-      </div>
+      <label className="text-sm font-medium">
+        Work-group name
+        <Input className="mt-1" value={values.name} onChange={(event) => setValues((current) => ({ ...current, name: event.target.value }))} />
+      </label>
+      <label className="text-sm font-medium">
+        Client
+        <Select className="mt-1" value={values.clientId} onChange={(event) => setValues((current) => ({ ...current, clientId: event.target.value }))}>
+          <option value="">No client</option>
+          {clientOptions.map((client) => (
+            <option key={client.id} value={client.id}>
+              {client.name}
+            </option>
+          ))}
+        </Select>
+      </label>
+      <label className="text-sm font-medium">
+        Manager
+        <Select
+          className="mt-1"
+          value={values.managerEmployeeId}
+          onChange={(event) => {
+            const managerEmployeeId = event.target.value;
+            setValues((current) => ({
+              ...current,
+              managerEmployeeId,
+              employeeIds: managerEmployeeId ? [...new Set([...current.employeeIds, managerEmployeeId])] : current.employeeIds,
+            }));
+          }}
+        >
+          <option value="">Select manager</option>
+          {employees.map((employee) => (
+            <option key={employee.id} value={employee.id}>
+              {employee.name}
+            </option>
+          ))}
+        </Select>
+      </label>
+      <fieldset>
+        <legend className="text-sm font-medium">Employees</legend>
+        <div className="mt-2 grid max-h-48 gap-2 overflow-y-auto rounded-[var(--radius-control)] border p-3 sm:grid-cols-2">
+          {employees.length ? (
+            employees.map((employee) => (
+              <label key={employee.id} className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  className="size-4 accent-primary"
+                  checked={selectedEmployees.has(employee.id)}
+                  onChange={() =>
+                    setValues((current) => ({
+                      ...current,
+                      employeeIds: selectedEmployees.has(employee.id)
+                        ? current.employeeIds.filter((id) => id !== employee.id)
+                        : [...current.employeeIds, employee.id],
+                    }))
+                  }
+                />
+                <span>{employee.name}</span>
+              </label>
+            ))
+          ) : (
+            <p className="text-sm text-muted-foreground">Create an employee before creating a work group.</p>
+          )}
+        </div>
+      </fieldset>
+      <label className="text-sm font-medium">
+        Status
+        <Select className="mt-1" value={values.status} onChange={(event) => setValues((current) => ({ ...current, status: event.target.value as WorkGroupFormValues["status"] }))}>
+          <option value="active">Active</option>
+          <option value="inactive">Inactive</option>
+          <option value="archived">Archived</option>
+        </Select>
+      </label>
       <div className="flex justify-end gap-2 pt-2">
         <Button type="button" variant="outline" onClick={onClose}>
           Cancel
         </Button>
-        <Button type="submit">
+        <Button type="submit" disabled={submitDisabled}>
           {workGroup ? "Save work group" : "Create work group"}
         </Button>
       </div>
@@ -1475,65 +1537,65 @@ function WorkGroupForm({
 }
 
 export function WorkGroupDirectory() {
+  const queryClient = useQueryClient();
   const groupsQuery = useQuery({
     queryKey: ["work-groups"],
-    queryFn: listWorkGroups,
+    queryFn: listTenantAdminWorkGroups,
   });
-  const [selected, setSelected] = useState<WorkGroup | null>(null);
-  const [editing, setEditing] = useState<WorkGroup | "new" | null>(null);
-  const [localGroups, setLocalGroups] = useState<WorkGroup[]>([]);
-  if (groupsQuery.isPending)
+  const employeesQuery = useQuery({
+    queryKey: ["tenant-admin-employees"],
+    queryFn: listTenantAdminEmployees,
+  });
+  const clientsQuery = useQuery({
+    queryKey: ["clients", "work-group-options"],
+    queryFn: () => listClients({ page: 1, pageSize: 100 }),
+  });
+  const [selected, setSelected] = useState<TenantAdminWorkGroup | null>(null);
+  const [editing, setEditing] = useState<TenantAdminWorkGroup | "new" | null>(null);
+  const [saving, setSaving] = useState(false);
+  if (groupsQuery.isPending || employeesQuery.isPending || clientsQuery.isPending)
     return <LoadingState label="Loading work groups" rows={4} />;
-  if (groupsQuery.isError)
+  if (groupsQuery.isError || employeesQuery.isError || clientsQuery.isError)
     return (
       <ErrorState
         title="Work groups could not load"
-        onRetry={() => void groupsQuery.refetch()}
+        onRetry={() => {
+          void groupsQuery.refetch();
+          void employeesQuery.refetch();
+          void clientsQuery.refetch();
+        }}
       />
     );
-  const sourceGroups = groupsQuery.data ?? [];
-  const changes = new Map(localGroups.map((group) => [group.id, group]));
-  const groups = [
-    ...sourceGroups.map((group) => changes.get(group.id) ?? group),
-    ...localGroups.filter(
-      (group) => !sourceGroups.some((source) => source.id === group.id),
-    ),
-  ];
-  const saveWorkGroup = (values: WorkGroupInput) => {
-    const workGroup: WorkGroup = {
-      id:
-        editing && editing !== "new"
-          ? editing.id
-          : `mock-work-group-${Date.now()}`,
-      ...values,
-    };
-    setLocalGroups((current) => {
-      const exists = current.some((group) => group.id === workGroup.id);
-      return exists
-        ? current.map((group) =>
-            group.id === workGroup.id ? workGroup : group,
-          )
-        : [...current, workGroup];
-    });
-    setEditing(null);
+  const groups = groupsQuery.data ?? [];
+  const employees = employeesQuery.data ?? [];
+  const clientOptions = clientsQuery.data?.items.map((client) => ({ id: client.id, name: client.name })) ?? [];
+  const saveWorkGroup = async (values: WorkGroupFormValues) => {
+    setSaving(true);
+    try {
+      const input = {
+        name: values.name.trim(),
+        clientId: values.clientId || undefined,
+        managerEmployeeId: values.managerEmployeeId,
+        employeeIds: values.employeeIds,
+        status: values.status,
+      };
+      if (editing && editing !== "new") await updateTenantAdminWorkGroup(editing.id, input);
+      else await createTenantAdminWorkGroup(input);
+      await queryClient.invalidateQueries({ queryKey: ["work-groups"] });
+      await queryClient.invalidateQueries({ queryKey: ["tenant-admin-task-options"] });
+      setEditing(null);
+      toast.success(editing && editing !== "new" ? "Work group updated." : "Work group created.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Work group could not be saved.");
+    } finally {
+      setSaving(false);
+    }
   };
-  const columns: ColumnDef<WorkGroup>[] = [
+  const columns: ColumnDef<TenantAdminWorkGroup>[] = [
     { accessorKey: "name", header: "Work group" },
-    { accessorKey: "client", header: "Client" },
-    { accessorKey: "engagement", header: "Service engagement" },
-    { accessorKey: "manager", header: "Manager" },
-    {
-      id: "capacity",
-      header: "Capacity / workload",
-      cell: ({ row }) =>
-        `${row.original.capacityPercent}% / ${row.original.workloadPercent}%`,
-    },
-    { accessorKey: "openTasks", header: "Open tasks" },
-    {
-      id: "sla",
-      header: "SLA",
-      cell: ({ row }) => <StatusBadge status={row.original.slaStatus} />,
-    },
+    { id: "client", header: "Client", cell: ({ row }) => row.original.clientName ?? <span className="text-muted-foreground">No client</span> },
+    { accessorKey: "managerName", header: "Manager" },
+    { accessorKey: "memberCount", header: "Employees" },
     {
       id: "status",
       header: "Status",
@@ -1579,8 +1641,7 @@ export function WorkGroupDirectory() {
         <CardHeader>
           <CardTitle>Work group directory</CardTitle>
           <CardDescription>
-            Validated changes are retained in this mock session until the
-            tenant-scoped work-group mutation API is connected.
+            Tenant-scoped work groups from the database.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -1598,25 +1659,21 @@ export function WorkGroupDirectory() {
               <MobileEntityCard
                 key={group.id}
                 title={group.name}
-                identifier={group.engagement}
-                status={<StatusBadge status={group.slaStatus} />}
+                identifier={group.clientName ?? "No client"}
+                status={<StatusBadge status={group.status} />}
                 metadata={
                   <>
                     <div>
                       <dt className="text-muted-foreground">Client</dt>
-                      <dd className="mt-0.5">{group.client}</dd>
+                      <dd className="mt-0.5">{group.clientName ?? "No client"}</dd>
                     </div>
                     <div>
                       <dt className="text-muted-foreground">Manager</dt>
-                      <dd className="mt-0.5">{group.manager}</dd>
+                      <dd className="mt-0.5">{group.managerName}</dd>
                     </div>
                     <div>
-                      <dt className="text-muted-foreground">Workload</dt>
-                      <dd className="mt-0.5">{group.workloadPercent}%</dd>
-                    </div>
-                    <div>
-                      <dt className="text-muted-foreground">Open tasks</dt>
-                      <dd className="mt-0.5">{group.openTasks}</dd>
+                      <dt className="text-muted-foreground">Employees</dt>
+                      <dd className="mt-0.5">{group.memberCount}</dd>
                     </div>
                   </>
                 }
@@ -1643,7 +1700,7 @@ export function WorkGroupDirectory() {
       >
         <DialogContent
           title="Work group details"
-          description="Capacity and delivery context for the selected work group."
+          description="Employees and manager in this work group."
         >
           <div className="pr-8">
             {selected ? (
@@ -1652,10 +1709,10 @@ export function WorkGroupDirectory() {
                 <dl className="mt-5 grid gap-4 text-sm">
                   <div>
                     <dt className="text-muted-foreground">
-                      Client and engagement
+                      Client
                     </dt>
                     <dd className="mt-1">
-                      {selected.client} · {selected.engagement}
+                      {selected.clientName ?? "No client"}
                     </dd>
                   </div>
                   <div>
@@ -1663,22 +1720,13 @@ export function WorkGroupDirectory() {
                       Manager and members
                     </dt>
                     <dd className="mt-1">
-                      {selected.manager} · {selected.members} members
+                      {selected.managerName} · {selected.memberCount} employees
                     </dd>
                   </div>
                   <div>
-                    <dt className="text-muted-foreground">
-                      Capacity and workload
-                    </dt>
+                    <dt className="text-muted-foreground">Members</dt>
                     <dd className="mt-1">
-                      {selected.capacityPercent}% capacity ·{" "}
-                      {selected.workloadPercent}% allocated
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-muted-foreground">SLA and status</dt>
-                    <dd className="mt-1">
-                      <StatusBadge status={selected.slaStatus} />
+                      {selected.members.map((member) => member.name).join(", ")}
                     </dd>
                   </div>
                 </dl>
@@ -1704,7 +1752,7 @@ export function WorkGroupDirectory() {
       >
         <DialogContent
           title={editing === "new" ? "Create work group" : "Edit work group"}
-          description="Validate the delivery group before saving this mock-only change."
+          description="Choose a manager and employees for this group."
         >
           <div className="pr-8">
             <h2 className="font-semibold">
@@ -1714,9 +1762,12 @@ export function WorkGroupDirectory() {
               <div className="mt-5">
                 <WorkGroupForm
                   workGroup={editing === "new" ? undefined : editing}
+                  employees={employees}
+                  clientOptions={clientOptions}
                   onClose={() => setEditing(null)}
                   onSubmit={saveWorkGroup}
                 />
+                {saving ? <p className="mt-3 text-sm text-muted-foreground">Saving work group...</p> : null}
               </div>
             ) : null}
           </div>

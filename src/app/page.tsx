@@ -4,8 +4,12 @@ import { demoSessionCookie, roleFromSession, workspaceForRole } from "@/lib/demo
 import { authenticatedWorkspaceCookie, superAdminAccessTokenCookie, superAdminRefreshTokenCookie } from "@/lib/auth-cookies";
 export default async function Home() {
   const cookieStore = await cookies();
-  if (cookieStore.get(authenticatedWorkspaceCookie)?.value === "admin" && cookieStore.get(superAdminAccessTokenCookie)?.value) {
-    redirect("/admin");
+  const authenticatedWorkspace = cookieStore.get(authenticatedWorkspaceCookie)?.value;
+  if (
+    (authenticatedWorkspace === "admin" || authenticatedWorkspace === "client") &&
+    cookieStore.get(superAdminAccessTokenCookie)?.value
+  ) {
+    redirect(`/${authenticatedWorkspace}`);
   }
   if (cookieStore.get(superAdminAccessTokenCookie)?.value) {
     redirect("/super-admin");

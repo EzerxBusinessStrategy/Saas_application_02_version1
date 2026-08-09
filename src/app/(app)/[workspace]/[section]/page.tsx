@@ -12,9 +12,9 @@ import {
   ClientDirectory,
   WorkGroupDirectory,
 } from "@/components/tenant-administration/client-management";
+import { TenantServiceDirectory } from "@/components/tenant-administration/service-management";
 import {
   ManagerDirectory,
-  OrganisationManagement,
   TenantSettings,
 } from "@/components/tenant-administration/workforce-administration";
 import { TenantEmployeePerformancePage } from "@/components/tenant-administration/employee-performance";
@@ -22,8 +22,6 @@ import { ClientPortal } from "@/components/operations/client-portal";
 import { EmployeeWorkspace } from "@/components/operations/employee-workspace";
 import { FinanceDocuments } from "@/components/operations/finance-documents";
 import { ManagerWorkspace } from "@/components/operations/manager-workspace";
-import { ReportsWorkspace } from "@/components/operations/reports-workspace";
-import { SupportTicketWorkspace } from "@/components/operations/support-ticket-workspace";
 import { TenantGamificationSettings } from "@/components/operations/gamification-workflows";
 import { AccountPreferences } from "@/components/app-shell/account-preferences";
 import { FeatureBoundary } from "@/components/shared/feature-boundary";
@@ -94,13 +92,6 @@ export default async function Section({
       </FeatureBoundary>
     );
   }
-  if (section === "reports" && workspace === "admin") {
-    return (
-      <FeatureBoundary role={user.role} permissions={["report.read"]}>
-        <ReportsWorkspace />
-      </FeatureBoundary>
-    );
-  }
   if (section === "audit-log" && workspace === "super-admin") {
     return (
       <FeatureBoundary role={user.role} permissions={["audit_log.read"]}>
@@ -122,10 +113,10 @@ export default async function Section({
       </FeatureBoundary>
     );
   }
-  if (section === "tickets" && workspace === "admin") {
+  if (section === "services" && workspace === "admin") {
     return (
-      <FeatureBoundary role={user.role} permissions={["client.update"]}>
-        <SupportTicketWorkspace workspace="admin" />
+      <FeatureBoundary role={user.role} permissions={["client.read"]}>
+        <TenantServiceDirectory />
       </FeatureBoundary>
     );
   }
@@ -142,7 +133,6 @@ export default async function Section({
       "notifications",
       "profile",
       "recognition",
-      "tickets",
     ].includes(section)
   ) {
     const managerSection =
@@ -189,10 +179,7 @@ export default async function Section({
     [
       "services",
       "requests",
-      "support",
-      "notifications",
       "profile",
-      "onboarding",
       "deliverables",
     ].includes(section)
   ) {
@@ -247,13 +234,6 @@ export default async function Section({
     return (
       <FeatureBoundary role={user.role} permissions={["employee.read"]}>
         <ManagerDirectory />
-      </FeatureBoundary>
-    );
-  }
-  if (section === "organisation") {
-    return (
-      <FeatureBoundary role={user.role} permissions={["employee.read"]}>
-        <OrganisationManagement />
       </FeatureBoundary>
     );
   }

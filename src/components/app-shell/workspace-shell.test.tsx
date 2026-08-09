@@ -122,32 +122,23 @@ test("collapses inside the sidebar and keeps active, labelled navigation accessi
   ).toHaveAttribute("aria-hidden", "false");
 });
 
-test("opens a permission-filtered nested flyout while collapsed", () => {
+test("shows Tenant Admin navigation as direct links without dropdown groups", () => {
   const admin = workspaceConfig("admin").user;
-  pathname.value = "/admin/employees";
+  pathname.value = "/admin/tasks";
   renderShell(
     <WorkspaceShell workspace="admin" user={admin}>
       <p>Content</p>
     </WorkspaceShell>,
   );
-  fireEvent.click(screen.getByRole("button", { name: "Collapse navigation" }));
-  const operations = screen.getByRole("button", {
-    name: "Operations navigation",
-  });
-  expect(operations).toHaveAttribute("aria-expanded", "false");
-  fireEvent.click(operations);
-  expect(operations).toHaveAttribute("aria-expanded", "true");
-  const flyout = screen.getByRole("group", { name: "Operations navigation" });
-  expect(
-    within(flyout).getByRole("link", { name: "Employees" }),
-  ).toHaveAttribute("aria-current", "page");
-  expect(
-    screen.queryByRole("button", { name: "Platform navigation" }),
-  ).not.toBeInTheDocument();
-  fireEvent.keyDown(operations, { key: "Escape" });
-  expect(
-    screen.queryByRole("group", { name: "Operations navigation" }),
-  ).not.toBeInTheDocument();
+
+  expect(screen.getByRole("link", { name: "Tasks" })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
+  expect(screen.getByRole("link", { name: "Clients" })).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Employees" })).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Delivery" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Operations" })).not.toBeInTheDocument();
 });
 
 test("opens the mobile navigation drawer and limits the tenant switcher to super admins", () => {

@@ -17,6 +17,7 @@ export type AuthContextRow = {
   readonly membership_status: string | null;
   readonly membership_display_name: string | null;
   readonly membership_timezone: string | null;
+  readonly client_account_id?: string | null;
   readonly role_codes: readonly string[];
   readonly permission_codes: readonly string[];
 };

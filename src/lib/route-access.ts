@@ -22,14 +22,14 @@ export const sectionAccess: Record<
     permissions: ["work_group.manage"],
   },
   documents: {
-    workspaces: ["admin", "manager", "employee", "client"],
+    workspaces: ["admin", "manager", "employee"],
     permissions: ["document.read"],
   },
   invoices: { workspaces: ["admin", "manager", "client"] },
   payments: { workspaces: ["admin", "client"] },
   agreements: { workspaces: ["admin", "client"] },
   reports: {
-    workspaces: ["super-admin", "admin"],
+    workspaces: ["super-admin"],
     permissions: ["report.read"],
   },
   "audit-log": {
@@ -52,10 +52,7 @@ export const sectionAccess: Record<
   },
   account: { workspaces: ["super-admin"] },
   managers: { workspaces: ["admin"], permissions: ["employee.read"] },
-  organisation: { workspaces: ["admin"], permissions: ["employee.read"] },
   settings: { workspaces: ["admin"], permissions: ["client.update"] },
-  gamification: { workspaces: ["admin"], permissions: ["client.update"] },
-  tickets: { workspaces: ["admin", "manager"] },
   reviews: {
     workspaces: ["manager"],
     permissions: ["work_log.review.assigned_group"],
@@ -90,14 +87,15 @@ export const sectionAccess: Record<
     workspaces: ["employee"],
     permissions: ["task.read.assigned"],
   },
-  services: { workspaces: ["client"], permissions: ["client.read.assigned"] },
+  services: {
+    workspaces: ["admin", "client"],
+    permissions: ["client.read", "client.read.assigned"],
+  },
   requests: { workspaces: ["client"], permissions: ["client.read.assigned"] },
-  support: { workspaces: ["client"], permissions: ["client.read.assigned"] },
-  onboarding: { workspaces: ["client"], permissions: ["client.read.assigned"] },
   deliverables: {
     workspaces: ["client"],
     permissions: ["client.read.assigned"],
   },
-  notifications: { workspaces: ["manager", "employee", "client"] },
+  notifications: { workspaces: ["manager", "employee"] },
   profile: { workspaces: ["manager", "employee", "client"] },
 };

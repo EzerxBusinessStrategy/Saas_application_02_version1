@@ -86,6 +86,7 @@ export class RequestContextResolver {
         userId: first.user_id,
         tenantId: selected.tenant_id,
         membershipId: selected.membership_id,
+        clientAccountId: selected.client_account_id ?? undefined,
         roles,
         permissions: [...selected.permission_codes],
         isPlatformAdmin: roles.includes("SUPER_ADMIN"),

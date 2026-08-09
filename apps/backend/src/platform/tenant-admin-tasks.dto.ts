@@ -39,6 +39,7 @@ export type ListTenantAdminTasksQuery = z.infer<typeof listTenantAdminTasksQuery
 export const createTenantAdminTaskSchema = z.object({
   clientId: z.string().uuid(),
   serviceId: z.string().uuid(),
+  countryCode: z.string().trim().length(2).transform((value) => value.toUpperCase()),
   title: z.string().trim().min(3).max(200),
   description: z.string().trim().max(2000).optional().default(""),
   priority: z.enum(tenantAdminTaskPriorities).default("normal"),
@@ -47,12 +48,14 @@ export const createTenantAdminTaskSchema = z.object({
     z.string().datetime({ offset: true }).optional(),
   ),
   workGroupId: optionalUuid,
-  employeeIds: z.array(z.string().uuid()).max(50).default([]),
+  employeeIds: z.array(z.string().uuid()).min(1).max(50),
   billing: z.discriminatedUnion("rateSource", [
     z.object({
       rateSource: z.literal("existing"),
       rateCardItemId: z.string().uuid(),
       quantity: z.coerce.number().positive().default(1),
+      discountType: z.enum(["percentage", "fixed"]).optional(),
+      discountValue: z.coerce.number().nonnegative().default(0),
     }),
     z.object({
       rateSource: z.literal("new"),
@@ -65,6 +68,8 @@ export const createTenantAdminTaskSchema = z.object({
       saveToRateCard: z.boolean().default(true),
       oneTimeReason: z.string().trim().max(300).optional().default(""),
       quantity: z.coerce.number().positive().default(1),
+      discountType: z.enum(["percentage", "fixed"]).optional(),
+      discountValue: z.coerce.number().nonnegative().default(0),
     }).superRefine((value, ctx) => {
       if (!value.saveToRateCard && !value.oneTimeReason) {
         ctx.addIssue({
@@ -78,6 +83,32 @@ export const createTenantAdminTaskSchema = z.object({
 });
 export type CreateTenantAdminTaskRequest = z.infer<typeof createTenantAdminTaskSchema>;
 
+export const createTenantAdminEmployeeSchema = z.object({
+  name: z.string().trim().min(2).max(160),
+  email: z.string().trim().email().transform((value) => value.toLowerCase()),
+  password: z.string().min(8).max(128),
+  employeeCode: z.string().trim().max(40).optional().default(""),
+  isManager: z.boolean().optional().default(false),
+  skills: z.array(z.string().trim().min(1).max(120)).max(20).optional().default([]),
+  experienceLevel: z.enum(["junior", "mid", "senior", "lead"]).optional(),
+  weeklyCapacityHours: z.coerce.number().int().min(1).max(168).optional().default(40),
+});
+export type CreateTenantAdminEmployeeRequest = z.infer<typeof createTenantAdminEmployeeSchema>;
+
+export const updateTenantAdminEmployeeCapacitySchema = z.object({
+  weeklyCapacityHours: z.coerce.number().int().min(1).max(168),
+});
+export type UpdateTenantAdminEmployeeCapacityRequest = z.infer<typeof updateTenantAdminEmployeeCapacitySchema>;
+
+export const upsertTenantAdminWorkGroupSchema = z.object({
+  name: z.string().trim().min(2).max(160),
+  clientId: optionalUuid,
+  managerEmployeeId: z.string().uuid(),
+  employeeIds: z.array(z.string().uuid()).min(1).max(50),
+  status: z.enum(["active", "inactive", "archived"]).default("active"),
+});
+export type UpsertTenantAdminWorkGroupRequest = z.infer<typeof upsertTenantAdminWorkGroupSchema>;
+
 export class TenantAdminTaskOptionDto {
   @ApiProperty({ type: String, format: "uuid" })
   id!: string;
@@ -86,14 +117,97 @@ export class TenantAdminTaskOptionDto {
   name!: string;
 }
 
+export class TenantAdminTaskCountryOptionDto {
+  @ApiProperty({ type: String })
+  countryCode!: string;
+
+  @ApiProperty({ type: String })
+  name!: string;
+
+  @ApiProperty({ type: String, format: "uuid" })
+  financialYearId!: string;
+
+  @ApiProperty({ type: String })
+  financialYearLabel!: string;
+
+  @ApiProperty({ type: String, format: "date" })
+  startsOn!: string;
+
+  @ApiProperty({ type: String, format: "date" })
+  endsOn!: string;
+}
+
 export class TenantAdminEmployeeOptionDto extends TenantAdminTaskOptionDto {
   @ApiPropertyOptional({ type: String, nullable: true })
   employeeCode!: string | null;
+
+  @ApiProperty({ type: String, format: "email" })
+  email!: string;
+
+  @ApiProperty({ type: Boolean })
+  isManager!: boolean;
+
+  @ApiProperty({ type: () => [String] })
+  skills!: readonly string[];
+
+  @ApiProperty({ type: () => [String] })
+  categories!: readonly string[];
+
+  @ApiPropertyOptional({ enum: ["junior", "mid", "senior", "lead"], nullable: true })
+  experienceLevel!: "junior" | "mid" | "senior" | "lead" | null;
+
+  @ApiPropertyOptional({ type: String, format: "uuid", nullable: true })
+  managerId!: string | null;
+
+  @ApiPropertyOptional({ type: String, nullable: true })
+  managerName!: string | null;
+
+  @ApiProperty({ type: Number })
+  activeTasks!: number;
+
+  @ApiProperty({ type: () => [TenantAdminTaskOptionDto] })
+  workGroups!: readonly TenantAdminTaskOptionDto[];
+
+  @ApiProperty({ type: String })
+  employmentStatus!: string;
+
+  @ApiProperty({ type: Number })
+  weeklyCapacityHours!: number;
 }
 
 export class TenantAdminWorkGroupOptionDto extends TenantAdminTaskOptionDto {
   @ApiPropertyOptional({ type: String, format: "uuid", nullable: true })
   clientId!: string | null;
+}
+
+export class TenantAdminWorkGroupDto extends TenantAdminWorkGroupOptionDto {
+  @ApiPropertyOptional({ type: String, nullable: true })
+  clientName!: string | null;
+
+  @ApiProperty({ type: String, format: "uuid" })
+  managerEmployeeId!: string;
+
+  @ApiProperty({ type: String })
+  managerName!: string;
+
+  @ApiProperty({ type: Number })
+  memberCount!: number;
+
+  @ApiProperty({ type: () => [TenantAdminEmployeeOptionDto] })
+  members!: readonly TenantAdminEmployeeOptionDto[];
+
+  @ApiProperty({ type: String })
+  status!: string;
+}
+
+export class TenantAdminWorkGroupsResponseDto {
+  @ApiProperty({ type: () => [TenantAdminWorkGroupDto] })
+  workGroups!: readonly TenantAdminWorkGroupDto[];
+}
+
+export class TenantAdminEmployeesResponseDto {
+  @ApiProperty({ type: () => [TenantAdminEmployeeOptionDto] })
+  employees!: readonly TenantAdminEmployeeOptionDto[];
 }
 
 export class TenantAdminRateCardItemOptionDto {
@@ -140,6 +254,9 @@ export class TenantAdminTaskOptionsResponseDto {
 
   @ApiProperty({ type: () => [TenantAdminRateCardItemOptionDto] })
   rateItems!: readonly TenantAdminRateCardItemOptionDto[];
+
+  @ApiProperty({ type: () => [TenantAdminTaskCountryOptionDto] })
+  countries!: readonly TenantAdminTaskCountryOptionDto[];
 }
 
 export class TenantAdminTaskAssigneeDto {

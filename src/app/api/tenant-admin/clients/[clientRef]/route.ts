@@ -10,3 +10,12 @@ export async function GET(_request: NextRequest, { params }: Params) {
     unavailableMessage: "Client unavailable.",
   });
 }
+
+export async function DELETE(_request: NextRequest, { params }: Params) {
+  const { clientRef } = await params;
+  return proxyTenantAdminBackend({
+    path: `/tenant-admin/clients/${encodeURIComponent(clientRef)}`,
+    init: { method: "DELETE" },
+    unavailableMessage: "Client could not be deleted.",
+  });
+}

@@ -39,15 +39,19 @@ export async function POST(request: Request) {
   //   });
   // }
 
-  // Try to look up display name from Supabase Auth user metadata
+  // Try to look up display name from Supabase Auth user metadata.
+  // If admin lookup is configured and the email is absent, fail early instead
+  // of showing a password step that can only end in a confusing 401.
   let displayName: string | undefined;
   try {
     const supabaseUrl = process.env.BACKEND_SUPABASE_URL?.replace(/\/+$/, "");
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const supabaseServiceKey =
+      process.env.BACKEND_SUPABASE_ADMIN_KEY ??
+      process.env.SUPABASE_SERVICE_ROLE_KEY;
 
     if (supabaseUrl && supabaseServiceKey) {
       const usersResponse = await fetch(
-        `${supabaseUrl}/auth/v1/admin/users?filter=${encodeURIComponent(email)}`,
+        `${supabaseUrl}/auth/v1/admin/users?page=1&per_page=1000`,
         {
           headers: {
             apikey: supabaseServiceKey,
@@ -67,6 +71,12 @@ export async function POST(request: Request) {
           matchedUser?.user_metadata?.display_name ??
           matchedUser?.user_metadata?.full_name ??
           undefined;
+        if (!matchedUser) {
+          return NextResponse.json(
+            { message: "No account found for this email." },
+            { status: 404 },
+          );
+        }
       }
     }
   } catch {

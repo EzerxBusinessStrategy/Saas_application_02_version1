@@ -1,12 +1,13 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useEffect, useState, type CSSProperties } from "react";
 import { useForm } from "react-hook-form";
 import { useRouter } from "next/navigation";
 import { ImagePlus, MoreHorizontal, Plus, X } from "lucide-react";
+import { toast } from "sonner";
 import { DataTable } from "@/components/operations/data-table";
 import { ConfirmationDialog } from "@/components/shared/confirmation-dialog";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -34,11 +35,15 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { listManagers } from "@/features/administration/api/administration-api";
+import {
+  listTenantAdminEmployees,
+  setTenantAdminEmployeeManager,
+  type TenantAdminEmployeeOption,
+} from "@/features/operations/api/operations-api";
 import { saveTenantBrandingSession, tenantBrandingFontFamily } from "@/lib/tenant-branding-session";
 import { organisationStructure } from "@/mocks/administration";
 import { employees } from "@/mocks/workforce";
-import { tenantBrandingDraftSchema, type Manager, type TenantBrandingDraft } from "@/types/administration";
+import { tenantBrandingDraftSchema, type TenantBrandingDraft } from "@/types/administration";
 import type { Employee } from "@/types/workforce";
 
 const employeeTabs = [
@@ -46,18 +51,11 @@ const employeeTabs = [
   { value: "skills", label: "Skills" },
   { value: "assignments", label: "Assignments" },
   { value: "tasks", label: "Tasks" },
-  { value: "work-logs", label: "Work logs" },
-  { value: "timesheet", label: "Timesheet" },
-  { value: "documents", label: "Documents" },
-  { value: "activity", label: "Activity" },
 ];
 
 const settingsTabs = [
   { value: "branding", label: "Branding" },
-  { value: "users", label: "Users and roles" },
-  { value: "notifications", label: "Notifications" },
   { value: "profile", label: "Profile" },
-  { value: "security", label: "Security" },
 ];
 
 function Utilisation({
@@ -83,14 +81,72 @@ function Utilisation({
 export function EmployeeProfile({ employeeId }: { employeeId: string }) {
   const router = useRouter();
   const [tab, setTab] = useState("overview");
-  const employee = employees.find((item) => item.id === employeeId);
-  if (!employee)
+  const usesDatabaseEmployeeId =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      employeeId,
+    );
+  const employeesQuery = useQuery({
+    queryKey: ["tenant-admin-employees"],
+    queryFn: listTenantAdminEmployees,
+    enabled: usesDatabaseEmployeeId,
+  });
+  const employeeRecord = usesDatabaseEmployeeId
+    ? (employeesQuery.data ?? []).find((item) => item.id === employeeId)
+    : employees.find((item) => item.id === employeeId);
+  if (usesDatabaseEmployeeId && employeesQuery.isPending) {
+    return <LoadingState label="Loading employee profile" rows={3} />;
+  }
+  if (usesDatabaseEmployeeId && employeesQuery.isError) {
+    return (
+      <ErrorState
+        title="Employee profile could not load"
+        onRetry={() => void employeesQuery.refetch()}
+      />
+    );
+  }
+  if (!employeeRecord)
     return (
       <EmptyState
         title="Employee not found"
         description="This profile is unavailable or the address is incorrect."
       />
     );
+  const employee: Employee =
+    "code" in employeeRecord
+      ? employeeRecord
+      : {
+          id: employeeRecord.id,
+          code: employeeRecord.employeeCode ?? "-",
+          name: employeeRecord.name,
+          email: employeeRecord.email,
+          department: "Unassigned",
+          categories: employeeRecord.categories,
+          skills: employeeRecord.skills,
+          experienceLevel: employeeRecord.experienceLevel,
+          manager:
+            employeeRecord.managerId && employeeRecord.managerName
+              ? { id: employeeRecord.managerId, name: employeeRecord.managerName }
+              : null,
+          workload: {
+            allocatedHours: 0,
+            capacityHours: employeeRecord.weeklyCapacityHours,
+            risk: "balanced",
+          },
+          utilisationPercent: 0,
+          activeTasks: employeeRecord.activeTasks,
+          availability:
+            employeeRecord.employmentStatus === "on_leave"
+              ? "unavailable"
+              : "available",
+          employmentStatus:
+            employeeRecord.employmentStatus === "on_leave"
+              ? "on-leave"
+              : employeeRecord.employmentStatus === "inactive"
+                ? "inactive"
+                : "active",
+          workGroups: employeeRecord.workGroups,
+          isManager: employeeRecord.isManager,
+        };
   const panel =
     tab === "overview" ? (
       <section className="grid gap-[30px] lg:grid-cols-3">
@@ -178,56 +234,7 @@ export function EmployeeProfile({ employeeId }: { employeeId: string }) {
           </p>
         </CardContent>
       </Card>
-    ) : tab === "work-logs" ? (
-      <Card>
-        <CardHeader>
-          <CardTitle>Work logs</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">
-            Daily work logs are tenant-scoped and require the future work-log
-            API.
-          </p>
-        </CardContent>
-      </Card>
-    ) : tab === "timesheet" ? (
-      <Card>
-        <CardHeader>
-          <CardTitle>Timesheet</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">
-            This week: {employee.workload.allocatedHours} planned hours of{" "}
-            {employee.workload.capacityHours} available hours.
-          </p>
-        </CardContent>
-      </Card>
-    ) : tab === "documents" ? (
-      <Card>
-        <CardHeader>
-          <CardTitle>Documents</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">
-            Employee documents are visible only through the tenant-scoped
-            document permission.
-          </p>
-        </CardContent>
-      </Card>
-    ) : (
-      <Card>
-        <CardHeader>
-          <CardTitle>Activity</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ol className="flex flex-col gap-3 text-sm">
-            <li>Availability updated · Today</li>
-            <li>Work group assignment reviewed · Yesterday</li>
-            <li>Skills profile updated · Jul 18</li>
-          </ol>
-        </CardContent>
-      </Card>
-    );
+    ) : null;
   return (
     <div className="flex flex-col gap-[30px]">
       <EntityHeader
@@ -237,6 +244,7 @@ export function EmployeeProfile({ employeeId }: { employeeId: string }) {
         metadata={
           <>
             <StatusBadge status={employee.employmentStatus} />
+            {employee.email ? <span>{employee.email}</span> : null}
             <span>{employee.activeTasks} active tasks</span>
             <span>{employee.utilisationPercent}% utilised</span>
           </>
@@ -263,58 +271,50 @@ export function EmployeeProfile({ employeeId }: { employeeId: string }) {
 }
 
 export function ManagerDirectory() {
-  const managersQuery = useQuery({
-    queryKey: ["managers"],
-    queryFn: listManagers,
-  });
+  const [addOpen, setAddOpen] = useState(false);
+  const queryClient = useQueryClient();
   const router = useRouter();
-  if (managersQuery.isPending)
+  const employeesQuery = useQuery({
+    queryKey: ["tenant-admin-employees"],
+    queryFn: listTenantAdminEmployees,
+  });
+  const employees = employeesQuery.data ?? [];
+  const managers = employees.filter((employee) => employee.isManager);
+  const refresh = () => queryClient.invalidateQueries({ queryKey: ["tenant-admin-employees"] });
+  const removeManager = async (employee: TenantAdminEmployeeOption) => {
+    try {
+      await setTenantAdminEmployeeManager(employee.id, false);
+      await refresh();
+      toast.success("Manager removed.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Manager could not be removed.");
+    }
+  };
+  if (employeesQuery.isPending)
     return <LoadingState label="Loading managers" rows={3} />;
-  if (managersQuery.isError)
+  if (employeesQuery.isError)
     return (
       <ErrorState
         title="Manager directory could not load"
-        onRetry={() => void managersQuery.refetch()}
+        onRetry={() => void employeesQuery.refetch()}
       />
     );
-  const data = managersQuery.data ?? [];
-  const columns: ColumnDef<Manager>[] = [
+  const columns: ColumnDef<TenantAdminEmployeeOption>[] = [
     { accessorKey: "name", header: "Manager" },
-    { accessorKey: "department", header: "Department" },
-    {
-      id: "portfolio",
-      header: "Work groups / clients",
-      cell: ({ row }) => `${row.original.workGroups} / ${row.original.clients}`,
-    },
-    { accessorKey: "employees", header: "Employees" },
-    { accessorKey: "openTasks", header: "Open tasks" },
-    { accessorKey: "pendingReviews", header: "Pending reviews" },
-    {
-      id: "utilisation",
-      header: "Team utilisation",
-      cell: ({ row }) => `${row.original.teamUtilisation}%`,
-    },
-    {
-      id: "sla",
-      header: "SLA performance",
-      cell: ({ row }) => `${row.original.slaPerformance}%`,
-    },
-    {
-      id: "status",
-      header: "Status",
-      cell: ({ row }) => <StatusBadge status={row.original.status} />,
-    },
+    { accessorKey: "employeeCode", header: "Employee code" },
+    { id: "status", header: "Status", cell: () => <StatusBadge status="active" /> },
     {
       id: "actions",
       header: "Actions",
       cell: ({ row }) => (
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => router.push(`/admin/employees/${row.original.id}`)}
-        >
-          View profile
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => router.push(`/admin/employees/${row.original.id}`)}>
+            View
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => void removeManager(row.original)}>
+            Delete
+          </Button>
+        </div>
       ),
     },
   ];
@@ -323,14 +323,14 @@ export function ManagerDirectory() {
       <PageHeader
         eyebrow="Workforce"
         title="Managers"
-        description="Review manager capacity, assigned delivery scope, pending reviews, and SLA performance."
+        description="Select employees who can manage work groups and review assigned work."
+        actions={<Button onClick={() => setAddOpen(true)}><Plus data-icon="inline-start" />Add manager</Button>}
       />
       <Card>
         <CardHeader>
           <CardTitle>Manager directory</CardTitle>
           <CardDescription>
-            Use workload and SLA signals to rebalance assignments before
-            delivery risk increases.
+            Managers are active employees with the Manager role.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -338,35 +338,23 @@ export function ManagerDirectory() {
             <DataTable
               caption="Managers in the active tenant"
               columns={columns}
-              data={data}
+              data={managers}
               emptyTitle="No managers"
-              emptyDescription="Designate a manager when a work group needs delivery ownership."
+              emptyDescription="Add a manager from the active employee list."
             />
           </div>
           <div className="md:hidden">
-            {data.map((manager) => (
+            {managers.map((manager) => (
               <MobileEntityCard
                 key={manager.id}
                 title={manager.name}
-                identifier={manager.department}
-                status={<StatusBadge status={manager.status} />}
+                identifier={manager.employeeCode ?? "No employee code"}
+                status={<StatusBadge status="active" />}
                 metadata={
                   <>
                     <div>
-                      <dt className="text-muted-foreground">Work groups</dt>
-                      <dd className="mt-0.5">{manager.workGroups}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-muted-foreground">Employees</dt>
-                      <dd className="mt-0.5">{manager.employees}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-muted-foreground">Utilisation</dt>
-                      <dd className="mt-0.5">{manager.teamUtilisation}%</dd>
-                    </div>
-                    <div>
-                      <dt className="text-muted-foreground">SLA performance</dt>
-                      <dd className="mt-0.5">{manager.slaPerformance}%</dd>
+                      <dt className="text-muted-foreground">Role</dt>
+                      <dd className="mt-0.5">Manager</dd>
                     </div>
                   </>
                 }
@@ -378,7 +366,7 @@ export function ManagerDirectory() {
                       router.push(`/admin/employees/${manager.id}`)
                     }
                   >
-                    View profile
+                    View
                   </Button>
                 }
               />
@@ -386,7 +374,58 @@ export function ManagerDirectory() {
           </div>
         </CardContent>
       </Card>
+      <AddManagerDialog
+        employees={employees.filter((employee) => !employee.isManager)}
+        open={addOpen}
+        onOpenChange={setAddOpen}
+        onAdded={async () => {
+          setAddOpen(false);
+          await refresh();
+        }}
+      />
     </div>
+  );
+}
+
+function AddManagerDialog({
+  employees,
+  open,
+  onOpenChange,
+  onAdded,
+}: {
+  employees: TenantAdminEmployeeOption[];
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onAdded: () => Promise<void>;
+}) {
+  const [employeeId, setEmployeeId] = useState("");
+  const [saving, setSaving] = useState(false);
+  const save = async () => {
+    if (!employeeId) return;
+    setSaving(true);
+    try {
+      await setTenantAdminEmployeeManager(employeeId, true);
+      toast.success("Manager added.");
+      await onAdded();
+      setEmployeeId("");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Manager could not be added.");
+    } finally {
+      setSaving(false);
+    }
+  };
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent title="Add manager" description="Select an active employee to make manager." className="max-w-md">
+        <div className="grid gap-4 pr-8">
+          <label className="text-sm font-medium">Employee<Select className="mt-1" value={employeeId} onChange={(event) => setEmployeeId(event.target.value)}><option value="">Select employee</option>{employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.name}</option>)}</Select></label>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+            <Button disabled={!employeeId || saving} onClick={() => void save()}>{saving ? "Adding..." : "Add manager"}</Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -577,9 +616,7 @@ export function OrganisationManagement() {
 type SettingsInput = {
   brandName: string;
   primaryToken: string;
-  notifications: boolean;
   profileName: string;
-  securityReminder: boolean;
 };
 
 const densityPreviewStyles = {
@@ -655,50 +692,14 @@ export function TenantSettings() {
     defaultValues: {
       brandName: "SaaS App",
       primaryToken: "primary",
-      notifications: true,
       profileName: "Jordan Lee",
-      securityReminder: true,
     },
   });
   const panel =
-    tab === "branding" ? <BrandingSettings /> : tab === "users" ? (
+    tab === "branding" ? <BrandingSettings /> : (
       <Card>
         <CardHeader>
-          <CardTitle>Users and roles</CardTitle>
-          <CardDescription>
-            User and role assignment requires the approved identity and
-            authorisation API.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ul className="flex flex-col divide-y text-sm">
-            <li className="flex justify-between py-3 first:pt-0">
-              <span>Jordan Lee</span>
-              <span>Tenant Admin</span>
-            </li>
-            <li className="flex justify-between py-3">
-              <span>Aarav Mehta</span>
-              <span>Manager</span>
-            </li>
-            <li className="flex justify-between py-3">
-              <span>Priya Nair</span>
-              <span>Manager</span>
-            </li>
-          </ul>
-        </CardContent>
-      </Card>
-    ) : (
-      <Card>
-        <CardHeader>
-          <CardTitle>
-            {tab === "branding"
-              ? "Branding settings"
-              : tab === "notifications"
-                ? "Notification settings"
-                : tab === "profile"
-                  ? "Profile settings"
-                  : "Security settings"}
-          </CardTitle>
+          <CardTitle>Profile settings</CardTitle>
           <CardDescription>
             Settings validate locally and do not apply server-side changes.
           </CardDescription>
@@ -708,48 +709,13 @@ export function TenantSettings() {
             className="flex flex-col gap-5"
             onSubmit={form.handleSubmit(() => setSaved(true))}
           >
-            {tab === "notifications" ? (
-              <label className="flex items-start gap-3 text-sm">
-                <input
-                  className="mt-1 size-4 accent-primary"
-                  type="checkbox"
-                  {...form.register("notifications")}
-                />
-                <span>
-                  <span className="block font-medium">
-                    Send delivery-risk notifications
-                  </span>
-                  <span className="block text-muted-foreground">
-                    The backend will determine recipients and enforce access
-                    before delivery.
-                  </span>
-                </span>
-              </label>
-            ) : tab === "profile" ? (
-              <label className="text-sm font-medium">
-                Profile name
-                <Input
-                  className="mt-1"
-                  {...form.register("profileName", { required: true })}
-                />
-              </label>
-            ) : (
-              <label className="flex items-start gap-3 text-sm">
-                <input
-                  className="mt-1 size-4 accent-primary"
-                  type="checkbox"
-                  {...form.register("securityReminder")}
-                />
-                <span>
-                  <span className="block font-medium">
-                    Require security review reminders
-                  </span>
-                  <span className="block text-muted-foreground">
-                    Identity enforcement remains server-side.
-                  </span>
-                </span>
-              </label>
-            )}
+            <label className="text-sm font-medium">
+              Profile name
+              <Input
+                className="mt-1"
+                {...form.register("profileName", { required: true })}
+              />
+            </label>
             <div className="flex justify-end">
               <Button type="submit">Validate settings</Button>
             </div>
@@ -767,7 +733,7 @@ export function TenantSettings() {
       <PageHeader
         eyebrow="Tenant Admin"
         title="Tenant settings"
-        description="Manage controlled branding, users, notifications, profile, and supported security preferences."
+        description="Manage tenant branding and profile preferences."
       />
       <ResponsiveTabs
         tabs={settingsTabs}

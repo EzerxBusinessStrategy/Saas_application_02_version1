@@ -1,3 +1,5 @@
+import { existsSync, readFileSync } from "node:fs";
+import path from "node:path";
 import { z } from "zod";
 
 export type AppEnvironment = "development" | "test" | "staging" | "production";
@@ -109,7 +111,7 @@ const rawEnvSchema = z
   });
 
 export function loadAppConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
-  const parsed = rawEnvSchema.safeParse(env);
+  const parsed = rawEnvSchema.safeParse(env === process.env ? loadEnvFiles(env) : env);
   if (!parsed.success) {
     throw new ConfigValidationError(
       parsed.error.issues.map((issue) => ({
@@ -143,6 +145,45 @@ export function loadAppConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
       parsed.data.BACKEND_SUPABASE_JWKS_URL ?? jwksUrlFromSupabaseUrl(parsed.data.BACKEND_SUPABASE_URL),
     supabaseJwksTimeoutMs: parsed.data.BACKEND_SUPABASE_JWKS_TIMEOUT_MS,
   };
+}
+
+function loadEnvFiles(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  for (const file of envFileCandidates()) {
+    if (!existsSync(file)) continue;
+    for (const [key, value] of parseEnvFile(readFileSync(file, "utf8"))) {
+      env[key] ??= value;
+    }
+  }
+  return env;
+}
+
+function envFileCandidates(): string[] {
+  const cwd = process.cwd();
+  return [
+    path.join(cwd, ".env.local"),
+    path.join(cwd, ".env"),
+    path.join(cwd, "..", ".env.local"),
+    path.join(cwd, "..", ".env"),
+    path.join(cwd, "..", "..", ".env.local"),
+    path.join(cwd, "..", "..", ".env"),
+  ];
+}
+
+function parseEnvFile(content: string): [string, string][] {
+  return content
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line && !line.startsWith("#") && line.includes("="))
+    .map((line) => {
+      const index = line.indexOf("=");
+      const key = line.slice(0, index).trim();
+      let value = line.slice(index + 1).trim();
+      if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+        value = value.slice(1, -1);
+      }
+      return [key, value] as [string, string];
+    })
+    .filter(([key]) => /^[A-Za-z_][A-Za-z0-9_]*$/.test(key));
 }
 
 function parseCorsOrigins(raw: string | undefined, environment: AppEnvironment): readonly string[] {

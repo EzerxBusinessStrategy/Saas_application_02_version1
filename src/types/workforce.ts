@@ -16,12 +16,14 @@ export type Employee = {
   id: string;
   code: string;
   name: string;
+  email?: string;
   avatarUrl?: string;
   department: string;
   categories: string[];
   skills: string[];
-  experienceLevel: ExperienceLevel;
+  experienceLevel: ExperienceLevel | null;
   manager: { id: string; name: string } | null;
+  isManager?: boolean;
   workload: {
     allocatedHours: number;
     capacityHours: number;

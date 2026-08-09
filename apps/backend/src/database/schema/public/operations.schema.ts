@@ -13,7 +13,7 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
-import { users } from "./identity.schema";
+import { tenantMemberships, users } from "./identity.schema";
 import { tenants } from "./tenancy.schema";
 
 export const financialYearTemplates = pgTable(
@@ -248,6 +248,42 @@ export const clientContacts = pgTable(
       table.status,
       table.id,
     ),
+  }),
+);
+
+export const clientPortalAccounts = pgTable(
+  "client_portal_accounts",
+  {
+    id: uuid("id").default(sql`gen_random_uuid()`).primaryKey(),
+    tenantId: uuid("tenant_id").notNull(),
+    clientId: uuid("client_id").notNull(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id),
+    membershipId: uuid("membership_id")
+      .notNull()
+      .references(() => tenantMemberships.id),
+    email: text("email").notNull(),
+    emailNormalized: text("email_normalized").notNull(),
+    phone: text("phone"),
+    portalName: text("portal_name"),
+    primaryColour: text("primary_colour"),
+    sidebarColour: text("sidebar_colour"),
+    surfaceColour: text("surface_colour"),
+    status: text("status").default("active").notNull(),
+    createdByMembershipId: uuid("created_by_membership_id"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    tenantClientActiveUnique: uniqueIndex("client_portal_accounts_tenant_client_active_uidx")
+      .on(table.tenantId, table.clientId)
+      .where(sql`${table.status} = 'active'`),
+    tenantUserActiveUnique: uniqueIndex("client_portal_accounts_tenant_user_active_uidx")
+      .on(table.tenantId, table.userId)
+      .where(sql`${table.status} = 'active'`),
+    emailUnique: uniqueIndex("client_portal_accounts_email_normalized_uidx").on(table.emailNormalized),
+    membershipIndex: index("client_portal_accounts_membership_idx").on(table.tenantId, table.membershipId),
   }),
 );
 

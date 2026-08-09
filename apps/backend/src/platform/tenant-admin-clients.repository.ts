@@ -74,7 +74,30 @@ export class TenantAdminClientsRepository {
     });
   }
 
-  async create(context: TenantAdminRequestContext, input: TenantAdminClientCreateInput) {
+  async archive(context: TenantAdminRequestContext, clientRef: string): Promise<void> {
+    await this.withContext(context, async (client) => {
+      const clientId = await this.resolveClientId(client, context.tenantId, clientRef);
+      const result = await client.query(
+        `
+          update public.clients
+          set status = 'archived',
+              archived_at = coalesce(archived_at, now()),
+              updated_at = now()
+          where tenant_id = $1
+            and id = $2
+            and status <> 'archived'
+        `,
+        [context.tenantId, clientId],
+      );
+      if (!result.rowCount) return;
+      await client.query(
+        "select audit.write_audit_event('CLIENT_ARCHIVED', 'client', $1::uuid, 'succeeded', null, $2::jsonb)",
+        [clientId, JSON.stringify({ clientId })],
+      );
+    });
+  }
+
+  async create(context: TenantAdminRequestContext, input: TenantAdminClientCreateInput, portalAuthUserId: string) {
     return this.withContext(context, async (client) => {
       const code = input.code ? normalizeClientCode(input.code) : await this.nextClientCode(client, context.tenantId);
       const inserted = await client.query<{ id: string }>(
@@ -128,9 +151,19 @@ export class TenantAdminClientsRepository {
         );
       }
 
+      await this.createClientPortalAccess(client, context, clientId, input, portalAuthUserId);
+
       await client.query(
         "select audit.write_audit_event('CLIENT_CREATED', 'client', $1::uuid, 'succeeded', null, $2::jsonb)",
-        [clientId, JSON.stringify({ clientId, code, displayName: input.displayName })],
+        [
+          clientId,
+          JSON.stringify({
+            clientId,
+            code,
+            displayName: input.displayName,
+            portalEmail: input.portalAccess.email,
+          }),
+        ],
       );
       const rows = await this.getClientRows(client, context.tenantId, {
         page: 1,
@@ -462,6 +495,110 @@ export class TenantAdminClientsRepository {
     ]);
   }
 
+  private async createClientPortalAccess(
+    client: PoolClient,
+    context: TenantAdminRequestContext,
+    clientId: string,
+    input: TenantAdminClientCreateInput,
+    portalAuthUserId: string,
+  ): Promise<void> {
+    const portalEmail = input.portalAccess.email.trim().toLowerCase();
+    const displayName = input.primaryContact?.name || input.displayName;
+    const userResult = await client.query<{ id: string }>(
+      `
+        insert into public.users (
+          supabase_auth_user_id,
+          email,
+          email_normalized,
+          display_name,
+          phone,
+          status
+        )
+        values ($1, $2, $2, $3, nullif($4, ''), 'active')
+        returning id::text
+      `,
+      [portalAuthUserId, portalEmail, displayName, input.portalAccess.phone ?? ""],
+    ).catch((error: unknown) => {
+      if (isUniqueViolation(error)) {
+        throw new ConflictException({
+          code: "CLIENT_PORTAL_EMAIL_EXISTS",
+          message: "This email is already associated with an existing account.",
+        });
+      }
+      throw error;
+    });
+    const userId = userResult.rows[0]?.id;
+    if (!userId) throw new ConflictException({ code: "CLIENT_PORTAL_CREATE_FAILED", message: "Client portal user could not be created." });
+
+    const membershipResult = await client.query<{ id: string }>(
+      `
+        insert into public.tenant_memberships (
+          tenant_id,
+          user_id,
+          display_name,
+          status
+        )
+        values ($1, $2, $3, 'active')
+        returning id::text
+      `,
+      [context.tenantId, userId, displayName],
+    );
+    const membershipId = membershipResult.rows[0]?.id;
+    if (!membershipId) throw new ConflictException({ code: "CLIENT_PORTAL_CREATE_FAILED", message: "Client portal membership could not be created." });
+
+    await client.query(
+      `
+        insert into public.membership_roles (
+          tenant_id,
+          membership_id,
+          role_id,
+          assigned_by_membership_id,
+          status
+        )
+        select $1, $2, r.id, $3, 'active'
+        from public.roles r
+        where r.code = 'CLIENT_USER'
+        returning id
+      `,
+      [context.tenantId, membershipId, context.membershipId],
+    ).then((result) => {
+      if (!result.rowCount) {
+        throw new ConflictException({ code: "CLIENT_USER_ROLE_MISSING", message: "Client user role is not configured." });
+      }
+    });
+
+    await client.query(
+      `
+        insert into public.client_portal_accounts (
+          tenant_id,
+          client_id,
+          user_id,
+          membership_id,
+          email,
+          email_normalized,
+          phone,
+          status,
+          created_by_membership_id
+        )
+        values ($1, $2, $3, $4, $5, $5, nullif($6, ''), 'active', $7)
+      `,
+      [
+        context.tenantId,
+        clientId,
+        userId,
+        membershipId,
+        portalEmail,
+        input.portalAccess.phone ?? "",
+        context.membershipId,
+      ],
+    );
+
+    await client.query(
+      "select audit.write_audit_event('CLIENT_PORTAL_ACCOUNT_CREATED', 'client', $1::uuid, 'succeeded', null, $2::jsonb)",
+      [clientId, JSON.stringify({ clientId, userId, membershipId, email: portalEmail })],
+    );
+  }
+
   private async getEngagements(client: PoolClient, tenantId: string, clientId: string) {
     const result = await client.query(
       `
@@ -635,7 +772,7 @@ function mapClient(row: ClientRow) {
 }
 
 function normalizeClientCode(code: string): string {
-  return code.trim().toUpperCase().replace(/\s+/g, "-");
+  return code.trim().toLowerCase().replace(/\s+/g, "-");
 }
 
 function isUniqueViolation(error: unknown): boolean {

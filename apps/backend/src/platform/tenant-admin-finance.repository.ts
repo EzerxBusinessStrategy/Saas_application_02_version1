@@ -1,0 +1,444 @@
+import { ConflictException, Inject, Injectable } from "@nestjs/common";
+import { Pool, PoolClient } from "pg";
+import { databaseNotConfigured } from "../auth/auth-errors";
+import { DATABASE_POOL } from "../database/database.tokens";
+import { withDatabaseTransaction } from "../database/transaction-context";
+import { TenantAdminRequestContext } from "./tenant-admin-context";
+import { CreateTaskInvoiceRequest, CreateTenantDocumentRequest, CreateTenantInvoiceRequest } from "./tenant-admin-finance.dto";
+
+export type TenantDocumentRow = {
+  readonly id: string;
+  readonly clientId: string;
+  readonly client: string;
+  readonly title: string;
+  readonly fileName: string;
+  readonly fileType: string;
+  readonly sizeBytes: number;
+  readonly category: string;
+  readonly uploadedBy: string;
+  readonly updatedOn: string;
+  readonly status: "active" | "archived";
+  readonly clientDecisionStatus: "pending" | "approved" | "rejected";
+  readonly clientDecisionAt: string | null;
+  readonly clientDecisionBy: string | null;
+  readonly clientDecisionComment: string | null;
+};
+
+export type TenantInvoiceRow = {
+  readonly id: string;
+  readonly clientId: string;
+  readonly client: string;
+  readonly invoiceNumber: string;
+  readonly issuedOn: string;
+  readonly dueOn: string | null;
+  readonly currency: string;
+  readonly amount: number;
+  readonly status: string;
+  readonly visibility: "client" | "internal";
+  readonly uploadedBy: string;
+  readonly updatedOn: string;
+};
+
+export type TenantBillableTaskEntryRow = {
+  readonly id: string;
+  readonly taskId: string;
+  readonly taskTitle: string;
+  readonly clientId: string;
+  readonly client: string;
+  readonly currency: string;
+  readonly grossAmount: number;
+  readonly discountAmount: number;
+  readonly netAmount: number;
+};
+
+@Injectable()
+export class TenantAdminFinanceRepository {
+  constructor(@Inject(DATABASE_POOL) private readonly pool: Pool | null) {}
+
+  async listDocuments(context: TenantAdminRequestContext, clientId?: string): Promise<readonly TenantDocumentRow[]> {
+    return this.withContext(context, (client) => this.getDocuments(client, context.tenantId, clientId));
+  }
+
+  async createDocument(context: TenantAdminRequestContext, input: CreateTenantDocumentRequest): Promise<TenantDocumentRow> {
+    return this.withContext(context, async (client) => {
+      await this.assertClient(client, context.tenantId, input.clientId);
+      const result = await client.query<{ id: string }>(
+        `
+          insert into public.tenant_documents (
+            tenant_id,
+            client_id,
+            title,
+            file_name,
+            file_type,
+            size_bytes,
+            category,
+            metadata,
+            created_by
+          )
+          values (
+            $1,
+            $2,
+            $3,
+            $4,
+            $5,
+            $6,
+            $7,
+            jsonb_build_object(
+              'clientDecisionStatus', 'pending',
+              'clientVisible', true
+            ),
+            $8
+          )
+          returning id::text
+        `,
+        [context.tenantId, input.clientId, input.title, input.fileName, input.fileType, input.sizeBytes, input.category, context.membershipId],
+      ).catch((error: unknown) => {
+        if (isUndefinedTable(error)) {
+          throw new ConflictException({
+            code: "DOCUMENT_STORAGE_NOT_READY",
+            message: "Document storage is not ready yet.",
+          });
+        }
+        throw error;
+      });
+      const id = result.rows[0]?.id;
+      if (!id) throw new ConflictException({ code: "DOCUMENT_CREATE_FAILED", message: "Document could not be created." });
+      await client.query(
+        "select audit.write_audit_event('DOCUMENT_CREATED', 'document', $1::uuid, 'succeeded', null, $2::jsonb)",
+        [id, JSON.stringify({ clientId: input.clientId, title: input.title })],
+      );
+      await this.notifyClientDeliverableShared(client, context, id, input.clientId, input.title);
+      return this.getDocumentOrThrow(client, context.tenantId, id);
+    });
+  }
+
+  async listInvoices(context: TenantAdminRequestContext, clientId?: string): Promise<readonly TenantInvoiceRow[]> {
+    return this.withContext(context, (client) => this.getInvoices(client, context.tenantId, clientId));
+  }
+
+  async createInvoice(context: TenantAdminRequestContext, input: CreateTenantInvoiceRequest): Promise<TenantInvoiceRow> {
+    return this.withContext(context, async (client) => {
+      await this.assertClient(client, context.tenantId, input.clientId);
+      const financialYearId = await this.getCurrentFinancialYearId(client, context.tenantId);
+      const result = await client.query<{ id: string }>(
+        `
+          insert into public.invoices (
+            tenant_id,
+            client_id,
+            financial_year_id,
+            invoice_number,
+            issued_on,
+            due_on,
+            subtotal_amount,
+            total_amount,
+            currency_code,
+            status,
+            finalized_at,
+            created_by
+          )
+          values ($1, $2, $3, $4, $5, $6, $7, $7, $8, 'finalized', now(), $9)
+          returning id::text
+        `,
+        [
+          context.tenantId,
+          input.clientId,
+          financialYearId,
+          input.invoiceNumber,
+          input.issuedOn,
+          input.dueOn,
+          input.amount,
+          input.currencyCode,
+          context.membershipId,
+        ],
+      ).catch((error: unknown) => {
+        if (isUniqueViolation(error)) {
+          throw new ConflictException({ code: "INVOICE_NUMBER_EXISTS", message: "This invoice number already exists." });
+        }
+        throw error;
+      });
+      const id = result.rows[0]?.id;
+      if (!id) throw new ConflictException({ code: "INVOICE_CREATE_FAILED", message: "Invoice could not be created." });
+      await client.query(
+        "select audit.write_audit_event('INVOICE_CREATED', 'invoice', $1::uuid, 'succeeded', null, $2::jsonb)",
+        [id, JSON.stringify({ clientId: input.clientId, invoiceNumber: input.invoiceNumber, amount: input.amount })],
+      );
+      await this.notifyClientInvoiceSent(client, context, id, input.clientId, input.invoiceNumber);
+      return this.getInvoiceOrThrow(client, context.tenantId, id);
+    });
+  }
+
+  async listBillableTaskEntries(context: TenantAdminRequestContext): Promise<readonly TenantBillableTaskEntryRow[]> {
+    return this.withContext(context, (client) => this.getBillableTaskEntries(client, context.tenantId));
+  }
+
+  async createInvoiceFromTask(context: TenantAdminRequestContext, input: CreateTaskInvoiceRequest): Promise<TenantInvoiceRow> {
+    return this.withContext(context, async (client) => {
+      const entryResult = await client.query<{
+        id: string; task_id: string; task_title: string; client_id: string; currency_code: string; gross_amount: string; financial_year_id: string;
+      }>(
+        `select bte.id::text, bte.task_id::text, t.title as task_title, bte.client_id::text,
+                bte.currency_code, bte.gross_amount, t.financial_year_id::text
+         from public.billable_task_entries bte
+         join public.tasks t on t.id = bte.task_id and t.tenant_id = bte.tenant_id
+         where bte.tenant_id = $1 and bte.id = $2 and bte.status = 'approved_for_invoice'
+         for update`,
+        [context.tenantId, input.billableTaskEntryId],
+      );
+      const entry = entryResult.rows[0];
+      if (!entry) throw new ConflictException({ code: "BILLABLE_TASK_NOT_AVAILABLE", message: "This task is no longer available for invoicing." });
+
+      const grossAmount = Number(entry.gross_amount);
+      const discountAmount = calculateDiscount(grossAmount, input.discountType, input.discountValue);
+      const totalAmount = grossAmount - discountAmount;
+      const invoiceResult = await client.query<{ id: string }>(
+        `insert into public.invoices (
+           tenant_id, client_id, financial_year_id, invoice_number, issued_on, due_on,
+           subtotal_amount, discount_amount, tax_amount, total_amount, currency_code, status, created_by
+         ) values ($1, $2, $3, $4, $5, $6, $7, $8, 0, $9, $10, 'draft', $11)
+         returning id::text`,
+        [context.tenantId, entry.client_id, entry.financial_year_id, input.invoiceNumber, input.issuedOn, input.dueOn, grossAmount, discountAmount, totalAmount, entry.currency_code, context.membershipId],
+      ).catch((error: unknown) => {
+        if (isUniqueViolation(error)) throw new ConflictException({ code: "INVOICE_NUMBER_EXISTS", message: "This invoice number already exists." });
+        throw error;
+      });
+      const invoiceId = invoiceResult.rows[0]?.id;
+      if (!invoiceId) throw new ConflictException({ code: "INVOICE_CREATE_FAILED", message: "Invoice could not be created." });
+      const itemResult = await client.query<{ id: string }>(
+        `insert into public.invoice_items (
+           tenant_id, invoice_id, task_id, billable_task_entry_id, service_id, description,
+           quantity, unit_rate, gross_amount, discount_amount, tax_amount, net_amount
+         )
+         select $1, $2, bte.task_id, bte.id, t.service_id, t.title,
+                bte.quantity, bte.unit_rate, bte.gross_amount, $3, 0, $4
+         from public.billable_task_entries bte
+         join public.tasks t on t.id = bte.task_id and t.tenant_id = bte.tenant_id
+         where bte.tenant_id = $1 and bte.id = $5
+         returning id::text`,
+        [context.tenantId, invoiceId, discountAmount, totalAmount, entry.id],
+      );
+      const invoiceItemId = itemResult.rows[0]?.id;
+      if (!invoiceItemId) throw new ConflictException({ code: "INVOICE_ITEM_CREATE_FAILED", message: "Invoice item could not be created." });
+      await client.query(
+        `update public.billable_task_entries
+         set discount_type = $3, discount_value = $4, discount_amount = $5, net_amount = $6,
+             status = 'invoiced', invoice_item_id = $7, updated_at = now()
+         where tenant_id = $1 and id = $2`,
+        [context.tenantId, entry.id, input.discountType ?? null, input.discountValue || null, discountAmount, totalAmount, invoiceItemId],
+      );
+      await client.query(
+        "select audit.write_audit_event('INVOICE_CREATED_FROM_TASK', 'invoice', $1::uuid, 'succeeded', null, $2::jsonb)",
+        [invoiceId, JSON.stringify({ taskId: entry.task_id, billableTaskEntryId: entry.id, discountAmount, totalAmount })],
+      );
+      return this.getInvoiceOrThrow(client, context.tenantId, invoiceId);
+    });
+  }
+
+  async sendInvoice(context: TenantAdminRequestContext, invoiceId: string): Promise<TenantInvoiceRow> {
+    return this.withContext(context, async (client) => {
+      const result = await client.query<{ client_id: string; invoice_number: string }>(
+        `update public.invoices set status = 'sent', finalized_at = coalesce(finalized_at, now()), updated_at = now()
+         where tenant_id = $1 and id = $2 and status = 'draft'
+         returning client_id::text, invoice_number`,
+        [context.tenantId, invoiceId],
+      );
+      const invoice = result.rows[0];
+      if (!invoice) throw new ConflictException({ code: "INVOICE_NOT_SENDABLE", message: "Only draft invoices can be sent." });
+      await this.notifyClientInvoiceSent(client, context, invoiceId, invoice.client_id, invoice.invoice_number);
+      await client.query(
+        "select audit.write_audit_event('INVOICE_SENT', 'invoice', $1::uuid, 'succeeded', null, $2::jsonb)",
+        [invoiceId, JSON.stringify({ clientId: invoice.client_id, invoiceNumber: invoice.invoice_number })],
+      );
+      return this.getInvoiceOrThrow(client, context.tenantId, invoiceId);
+    });
+  }
+
+  private async getDocuments(client: PoolClient, tenantId: string, clientId?: string): Promise<readonly TenantDocumentRow[]> {
+    const result = await client.query<{
+      id: string; client_id: string; client: string; title: string; file_name: string; file_type: string; size_bytes: number; category: string; uploaded_by: string; updated_on: string; status: "active" | "archived"; client_decision_status: "pending" | "approved" | "rejected"; client_decision_at: string | null; client_decision_by: string | null; client_decision_comment: string | null;
+    }>(
+      `
+        select d.id::text, d.client_id::text, c.display_name as client, d.title, d.file_name, d.file_type,
+               d.size_bytes, d.category, coalesce(tm.display_name, 'System') as uploaded_by,
+               d.updated_at::text as updated_on, d.status,
+               coalesce(d.metadata->>'clientDecisionStatus', 'pending') as client_decision_status,
+               d.metadata->>'clientDecisionAt' as client_decision_at,
+               d.metadata->>'clientDecisionBy' as client_decision_by,
+               d.metadata->>'clientDecisionComment' as client_decision_comment
+        from public.tenant_documents d
+        join public.clients c on c.id = d.client_id and c.tenant_id = d.tenant_id
+        left join public.tenant_memberships tm on tm.id = d.created_by and tm.tenant_id = d.tenant_id
+        where d.tenant_id = $1
+          and ($2::uuid is null or d.client_id = $2)
+        order by d.updated_at desc, d.id desc
+      `,
+      [tenantId, clientId ?? null],
+    ).catch((error: unknown) => {
+      if (isUndefinedTable(error)) {
+        return { rows: [] } as { rows: never[] };
+      }
+      throw error;
+    });
+    return result.rows.map((row) => ({
+      id: row.id, clientId: row.client_id, client: row.client, title: row.title, fileName: row.file_name,
+      fileType: row.file_type, sizeBytes: Number(row.size_bytes), category: row.category,
+      uploadedBy: row.uploaded_by, updatedOn: row.updated_on, status: row.status,
+      clientDecisionStatus: row.client_decision_status,
+      clientDecisionAt: row.client_decision_at,
+      clientDecisionBy: row.client_decision_by,
+      clientDecisionComment: row.client_decision_comment,
+    }));
+  }
+
+  private async getInvoices(client: PoolClient, tenantId: string, clientId?: string): Promise<readonly TenantInvoiceRow[]> {
+    const result = await client.query<{
+      id: string; client_id: string; client: string; invoice_number: string; issued_on: string; due_on: string | null; currency_code: string; total_amount: string; status: string; uploaded_by: string; updated_on: string;
+    }>(
+      `
+        select i.id::text, i.client_id::text, c.display_name as client, i.invoice_number,
+               i.issued_on::text, i.due_on::text, i.currency_code, i.total_amount,
+               i.status, coalesce(tm.display_name, 'System') as uploaded_by, i.updated_at::text as updated_on
+        from public.invoices i
+        join public.clients c on c.id = i.client_id and c.tenant_id = i.tenant_id
+        left join public.tenant_memberships tm on tm.id = i.created_by and tm.tenant_id = i.tenant_id
+        where i.tenant_id = $1
+          and ($2::uuid is null or i.client_id = $2)
+        order by i.issued_on desc, i.created_at desc
+      `,
+      [tenantId, clientId ?? null],
+    );
+    return result.rows.map((row) => ({
+      id: row.id, clientId: row.client_id, client: row.client, invoiceNumber: row.invoice_number,
+      issuedOn: row.issued_on, dueOn: row.due_on, currency: row.currency_code, amount: Number(row.total_amount),
+      status: row.status, visibility: "client", uploadedBy: row.uploaded_by, updatedOn: row.updated_on,
+    }));
+  }
+
+  private async getBillableTaskEntries(client: PoolClient, tenantId: string): Promise<readonly TenantBillableTaskEntryRow[]> {
+    const result = await client.query<{
+      id: string; task_id: string; task_title: string; client_id: string; client: string; currency_code: string;
+      gross_amount: string; discount_amount: string; net_amount: string;
+    }>(
+      `select bte.id::text, bte.task_id::text, t.title as task_title, bte.client_id::text,
+              c.display_name as client, bte.currency_code, bte.gross_amount, bte.discount_amount, bte.net_amount
+       from public.billable_task_entries bte
+       join public.tasks t on t.id = bte.task_id and t.tenant_id = bte.tenant_id
+       join public.clients c on c.id = bte.client_id and c.tenant_id = bte.tenant_id
+         where bte.tenant_id = $1 and bte.status = 'approved_for_invoice'
+       order by bte.created_at desc`,
+      [tenantId],
+    );
+    return result.rows.map((row) => ({
+      id: row.id, taskId: row.task_id, taskTitle: row.task_title, clientId: row.client_id, client: row.client,
+      currency: row.currency_code, grossAmount: Number(row.gross_amount), discountAmount: Number(row.discount_amount), netAmount: Number(row.net_amount),
+    }));
+  }
+
+  private async notifyClientInvoiceSent(client: PoolClient, context: TenantAdminRequestContext, invoiceId: string, clientId: string, invoiceNumber: string): Promise<void> {
+    await client.query(
+      `with inserted as (
+         insert into public.notifications (type, title, message, severity, tenant_id, actor_user_id, entity_type, entity_id, action_url, metadata, idempotency_key)
+         values ('CLIENT_INVOICE_SENT', 'Invoice sent', 'A new invoice ' || $5 || ' is ready to view.', 'INFO', $1, $2, 'invoice', $3, '/client/invoices', jsonb_build_object('clientId', $4), 'client-invoice-sent:' || $3)
+         on conflict (idempotency_key) do update set id = public.notifications.id
+         returning id
+       )
+       insert into public.notification_recipients (notification_id, recipient_user_id)
+       select inserted.id, cpa.user_id
+       from inserted
+       join public.client_portal_accounts cpa on cpa.tenant_id = $1 and cpa.client_id = $4 and cpa.status = 'active'
+       on conflict (notification_id, recipient_user_id) do nothing`,
+      [context.tenantId, context.userId, invoiceId, clientId, invoiceNumber],
+    );
+  }
+
+  private async notifyClientDeliverableShared(
+    client: PoolClient,
+    context: TenantAdminRequestContext,
+    documentId: string,
+    clientId: string,
+    title: string,
+  ): Promise<void> {
+    await client.query(
+      `with inserted as (
+         insert into public.notifications (
+           type, title, message, severity, tenant_id, actor_user_id, entity_type, entity_id, action_url, metadata, idempotency_key
+         )
+         values (
+           'CLIENT_DELIVERABLE_SHARED',
+           'New deliverable shared',
+           'A new deliverable "' || $5 || '" is ready for your review.',
+           'INFO',
+           $1,
+           $2,
+           'document',
+           $3,
+           '/client/deliverables',
+           jsonb_build_object('clientId', $4, 'documentId', $3, 'title', $5),
+           'client-deliverable-shared:' || $3
+         )
+         on conflict (idempotency_key) do update set idempotency_key = public.notifications.idempotency_key
+         returning id
+       )
+       insert into public.notification_recipients (notification_id, recipient_user_id)
+       select inserted.id, cpa.user_id
+       from inserted
+       join public.client_portal_accounts cpa
+         on cpa.tenant_id = $1
+        and cpa.client_id = $4
+        and cpa.status = 'active'
+       on conflict (notification_id, recipient_user_id) do nothing`,
+      [context.tenantId, context.userId, documentId, clientId, title],
+    );
+  }
+
+  private async getDocumentOrThrow(client: PoolClient, tenantId: string, id: string): Promise<TenantDocumentRow> {
+    const row = (await this.getDocuments(client, tenantId)).find((document) => document.id === id);
+    if (!row) throw new ConflictException({ code: "DOCUMENT_LOAD_FAILED", message: "Document could not be loaded." });
+    return row;
+  }
+
+  private async getInvoiceOrThrow(client: PoolClient, tenantId: string, id: string): Promise<TenantInvoiceRow> {
+    const row = (await this.getInvoices(client, tenantId)).find((invoice) => invoice.id === id);
+    if (!row) throw new ConflictException({ code: "INVOICE_LOAD_FAILED", message: "Invoice could not be loaded." });
+    return row;
+  }
+
+  private async assertClient(client: PoolClient, tenantId: string, clientId: string): Promise<void> {
+    const result = await client.query("select 1 from public.clients where tenant_id = $1 and id = $2 and status in ('active', 'onboarding')", [tenantId, clientId]);
+    if (!result.rowCount) throw new ConflictException({ code: "CLIENT_NOT_AVAILABLE", message: "Select an available client." });
+  }
+
+  private async getCurrentFinancialYearId(client: PoolClient, tenantId: string): Promise<string | null> {
+    const result = await client.query<{ id: string }>(
+      `
+        select id::text
+        from public.tenant_financial_years
+        where tenant_id = $1
+          and status <> 'cancelled'
+          and current_date between start_date and end_date
+        order by start_date desc
+        limit 1
+      `,
+      [tenantId],
+    );
+    return result.rows[0]?.id ?? null;
+  }
+
+  private async withContext<T>(context: TenantAdminRequestContext, work: (client: PoolClient) => Promise<T>): Promise<T> {
+    if (!this.pool) throw databaseNotConfigured();
+    return withDatabaseTransaction(this.pool, context, (_tx, client) => work(client));
+  }
+}
+
+function isUniqueViolation(error: unknown): boolean {
+  return typeof error === "object" && error !== null && "code" in error && error.code === "23505";
+}
+
+function isUndefinedTable(error: unknown): boolean {
+  return typeof error === "object" && error !== null && "code" in error && error.code === "42P01";
+}
+
+function calculateDiscount(grossAmount: number, type: "percentage" | "fixed" | undefined, value: number): number {
+  if (!type || value <= 0) return 0;
+  const amount = type === "percentage" ? grossAmount * (value / 100) : value;
+  return Math.min(grossAmount, Math.round(amount * 100) / 100);
+}

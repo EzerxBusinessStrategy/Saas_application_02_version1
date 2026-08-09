@@ -1,4 +1,6 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { expect, test, vi } from "vitest";
 import { EmployeeProfile, TenantSettings } from "@/components/tenant-administration/workforce-administration";
 import { FeatureBoundary } from "@/components/shared/feature-boundary";
@@ -7,8 +9,15 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
 }));
 
+function renderWithQueryClient(ui: ReactNode) {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  return render(<QueryClientProvider client={client}>{ui}</QueryClientProvider>);
+}
+
 test("renders employee profile tabs with an accessible skills panel", () => {
-  render(<EmployeeProfile employeeId="emp-001" />);
+  renderWithQueryClient(<EmployeeProfile employeeId="emp-001" />);
   fireEvent.click(screen.getByRole("tab", { name: "Skills" }));
   expect(screen.getByRole("tabpanel")).toHaveTextContent("GST returns");
 });

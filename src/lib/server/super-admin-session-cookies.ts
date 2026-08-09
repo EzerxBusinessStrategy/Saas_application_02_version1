@@ -18,7 +18,7 @@ export function setSuperAdminSessionCookies(
   response: NextResponse,
   session: CookieSession,
   rememberMe: boolean,
-  workspace: "super-admin" | "admin" = "super-admin",
+  workspace: "super-admin" | "admin" | "client" = "super-admin",
 ): void {
   const common = {
     httpOnly: true,

@@ -10,12 +10,16 @@ describe("TenantAdminClientsRepository", () => {
         queries.push(sqlText);
         params.push([...values]);
         if (sqlText.includes("insert into public.clients")) return { rows: [{ id: "client-1" }], rowCount: 1 };
+        if (sqlText.includes("insert into public.users")) return { rows: [{ id: "user-client-1" }], rowCount: 1 };
+        if (sqlText.includes("insert into public.tenant_memberships")) return { rows: [{ id: "member-client-1" }], rowCount: 1 };
+        if (sqlText.includes("insert into public.membership_roles")) return { rows: [{ id: "role-1" }], rowCount: 1 };
+        if (sqlText.includes("insert into public.client_portal_accounts")) return { rows: [], rowCount: 1 };
         if (sqlText.includes("with client_base")) {
           return {
             rows: [{
               id: "client-1",
               name: "ABC Pvt Ltd",
-              code: "ABC-PVT",
+              code: "abc-pvt",
               currency_code: "INR",
               primary_contact_name: "Priya Sen",
               primary_contact_email: "priya@example.com",
@@ -77,13 +81,21 @@ describe("TenantAdminClientsRepository", () => {
           email: "priya@example.com",
           phone: "",
         },
+        portalAccess: {
+          email: "client@example.com",
+          phone: "123456",
+          password: "Password123",
+        },
       },
+      "auth-client-1",
     );
 
     const sql = queries.join("\n");
     expect(sql).toContain("insert into public.clients");
     expect(sql).toContain("insert into public.client_contacts");
+    expect(sql).toContain("insert into public.client_portal_accounts");
+    expect(sql).toContain("CLIENT_PORTAL_ACCOUNT_CREATED");
     expect(sql).toContain("CLIENT_CREATED");
-    expect(params).toContainEqual(["tenant-1", "ABC-PVT", "ABC Pvt Ltd", "ABC Pvt Ltd"]);
+    expect(params).toContainEqual(["tenant-1", "abc-pvt", "ABC Pvt Ltd", "ABC Pvt Ltd"]);
   });
 });

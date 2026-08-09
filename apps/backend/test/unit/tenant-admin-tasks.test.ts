@@ -1,9 +1,26 @@
 import { describe, expect, it, vi } from "vitest";
 import { RequestContext } from "../../src/auth/request-context";
+import { createTenantAdminTaskSchema } from "../../src/platform/tenant-admin-tasks.dto";
 import { TenantAdminTasksRepository } from "../../src/platform/tenant-admin-tasks.repository";
 import { TenantAdminTasksService } from "../../src/platform/tenant-admin-tasks.service";
 
 describe("TenantAdminTasksService", () => {
+  it("requires at least one employee when creating a tenant admin task", () => {
+    expect(() =>
+      createTenantAdminTaskSchema.parse({
+        clientId: "11111111-1111-4111-8111-111111111111",
+        serviceId: "22222222-2222-4222-8222-222222222222",
+        title: "GST return filing",
+        employeeIds: [],
+        billing: {
+          rateSource: "existing",
+          rateCardItemId: "33333333-3333-4333-8333-333333333333",
+          quantity: 1,
+        },
+      }),
+    ).toThrow();
+  });
+
   it("rejects platform admin and incomplete tenant contexts before querying", async () => {
     const repository = {
       getOptions: vi.fn(),

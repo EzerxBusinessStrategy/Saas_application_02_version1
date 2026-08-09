@@ -6,7 +6,12 @@ import {
   superAdminRefreshTokenCookie,
   superAdminRememberMeCookie,
 } from "@/lib/auth-cookies";
-import { fetchVerifiedSuperAdminMe, fetchVerifiedTenantAdminMe, refreshSuperAdminSession } from "@/lib/server/super-admin-auth";
+import {
+  fetchVerifiedClientPortalMe,
+  fetchVerifiedSuperAdminMe,
+  fetchVerifiedTenantAdminMe,
+  refreshSuperAdminSession,
+} from "@/lib/server/super-admin-auth";
 import { clearSuperAdminSessionCookies, setSuperAdminSessionCookies } from "@/lib/server/super-admin-session-cookies";
 
 export async function GET(request: Request) {
@@ -18,9 +23,11 @@ export async function GET(request: Request) {
 
   const refreshed = await refreshSuperAdminSession(refreshToken);
   const validSession = refreshed && (
-    workspace === "admin"
-      ? await fetchVerifiedTenantAdminMe(refreshed.accessToken)
-      : await fetchVerifiedSuperAdminMe(refreshed.accessToken)
+    workspace === "client"
+      ? await fetchVerifiedClientPortalMe(refreshed.accessToken)
+      : workspace === "admin"
+        ? await fetchVerifiedTenantAdminMe(refreshed.accessToken)
+        : await fetchVerifiedSuperAdminMe(refreshed.accessToken)
   );
   if (!refreshed || !validSession) {
     const response = NextResponse.redirect(new URL("/login", request.url));
@@ -33,7 +40,7 @@ export async function GET(request: Request) {
     response,
     refreshed,
     cookieStore.get(superAdminRememberMeCookie)?.value === "1",
-    workspace === "admin" ? "admin" : "super-admin",
+    workspace === "client" ? "client" : workspace === "admin" ? "admin" : "super-admin",
   );
   return response;
 }

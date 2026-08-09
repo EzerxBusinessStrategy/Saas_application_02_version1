@@ -50,6 +50,8 @@ import {
   type SupportTicket,
 } from "@/types/operations";
 import type { Workspace } from "@/types/domain";
+import { getClientPortalDashboard } from "@/features/client-portal/api/client-portal-dashboard-api";
+import { listClientPortalDeliverables } from "@/features/client-portal/api/client-portal-deliverables-api";
 
 export const progressPercent = (current: number, target: number) =>
   target > 0 ? Math.min(100, Math.round((current / target) * 100)) : 0;
@@ -113,13 +115,128 @@ const tenantAdminRateItemSchema = z.object({
   currencyCode: z.string(),
   taxCode: z.string().nullable(),
 });
+const tenantAdminServiceRateSchema = z.object({
+  id: z.string(),
+  rateCardName: z.string(),
+  clientName: z.string().nullable(),
+  taskType: z.string(),
+  unitType: z.enum(["per_task", "per_hour", "per_filing", "per_unit"]),
+  rateAmount: z.number(),
+  currencyCode: z.string(),
+  taxCode: z.string().nullable(),
+  tasksUsingRate: z.number(),
+});
+const tenantAdminServiceSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  code: z.string(),
+  status: z.enum(["active", "inactive", "archived"]),
+  rates: z.array(tenantAdminServiceRateSchema),
+});
+const tenantAdminServicesResponseSchema = z.object({
+  services: z.array(tenantAdminServiceSchema),
+});
 const tenantAdminTaskOptionsSchema = z.object({
   clients: z.array(taskOptionSchema),
   services: z.array(taskOptionSchema),
-  employees: z.array(taskOptionSchema.extend({ employeeCode: z.string().nullable() })),
+  employees: z.array(taskOptionSchema.extend({
+    employeeCode: z.string().nullable(),
+    isManager: z.boolean().default(false),
+    skills: z.array(z.string()).default([]),
+    categories: z.array(z.string()).default([]),
+    experienceLevel: z.enum(["junior", "mid", "senior", "lead"]).nullable().default(null),
+    managerId: z.string().nullable().default(null),
+    managerName: z.string().nullable().default(null),
+    activeTasks: z.number().int().nonnegative().default(0),
+    workGroups: z.array(taskOptionSchema).default([]),
+    employmentStatus: z.string().default("active"),
+    weeklyCapacityHours: z.number().int().positive().default(40),
+  })),
   workGroups: z.array(taskOptionSchema.extend({ clientId: z.string().nullable() })),
   rateItems: z.array(tenantAdminRateItemSchema),
+  countries: z.array(z.object({
+    countryCode: z.string().length(2),
+    name: z.string(),
+    financialYearId: z.string(),
+    financialYearLabel: z.string(),
+    startsOn: z.string(),
+    endsOn: z.string(),
+  })).default([]),
 });
+const tenantAdminEmployeeOptionSchema = taskOptionSchema.extend({
+  employeeCode: z.string().nullable(),
+  email: z.string().email(),
+  isManager: z.boolean().default(false),
+  skills: z.array(z.string()).default([]),
+  categories: z.array(z.string()).default([]),
+  experienceLevel: z.enum(["junior", "mid", "senior", "lead"]).nullable().default(null),
+  managerId: z.string().nullable().default(null),
+  managerName: z.string().nullable().default(null),
+  activeTasks: z.number().int().nonnegative().default(0),
+  workGroups: z.array(taskOptionSchema).default([]),
+  employmentStatus: z.string().default("active"),
+  weeklyCapacityHours: z.number().int().positive().default(40),
+});
+const tenantAdminWorkGroupSchema = taskOptionSchema.extend({
+  clientId: z.string().nullable(),
+  clientName: z.string().nullable(),
+  managerEmployeeId: z.string(),
+  managerName: z.string(),
+  memberCount: z.number(),
+  members: z.array(tenantAdminEmployeeOptionSchema),
+  status: z.enum(["active", "inactive", "archived"]),
+});
+const tenantAdminWorkGroupsResponseSchema = z.object({
+  workGroups: z.array(tenantAdminWorkGroupSchema),
+});
+const tenantAdminEmployeesResponseSchema = z.object({
+  employees: z.array(tenantAdminEmployeeOptionSchema),
+});
+const tenantFinanceDocumentSchema = z.object({
+  id: z.string(),
+  clientId: z.string(),
+  client: z.string(),
+  title: z.string(),
+  fileName: z.string(),
+  fileType: z.string(),
+  sizeBytes: z.number(),
+  category: sharedDocumentSchema.shape.category,
+  uploadedBy: z.string(),
+  updatedOn: z.string(),
+  status: z.enum(["active", "archived"]),
+  clientDecisionStatus: z.enum(["pending", "approved", "rejected"]),
+  clientDecisionAt: z.string().nullable(),
+  clientDecisionBy: z.string().nullable(),
+  clientDecisionComment: z.string().nullable(),
+});
+const tenantFinanceDocumentsResponseSchema = z.object({ documents: z.array(tenantFinanceDocumentSchema) });
+const tenantFinanceInvoiceSchema = z.object({
+  id: z.string(),
+  clientId: z.string(),
+  client: z.string(),
+  invoiceNumber: z.string(),
+  issuedOn: z.string(),
+  dueOn: z.string().nullable(),
+  currency: z.string().length(3),
+  amount: z.number(),
+  status: z.string(),
+  visibility: z.enum(["client", "internal"]),
+  uploadedBy: z.string(),
+  updatedOn: z.string(),
+});
+const tenantFinanceInvoicesResponseSchema = z.object({ invoices: z.array(tenantFinanceInvoiceSchema) });
+const tenantBillableTaskEntrySchema = z.object({
+  id: z.string(),
+  taskId: z.string(),
+  taskTitle: z.string(),
+  clientId: z.string(),
+  client: z.string(),
+  currency: z.string().length(3),
+  grossAmount: z.number(),
+  discountAmount: z.number(),
+  netAmount: z.number(),
+});
+const tenantBillableTaskEntriesResponseSchema = z.object({ entries: z.array(tenantBillableTaskEntrySchema) });
 const tenantAdminTaskSchema = z.object({
   id: z.string(),
   title: z.string(),
@@ -141,10 +258,40 @@ const tenantAdminTasksResponseSchema = z.object({
   tasks: z.array(tenantAdminTaskSchema),
 });
 export type TenantAdminTaskOptions = z.infer<typeof tenantAdminTaskOptionsSchema>;
+export type TenantAdminEmployeeOption = z.infer<typeof tenantAdminEmployeeOptionSchema>;
+export type TenantAdminWorkGroup = z.infer<typeof tenantAdminWorkGroupSchema>;
 export type TenantAdminTask = z.infer<typeof tenantAdminTaskSchema>;
+export type TenantAdminService = z.infer<typeof tenantAdminServiceSchema>;
+export type CreateTenantAdminServiceInput = {
+  name: string;
+  taskType: string;
+  unitType: "per_task" | "per_hour" | "per_filing" | "per_unit";
+  rateAmount: number;
+  currencyCode: "INR" | "USD" | "GBP";
+  taxCode?: string;
+  effectiveFrom: string;
+};
+export type CreateTenantAdminEmployeeInput = {
+  name: string;
+  email: string;
+  password: string;
+  employeeCode?: string;
+  isManager?: boolean;
+  skills?: string[];
+  experienceLevel?: "junior" | "mid" | "senior" | "lead";
+  weeklyCapacityHours?: number;
+};
+export type UpsertTenantAdminWorkGroupInput = {
+  name: string;
+  clientId?: string;
+  managerEmployeeId: string;
+  employeeIds: string[];
+  status?: "active" | "inactive" | "archived";
+};
 export type CreateTenantAdminTaskInput = {
   clientId: string;
   serviceId: string;
+  countryCode: string;
   title: string;
   description?: string;
   priority: z.infer<typeof tenantAdminTaskPrioritySchema>;
@@ -156,6 +303,8 @@ export type CreateTenantAdminTaskInput = {
         rateSource: "existing";
         rateCardItemId: string;
         quantity: number;
+        discountType?: "percentage" | "fixed";
+        discountValue?: number;
       }
     | {
         rateSource: "new";
@@ -168,8 +317,11 @@ export type CreateTenantAdminTaskInput = {
         saveToRateCard: boolean;
         oneTimeReason?: string;
         quantity: number;
+        discountType?: "percentage" | "fixed";
+        discountValue?: number;
       };
 };
+export type TenantBillableTaskEntry = z.infer<typeof tenantBillableTaskEntrySchema>;
 const employeeId = "emp-riley";
 const managerId = "mgr-avery";
 const clientId = "northstar";
@@ -394,18 +546,125 @@ function invoiceVisibleTo(workspace: Workspace, record: SharedInvoice) {
 }
 
 export async function listSharedDocuments(workspace: Workspace) {
+  if (workspace === "admin") {
+    const response = await fetch("/api/tenant-admin/finance/documents", { cache: "no-store" });
+      return tenantFinanceDocumentsResponseSchema.parse(await parseJsonResponse(response)).documents.map((document): SharedDocument => ({
+        ...document,
+        tenantId: "tenant",
+        engagement: null,
+        task: null,
+      uploadedByRole: "admin",
+      uploadedById: "tenant-admin",
+        recipientEmployeeIds: [],
+        recipientManagerIds: [],
+        recipientClientIds: [document.clientId],
+        tenantAdminVisible: true,
+        activity: [{ id: `${document.id}-created`, action: "Created", actor: document.uploadedBy, at: document.updatedOn }],
+    }));
+  }
+  if (workspace === "client") {
+    return (await listClientPortalDeliverables()).map((document) => sharedDocumentSchema.parse({
+      ...document,
+      tenantId: "tenant",
+      clientId,
+      client: "Client account",
+      engagement: null,
+      task: null,
+      uploadedByRole: "admin",
+      uploadedById: "tenant-admin",
+      status: "active",
+      clientDecisionBy: null,
+      recipientEmployeeIds: [],
+      recipientManagerIds: [],
+      recipientClientIds: [clientId],
+      tenantAdminVisible: true,
+      activity: [{ id: `${document.id}-shared`, action: "Shared", actor: document.uploadedBy, at: document.updatedOn }],
+    }));
+  }
   return currentSharedDocuments().filter((record) => documentVisibleTo(workspace, record));
 }
 
 export async function listSharedInvoices(workspace: Workspace) {
+  if (workspace === "admin") {
+    const response = await fetch("/api/tenant-admin/finance/invoices", { cache: "no-store" });
+    return tenantFinanceInvoicesResponseSchema.parse(await parseJsonResponse(response)).invoices.map((invoice): SharedInvoice => ({
+      ...invoice,
+      tenantId: "tenant",
+      engagement: null,
+      dueOn: invoice.dueOn ?? "",
+      currency: "INR",
+      status: invoice.status === "paid" ? "paid" : invoice.status === "overdue" ? "overdue" : "sent",
+      fileName: `${invoice.invoiceNumber}.pdf`,
+      fileType: "PDF",
+      sizeBytes: 0,
+      uploadedByRole: "admin",
+      uploadedById: "tenant-admin",
+      managerId: "",
+      activity: [{ id: `${invoice.id}-created`, action: "Created", actor: invoice.uploadedBy, at: invoice.updatedOn }],
+    }));
+  }
+  if (workspace === "client") {
+    const dashboard = await getClientPortalDashboard();
+    return dashboard.invoices.map((invoice): SharedInvoice => ({
+      id: invoice.id,
+      tenantId: "tenant",
+      clientId,
+      client: "Client account",
+      invoiceNumber: invoice.invoiceNumber,
+      engagement: null,
+      issuedOn: invoice.issuedOn,
+      dueOn: invoice.dueOn ?? "",
+      currency: "INR",
+      amount: invoice.totalAmount,
+      status: invoice.status === "paid" ? "paid" : invoice.status === "overdue" ? "overdue" : "sent",
+      visibility: "client",
+      fileName: `${invoice.invoiceNumber}.pdf`,
+      fileType: "PDF",
+      sizeBytes: 0,
+      uploadedBy: "Tenant Administration",
+      uploadedByRole: "admin",
+      uploadedById: "tenant-admin",
+      managerId: "",
+      updatedOn: invoice.issuedOn,
+      activity: [{ id: `${invoice.id}-sent`, action: "Sent", actor: "Tenant Administration", at: invoice.issuedOn }],
+    }));
+  }
   return currentSharedInvoices().filter((record) => invoiceVisibleTo(workspace, record));
 }
 
 export async function createSharedDocument(
   workspace: "admin" | "manager" | "employee" | "client",
   input: DocumentUploadInput,
-) {
+): Promise<SharedDocument> {
   const value = documentUploadInputSchema.parse(input);
+  if (workspace === "admin") {
+    const response = await fetch("/api/tenant-admin/finance/documents", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        clientId: value.clientId,
+        title: value.title,
+        fileName: value.fileName,
+        fileType: value.fileType,
+        sizeBytes: value.sizeBytes,
+        category: value.category,
+      }),
+    });
+    const document = tenantFinanceDocumentSchema.parse(await parseJsonResponse(response));
+      return {
+        ...document,
+        tenantId: "tenant",
+        engagement: value.engagement ?? null,
+        task: value.task ?? null,
+      uploadedByRole: "admin",
+      uploadedById: "tenant-admin",
+        recipientEmployeeIds: value.recipientEmployeeIds ?? [],
+        recipientManagerIds: value.recipientManagerIds ?? [],
+        recipientClientIds: value.recipientClientIds ?? [value.clientId],
+        tenantAdminVisible: true,
+        activity: [{ id: `${document.id}-created`, action: "Created", actor: document.uploadedBy, at: document.updatedOn }],
+    };
+  }
   const actor = documentActors[workspace];
   const targetClientId = workspace === "client" ? clientId : value.clientId;
   assertClientScope(workspace, targetClientId);
@@ -417,20 +676,20 @@ export async function createSharedDocument(
     throw new Error("Employees can share documents only with their manager and Tenant Administration.");
   if (workspace === "employee" && !recipientManagerIds.includes(managerId))
     throw new Error("Select your assigned manager before uploading.");
-  if ((workspace === "admin" || workspace === "manager") && !recipientEmployeeIds.length && !recipientManagerIds.length && !recipientClientIds.length)
+  if (workspace === "manager" && !recipientEmployeeIds.length && !recipientManagerIds.length && !recipientClientIds.length)
     throw new Error("Select at least one authorised recipient.");
   if (workspace === "manager" && recipientClientIds.some((id) => !documentActors.manager.clientIds.includes(id as never)))
     throw new Error("A manager can share only with assigned clients.");
   const client = entities.find((item) => item.id === `CL-${targetClientId === "northstar" ? "101" : targetClientId === "wellspring" ? "102" : "103"}`)?.name ?? "Authorised client";
   const now = "Just now";
-  const record: SharedDocument = {
-    id: `DOC-${Date.now()}`, tenantId: "acme", clientId: targetClientId, client, title: value.title,
-    fileName: value.fileName, fileType: value.fileType, sizeBytes: value.sizeBytes, category: value.category,
-    engagement: value.engagement ?? null, task: value.task ?? null, uploadedBy: actor.name, uploadedByRole: workspace,
-    uploadedById: actor.id, updatedOn: now, status: "active", recipientEmployeeIds,
-    recipientManagerIds: workspace === "client" ? [managerId] : recipientManagerIds,
-    recipientClientIds: workspace === "client" ? [clientId] : recipientClientIds,
-    tenantAdminVisible: true, activity: [{ id: `DOC-ACT-${Date.now()}`, action: "Uploaded and shared", actor: actor.name, at: now }],
+    const record: SharedDocument = {
+      id: `DOC-${Date.now()}`, tenantId: "acme", clientId: targetClientId, client, title: value.title,
+      fileName: value.fileName, fileType: value.fileType, sizeBytes: value.sizeBytes, category: value.category,
+      engagement: value.engagement ?? null, task: value.task ?? null, uploadedBy: actor.name, uploadedByRole: workspace,
+      uploadedById: actor.id, updatedOn: now, status: "active", clientDecisionStatus: "pending", clientDecisionAt: null, clientDecisionBy: null, clientDecisionComment: null, recipientEmployeeIds,
+      recipientManagerIds: workspace === "client" ? [managerId] : recipientManagerIds,
+      recipientClientIds: workspace === "client" ? [clientId] : recipientClientIds,
+      tenantAdminVisible: true, activity: [{ id: `DOC-ACT-${Date.now()}`, action: "Uploaded and shared", actor: actor.name, at: now }],
   };
   sessionDocuments = [record, ...currentSharedDocuments()];
   saveStoredRecords(documentStorageKey, sessionDocuments);
@@ -440,8 +699,39 @@ export async function createSharedDocument(
 export async function createSharedInvoice(
   workspace: "admin" | "manager" | "client",
   input: InvoiceUploadInput,
-) {
+): Promise<SharedInvoice> {
   const value = invoiceUploadInputSchema.parse(input);
+  if (workspace === "admin") {
+    const response = await fetch("/api/tenant-admin/finance/invoices", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        clientId: value.clientId,
+        invoiceNumber: value.invoiceNumber,
+        issuedOn: value.issuedOn,
+        dueOn: value.dueOn,
+        amount: value.amount,
+        currencyCode: "INR",
+        visibility: value.visibility ?? "client",
+      }),
+    });
+    const invoice = tenantFinanceInvoiceSchema.parse(await parseJsonResponse(response));
+    return {
+      ...invoice,
+      tenantId: "tenant",
+      engagement: value.engagement ?? null,
+      dueOn: invoice.dueOn ?? value.dueOn,
+      currency: "INR",
+      status: "sent",
+      fileName: value.fileName,
+      fileType: value.fileType,
+      sizeBytes: value.sizeBytes,
+      uploadedByRole: "admin",
+      uploadedById: "tenant-admin",
+      managerId: "",
+      activity: [{ id: `${invoice.id}-created`, action: "Created", actor: invoice.uploadedBy, at: invoice.updatedOn }],
+    };
+  }
   const actor = documentActors[workspace];
   const targetClientId = workspace === "client" ? clientId : value.clientId;
   assertClientScope(workspace, targetClientId);
@@ -476,11 +766,11 @@ export async function updateSharedDocumentAccess(
   const recipientClientIds = recipients.recipientClientIds ?? [];
   if (workspace === "manager" && recipientClientIds.some((id) => !documentActors.manager.clientIds.includes(id as never)))
     throw new Error("A manager can share only with assigned clients.");
-  const next: SharedDocument = {
-    ...document,
-    recipientEmployeeIds: recipients.recipientEmployeeIds ?? [],
-    recipientManagerIds: recipients.recipientManagerIds ?? [],
-    recipientClientIds,
+    const next: SharedDocument = {
+      ...document,
+      recipientEmployeeIds: recipients.recipientEmployeeIds ?? [],
+      recipientManagerIds: recipients.recipientManagerIds ?? [],
+      recipientClientIds,
     tenantAdminVisible: true,
     updatedOn: "Just now",
     activity: [...document.activity, { id: `DOC-ACT-${Date.now()}`, action: "Access updated", actor: documentActors[workspace].name, at: "Just now" }],
@@ -519,6 +809,73 @@ export async function listTenantAdminTaskOptions(): Promise<TenantAdminTaskOptio
   return tenantAdminTaskOptionsSchema.parse(await parseJsonResponse(response));
 }
 
+export async function listTenantAdminServices(): Promise<TenantAdminService[]> {
+  const response = await fetch("/api/tenant-admin/services", { cache: "no-store" });
+  return tenantAdminServicesResponseSchema.parse(await parseJsonResponse(response)).services;
+}
+
+export async function createTenantAdminService(input: CreateTenantAdminServiceInput): Promise<TenantAdminService> {
+  const response = await fetch("/api/tenant-admin/services", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  return tenantAdminServiceSchema.parse(await parseJsonResponse(response));
+}
+
+export async function createTenantAdminEmployee(input: CreateTenantAdminEmployeeInput): Promise<TenantAdminEmployeeOption> {
+  const response = await fetch("/api/tenant-admin/tasks/employees", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  return tenantAdminEmployeeOptionSchema.parse(await parseJsonResponse(response));
+}
+
+export async function listTenantAdminEmployees(): Promise<TenantAdminEmployeeOption[]> {
+  const response = await fetch("/api/tenant-admin/tasks/employees", { cache: "no-store" });
+  return tenantAdminEmployeesResponseSchema.parse(await parseJsonResponse(response)).employees;
+}
+
+export async function setTenantAdminEmployeeManager(employeeId: string, isManager: boolean): Promise<TenantAdminEmployeeOption> {
+  const response = await fetch(`/api/tenant-admin/tasks/employees/${encodeURIComponent(employeeId)}/manager`, {
+    method: isManager ? "PATCH" : "DELETE",
+  });
+  return tenantAdminEmployeeOptionSchema.parse(await parseJsonResponse(response));
+}
+
+export async function updateTenantAdminEmployeeCapacity(employeeId: string, weeklyCapacityHours: number): Promise<TenantAdminEmployeeOption> {
+  const response = await fetch(`/api/tenant-admin/tasks/employees/${encodeURIComponent(employeeId)}/capacity`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ weeklyCapacityHours }),
+  });
+  return tenantAdminEmployeeOptionSchema.parse(await parseJsonResponse(response));
+}
+
+export async function listTenantAdminWorkGroups(): Promise<TenantAdminWorkGroup[]> {
+  const response = await fetch("/api/tenant-admin/tasks/work-groups", { cache: "no-store" });
+  return tenantAdminWorkGroupsResponseSchema.parse(await parseJsonResponse(response)).workGroups;
+}
+
+export async function createTenantAdminWorkGroup(input: UpsertTenantAdminWorkGroupInput): Promise<TenantAdminWorkGroup> {
+  const response = await fetch("/api/tenant-admin/tasks/work-groups", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  return tenantAdminWorkGroupSchema.parse(await parseJsonResponse(response));
+}
+
+export async function updateTenantAdminWorkGroup(workGroupId: string, input: UpsertTenantAdminWorkGroupInput): Promise<TenantAdminWorkGroup> {
+  const response = await fetch(`/api/tenant-admin/tasks/work-groups/${encodeURIComponent(workGroupId)}`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  return tenantAdminWorkGroupSchema.parse(await parseJsonResponse(response));
+}
+
 export async function listTenantAdminTasks(clientId?: string): Promise<TenantAdminTask[]> {
   const params = new URLSearchParams();
   if (clientId) params.set("clientId", clientId);
@@ -533,6 +890,32 @@ export async function createTenantAdminTask(input: CreateTenantAdminTaskInput): 
     body: JSON.stringify(input),
   });
   return tenantAdminTaskSchema.parse(await parseJsonResponse(response));
+}
+
+export async function listTenantBillableTaskEntries(): Promise<TenantBillableTaskEntry[]> {
+  const response = await fetch("/api/tenant-admin/finance/billable-tasks", { cache: "no-store" });
+  return tenantBillableTaskEntriesResponseSchema.parse(await parseJsonResponse(response)).entries;
+}
+
+export async function createInvoiceFromTask(input: {
+  billableTaskEntryId: string;
+  invoiceNumber: string;
+  issuedOn: string;
+  dueOn: string;
+  discountType?: "percentage" | "fixed";
+  discountValue?: number;
+}) {
+  const response = await fetch("/api/tenant-admin/finance/invoices/from-task", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  return tenantFinanceInvoiceSchema.parse(await parseJsonResponse(response));
+}
+
+export async function sendTenantInvoice(invoiceId: string) {
+  const response = await fetch(`/api/tenant-admin/finance/invoices/${encodeURIComponent(invoiceId)}/send`, { method: "POST" });
+  return tenantFinanceInvoiceSchema.parse(await parseJsonResponse(response));
 }
 
 export async function listWorkLogs(workspace: Workspace) {

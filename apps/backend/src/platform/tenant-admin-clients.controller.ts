@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Inject, Param, Patch, Post, Query, UseGuards } from "@nestjs/common";
+import { Body, Controller, Delete, Get, HttpCode, Inject, Param, Patch, Post, Query, UseGuards } from "@nestjs/common";
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { ActiveRequestContextGuard } from "../auth/guards/active-request-context.guard";
 import { PermissionGuard } from "../auth/guards/permission.guard";
@@ -56,6 +56,14 @@ export class TenantAdminClientsController {
   @ApiOkResponse({ type: TenantAdminClientDetailDto })
   detail(@CurrentRequestContext() context: RequestContext, @Param("clientRef") clientRef: string): Promise<TenantAdminClientDetailDto> {
     return this.service.detail(context, clientRef);
+  }
+
+  @Delete(":clientRef")
+  @HttpCode(204)
+  @RequirePermissions("client.update")
+  @ApiOperation({ summary: "Archive a tenant-scoped client and preserve history." })
+  archive(@CurrentRequestContext() context: RequestContext, @Param("clientRef") clientRef: string): Promise<void> {
+    return this.service.archive(context, clientRef);
   }
 
   @Post(":clientRef/contacts")

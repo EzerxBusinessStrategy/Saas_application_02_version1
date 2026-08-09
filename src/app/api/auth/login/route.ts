@@ -5,8 +5,10 @@ import {
   signInSuperAdminWithPassword,
   fetchVerifiedSuperAdminMe,
   fetchVerifiedTenantAdminMe,
+  fetchVerifiedClientPortalMe,
   createSuperAdminSessionPolicy,
   createTenantAdminSessionPolicy,
+  createClientPortalSessionPolicy,
 } from "@/lib/server/super-admin-auth";
 import {
   clearSuperAdminSessionCookies,
@@ -81,6 +83,11 @@ export async function POST(request: Request) {
         await createTenantAdminSessionPolicy(session.accessToken, rememberMe);
         meData = await fetchMeContext(session.accessToken);
       }
+      if (!meData) {
+        console.log("[Login Route] Trying client portal session policy...");
+        await createClientPortalSessionPolicy(session.accessToken, rememberMe);
+        meData = await fetchMeContext(session.accessToken);
+      }
 
       if (meData) {
         const workspaces = resolveWorkspaces({
@@ -97,7 +104,9 @@ export async function POST(request: Request) {
           const portalType =
             workspace === "super-admin"
               ? ("super-admin" as const)
-              : ("admin" as const);
+              : workspace === "client"
+                ? ("client" as const)
+                : ("admin" as const);
 
           const response = NextResponse.json({ redirect: `/${workspace}` });
           setSuperAdminSessionCookies(response, session, rememberMe, portalType);
@@ -160,7 +169,7 @@ export async function POST(request: Request) {
 
 /**
  * Fetch the user's membership context from the backend.
- * Tries super-admin portal first, then falls back to admin portal.
+ * Tries super-admin first, then tenant admin, then client portal.
  */
 async function fetchMeContext(
   accessToken: string,
@@ -195,6 +204,22 @@ async function fetchMeContext(
       availableMemberships: [],
       activeMembership: tenantAdminMe.activeMembership,
       roles: tenantAdminMe.roles,
+      permissions: [],
+      isPlatformAdmin: false,
+    };
+  }
+
+  const clientPortalMe = await fetchVerifiedClientPortalMe(accessToken);
+  if (clientPortalMe) {
+    return {
+      user: {
+        id: "",
+        email: clientPortalMe.user.email,
+        displayName: clientPortalMe.user.displayName,
+      },
+      availableMemberships: [],
+      activeMembership: clientPortalMe.activeMembership,
+      roles: clientPortalMe.roles,
       permissions: [],
       isPlatformAdmin: false,
     };

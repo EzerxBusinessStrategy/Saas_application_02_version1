@@ -21,6 +21,7 @@ import { NotificationMenu } from "@/components/app-shell/notification-menu";
 import { TenantSwitcher } from "@/components/app-shell/tenant-switcher";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { UserMenu } from "@/components/app-shell/user-menu";
+import { getClientPortalProfile } from "@/features/client-portal/api/client-portal-profile-api";
 import { getPlatformConfiguration } from "@/features/platform/api/super-admin-platform-configuration-api";
 import { navigationFor } from "@/lib/nav";
 import { hasAnyPermission } from "@/lib/permissions";
@@ -349,6 +350,11 @@ export function WorkspaceShell({
     queryFn: getPlatformConfiguration,
     enabled: workspace === "super-admin" && user.role === "SUPER_ADMIN",
   });
+  const clientProfileQuery = useQuery({
+    queryKey: ["client-portal-profile"],
+    queryFn: getClientPortalProfile,
+    enabled: workspace === "client" && user.role === "CLIENT_USER",
+  });
   const items = useMemo(
     () => filterNavigation(navigationFor(workspace), user.role),
     [user.role, workspace],
@@ -375,6 +381,13 @@ export function WorkspaceShell({
       setCompanyName(configuration?.platformName ?? "SaaS App");
       document.documentElement.style.setProperty("--primary", configuration?.defaultBrand ?? "#3C50E0");
       document.documentElement.style.setProperty("--ring", configuration?.defaultBrand ?? "#3C50E0");
+      return;
+    }
+    if (workspace === "client") {
+      const profile = clientProfileQuery.data;
+      setCompanyName(profile?.portalName ?? "Client portal");
+      document.documentElement.style.setProperty("--primary", profile?.primaryColour ?? "#3C50E0");
+      document.documentElement.style.setProperty("--ring", profile?.primaryColour ?? "#3C50E0");
       return;
     }
     const tenantId = "acme";
@@ -405,7 +418,7 @@ export function WorkspaceShell({
       );
       window.removeEventListener("storage", updateFromStorage);
     };
-  }, [platformConfigurationQuery.data, workspace]);
+  }, [clientProfileQuery.data, platformConfigurationQuery.data, user.role, workspace]);
 
   return (
     <div
@@ -491,7 +504,9 @@ export function WorkspaceShell({
               </kbd>
             </Button>
             <ThemeToggle />
-            <NotificationMenu workspace={workspace} />
+            {workspace !== "client" ? (
+              <NotificationMenu workspace={workspace} />
+            ) : null}
             <UserMenu user={user} workspace={workspace} />
           </div>
         </header>

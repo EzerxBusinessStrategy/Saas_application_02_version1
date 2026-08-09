@@ -26,6 +26,7 @@ import {
   markAllTenantAdminNotificationsRead,
   markTenantAdminNotificationRead,
 } from "@/features/tenant-admin/api/tenant-admin-notifications-api";
+import { getClientPortalNotifications } from "@/features/client-portal/api/client-portal-notifications-api";
 import { cn } from "@/lib/utils";
 import type { Notification } from "@/types/app-shell";
 import type { Workspace } from "@/types/domain";
@@ -38,6 +39,7 @@ export type NotificationMenuState = "ready" | "loading" | "error" | "empty";
 
 const superAdminNotificationsQueryKey = ["super-admin-notifications", "recent"] as const;
 const tenantAdminNotificationsQueryKey = ["tenant-admin-notifications", "recent"] as const;
+const clientPortalNotificationsQueryKey = ["client-portal-notifications", "recent"] as const;
 
 const superAdminSoundPreferenceKey = "super-admin-notification-sound-enabled";
 const tenantAdminSoundPreferenceKey = "tenant-admin-notification-sound-enabled";
@@ -58,6 +60,9 @@ export function NotificationMenu({
   }
   if (workspace === "admin") {
     return <TenantAdminNotificationMenu open={open} />;
+  }
+  if (workspace === "client") {
+    return <ClientPortalNotificationMenu open={open} />;
   }
   return <MockNotificationMenu workspace={workspace} initialItems={initialItems} state={state} open={open} />;
 }
@@ -336,6 +341,58 @@ function TenantAdminNotificationMenu({ open }: { open?: boolean }) {
         <DropdownMenuSeparator className="my-1 h-px bg-border" />
         <DropdownMenuItem asChild>
           <Link href="/admin">View all notifications</Link>
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+function ClientPortalNotificationMenu({ open }: { open?: boolean }) {
+  const query = useQuery({
+    queryKey: clientPortalNotificationsQueryKey,
+    queryFn: getClientPortalNotifications,
+    refetchOnWindowFocus: true,
+  });
+  const items = query.data?.items ?? [];
+  const unreadCount = query.data?.unreadCount ?? 0;
+
+  return (
+    <DropdownMenu open={open}>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="ghost"
+          size="sm"
+          aria-label={unreadCount ? `Notifications, ${unreadCount} unread` : "Notifications"}
+          className="relative size-10 p-0"
+        >
+          <Bell className="size-[18px]" aria-hidden="true" />
+          {unreadCount ? (
+            <span
+              className="absolute right-1 top-1 grid size-4 place-items-center rounded-full bg-danger text-[10px] font-semibold text-destructive-foreground"
+              aria-hidden="true"
+            >
+              {unreadCount > 99 ? "99+" : unreadCount}
+            </span>
+          ) : null}
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align="end"
+        className="w-[min(24rem,calc(100vw-2rem))] max-md:!fixed max-md:!inset-x-4 max-md:!bottom-4 max-md:!top-auto"
+      >
+        <DropdownMenuLabel className="px-3 py-2 font-semibold">Notifications</DropdownMenuLabel>
+        <DropdownMenuSeparator className="my-1 h-px bg-border" />
+        {query.isLoading ? <NotificationLoading /> : null}
+        {query.isError ? <NotificationError /> : null}
+        {!query.isLoading && !query.isError && !items.length ? (
+          <div className="px-3 py-5 text-sm text-muted-foreground">You&apos;re all caught up.</div>
+        ) : null}
+        {!query.isLoading && !query.isError && items.length ? (
+          <NotificationList items={items} onRead={() => undefined} defaultHref="/client/notifications" />
+        ) : null}
+        <DropdownMenuSeparator className="my-1 h-px bg-border" />
+        <DropdownMenuItem asChild>
+          <Link href="/client/notifications">View all notifications</Link>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

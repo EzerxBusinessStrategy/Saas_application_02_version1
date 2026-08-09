@@ -22,9 +22,11 @@ if ($listener) {
     throw "Port $port is already used by $($owner.ProcessName) (PID $($listener.OwningProcess)). Stop that process or set BACKEND_PORT to a free port."
 }
 
-# Set Node.js to trust the Supabase certificate for HTTPS requests (JWKS fetching for JWT verification)
-$env:NODE_EXTRA_CA_CERTS = "C:/Users/sayantan.sen/Downloads/prod-ca-2021.crt"
-$env:NODE_USE_SYSTEM_CA = "1"
+# Use the operating-system certificate store for Supabase HTTPS requests.
+# This avoids depending on a developer-specific downloaded CA file.
+if ($env:NODE_OPTIONS -notmatch '(^|\s)--use-system-ca(\s|$)') {
+    $env:NODE_OPTIONS = "$($env:NODE_OPTIONS) --use-system-ca".Trim()
+}
 
 # Start the backend with tsx
 npx tsx watch src/main.ts

@@ -80,6 +80,11 @@ export const clientCreateInputSchema = z.object({
     email: z.string().trim().email("Enter a valid email."),
     phone: z.string().trim().max(40).optional().or(z.literal("")),
   }),
+  portalAccess: z.object({
+    email: z.string().trim().email("Enter a valid portal email."),
+    phone: z.string().trim().max(40).optional().or(z.literal("")),
+    password: z.string().min(8, "Use at least 8 characters.").max(128),
+  }),
 });
 export type ClientCreateInput = z.infer<typeof clientCreateInputSchema>;
 
