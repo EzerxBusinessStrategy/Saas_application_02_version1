@@ -1,7 +1,15 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen } from "@testing-library/react";
-import { expect, test } from "vitest";
+import { expect, test, vi } from "vitest";
 import { EmployeeWorkspace } from "@/components/operations/employee-workspace";
+
+vi.mock("@/features/operations/api/operations-api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/features/operations/api/operations-api")>()),
+  listEmployeeTasks: vi.fn(async () => {
+    const { operationalTasks } = await import("@/mocks/operations");
+    return operationalTasks.filter((task) => task.assigneeId === "emp-riley");
+  }),
+}));
 
 function renderWithQuery(ui: React.ReactElement) {
   const client = new QueryClient({

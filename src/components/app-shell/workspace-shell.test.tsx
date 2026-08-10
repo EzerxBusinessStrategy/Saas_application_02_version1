@@ -208,7 +208,7 @@ test("shows Super Admin navigation as direct links without dropdown groups", () 
     </WorkspaceShell>,
   );
 
-  expect(screen.getByRole("link", { name: "Reports" })).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Tenant analytics" })).toBeInTheDocument();
   expect(screen.getByRole("link", { name: "Audit log" })).toBeInTheDocument();
   expect(screen.getByRole("link", { name: "Tenant list" })).toBeInTheDocument();
   expect(screen.queryByRole("link", { name: "Support access" })).not.toBeInTheDocument();

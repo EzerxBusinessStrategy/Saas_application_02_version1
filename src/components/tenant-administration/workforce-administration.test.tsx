@@ -37,7 +37,7 @@ test("keeps administration content behind the existing permission boundary", () 
 });
 
 test("validates branding colours and keeps the preview isolated", async () => {
-  const { getByLabelText, getByRole, getByText, findByText } = render(<TenantSettings />);
+  const { getByLabelText, getByRole, getByText, findByText } = renderWithQueryClient(<TenantSettings />);
   expect(getByText("Live preview")).toBeInTheDocument();
   expect(getByLabelText("Company name")).toBeInTheDocument();
   expect(getByLabelText(/Portal subtitle/i)).toBeInTheDocument();
@@ -51,7 +51,7 @@ test("validates branding colours and keeps the preview isolated", async () => {
 });
 
 test("resets only the three branding colours to their defaults", () => {
-  const { container } = render(<TenantSettings />);
+  const { container } = renderWithQueryClient(<TenantSettings />);
   const primary = container.querySelector<HTMLInputElement>(
     '[name="primaryColour"]',
   )!;
@@ -75,7 +75,7 @@ test("resets only the three branding colours to their defaults", () => {
 });
 
 test("publishes validated branding values to the current browser session", async () => {
-  const { container, findByText } = render(<TenantSettings />);
+  const { container, findByText } = renderWithQueryClient(<TenantSettings />);
   fireEvent.change(container.querySelector('[name="companyName"]')!, {
     target: { value: "Northstar Advisory" },
   });

@@ -131,8 +131,8 @@ describe("TenantAdminDashboardService", () => {
       result: "success",
       metadata: { priority: "high" },
     });
-    expect(result.organisationSetup.completed).toBe(6);
-    expect(result.organisationSetup.total).toBe(8);
+    expect(result.organisationSetup.completed).toBe(5);
+    expect(result.organisationSetup.total).toBe(6);
     expect(result.organisationSetup.items.find((item) => item.key === "FINANCIAL_YEAR")?.destination).toBeNull();
     expect(result.upcomingDeadlines[0]).toMatchObject({
       taskId: "task-1",

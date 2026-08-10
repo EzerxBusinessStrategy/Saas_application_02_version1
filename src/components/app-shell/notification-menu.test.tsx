@@ -35,13 +35,15 @@ test("shows unread notification count and the empty notification state", async (
   expect(trigger.querySelector(".super-admin-notification-signal"))
     .toBeInTheDocument();
   rerender(
-    <NotificationMenu
-      key="empty"
-      workspace="admin"
-      state="empty"
-      initialItems={[]}
-      open
-    />,
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <NotificationMenu
+        key="empty"
+        workspace="manager"
+        state="empty"
+        initialItems={[]}
+        open
+      />
+    </QueryClientProvider>,
   );
   expect(screen.getByText("You\u0027re all caught up.")).toBeInTheDocument();
 });

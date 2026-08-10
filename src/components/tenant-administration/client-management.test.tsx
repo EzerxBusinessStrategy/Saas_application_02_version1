@@ -21,6 +21,36 @@ import {
 
 const replace = vi.fn();
 const push = vi.fn();
+const workGroupEmployee = {
+  id: "emp-001",
+  name: "Aarav Mehta",
+  employeeCode: "EMP-001",
+  email: "aarav@example.test",
+  departmentId: null,
+  departmentName: null,
+  isManager: true,
+  skills: [],
+  categories: [],
+  experienceLevel: null,
+  managerId: null,
+  managerName: null,
+  activeTasks: 0,
+  workGroups: [],
+  employmentStatus: "active",
+  weeklyCapacityHours: 40,
+};
+const initialTenantWorkGroup = {
+  id: "wg-01",
+  name: "GST Filing",
+  clientId: "cl-101",
+  clientName: "Northstar Labs",
+  managerEmployeeId: workGroupEmployee.id,
+  managerName: workGroupEmployee.name,
+  memberCount: 1,
+  members: [workGroupEmployee],
+  status: "active" as const,
+};
+let createdTenantWorkGroup: typeof initialTenantWorkGroup | undefined;
 
 vi.mock("next/navigation", () => ({
   usePathname: () => "/admin/clients",
@@ -40,9 +70,10 @@ function renderWithQuery(ui: React.ReactElement) {
 beforeEach(() => {
   replace.mockClear();
   push.mockClear();
+  createdTenantWorkGroup = undefined;
   vi.stubGlobal(
     "fetch",
-    vi.fn(async (input: RequestInfo | URL) => {
+    vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
       if (url.includes("/api/tenant-admin/clients/cl-101")) {
         return Response.json({
@@ -52,7 +83,23 @@ beforeEach(() => {
           workGroups,
           tasks: [],
           invoices: [],
+          rateItems: [],
           activity: [],
+        });
+      }
+      if (url.includes("/api/tenant-admin/tasks/employees")) {
+        return Response.json({ employees: [workGroupEmployee], departments: [] });
+      }
+      if (url.includes("/api/tenant-admin/tasks/work-groups")) {
+        if (init?.method === "POST") {
+          const body = JSON.parse(String(init.body)) as { name: string };
+          createdTenantWorkGroup = { ...initialTenantWorkGroup, id: "wg-new", name: body.name };
+          return Response.json(createdTenantWorkGroup);
+        }
+        return Response.json({
+          workGroups: createdTenantWorkGroup
+            ? [initialTenantWorkGroup, createdTenantWorkGroup]
+            : [initialTenantWorkGroup],
         });
       }
       if (url.includes("/api/tenant-admin/clients")) {
@@ -110,9 +157,10 @@ test("validates and retains a mock work-group creation flow", async () => {
   fireEvent.change(within(dialog).getByLabelText("Work-group name"), {
     target: { value: "Audit delivery pod" },
   });
-  fireEvent.change(within(dialog).getByLabelText("Service engagement"), {
-    target: { value: "Compliance review" },
+  fireEvent.change(within(dialog).getByLabelText("Client"), {
+    target: { value: "cl-101" },
   });
+  fireEvent.click(within(dialog).getByRole("checkbox", { name: "Aarav Mehta" }));
   fireEvent.click(
     within(dialog).getByRole("button", { name: "Create work group" }),
   );

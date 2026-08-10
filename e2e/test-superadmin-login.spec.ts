@@ -12,7 +12,7 @@ test("Super Admin two-step login flow with superadmin@abc.com", async ({ page })
   });
 
   // 1. Navigate to login
-  await page.goto("http://localhost:3000/login");
+  await page.goto("/login");
   await page.waitForLoadState("networkidle");
 
   // 2. Fill email step

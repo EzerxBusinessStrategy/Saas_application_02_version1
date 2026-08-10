@@ -5,6 +5,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, test, vi } from "vite
 import { NestFastifyApplication } from "@nestjs/platform-fastify";
 import { createTestApp, testConfig } from "../../helpers/test-app";
 import { AuthContextRepository, AuthContextRow } from "../../../src/auth/auth-context.repository";
+import { SessionPolicyRepository } from "../../../src/auth/session-policy.repository";
 import { SupabaseJwtVerifier } from "../../../src/auth/supabase-jwt-verifier.service";
 
 const issuer = "https://auth.example.test/auth/v1";
@@ -68,8 +69,8 @@ describe("Phase 3 Supabase authentication and trusted context", () => {
 
   test("returns /me with safe verified user and tenant fields", async () => {
     mockAuthRows(defaultRows());
-    mockVerifiedAuthUser(authUserA);
     app = await createAuthTestApp();
+    mockVerifiedAuthUser(app, authUserA);
 
     const response = await request(app.getHttpServer())
       .get("/api/v1/me")
@@ -102,8 +103,8 @@ describe("Phase 3 Supabase authentication and trusted context", () => {
 
   test("returns platform Super Admin /me without a tenant membership", async () => {
     mockAuthRows(defaultRows());
-    mockVerifiedAuthUser(authUserSuperAdmin);
     app = await createAuthTestApp();
+    mockVerifiedAuthUser(app, authUserSuperAdmin);
 
     const response = await request(app.getHttpServer())
       .get("/api/v1/me")
@@ -153,7 +154,7 @@ describe("Phase 3 Supabase authentication and trusted context", () => {
     mockAuthRows(defaultRows());
     app = await createAuthTestApp();
 
-    mockVerifiedAuthUser(authUserMissing);
+    mockVerifiedAuthUser(app, authUserMissing);
     const missing = await request(app.getHttpServer())
       .get("/api/v1/me")
       .set("authorization", "Bearer verified-token")
@@ -161,14 +162,14 @@ describe("Phase 3 Supabase authentication and trusted context", () => {
       .expect(403);
     expect(missing.body.error.code).toBe("APPLICATION_USER_NOT_FOUND");
 
-    mockVerifiedAuthUser(authUserNoMembership);
+    mockVerifiedAuthUser(app, authUserNoMembership);
     const noMembership = await request(app.getHttpServer())
       .get("/api/v1/me")
       .set("authorization", "Bearer verified-token")
       .expect(403);
     expect(noMembership.body.error.code).toBe("MEMBERSHIP_NOT_FOUND");
 
-    mockVerifiedAuthUser(authUserSuspended);
+    mockVerifiedAuthUser(app, authUserSuspended);
     const suspended = await request(app.getHttpServer())
       .get("/api/v1/me")
       .set("authorization", "Bearer verified-token")
@@ -179,8 +180,8 @@ describe("Phase 3 Supabase authentication and trusted context", () => {
 
   test("denies suspended tenant, inactive membership, invalid tenant input, and unassigned role", async () => {
     mockAuthRows(defaultRows());
-    mockVerifiedAuthUser(authUserA);
     app = await createAuthTestApp();
+    mockVerifiedAuthUser(app, authUserA);
 
     const suspendedTenantResponse = await request(app.getHttpServer())
       .get("/api/v1/me")
@@ -214,8 +215,8 @@ describe("Phase 3 Supabase authentication and trusted context", () => {
 
   test("rejects users with multiple active memberships as invalid configuration", async () => {
     mockAuthRows(defaultRows());
-    mockVerifiedAuthUser(authUserB);
     app = await createAuthTestApp();
+    mockVerifiedAuthUser(app, authUserB);
 
     const response = await request(app.getHttpServer())
       .get("/api/v1/me")
@@ -227,13 +228,13 @@ describe("Phase 3 Supabase authentication and trusted context", () => {
 
   test("keeps concurrent request contexts isolated", async () => {
     mockAuthRows(defaultRows());
-    vi.spyOn(SupabaseJwtVerifier.prototype, "verifyBearerToken").mockImplementation(async (token) => ({
+    app = await createAuthTestApp();
+    vi.spyOn(app.get(SupabaseJwtVerifier), "verifyBearerToken").mockImplementation(async (token) => ({
       authUserId: token === "token-b" ? authUserB : authUserA,
       issuer,
       audience: [audience],
       expiresAt: new Date(Date.now() + 300_000),
     }));
-    app = await createAuthTestApp();
 
     const [responseA, responseB] = await Promise.all([
       request(app.getHttpServer())
@@ -267,13 +268,15 @@ function ensureWebCrypto(): void {
 }
 
 async function createAuthTestApp(): Promise<NestFastifyApplication> {
-  return createTestApp({
+  const app = await createTestApp({
     ...testConfig,
     supabaseUrl: "https://auth.example.test",
     supabaseJwtIssuer: issuer,
     supabaseJwtAudience: audience,
     supabaseJwksUrl: jwksUrl,
   });
+  vi.spyOn(app.get(SessionPolicyRepository), "assertActive").mockResolvedValue({ auth_context_version: 1 });
+  return app;
 }
 
 async function createJwtKeys() {
@@ -324,8 +327,8 @@ function mockAuthRows(rows: Readonly<Record<string, readonly AuthContextRow[]>>)
   );
 }
 
-function mockVerifiedAuthUser(authUserId: string): void {
-  vi.spyOn(SupabaseJwtVerifier.prototype, "verifyBearerToken").mockResolvedValue({
+function mockVerifiedAuthUser(app: NestFastifyApplication, authUserId: string): void {
+  vi.spyOn(app.get(SupabaseJwtVerifier), "verifyBearerToken").mockResolvedValue({
     authUserId,
     issuer,
     audience: [audience],

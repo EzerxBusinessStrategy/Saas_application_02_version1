@@ -260,41 +260,57 @@ export class TenantAdminFinanceRepository {
       );
       const invoice = result.rows[0];
       if (!invoice) throw new ConflictException({ code: "INVOICE_NOT_SENDABLE", message: "Only draft invoices can be sent." });
-      await client.query(
-        `
-          insert into public.tenant_documents (
-            tenant_id, client_id, title, file_name, file_type, size_bytes,
-            category, metadata, created_by
-          )
-          select
-            $1::uuid,
-            $2::uuid,
-            'Invoice ' || $3::text,
-            $3::text || '.pdf',
-            'PDF',
-            0,
-            'invoice',
-            jsonb_build_object(
-              'invoiceId', $4::uuid,
-              'documentKind', 'invoice_pdf',
-              'clientVisible', true,
-              'shareReason', 'Invoice sent to client.'
-            ),
-            $5::uuid
-          where not exists (
-            select 1
-            from public.tenant_documents d
-            where d.tenant_id = $1
-              and d.metadata->>'invoiceId' = $4::text
-          )
-        `,
-        [context.tenantId, invoice.client_id, invoice.invoice_number, invoiceId, context.membershipId],
-      );
-      await this.notifyClientInvoiceSent(client, context, invoiceId, invoice.client_id, invoice.invoice_number);
-      await client.query(
-        "select audit.write_audit_event('INVOICE_SENT', 'invoice', $1::uuid, 'succeeded', null, $2::jsonb)",
-        [invoiceId, JSON.stringify({ clientId: invoice.client_id, invoiceNumber: invoice.invoice_number })],
-      );
+      try {
+        await client.query(
+          `
+            insert into public.tenant_documents (
+              tenant_id, client_id, title, file_name, file_type, size_bytes,
+              category, metadata, created_by
+            )
+            select
+              $1::uuid,
+              $2::uuid,
+              'Invoice ' || $3::text,
+              $3::text || '.pdf',
+              'PDF',
+              0,
+              'invoice',
+              jsonb_build_object(
+                'invoiceId', $4::uuid,
+                'documentKind', 'invoice_pdf',
+                'clientVisible', true,
+                'shareReason', 'Invoice sent to client.'
+              ),
+              $5::uuid
+            where not exists (
+              select 1
+              from public.tenant_documents d
+              where d.tenant_id = $1
+                and d.metadata->>'invoiceId' = $4::text
+            )
+          `,
+          [context.tenantId, invoice.client_id, invoice.invoice_number, invoiceId, context.membershipId],
+        );
+        await this.notifyClientInvoiceSent(client, context, invoiceId, invoice.client_id, invoice.invoice_number);
+        await client.query(
+          "select audit.write_audit_event('INVOICE_SENT', 'invoice', $1::uuid, 'succeeded', null, $2::jsonb)",
+          [invoiceId, JSON.stringify({ clientId: invoice.client_id, invoiceNumber: invoice.invoice_number })],
+        );
+      } catch (error: unknown) {
+        if (isUndefinedTable(error)) {
+          throw new ConflictException({
+            code: "INVOICE_DOCUMENT_STORAGE_NOT_READY",
+            message: "Invoice sending requires migrations 0043_tenant_document_metadata.sql and 0046_employee_document_recipients.sql.",
+          });
+        }
+        if (isPermissionDenied(error)) {
+          throw new ConflictException({
+            code: "INVOICE_DOCUMENT_STORAGE_ACCESS_DENIED",
+            message: "Invoice document storage is not available to the application database role. Apply migration 0046_employee_document_recipients.sql.",
+          });
+        }
+        throw error;
+      }
       return this.getInvoiceOrThrow(client, context.tenantId, invoiceId);
     });
   }
@@ -552,6 +568,10 @@ function isUniqueViolation(error: unknown): boolean {
 
 function isUndefinedTable(error: unknown): boolean {
   return typeof error === "object" && error !== null && "code" in error && error.code === "42P01";
+}
+
+function isPermissionDenied(error: unknown): boolean {
+  return typeof error === "object" && error !== null && "code" in error && error.code === "42501";
 }
 
 function calculateDiscount(grossAmount: number, type: "percentage" | "fixed" | undefined, value: number): number {
