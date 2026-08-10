@@ -6,8 +6,7 @@ import {
 } from "@nestjs/websockets";
 import { randomUUID } from "node:crypto";
 import { Server, Socket } from "socket.io";
-import { RequestContextResolver } from "../auth/request-context-resolver.service";
-import { SessionPolicyRepository } from "../auth/session-policy.repository";
+import { ActiveRequestContextService } from "../auth/active-request-context.service";
 import { SupabaseJwtVerifier } from "../auth/supabase-jwt-verifier.service";
 import { superAdminAccessTokenCookie } from "../auth/auth-cookie-names";
 import { NotificationItemDto } from "./super-admin-notifications.dto";
@@ -25,10 +24,8 @@ export class TenantAdminNotificationsGateway implements OnGatewayConnection {
   constructor(
     @Inject(SupabaseJwtVerifier)
     private readonly verifier: SupabaseJwtVerifier,
-    @Inject(RequestContextResolver)
-    private readonly contextResolver: RequestContextResolver,
-    @Inject(SessionPolicyRepository)
-    private readonly sessionPolicies: SessionPolicyRepository,
+    @Inject(ActiveRequestContextService)
+    private readonly activeContext: ActiveRequestContextService,
     @Inject(TenantAdminNotificationsRepository)
     private readonly repository: TenantAdminNotificationsRepository,
   ) {}
@@ -41,13 +38,12 @@ export class TenantAdminNotificationsGateway implements OnGatewayConnection {
         return;
       }
       const verified = await this.verifier.verifyBearerToken(token);
-      const resolved = await this.contextResolver.resolve(
+      const resolved = await this.activeContext.resolve(
         verified,
         { portal: "admin" },
         randomUUID(),
       );
       const tenantContext = requireTenantAdminContext(resolved.context);
-      await this.sessionPolicies.assertActive(tenantContext, verified.sessionId);
 
       client.data.userId = tenantContext.userId;
       client.data.tenantId = tenantContext.tenantId;

@@ -167,6 +167,8 @@ const tenantAdminTaskOptionsSchema = z.object({
 const tenantAdminEmployeeOptionSchema = taskOptionSchema.extend({
   employeeCode: z.string().nullable(),
   email: z.string().email(),
+  departmentId: z.string().nullable().default(null),
+  departmentName: z.string().nullable().default(null),
   isManager: z.boolean().default(false),
   skills: z.array(z.string()).default([]),
   categories: z.array(z.string()).default([]),
@@ -192,6 +194,17 @@ const tenantAdminWorkGroupsResponseSchema = z.object({
 });
 const tenantAdminEmployeesResponseSchema = z.object({
   employees: z.array(tenantAdminEmployeeOptionSchema),
+  departments: z.array(taskOptionSchema).default([]),
+});
+const tenantProfileSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  currencyCode: z.string(),
+  timezone: z.string(),
+});
+const emailAvailabilitySchema = z.object({
+  available: z.boolean(),
+  reason: z.literal("EMAIL_ALREADY_EXISTS").optional(),
 });
 const tenantFinanceDocumentSchema = z.object({
   id: z.string(),
@@ -250,6 +263,7 @@ const tenantFinanceInvoiceSchema = z.object({
   id: z.string(),
   clientId: z.string(),
   client: z.string(),
+  taskTitle: z.string().nullable(),
   invoiceNumber: z.string(),
   issuedOn: z.string(),
   dueOn: z.string().nullable(),
@@ -261,6 +275,7 @@ const tenantFinanceInvoiceSchema = z.object({
   updatedOn: z.string(),
 });
 const tenantFinanceInvoicesResponseSchema = z.object({ invoices: z.array(tenantFinanceInvoiceSchema) });
+type TenantFinanceInvoice = z.infer<typeof tenantFinanceInvoiceSchema>;
 const tenantBillableTaskEntrySchema = z.object({
   id: z.string(),
   taskId: z.string(),
@@ -338,6 +353,13 @@ const employeeWorkLogsResponseSchema = z.object({
 });
 export type TenantAdminTaskOptions = z.infer<typeof tenantAdminTaskOptionsSchema>;
 export type TenantAdminEmployeeOption = z.infer<typeof tenantAdminEmployeeOptionSchema>;
+export type TenantProfile = z.infer<typeof tenantProfileSchema>;
+export type UpdateTenantAdminEmployeeAssignmentInput = {
+  departmentId?: string | null;
+  skills?: string[];
+  experienceLevel?: "junior" | "mid" | "senior" | "lead" | null;
+  managerId?: string | null;
+};
 export type TenantAdminWorkGroup = z.infer<typeof tenantAdminWorkGroupSchema>;
 export type TenantAdminTask = z.infer<typeof tenantAdminTaskSchema>;
 export type TenantAdminService = z.infer<typeof tenantAdminServiceSchema>;
@@ -693,24 +715,37 @@ function mapEmployeeDocument(document: z.infer<typeof employeeDocumentSchema>): 
   });
 }
 
+function mapTenantFinanceInvoice(invoice: TenantFinanceInvoice): SharedInvoice {
+  const status: SharedInvoice["status"] =
+    invoice.status === "draft" ||
+    invoice.status === "sent" ||
+    invoice.status === "partial" ||
+    invoice.status === "paid" ||
+    invoice.status === "overdue"
+      ? invoice.status
+      : "sent";
+
+  return {
+    ...invoice,
+    tenantId: "tenant",
+    engagement: null,
+    dueOn: invoice.dueOn ?? "",
+    currency: "INR",
+    status,
+    fileName: `${invoice.invoiceNumber}.pdf`,
+    fileType: "PDF",
+    sizeBytes: 0,
+    uploadedByRole: "admin",
+    uploadedById: "tenant-admin",
+    managerId: "",
+    activity: [{ id: `${invoice.id}-created`, action: "Created", actor: invoice.uploadedBy, at: invoice.updatedOn }],
+  };
+}
+
 export async function listSharedInvoices(workspace: Workspace) {
   if (workspace === "admin") {
     const response = await fetch("/api/tenant-admin/finance/invoices", { cache: "no-store" });
-    return tenantFinanceInvoicesResponseSchema.parse(await parseJsonResponse(response)).invoices.map((invoice): SharedInvoice => ({
-      ...invoice,
-      tenantId: "tenant",
-      engagement: null,
-      dueOn: invoice.dueOn ?? "",
-      currency: "INR",
-      status: invoice.status === "paid" ? "paid" : invoice.status === "overdue" ? "overdue" : "sent",
-      fileName: `${invoice.invoiceNumber}.pdf`,
-      fileType: "PDF",
-      sizeBytes: 0,
-      uploadedByRole: "admin",
-      uploadedById: "tenant-admin",
-      managerId: "",
-      activity: [{ id: `${invoice.id}-created`, action: "Created", actor: invoice.uploadedBy, at: invoice.updatedOn }],
-    }));
+    return tenantFinanceInvoicesResponseSchema.parse(await parseJsonResponse(response)).invoices.map(mapTenantFinanceInvoice);
   }
   if (workspace === "client") {
     const dashboard = await getClientPortalDashboard();
@@ -719,6 +754,7 @@ export async function listSharedInvoices(workspace: Workspace) {
       tenantId: "tenant",
       clientId,
       client: "Client account",
+      taskTitle: invoice.taskTitle,
       invoiceNumber: invoice.invoiceNumber,
       engagement: null,
       issuedOn: invoice.issuedOn,
@@ -937,6 +973,20 @@ export async function listTenantAdminTaskOptions(): Promise<TenantAdminTaskOptio
   return tenantAdminTaskOptionsSchema.parse(await parseJsonResponse(response));
 }
 
+export async function getTenantProfile(): Promise<TenantProfile> {
+  const response = await fetch("/api/tenant-admin/dashboard/profile", { cache: "no-store" });
+  return tenantProfileSchema.parse(await parseJsonResponse(response));
+}
+
+export async function updateTenantProfile(name: string): Promise<TenantProfile> {
+  const response = await fetch("/api/tenant-admin/dashboard/profile", {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ name }),
+  });
+  return tenantProfileSchema.parse(await parseJsonResponse(response));
+}
+
 export async function listTenantAdminServices(): Promise<TenantAdminService[]> {
   const response = await fetch("/api/tenant-admin/services", { cache: "no-store" });
   return tenantAdminServicesResponseSchema.parse(await parseJsonResponse(response)).services;
@@ -960,9 +1010,21 @@ export async function createTenantAdminEmployee(input: CreateTenantAdminEmployee
   return tenantAdminEmployeeOptionSchema.parse(await parseJsonResponse(response));
 }
 
+export async function getTenantAdminEmployeeEmailAvailability(email: string) {
+  const params = new URLSearchParams({ email });
+  const response = await fetch(`/api/tenant-admin/tasks/employees/email-availability?${params.toString()}`, {
+    cache: "no-store",
+  });
+  return emailAvailabilitySchema.parse(await parseJsonResponse(response));
+}
+
 export async function listTenantAdminEmployees(): Promise<TenantAdminEmployeeOption[]> {
+  return (await listTenantAdminEmployeeDirectory()).employees;
+}
+
+export async function listTenantAdminEmployeeDirectory() {
   const response = await fetch("/api/tenant-admin/tasks/employees", { cache: "no-store" });
-  return tenantAdminEmployeesResponseSchema.parse(await parseJsonResponse(response)).employees;
+  return tenantAdminEmployeesResponseSchema.parse(await parseJsonResponse(response));
 }
 
 export async function setTenantAdminEmployeeManager(employeeId: string, isManager: boolean): Promise<TenantAdminEmployeeOption> {
@@ -977,6 +1039,18 @@ export async function updateTenantAdminEmployeeCapacity(employeeId: string, week
     method: "PATCH",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ weeklyCapacityHours }),
+  });
+  return tenantAdminEmployeeOptionSchema.parse(await parseJsonResponse(response));
+}
+
+export async function updateTenantAdminEmployeeAssignment(
+  employeeId: string,
+  input: UpdateTenantAdminEmployeeAssignmentInput,
+): Promise<TenantAdminEmployeeOption> {
+  const response = await fetch(`/api/tenant-admin/tasks/employees/${encodeURIComponent(employeeId)}/assignment`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
   });
   return tenantAdminEmployeeOptionSchema.parse(await parseJsonResponse(response));
 }
@@ -1117,12 +1191,12 @@ export async function createInvoiceFromTask(input: {
     headers: { "content-type": "application/json" },
     body: JSON.stringify(input),
   });
-  return tenantFinanceInvoiceSchema.parse(await parseJsonResponse(response));
+  return mapTenantFinanceInvoice(tenantFinanceInvoiceSchema.parse(await parseJsonResponse(response)));
 }
 
 export async function sendTenantInvoice(invoiceId: string) {
   const response = await fetch(`/api/tenant-admin/finance/invoices/${encodeURIComponent(invoiceId)}/send`, { method: "POST" });
-  return tenantFinanceInvoiceSchema.parse(await parseJsonResponse(response));
+  return mapTenantFinanceInvoice(tenantFinanceInvoiceSchema.parse(await parseJsonResponse(response)));
 }
 
 export async function listWorkLogs(workspace: Workspace) {
@@ -1176,35 +1250,16 @@ export async function decideEmployeeTaskReview(
   );
 }
 
-/**
- * Frontend mock for the tenant-owned final approval gate. The production API
- * must derive both the tenant and actor from the authenticated session.
- */
 export async function decideTenantTaskApproval(
   taskId: string,
   decision: "approve" | "return",
-) {
-  const task = currentTasks().find((item) => item.id === taskId);
-  if (
-    !task ||
-    task.tenantId !== "acme" ||
-    task.status !== "review" ||
-    task.reviewStatus !== "approved" ||
-    task.approvalStatus !== "pending"
-  ) {
-    throw new Error("This task is not awaiting tenant approval.");
-  }
-
-  return updateSessionTask(
-    decision === "approve"
-      ? { ...task, status: "done", approvalStatus: "approved" }
-      : {
-          ...task,
-          status: "rejected",
-          reviewStatus: "changes-requested",
-          approvalStatus: "rejected",
-        },
-  );
+): Promise<TenantAdminTask> {
+  const response = await fetch(`/api/tenant-admin/tasks/${encodeURIComponent(taskId)}/approval`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ decision }),
+  });
+  return tenantAdminTaskSchema.parse(await parseJsonResponse(response));
 }
 
 export async function listSupportTickets(workspace: "client" | "manager" | "admin") {

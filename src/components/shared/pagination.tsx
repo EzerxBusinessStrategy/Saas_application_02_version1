@@ -39,21 +39,22 @@ export function Pagination({
       <p className="text-muted-foreground" aria-live="polite">
         {isLoading
           ? "Loading records"
-          : `${totalItems} ${totalItems === 1 ? "record" : "records"} · Page ${safePage} of ${pageCount}`}
+          : `${totalItems} ${totalItems === 1 ? "record" : "records"} - Page ${safePage} of ${pageCount}`}
       </p>
       <div className="flex items-center gap-2">
         {onPageSizeChange ? (
           <label className="hidden items-center gap-2 text-muted-foreground sm:flex">
             <span className="sr-only">Rows per page</span>
             <Select
-              className="h-8 w-20 py-0 text-xs"
+              aria-label="Rows per page"
+              className="h-9 w-32 py-0 text-sm"
               value={pageSize}
               disabled={isLoading}
               onChange={(event) => onPageSizeChange(Number(event.target.value))}
             >
               {[5, 10, 25, 50].map((size) => (
                 <option key={size} value={size}>
-                  {size} / page
+                  {size} per page
                 </option>
               ))}
             </Select>

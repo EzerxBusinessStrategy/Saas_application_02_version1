@@ -1,7 +1,7 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { RequestContext } from "../auth/request-context";
 import { requireTenantAdminContext } from "./tenant-admin-context";
-import { TenantAdminDashboardResponseDto } from "./tenant-admin-dashboard.dto";
+import { TenantAdminDashboardResponseDto, TenantProfileDto, UpdateTenantProfileRequest } from "./tenant-admin-dashboard.dto";
 import { TenantAdminDashboardRepository } from "./tenant-admin-dashboard.repository";
 
 @Injectable()
@@ -78,6 +78,14 @@ export class TenantAdminDashboardService {
       })),
     };
   }
+
+  async getTenantProfile(context: RequestContext): Promise<TenantProfileDto> {
+    return this.repository.getTenantProfile(requireTenantAdminContext(context));
+  }
+
+  async updateTenantProfile(context: RequestContext, input: UpdateTenantProfileRequest): Promise<TenantProfileDto> {
+    return this.repository.updateTenantProfile(requireTenantAdminContext(context), input.name);
+  }
 }
 
 const activityLabels: Record<string, string> = {
@@ -101,8 +109,6 @@ function mapOrganisationSetup(row: {
   readonly employeesComplete: boolean;
   readonly clientsComplete: boolean;
   readonly servicesComplete: boolean;
-  readonly workGroupsComplete: boolean;
-  readonly deliveryRulesComplete: boolean;
 }) {
   const items = [
     {
@@ -146,20 +152,6 @@ function mapOrganisationSetup(row: {
       description: "Create at least one active service.",
       completed: row.servicesComplete,
       destination: "/tenant-administration/services",
-    },
-    {
-      key: "WORK_GROUPS",
-      label: "Work groups",
-      description: "Create at least one active work group with a member.",
-      completed: row.workGroupsComplete,
-      destination: "/tenant-administration/work-groups",
-    },
-    {
-      key: "DELIVERY_RULES",
-      label: "Delivery rules",
-      description: "Configure SLA policies or compliance calendar rules.",
-      completed: row.deliveryRulesComplete,
-      destination: "/tenant-administration/settings",
     },
   ];
   const completed = items.filter((item) => item.completed).length;

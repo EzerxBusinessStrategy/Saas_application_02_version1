@@ -18,7 +18,7 @@ const formatRole = (role: User["role"]) =>
 const accountHrefByWorkspace: Record<Workspace, string> = {
   "super-admin": "/super-admin/account",
   admin: "/admin/settings",
-  manager: "/manager/profile",
+  manager: "/employee/profile",
   employee: "/employee/profile",
   client: "/client/profile",
 };

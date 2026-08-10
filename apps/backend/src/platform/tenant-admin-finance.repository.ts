@@ -29,6 +29,7 @@ export type TenantInvoiceRow = {
   readonly id: string;
   readonly clientId: string;
   readonly client: string;
+  readonly taskTitle: string | null;
   readonly invoiceNumber: string;
   readonly issuedOn: string;
   readonly dueOn: string | null;
@@ -252,13 +253,43 @@ export class TenantAdminFinanceRepository {
   async sendInvoice(context: TenantAdminRequestContext, invoiceId: string): Promise<TenantInvoiceRow> {
     return this.withContext(context, async (client) => {
       const result = await client.query<{ client_id: string; invoice_number: string }>(
-        `update public.invoices set status = 'sent', finalized_at = coalesce(finalized_at, now()), updated_at = now()
+        `update public.invoices set status = 'issued', finalized_at = coalesce(finalized_at, now()), updated_at = now()
          where tenant_id = $1 and id = $2 and status = 'draft'
          returning client_id::text, invoice_number`,
         [context.tenantId, invoiceId],
       );
       const invoice = result.rows[0];
       if (!invoice) throw new ConflictException({ code: "INVOICE_NOT_SENDABLE", message: "Only draft invoices can be sent." });
+      await client.query(
+        `
+          insert into public.tenant_documents (
+            tenant_id, client_id, title, file_name, file_type, size_bytes,
+            category, metadata, created_by
+          )
+          select
+            $1::uuid,
+            $2::uuid,
+            'Invoice ' || $3::text,
+            $3::text || '.pdf',
+            'PDF',
+            0,
+            'invoice',
+            jsonb_build_object(
+              'invoiceId', $4::uuid,
+              'documentKind', 'invoice_pdf',
+              'clientVisible', true,
+              'shareReason', 'Invoice sent to client.'
+            ),
+            $5::uuid
+          where not exists (
+            select 1
+            from public.tenant_documents d
+            where d.tenant_id = $1
+              and d.metadata->>'invoiceId' = $4::text
+          )
+        `,
+        [context.tenantId, invoice.client_id, invoice.invoice_number, invoiceId, context.membershipId],
+      );
       await this.notifyClientInvoiceSent(client, context, invoiceId, invoice.client_id, invoice.invoice_number);
       await client.query(
         "select audit.write_audit_event('INVOICE_SENT', 'invoice', $1::uuid, 'succeeded', null, $2::jsonb)",
@@ -320,15 +351,21 @@ export class TenantAdminFinanceRepository {
 
   private async getInvoices(client: PoolClient, tenantId: string, clientId?: string): Promise<readonly TenantInvoiceRow[]> {
     const result = await client.query<{
-      id: string; client_id: string; client: string; invoice_number: string; issued_on: string; due_on: string | null; currency_code: string; total_amount: string; status: string; uploaded_by: string; updated_on: string;
+      id: string; client_id: string; client: string; task_title: string | null; invoice_number: string; issued_on: string; due_on: string | null; currency_code: string; total_amount: string; status: string; uploaded_by: string; updated_on: string;
     }>(
       `
-        select i.id::text, i.client_id::text, c.display_name as client, i.invoice_number,
+        select i.id::text, i.client_id::text, c.display_name as client, task_item.task_title, i.invoice_number,
                i.issued_on::text, i.due_on::text, i.currency_code, i.total_amount,
                i.status, coalesce(tm.display_name, 'System') as uploaded_by, i.updated_at::text as updated_on
         from public.invoices i
         join public.clients c on c.id = i.client_id and c.tenant_id = i.tenant_id
         left join public.tenant_memberships tm on tm.id = i.created_by and tm.tenant_id = i.tenant_id
+        left join lateral (
+          select string_agg(t.title, ', ' order by t.title) as task_title
+          from public.invoice_items ii
+          join public.tasks t on t.tenant_id = ii.tenant_id and t.id = ii.task_id
+          where ii.tenant_id = i.tenant_id and ii.invoice_id = i.id
+        ) task_item on true
         where i.tenant_id = $1
           and ($2::uuid is null or i.client_id = $2)
         order by i.issued_on desc, i.created_at desc
@@ -336,7 +373,7 @@ export class TenantAdminFinanceRepository {
       [tenantId, clientId ?? null],
     );
     return result.rows.map((row) => ({
-      id: row.id, clientId: row.client_id, client: row.client, invoiceNumber: row.invoice_number,
+      id: row.id, clientId: row.client_id, client: row.client, taskTitle: row.task_title, invoiceNumber: row.invoice_number,
       issuedOn: row.issued_on, dueOn: row.due_on, currency: row.currency_code, amount: Number(row.total_amount),
       status: row.status, visibility: "client", uploadedBy: row.uploaded_by, updatedOn: row.updated_on,
     }));
@@ -418,7 +455,7 @@ export class TenantAdminFinanceRepository {
       `with inserted as (
          insert into public.notifications (type, title, message, severity, tenant_id, actor_user_id, entity_type, entity_id, action_url, metadata, idempotency_key)
          values ('CLIENT_INVOICE_SENT', 'Invoice sent', 'A new invoice ' || $5 || ' is ready to view.', 'INFO', $1, $2, 'invoice', $3, '/client/invoices', jsonb_build_object('clientId', $4), 'client-invoice-sent:' || $3)
-         on conflict (idempotency_key) do update set id = public.notifications.id
+         on conflict (idempotency_key) where idempotency_key is not null do update set id = public.notifications.id
          returning id
        )
        insert into public.notification_recipients (notification_id, recipient_user_id)
@@ -495,7 +532,7 @@ export class TenantAdminFinanceRepository {
         where tenant_id = $1
           and status <> 'cancelled'
           and current_date between start_date and end_date
-        order by start_date desc
+        order by (country_code = (select country from public.tenants where id = $1)) desc, start_date desc
         limit 1
       `,
       [tenantId],

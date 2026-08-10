@@ -6,12 +6,10 @@ import {
   fetchVerifiedSuperAdminMe,
   fetchVerifiedTenantAdminMe,
   fetchVerifiedClientPortalMe,
-  fetchVerifiedManagerMe,
   fetchVerifiedEmployeeMe,
   createSuperAdminSessionPolicy,
   createTenantAdminSessionPolicy,
   createClientPortalSessionPolicy,
-  createManagerSessionPolicy,
   createEmployeeSessionPolicy,
 } from "@/lib/server/super-admin-auth";
 import {
@@ -97,12 +95,6 @@ export async function POST(request: Request) {
         await createEmployeeSessionPolicy(session.accessToken, rememberMe);
         meData = await fetchMeContext(session.accessToken);
       }
-      if (!meData) {
-        console.log("[Login Route] Trying manager session policy...");
-        await createManagerSessionPolicy(session.accessToken, rememberMe);
-        meData = await fetchMeContext(session.accessToken);
-      }
-
       if (meData) {
         const workspaces = resolveWorkspaces({
           isPlatformAdmin: meData.isPlatformAdmin,
@@ -145,7 +137,7 @@ export async function POST(request: Request) {
 
   // --- Demo auth fallback (for development/testing) ---
   // Try each demo role to find a matching credential set
-  const demoRoles = ["TENANT_ADMIN", "MANAGER", "EMPLOYEE", "CLIENT_USER"] as const;
+  const demoRoles = ["TENANT_ADMIN", "EMPLOYEE", "CLIENT_USER"] as const;
   for (const role of demoRoles) {
     const demoSession = validateDemoLogin({
       identifier: email,
@@ -243,22 +235,6 @@ async function fetchMeContext(
       availableMemberships: [],
       activeMembership: employeeMe.activeMembership,
       roles: employeeMe.roles,
-      permissions: [],
-      isPlatformAdmin: false,
-    };
-  }
-
-  const managerMe = await fetchVerifiedManagerMe(accessToken);
-  if (managerMe) {
-    return {
-      user: {
-        id: "",
-        email: managerMe.user.email,
-        displayName: managerMe.user.displayName,
-      },
-      availableMemberships: [],
-      activeMembership: managerMe.activeMembership,
-      roles: managerMe.roles,
       permissions: [],
       isPlatformAdmin: false,
     };

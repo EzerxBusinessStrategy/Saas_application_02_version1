@@ -55,7 +55,6 @@ export const tenantContexts: TenantContext[] = [
 export const workspaceOptions: WorkspaceOption[] = [
   { value: "super-admin", label: "Platform" },
   { value: "admin", label: "Tenant administration" },
-  { value: "manager", label: "Manager" },
   { value: "employee", label: "Employee" },
   { value: "client", label: "Client portal" },
 ];

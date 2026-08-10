@@ -25,6 +25,7 @@ export class ClientPortalDashboardRequestDto {
 export class ClientPortalDashboardInvoiceDto {
   @ApiProperty({ type: String }) id!: string;
   @ApiProperty({ type: String }) invoiceNumber!: string;
+  @ApiPropertyOptional({ type: String, nullable: true }) taskTitle!: string | null;
   @ApiProperty({ type: String }) status!: string;
   @ApiProperty({ type: String }) issuedOn!: string;
   @ApiPropertyOptional({ type: String, nullable: true }) dueOn!: string | null;

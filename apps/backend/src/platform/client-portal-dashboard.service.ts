@@ -42,6 +42,7 @@ export class ClientPortalDashboardService {
       invoices: data.invoices.map((invoice) => ({
         id: invoice.id,
         invoiceNumber: invoice.invoice_number,
+        taskTitle: invoice.task_title,
         status: invoice.status,
         issuedOn: invoice.issued_on,
         dueOn: invoice.due_on,

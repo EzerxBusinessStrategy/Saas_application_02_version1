@@ -121,7 +121,6 @@ export const workspaceConfig = (workspace: Workspace) =>
 export const workspaces: Workspace[] = [
   "super-admin",
   "admin",
-  "manager",
   "employee",
   "client",
 ];

@@ -1,7 +1,6 @@
 import {
   BarChart3,
   Award,
-  Bell,
   Building2,
   CalendarDays,
   CheckSquare,
@@ -162,24 +161,6 @@ const platformOnlyItems = new Set([
   "Tenant password",
 ]);
 
-const managerNavigation: NavigationItem[] = [
-  { label: "Dashboard", href: "", icon: LayoutDashboard },
-  { label: "Tasks", href: "/tasks", icon: CheckSquare },
-  { label: "Assigned clients", href: "/clients", icon: Building2 },
-  { label: "Work groups", href: "/work-groups", icon: Users },
-  { label: "Assigned employees", href: "/employees", icon: Users },
-  { label: "Review queue", href: "/reviews", icon: ClipboardList },
-  { label: "Approval queue", href: "/approvals", icon: CheckSquare },
-  { label: "Team workload", href: "/workload", icon: BarChart3 },
-  { label: "Manager reports", href: "/manager-reports", icon: BarChart3 },
-  { label: "Documents", href: "/documents", icon: FileText },
-  { label: "Achievements", href: "/achievements", icon: Award },
-  { label: "Recognition", href: "/recognition", icon: Award },
-  { label: "Preferences", href: "/preferences", icon: Settings },
-  { label: "Notifications", href: "/notifications", icon: Bell },
-  { label: "Profile", href: "/profile", icon: Users },
-];
-
 const employeeNavigation: NavigationItem[] = [
   { label: "Dashboard", href: "", icon: LayoutDashboard },
   { label: "My tasks", href: "/tasks", icon: CheckSquare },
@@ -242,8 +223,6 @@ export const navigationFor = (workspace: Workspace, isManager = false) =>
       ? filterForWorkspace(common, workspace).flatMap(
           (item) => item.children ?? [item],
         )
-    : workspace === "manager"
-    ? managerNavigation
     : workspace === "employee"
       ? isManager
         ? [...employeeNavigation, { label: "Manager", icon: Users, children: employeeManagerNavigation }]

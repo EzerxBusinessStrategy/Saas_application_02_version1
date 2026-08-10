@@ -184,6 +184,7 @@ export const sharedInvoiceSchema = z.object({
   tenantId: z.string(),
   clientId: z.string(),
   client: z.string(),
+  taskTitle: z.string().nullable().optional(),
   invoiceNumber: z.string().min(1).max(64),
   engagement: z.string().nullable(),
   issuedOn: z.string(),

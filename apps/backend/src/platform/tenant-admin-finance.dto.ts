@@ -76,6 +76,7 @@ export class TenantInvoiceDto {
   @ApiProperty({ type: String }) id!: string;
   @ApiProperty({ type: String }) clientId!: string;
   @ApiProperty({ type: String }) client!: string;
+  @ApiPropertyOptional({ type: String, nullable: true }) taskTitle!: string | null;
   @ApiProperty({ type: String }) invoiceNumber!: string;
   @ApiProperty({ type: String }) issuedOn!: string;
   @ApiPropertyOptional({ type: String, nullable: true }) dueOn!: string | null;

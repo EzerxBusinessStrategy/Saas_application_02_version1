@@ -37,6 +37,7 @@ type RequestRow = {
 type InvoiceRow = {
   id: string;
   invoice_number: string;
+  task_title: string | null;
   status: string;
   issued_on: string;
   due_on: string | null;
@@ -244,6 +245,7 @@ export class ClientPortalDashboardRepository {
         select
           i.id::text,
           i.invoice_number,
+          task_item.task_title,
           i.status,
           i.issued_on::text,
           i.due_on::text,
@@ -255,10 +257,16 @@ export class ClientPortalDashboardRepository {
         left join public.payments p
           on p.invoice_id = i.id
          and p.tenant_id = i.tenant_id
+        left join lateral (
+          select string_agg(t.title, ', ' order by t.title) as task_title
+          from public.invoice_items ii
+          join public.tasks t on t.tenant_id = ii.tenant_id and t.id = ii.task_id
+          where ii.tenant_id = i.tenant_id and ii.invoice_id = i.id
+        ) task_item on true
         where i.tenant_id = $1
           and i.client_id = $2
           and i.status not in ('draft', 'cancelled', 'void')
-        group by i.id, i.invoice_number, i.status, i.issued_on, i.due_on, i.currency_code, i.total_amount
+        group by i.id, i.invoice_number, task_item.task_title, i.status, i.issued_on, i.due_on, i.currency_code, i.total_amount
         order by i.issued_on desc, i.created_at desc
         limit 8
       `,

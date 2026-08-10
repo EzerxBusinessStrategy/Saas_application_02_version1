@@ -17,7 +17,7 @@ export function tenantSelectionFromRequest(request: FastifyRequest): TenantSelec
   if (tenantCode && !/^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$/.test(tenantCode)) {
     throw invalidTenantSelectionInput("x-tenant-code is invalid.");
   }
-  if (portal && !["super-admin", "admin", "manager", "employee", "client"].includes(portal)) {
+  if (portal && !["super-admin", "admin", "employee", "client"].includes(portal)) {
     throw invalidTenantSelectionInput("x-portal is invalid.");
   }
   if (selectedRole && !/^[A-Z][A-Z0-9_]{1,63}$/.test(selectedRole)) {

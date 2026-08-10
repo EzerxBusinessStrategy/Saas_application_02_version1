@@ -36,8 +36,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
+  getTenantProfile,
   listTenantAdminEmployees,
   setTenantAdminEmployeeManager,
+  updateTenantProfile,
   type TenantAdminEmployeeOption,
 } from "@/features/operations/api/operations-api";
 import { saveTenantBrandingSession, tenantBrandingFontFamily } from "@/lib/tenant-branding-session";
@@ -49,7 +51,6 @@ import type { Employee } from "@/types/workforce";
 const employeeTabs = [
   { value: "overview", label: "Overview" },
   { value: "skills", label: "Skills" },
-  { value: "assignments", label: "Assignments" },
   { value: "tasks", label: "Tasks" },
 ];
 
@@ -149,7 +150,7 @@ export function EmployeeProfile({ employeeId }: { employeeId: string }) {
         };
   const panel =
     tab === "overview" ? (
-      <section className="grid gap-[30px] lg:grid-cols-3">
+      <section className="grid gap-[30px] lg:grid-cols-2">
         <Card>
           <CardHeader>
             <CardTitle>Work allocation</CardTitle>
@@ -176,20 +177,6 @@ export function EmployeeProfile({ employeeId }: { employeeId: string }) {
             </p>
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Manager and work groups</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="font-medium">
-              {employee.manager?.name ?? "Unassigned"}
-            </p>
-            <p className="mt-2 text-sm text-muted-foreground">
-              {employee.workGroups.map((group) => group.name).join(", ") ||
-                "No current work groups"}
-            </p>
-          </CardContent>
-        </Card>
       </section>
     ) : tab === "skills" ? (
       <Card>
@@ -197,29 +184,27 @@ export function EmployeeProfile({ employeeId }: { employeeId: string }) {
           <CardTitle>Skills and experience</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="font-medium">{employee.skills.join(", ")}</p>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Experience level: {employee.experienceLevel}. Categories:{" "}
-            {employee.categories.join(", ")}.
-          </p>
-        </CardContent>
-      </Card>
-    ) : tab === "assignments" ? (
-      <Card>
-        <CardHeader>
-          <CardTitle>Assignments</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ul className="flex flex-col divide-y">
-            {employee.workGroups.map((group) => (
-              <li key={group.id} className="py-3 first:pt-0">
-                <p className="font-medium">{group.name}</p>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Current assigned work group
-                </p>
-              </li>
-            ))}
-          </ul>
+          {employee.skills.length > 0 ? (
+            <div className="flex flex-wrap gap-2">
+              {employee.skills.map((skill) => (
+                <span
+                  key={skill}
+                  className="rounded-[var(--radius-control)] border border-border bg-muted px-3 py-1.5 text-sm font-medium"
+                >
+                  {skill}
+                </span>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              No skills have been added for this employee.
+            </p>
+          )}
+          {employee.experienceLevel ? (
+            <p className="mt-4 text-sm text-muted-foreground">
+              Experience level: {employee.experienceLevel}
+            </p>
+          ) : null}
         </CardContent>
       </Card>
     ) : tab === "tasks" ? (
@@ -285,7 +270,7 @@ export function ManagerDirectory() {
     try {
       await setTenantAdminEmployeeManager(employee.id, false);
       await refresh();
-      toast.success("Manager removed.");
+      toast.success("Manager access disabled. The employee has been notified.");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Manager could not be removed.");
     }
@@ -312,7 +297,7 @@ export function ManagerDirectory() {
             View
           </Button>
           <Button variant="outline" size="sm" onClick={() => void removeManager(row.original)}>
-            Delete
+            Disable manager
           </Button>
         </div>
       ),
@@ -405,7 +390,7 @@ function AddManagerDialog({
     setSaving(true);
     try {
       await setTenantAdminEmployeeManager(employeeId, true);
-      toast.success("Manager added.");
+      toast.success("Manager access enabled. The employee has been notified.");
       await onAdded();
       setEmployeeId("");
     } catch (error) {
@@ -416,12 +401,12 @@ function AddManagerDialog({
   };
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent title="Add manager" description="Select an active employee to make manager." className="max-w-md">
+      <DialogContent title="Enable manager access" description="Select an active employee to grant manager access." className="max-w-md">
         <div className="grid gap-4 pr-8">
           <label className="text-sm font-medium">Employee<Select className="mt-1" value={employeeId} onChange={(event) => setEmployeeId(event.target.value)}><option value="">Select employee</option>{employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.name}</option>)}</Select></label>
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-            <Button disabled={!employeeId || saving} onClick={() => void save()}>{saving ? "Adding..." : "Add manager"}</Button>
+            <Button disabled={!employeeId || saving} onClick={() => void save()}>{saving ? "Saving..." : "Enable manager"}</Button>
           </div>
         </div>
       </DialogContent>
@@ -688,6 +673,7 @@ function BrandingSettings() {
 export function TenantSettings() {
   const [tab, setTab] = useState("branding");
   const [saved, setSaved] = useState(false);
+  const tenantProfileQuery = useQuery({ queryKey: ["tenant-profile"], queryFn: getTenantProfile });
   const form = useForm<SettingsInput>({
     defaultValues: {
       brandName: "SaaS App",
@@ -695,19 +681,32 @@ export function TenantSettings() {
       profileName: "Jordan Lee",
     },
   });
+  useEffect(() => {
+    if (tenantProfileQuery.data) form.reset({ brandName: "SaaS App", primaryToken: "primary", profileName: tenantProfileQuery.data.name });
+  }, [form, tenantProfileQuery.data]);
+  const saveProfile = async ({ profileName }: SettingsInput) => {
+    try {
+      await updateTenantProfile(profileName);
+      await tenantProfileQuery.refetch();
+      setSaved(true);
+      toast.success("Tenant profile updated.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Tenant profile could not be updated.");
+    }
+  };
   const panel =
     tab === "branding" ? <BrandingSettings /> : (
       <Card>
         <CardHeader>
           <CardTitle>Profile settings</CardTitle>
           <CardDescription>
-            Settings validate locally and do not apply server-side changes.
+            Update the profile for this tenant.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form
             className="flex flex-col gap-5"
-            onSubmit={form.handleSubmit(() => setSaved(true))}
+            onSubmit={form.handleSubmit(saveProfile)}
           >
             <label className="text-sm font-medium">
               Profile name
@@ -716,13 +715,17 @@ export function TenantSettings() {
                 {...form.register("profileName", { required: true })}
               />
             </label>
+            <div className="grid gap-1 text-sm text-muted-foreground sm:grid-cols-2">
+              <span>Currency: {tenantProfileQuery.data?.currencyCode ?? "-"}</span>
+              <span>Timezone: {tenantProfileQuery.data?.timezone ?? "-"}</span>
+            </div>
             <div className="flex justify-end">
-              <Button type="submit">Validate settings</Button>
+              <Button type="submit" disabled={tenantProfileQuery.isPending}>Save profile</Button>
             </div>
           </form>
           {saved ? (
             <p role="status" className="mt-4 text-sm text-muted-foreground">
-              Settings payload validated. No live tenant settings changed.
+              Tenant profile saved.
             </p>
           ) : null}
         </CardContent>

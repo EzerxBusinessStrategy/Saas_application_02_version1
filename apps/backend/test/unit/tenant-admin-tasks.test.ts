@@ -27,6 +27,7 @@ describe("TenantAdminTasksService", () => {
       getOptions: vi.fn(),
       listTasks: vi.fn(),
       createTask: vi.fn(),
+      decideTaskApproval: vi.fn(),
     } as unknown as TenantAdminTasksRepository;
     const config = {
       supabaseUrl: undefined,
@@ -70,6 +71,10 @@ describe("TenantAdminTasksService", () => {
       );
     }
     expect(repository.getOptions).not.toHaveBeenCalled();
+    await expect(
+      service.decideTaskApproval(deniedContexts[0]!, "11111111-1111-4111-8111-111111111111", { decision: "approve", remarks: "" }),
+    ).rejects.toThrow("Selected portal is not available for this membership.");
+    expect(repository.decideTaskApproval).not.toHaveBeenCalled();
   });
 });
 
@@ -185,5 +190,73 @@ describe("TenantAdminTasksRepository", () => {
     expect(sql).toContain("rc.status = 'active'");
     expect(sql).toContain("current_date between rc.effective_from");
     expect(params[0]).toEqual(["tenant-1", "rate-1", "service-1", "client-1"]);
+  });
+
+  it("keeps a new task charge pending until final Tenant Admin approval", async () => {
+    const queries: string[] = [];
+    const client = {
+      query: vi.fn(async (sqlText: string) => {
+        queries.push(sqlText);
+        return { rows: [] };
+      }),
+    };
+    const repository = new TenantAdminTasksRepository(null);
+    const createPendingBillableEntry = (
+      repository as unknown as {
+        createPendingBillableEntry(
+          transactionClient: typeof client,
+          tenantId: string,
+          membershipId: string,
+          taskId: string,
+          clientId: string,
+          pricing: { rateCardItemId: string; quantity: number; unitRate: number; currencyCode: string },
+        ): Promise<void>;
+      }
+    ).createPendingBillableEntry.bind(repository);
+
+    await createPendingBillableEntry(
+      client,
+      "tenant-1",
+      "member-1",
+      "task-1",
+      "client-1",
+      { rateCardItemId: "rate-1", quantity: 1, unitRate: 1500, currencyCode: "INR" },
+    );
+
+    expect(queries.join("\n")).toContain("'pending_review', null, null");
+  });
+
+  it("promotes only a tenant-scoped pending charge when final approval succeeds", async () => {
+    const queries: string[] = [];
+    const client = {
+      query: vi.fn(async (sqlText: string) => {
+        queries.push(sqlText);
+        if (sqlText.includes("from public.tasks t")) {
+          return { rows: [{ id: "submission-1", employee_id: "employee-1" }] };
+        }
+        if (sqlText.includes("update public.billable_task_entries")) {
+          return { rows: [{ id: "entry-1" }] };
+        }
+        return { rows: [] };
+      }),
+    };
+    const repository = new TenantAdminTasksRepository(null);
+    const repositoryForTest = repository as unknown as {
+      withContext(context: unknown, work: (transactionClient: typeof client) => Promise<unknown>): Promise<unknown>;
+      getTasks(): Promise<unknown[]>;
+    };
+    repositoryForTest.withContext = async (_context, work) => work(client);
+    repositoryForTest.getTasks = async () => [{ id: "task-1" }];
+
+    await repository.decideTaskApproval(
+      { tenantId: "tenant-1", membershipId: "member-1" } as never,
+      "task-1",
+      { decision: "approve", remarks: "" },
+    );
+
+    const sql = queries.join("\n");
+    expect(sql).toContain("t.status = 'tenant_approval'");
+    expect(sql).toContain("and status = 'pending_review'");
+    expect(sql).toContain("'approved_for_invoice'");
   });
 });

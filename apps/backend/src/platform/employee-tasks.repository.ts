@@ -4,6 +4,7 @@ import { databaseNotConfigured, forbiddenPortal } from "../auth/auth-errors";
 import { DATABASE_POOL } from "../database/database.tokens";
 import { setTrustedDatabaseContext, withDatabaseTransaction } from "../database/transaction-context";
 import { EmployeeRequestContext } from "./employee-context";
+import { publishTaskWorkflowNotification } from "./task-workflow-support";
 
 type EmployeeRow = { id: string; name: string };
 type TaskStatus = "open" | "assigned" | "in_progress" | "returned" | "submitted" | "manager_review" | "tenant_approval" | "approved" | "completed" | "cancelled";
@@ -167,7 +168,20 @@ export class EmployeeTasksRepository {
         totalWorkedSeconds: await this.workedSeconds(client, context.tenantId, taskId, employee.id),
         taskComment: taskComment || null,
       });
-      return this.getTask(client, context.tenantId, employee.id, taskId);
+      const task = await this.getTask(client, context.tenantId, employee.id, taskId);
+      await publishTaskWorkflowNotification(client, {
+        tenantId: context.tenantId,
+        actorUserId: context.userId,
+        taskId,
+        employeeId: employee.id,
+        audience: "managers",
+        type: "TASK_SUBMITTED_FOR_MANAGER_REVIEW",
+        title: "Task ready for review",
+        message: `An employee submitted "${task.title}" for your review.`,
+        actionUrl: "/employee/task-reviews",
+        eventKey: `task-submitted-manager-review:${taskId}`,
+      });
+      return task;
     });
   }
 

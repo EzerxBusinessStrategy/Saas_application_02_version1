@@ -1,9 +1,10 @@
 import { Module } from "@nestjs/common";
 import { RequestContextService } from "./request-id/request-context.service";
 import { RequestIdInterceptor } from "./request-id/request-id.interceptor";
+import { RequestPerformanceInterceptor } from "./logging/request-performance.interceptor";
 
 @Module({
-  providers: [RequestContextService, RequestIdInterceptor],
-  exports: [RequestContextService, RequestIdInterceptor],
+  providers: [RequestContextService, RequestIdInterceptor, RequestPerformanceInterceptor],
+  exports: [RequestContextService, RequestIdInterceptor, RequestPerformanceInterceptor],
 })
 export class CommonModule {}

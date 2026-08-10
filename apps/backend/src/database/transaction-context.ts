@@ -41,21 +41,29 @@ export async function setTrustedDatabaseContext(
   client: PoolClient,
   context: TrustedDatabaseContext,
 ): Promise<void> {
-  const settings: Record<string, string> = {
-    "app.is_platform_admin": context.isPlatformAdmin ? "true" : "false",
-  };
-  if (context.authUserId) settings["app.auth_user_id"] = context.authUserId;
-  if (context.userId) settings["app.user_id"] = context.userId;
-  if (context.tenantId) settings["app.tenant_id"] = context.tenantId;
-  if (context.membershipId) settings["app.membership_id"] = context.membershipId;
-  if (context.employeeId) settings["app.employee_id"] = context.employeeId;
-  if (context.clientAccountId) settings["app.client_id"] = context.clientAccountId;
-  if (context.supportAccessSessionId) {
-    settings["app.support_access_session_id"] = context.supportAccessSessionId;
-  }
-  if (context.requestId) settings["app.request_id"] = context.requestId;
-
-  for (const [key, value] of Object.entries(settings)) {
-    await client.query("select set_config($1, $2, true)", [key, value]);
-  }
+  await client.query(
+    `
+    select
+      set_config('app.is_platform_admin', $1, true),
+      set_config('app.auth_user_id', $2, true),
+      set_config('app.user_id', $3, true),
+      set_config('app.tenant_id', $4, true),
+      set_config('app.membership_id', $5, true),
+      set_config('app.employee_id', $6, true),
+      set_config('app.client_id', $7, true),
+      set_config('app.support_access_session_id', $8, true),
+      set_config('app.request_id', $9, true)
+    `,
+    [
+      context.isPlatformAdmin ? "true" : "false",
+      context.authUserId ?? "",
+      context.userId ?? "",
+      context.tenantId ?? "",
+      context.membershipId ?? "",
+      context.employeeId ?? "",
+      context.clientAccountId ?? "",
+      context.supportAccessSessionId ?? "",
+      context.requestId ?? "",
+    ],
+  );
 }

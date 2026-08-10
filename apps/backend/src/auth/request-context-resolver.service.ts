@@ -16,24 +16,50 @@ import { freezeRequestContext, RequestContext, TenantSelectionInput, VerifiedAut
 const portalRoles: Readonly<Record<string, readonly string[]>> = {
   "super-admin": ["SUPER_ADMIN"],
   admin: ["TENANT_OWNER", "TENANT_ADMIN", "FINANCE_USER", "HR_OPERATIONS_USER", "SUPER_ADMIN"],
-  manager: ["MANAGER", "SUPER_ADMIN"],
   employee: ["EMPLOYEE", "SUPER_ADMIN"],
   client: ["CLIENT_USER"],
 };
 
+const AUTH_CONTEXT_CACHE_TTL_MS = 30_000;
+const AUTH_CONTEXT_CACHE_MAX_ENTRIES = 1_000;
+
+type CachedAuthContext = {
+  readonly rows: readonly AuthContextRow[];
+  readonly authContextVersion?: number;
+  readonly expiresAt: number;
+};
+
+export type ResolvedRequestContext = {
+  readonly context: RequestContext;
+  readonly memberships: readonly AuthContextRow[];
+  readonly authContextVersion?: number;
+};
+
 @Injectable()
 export class RequestContextResolver {
+  private readonly cache = new Map<string, CachedAuthContext>();
+
   constructor(@Inject(AuthContextRepository) private readonly repository: AuthContextRepository) {}
 
   async resolve(
     verifiedUser: VerifiedAuthUser,
     selection: TenantSelectionInput,
     requestId: string,
-  ): Promise<{
-    readonly context: RequestContext;
-    readonly memberships: readonly AuthContextRow[];
-  }> {
-    const rows = await this.repository.findBySupabaseAuthUserId(verifiedUser.authUserId);
+    expectedAuthContextVersion?: number,
+  ): Promise<ResolvedRequestContext> {
+    const cacheKey = authContextCacheKey(verifiedUser.authUserId, selection);
+    const cached = this.cache.get(cacheKey);
+    const cacheIsValid =
+      cached &&
+      cached.expiresAt > Date.now() &&
+      (expectedAuthContextVersion === undefined ||
+        cached.authContextVersion === expectedAuthContextVersion);
+    const authContextVersion = cacheIsValid
+      ? cached.authContextVersion
+      : (expectedAuthContextVersion ?? 1);
+    const rows = cacheIsValid
+      ? cached.rows
+      : await this.loadRows(cacheKey, verifiedUser.authUserId, authContextVersion);
     if (rows.length === 0) throw applicationUserNotFound();
     const first = rows[0];
     if (first.user_status !== "active") throw userSuspended();
@@ -60,6 +86,7 @@ export class RequestContextResolver {
           isPlatformAdmin: roles.includes("SUPER_ADMIN"),
         }),
         memberships,
+        authContextVersion,
       };
     }
 
@@ -92,8 +119,37 @@ export class RequestContextResolver {
         isPlatformAdmin: roles.includes("SUPER_ADMIN"),
       }),
       memberships,
+      authContextVersion,
     };
   }
+
+  private async loadRows(
+    cacheKey: string,
+    authUserId: string,
+    authContextVersion: number | undefined,
+  ): Promise<readonly AuthContextRow[]> {
+    const rows = await this.repository.findBySupabaseAuthUserId(authUserId);
+    if (this.cache.size >= AUTH_CONTEXT_CACHE_MAX_ENTRIES) {
+      const oldestKey = this.cache.keys().next().value;
+      if (oldestKey) this.cache.delete(oldestKey);
+    }
+    this.cache.set(cacheKey, {
+      rows,
+      authContextVersion,
+      expiresAt: Date.now() + AUTH_CONTEXT_CACHE_TTL_MS,
+    });
+    return rows;
+  }
+}
+
+function authContextCacheKey(authUserId: string, selection: TenantSelectionInput): string {
+  return [
+    authUserId,
+    selection.tenantId ?? "",
+    selection.tenantCode ?? "",
+    selection.selectedRole ?? "",
+    selection.portal ?? "",
+  ].join(":");
 }
 
 function selectMembership(

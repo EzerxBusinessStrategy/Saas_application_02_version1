@@ -52,6 +52,16 @@ export const migrationNames = [
   "0042_client_portal_accounts.sql",
   "0043_tenant_document_metadata.sql",
   "0044_client_portal_profile_preferences.sql",
+  "0045_employee_task_work_time.sql",
+  "0046_employee_document_recipients.sql",
+  "0047_task_submission_comment.sql",
+  "0048_manager_employee_capability.sql",
+  "0049_auth_identify_email.sql",
+  "0050_employee_manager_assignments.sql",
+  "0051_task_billable_entry_approval_lifecycle.sql",
+  "0052_country_scoped_tenant_financial_years.sql",
+  "0053_request_path_performance.sql",
+  "0054_task_notification_outbox.sql",
 ] as const;
 
 export async function runMigrations(

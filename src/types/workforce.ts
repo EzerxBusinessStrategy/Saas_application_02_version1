@@ -18,6 +18,7 @@ export type Employee = {
   name: string;
   email?: string;
   avatarUrl?: string;
+  departmentId?: string | null;
   department: string;
   categories: string[];
   skills: string[];

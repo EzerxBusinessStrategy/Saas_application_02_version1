@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { QueryClient, type QueryKey, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bell, CheckCheck, CircleAlert, Info, Volume2, VolumeX } from "lucide-react";
 import { io } from "socket.io-client";
 import { toast } from "sonner";
@@ -84,33 +84,17 @@ function SuperAdminNotificationMenu({ open }: { open?: boolean }) {
   const query = useQuery({
     queryKey: superAdminNotificationsQueryKey,
     queryFn: () => getSuperAdminNotifications({ status: "ALL", limit: 20 }),
-    refetchOnWindowFocus: true,
   });
   const data = query.data;
   const items = data?.items ?? [];
   const unreadCount = data?.unreadCount ?? 0;
 
-  const markRead = useMutation({
-    mutationFn: markSuperAdminNotificationRead,
-    onSuccess: (_result, notificationId) => {
-      queryClient.setQueryData<SuperAdminNotificationsResponse>(superAdminNotificationsQueryKey, (current) =>
-        current ? markItemRead(current, notificationId) : current,
-      );
-    },
-  });
-  const markAllRead = useMutation({
-    mutationFn: markAllSuperAdminNotificationsRead,
-    onSuccess: () => {
-      queryClient.setQueryData<SuperAdminNotificationsResponse>(superAdminNotificationsQueryKey, (current) =>
-        current
-          ? {
-              unreadCount: 0,
-              items: current.items.map((item) => ({ ...item, readAt: item.readAt ?? new Date().toISOString() })),
-            }
-          : current,
-      );
-    },
-  });
+  const markRead = useMutation(
+    optimisticReadMutation(queryClient, superAdminNotificationsQueryKey, markSuperAdminNotificationRead),
+  );
+  const markAllRead = useMutation(
+    optimisticMarkAllReadMutation(queryClient, superAdminNotificationsQueryKey, markAllSuperAdminNotificationsRead),
+  );
 
   useEffect(() => {
     const stored = window.localStorage.getItem(superAdminSoundPreferenceKey);
@@ -224,34 +208,17 @@ function TenantAdminNotificationMenu({ open }: { open?: boolean }) {
   const query = useQuery({
     queryKey: tenantAdminNotificationsQueryKey,
     queryFn: () => getTenantAdminNotifications({ status: "ALL", limit: 20 }),
-    refetchOnWindowFocus: true,
   });
   const data = query.data;
   const items = data?.items ?? [];
   const unreadCount = data?.unreadCount ?? 0;
 
-  const markRead = useMutation({
-    mutationFn: markTenantAdminNotificationRead,
-    onSuccess: (_result, notificationId) => {
-      queryClient.setQueryData<SuperAdminNotificationsResponse>(tenantAdminNotificationsQueryKey, (current) =>
-        current ? markItemRead(current, notificationId) : current,
-      );
-    },
-  });
-
-  const markAllRead = useMutation({
-    mutationFn: markAllTenantAdminNotificationsRead,
-    onSuccess: () => {
-      queryClient.setQueryData<SuperAdminNotificationsResponse>(tenantAdminNotificationsQueryKey, (current) =>
-        current
-          ? {
-              unreadCount: 0,
-              items: current.items.map((item) => ({ ...item, readAt: item.readAt ?? new Date().toISOString() })),
-            }
-          : current,
-      );
-    },
-  });
+  const markRead = useMutation(
+    optimisticReadMutation(queryClient, tenantAdminNotificationsQueryKey, markTenantAdminNotificationRead),
+  );
+  const markAllRead = useMutation(
+    optimisticMarkAllReadMutation(queryClient, tenantAdminNotificationsQueryKey, markAllTenantAdminNotificationsRead),
+  );
 
   useEffect(() => {
     const stored = window.localStorage.getItem(tenantAdminSoundPreferenceKey);
@@ -276,6 +243,8 @@ function TenantAdminNotificationMenu({ open }: { open?: boolean }) {
         return { unreadCount: current.unreadCount + 1, items: [item, ...current.items].slice(0, 20) };
       });
       toast(item.title, { description: item.message });
+      void queryClient.invalidateQueries({ queryKey: ["operational-tasks"] });
+      void queryClient.invalidateQueries({ queryKey: ["tenant-billable-task-entries"] });
       if (soundEnabled) void playNotificationSound(audioRef.current);
     });
 
@@ -358,30 +327,46 @@ function TenantAdminNotificationMenu({ open }: { open?: boolean }) {
 
 function EmployeeNotificationMenu({ open }: { open?: boolean }) {
   const queryClient = useQueryClient();
+  const processedIds = useRef(new Set<string>());
   const query = useQuery({
     queryKey: employeeNotificationsQueryKey,
     queryFn: getEmployeeNotifications,
-    refetchInterval: 10000,
-    refetchOnWindowFocus: true,
+    refetchInterval: 30_000,
   });
   const items = query.data?.items ?? [];
   const unreadCount = query.data?.unreadCount ?? 0;
-  const markRead = useMutation({
-    mutationFn: markEmployeeNotificationRead,
-    onSuccess: (_result, notificationId) => {
-      queryClient.setQueryData<SuperAdminNotificationsResponse>(employeeNotificationsQueryKey, (current) =>
-        current ? markItemRead(current, notificationId) : current,
-      );
-    },
-  });
-  const markAllRead = useMutation({
-    mutationFn: markAllEmployeeNotificationsRead,
-    onSuccess: () => {
-      queryClient.setQueryData<SuperAdminNotificationsResponse>(employeeNotificationsQueryKey, (current) =>
-        current ? { unreadCount: 0, items: current.items.map((item) => ({ ...item, readAt: item.readAt ?? new Date().toISOString() })) } : current,
-      );
-    },
-  });
+  const markRead = useMutation(
+    optimisticReadMutation(queryClient, employeeNotificationsQueryKey, markEmployeeNotificationRead),
+  );
+  const markAllRead = useMutation(
+    optimisticMarkAllReadMutation(queryClient, employeeNotificationsQueryKey, markAllEmployeeNotificationsRead),
+  );
+
+  useEffect(() => {
+    const socket = io(`${socketBaseUrl()}/employee/notifications`, {
+      path: "/socket.io",
+      withCredentials: true,
+      transports: ["websocket", "polling"],
+    });
+
+    socket.on("notification:new", (item: SuperAdminNotification) => {
+      if (processedIds.current.has(item.id)) return;
+      processedIds.current.add(item.id);
+      queryClient.setQueryData<SuperAdminNotificationsResponse>(employeeNotificationsQueryKey, (current) => {
+        if (!current) return { unreadCount: 1, items: [item] };
+        if (current.items.some((existing) => existing.id === item.id)) return current;
+        return { unreadCount: current.unreadCount + 1, items: [item, ...current.items].slice(0, 20) };
+      });
+      toast(item.title, { description: item.message });
+      void queryClient.invalidateQueries({ queryKey: ["operational-tasks"] });
+      void queryClient.invalidateQueries({ queryKey: ["employee-manager-reviews"] });
+    });
+    socket.on("connect", () => void queryClient.invalidateQueries({ queryKey: employeeNotificationsQueryKey }));
+
+    return () => {
+      socket.disconnect();
+    };
+  }, [queryClient]);
 
   return (
     <DropdownMenu open={open}>
@@ -599,6 +584,63 @@ function markItemRead(data: SuperAdminNotificationsResponse, notificationId: str
     items: data.items.map((current) =>
       current.id === notificationId ? { ...current, readAt: current.readAt ?? new Date().toISOString() } : current,
     ),
+  };
+}
+
+type NotificationRollback = {
+  readonly previous: SuperAdminNotificationsResponse | undefined;
+};
+
+function optimisticReadMutation(
+  queryClient: QueryClient,
+  queryKey: QueryKey,
+  mutationFn: (notificationId: string) => Promise<unknown>,
+) {
+  return {
+    mutationFn,
+    async onMutate(notificationId: string): Promise<NotificationRollback> {
+      await queryClient.cancelQueries({ queryKey });
+      const previous = queryClient.getQueryData<SuperAdminNotificationsResponse>(queryKey);
+      queryClient.setQueryData<SuperAdminNotificationsResponse>(queryKey, (current) =>
+        current ? markItemRead(current, notificationId) : current,
+      );
+      return { previous };
+    },
+    onError(_error: unknown, _notificationId: string, rollback: NotificationRollback | undefined) {
+      queryClient.setQueryData(queryKey, rollback?.previous);
+    },
+    onSettled() {
+      return queryClient.invalidateQueries({ queryKey });
+    },
+  };
+}
+
+function optimisticMarkAllReadMutation(
+  queryClient: QueryClient,
+  queryKey: QueryKey,
+  mutationFn: () => Promise<unknown>,
+) {
+  return {
+    mutationFn,
+    async onMutate(): Promise<NotificationRollback> {
+      await queryClient.cancelQueries({ queryKey });
+      const previous = queryClient.getQueryData<SuperAdminNotificationsResponse>(queryKey);
+      queryClient.setQueryData<SuperAdminNotificationsResponse>(queryKey, (current) =>
+        current
+          ? {
+              unreadCount: 0,
+              items: current.items.map((item) => ({ ...item, readAt: item.readAt ?? new Date().toISOString() })),
+            }
+          : current,
+      );
+      return { previous };
+    },
+    onError(_error: unknown, _variables: void, rollback: NotificationRollback | undefined) {
+      queryClient.setQueryData(queryKey, rollback?.previous);
+    },
+    onSettled() {
+      return queryClient.invalidateQueries({ queryKey });
+    },
   };
 }
 

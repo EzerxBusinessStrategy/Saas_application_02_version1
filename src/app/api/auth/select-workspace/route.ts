@@ -3,7 +3,6 @@ import { z } from "zod";
 import {
   createClientPortalSessionPolicy,
   createEmployeeSessionPolicy,
-  createManagerSessionPolicy,
   createSuperAdminSessionPolicy,
   createTenantAdminSessionPolicy,
 } from "@/lib/server/super-admin-auth";
@@ -15,7 +14,7 @@ import { cookies } from "next/headers";
 import type { Workspace } from "@/types/domain";
 
 const selectSchema = z.object({
-  workspace: z.enum(["super-admin", "admin", "manager", "employee", "client"]),
+  workspace: z.enum(["super-admin", "admin", "employee", "client"]),
   tenantId: z.string().uuid().optional(),
 });
 
@@ -77,7 +76,6 @@ function createPolicyForWorkspace(
 ): Promise<boolean> {
   if (workspace === "super-admin") return createSuperAdminSessionPolicy(accessToken, rememberMe);
   if (workspace === "client") return createClientPortalSessionPolicy(accessToken, rememberMe);
-  if (workspace === "manager") return createManagerSessionPolicy(accessToken, rememberMe);
   if (workspace === "employee") return createEmployeeSessionPolicy(accessToken, rememberMe);
   return createTenantAdminSessionPolicy(accessToken, rememberMe);
 }

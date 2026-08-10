@@ -10,6 +10,7 @@ import {
   decideTenantTaskApproval,
   createTenantAdminEmployee,
   createTenantAdminTask,
+  getTenantAdminEmployeeEmailAvailability,
   listOperationalTasks,
   listEmployeeTasks,
   listTenantAdminTaskOptions,
@@ -33,6 +34,7 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { ConfirmationDialog } from "@/components/shared/confirmation-dialog";
 import { ErrorState } from "@/components/shared/error-state";
 import { FilterToolbar } from "@/components/shared/filter-toolbar";
+import { GravityWellLoader } from "@/components/shared/gravity-well-loader";
 import { LoadingState } from "@/components/shared/loading-state";
 import { MobileEntityCard } from "@/components/shared/mobile-entity-card";
 import { PageHeader } from "@/components/shared/page-header";
@@ -177,7 +179,7 @@ export function TasksPage({
     decision: "approve" | "return",
   ) => {
     try {
-      syncTask(await decideTenantTaskApproval(task.id, decision));
+      syncTask(mapTenantAdminTask(await decideTenantTaskApproval(task.id, decision)));
       refreshTaskWorkflow();
       toast.success(
         decision === "approve"
@@ -499,7 +501,7 @@ export function TasksPage({
         canUpdate={canUpdate}
         canChangeStatus={workspace !== "employee" && workspace !== "admin" && canUpdate}
         canManageAssignment={workspace !== "employee" && workspace !== "admin" && canUpdate}
-        canTenantApprove={false}
+        canTenantApprove={workspace === "admin"}
         onTenantApproval={handleTenantApproval}
         onUpdate={updateTask}
       />
@@ -829,10 +831,13 @@ function TenantAdminCreateTaskAction({
         <div className="pr-8">
           <h2 className="text-lg font-semibold">Create task</h2>
           {isLoadingOptions ? (
-            <p className="mt-2 rounded-[var(--radius-control)] border px-3 py-2 text-sm text-muted-foreground">
-              Loading clients, services, employees, work groups and rates...
-            </p>
-          ) : null}
+            <GravityWellLoader
+              label="Loading task options"
+              particleCount={65}
+              className="mt-5 h-64 min-h-64 rounded-[var(--radius-card)] bg-transparent dark:bg-transparent"
+            />
+          ) : (
+            <>
           {optionsQuery.isError ? (
             <div className="mt-2 flex items-center justify-between gap-3 rounded-[var(--radius-control)] border border-destructive/30 px-3 py-2">
               <p className="text-sm text-destructive">Task form options could not load.</p>
@@ -922,9 +927,9 @@ function TenantAdminCreateTaskAction({
               </Select>
               {selectedCountry ? (
                 <span className="mt-1 block text-xs text-muted-foreground">
-                  {selectedCountry.financialYearLabel}: {selectedCountry.startsOn} to {selectedCountry.endsOn}
+                  Financial year: {selectedCountry.financialYearLabel} ({selectedCountry.startsOn} to {selectedCountry.endsOn})
                 </span>
-              ) : null}
+              ) : <span className="mt-1 block text-xs text-muted-foreground">Select a configured country calendar.</span>}
             </label>
             <label className="text-sm font-medium sm:col-span-2">
               Task title
@@ -1042,6 +1047,9 @@ function TenantAdminCreateTaskAction({
                 <Input className="mt-1" type="number" min="0" disabled={!input.discountType} value={input.discountValue} onChange={(event) => setInput((current) => ({ ...current, discountValue: event.target.value }))} />
               </label>
             </div>
+            <p className="mt-4 text-xs text-muted-foreground">
+              The selected financial year is saved with this task. Its charge becomes available in Invoices after final Tenant Admin approval.
+            </p>
           </fieldset>
           <div className="mt-6 flex justify-end gap-2">
             <Button variant="outline" onClick={() => setOpen(false)}>
@@ -1064,6 +1072,8 @@ function TenantAdminCreateTaskAction({
               {isSaving ? "Creating..." : "Create task"}
             </Button>
           </div>
+            </>
+          )}
         </div>
       </DialogContent>
     </Dialog>
@@ -1081,8 +1091,28 @@ function NewEmployeeDialog({ onCreated }: { onCreated: (employee: TenantAdminEmp
   const [weeklyCapacityHours, setWeeklyCapacityHours] = useState("40");
   const [isManager, setIsManager] = useState(false);
   const [saving, setSaving] = useState(false);
+  const normalizedEmail = email.trim().toLowerCase();
+  const canCheckEmail = isValidEmail(normalizedEmail);
+  const emailAvailability = useQuery({
+    queryKey: ["tenant-admin-employee-email-availability", normalizedEmail],
+    queryFn: () => getTenantAdminEmployeeEmailAvailability(normalizedEmail),
+    enabled: open && canCheckEmail,
+  });
+  const emailUnavailable = canCheckEmail && emailAvailability.data?.available === false;
+  const emailCheckPending = canCheckEmail && emailAvailability.isFetching;
+  const emailCheckFailed = canCheckEmail && emailAvailability.isError;
+  const createDisabled =
+    saving ||
+    name.trim().length < 2 ||
+    !email.trim() ||
+    password.length < 8 ||
+    !Number(weeklyCapacityHours) ||
+    emailUnavailable ||
+    emailCheckPending ||
+    emailCheckFailed;
 
   const submit = async () => {
+    if (createDisabled) return;
     setSaving(true);
     try {
       const employee = await createTenantAdminEmployee({
@@ -1131,6 +1161,8 @@ function NewEmployeeDialog({ onCreated }: { onCreated: (employee: TenantAdminEmp
             Email
             <Input className="mt-1" type="email" value={email} onChange={(event) => setEmail(event.target.value)} />
           </label>
+          {emailUnavailable ? <p className="-mt-3 text-sm text-danger">Email already exists.</p> : null}
+          {emailCheckFailed ? <p className="-mt-3 text-sm text-danger">Email availability could not be checked.</p> : null}
           <label className="text-sm font-medium">
             Password
             <Input className="mt-1" type="password" value={password} minLength={8} onChange={(event) => setPassword(event.target.value)} />
@@ -1165,7 +1197,7 @@ function NewEmployeeDialog({ onCreated }: { onCreated: (employee: TenantAdminEmp
             <Button variant="outline" onClick={() => setOpen(false)}>
               Cancel
             </Button>
-            <Button disabled={saving || name.trim().length < 2 || !email.trim() || password.length < 8 || !Number(weeklyCapacityHours)} onClick={() => void submit()}>
+            <Button disabled={createDisabled} onClick={() => void submit()}>
               {saving ? "Creating..." : "Create employee"}
             </Button>
           </div>
@@ -1332,4 +1364,8 @@ function CreateTaskAction({ onCreate }: { onCreate: (title: string) => void }) {
       </DialogContent>
     </Dialog>
   );
+}
+
+function isValidEmail(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }

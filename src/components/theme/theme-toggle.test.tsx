@@ -64,7 +64,7 @@ test("uses a semantic switch without a native browser tooltip", async () => {
   });
   expect(toggle).toHaveAttribute("aria-checked", "false");
   expect(toggle).not.toHaveAttribute("title");
-  expect(toggle.querySelector(".theme-toggle__tooltip")).toBeInTheDocument();
+  expect(toggle.querySelector(".bb8-theme-toggle__tooltip")).toBeInTheDocument();
   expect(screen.queryByText(/Theme animation ready/)).not.toBeInTheDocument();
 });
 
@@ -92,7 +92,7 @@ test("switches to dark mode with five independently configured shooting stars", 
   ).toHaveLength(5);
 });
 
-test("uses the owl visual in dark mode and suppresses the special effect during reduced motion", async () => {
+test("uses the supplied toggle visual in dark mode and suppresses the special effect during reduced motion", async () => {
   theme.resolvedTheme = "dark";
   setReducedMotion(true);
   render(<ThemeToggle />);
@@ -100,17 +100,7 @@ test("uses the owl visual in dark mode and suppresses the special effect during 
   const toggle = await screen.findByRole("switch", {
     name: "Switch to light mode",
   });
-  expect(toggle.querySelector(".theme-toggle__owl")).toBeInTheDocument();
-  expect(
-    toggle.querySelector(".theme-toggle__owl-eyelid--left"),
-  ).toBeInTheDocument();
-  expect(
-    toggle.querySelector(".theme-toggle__owl-eyelid--right"),
-  ).toBeInTheDocument();
-  expect(toggle.querySelector(".theme-toggle__owl")).toHaveAttribute(
-    "data-document-visible",
-    "true",
-  );
+  expect(toggle.querySelector(".bb8-theme-toggle__droid")).toBeInTheDocument();
   fireEvent.click(toggle);
 
   expect(theme.setTheme).toHaveBeenCalledWith("light");

@@ -1,7 +1,7 @@
 "use client";
 /* eslint-disable @next/next/no-img-element -- tenant API avatars may use a configured external CDN. */
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
@@ -28,8 +28,10 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import {
   createTenantAdminEmployee,
-  listTenantAdminEmployees,
+  getTenantAdminEmployeeEmailAvailability,
+  listTenantAdminEmployeeDirectory,
   setTenantAdminEmployeeManager,
+  updateTenantAdminEmployeeAssignment,
   updateTenantAdminEmployeeCapacity,
 } from "@/features/operations/api/operations-api";
 import type { Employee, EmployeeDirectoryFilters } from "@/types/workforce";
@@ -154,9 +156,12 @@ export function EmployeeDirectory() {
   const queryClient = useQueryClient();
   const [createOpen, setCreateOpen] = useState(false);
   const [capacityEmployee, setCapacityEmployee] = useState<Employee | null>(null);
+  const [assignmentEmployee, setAssignmentEmployee] = useState<Employee | null>(null);
+  const appliedSearch = searchParams.get("query") ?? "";
+  const [searchValue, setSearchValue] = useState(appliedSearch);
   const employeesQuery = useQuery({
     queryKey: ["tenant-admin-employees"],
-    queryFn: listTenantAdminEmployees,
+    queryFn: listTenantAdminEmployeeDirectory,
   });
   const filters = useMemo<EmployeeDirectoryFilters>(
     () => ({
@@ -183,11 +188,12 @@ export function EmployeeDirectory() {
     Number.isFinite(requestedPage) && requestedPage > 0 ? requestedPage : 1;
   const employees = useMemo<Employee[]>(
     () =>
-      (employeesQuery.data ?? []).map((employee) => ({
+      (employeesQuery.data?.employees ?? []).map((employee) => ({
         id: employee.id,
         code: employee.employeeCode ?? "-",
         name: employee.name,
-        department: "Unassigned",
+        departmentId: employee.departmentId,
+        department: employee.departmentName ?? "Unassigned",
         categories: employee.categories,
         skills: employee.skills,
         experienceLevel: employee.experienceLevel,
@@ -213,19 +219,13 @@ export function EmployeeDirectory() {
   );
   const options = useMemo(
     () => ({
-      departments: [
-        ...new Set(employees.map((employee) => employee.department)),
-      ],
+      departments: (employeesQuery.data?.departments ?? []).map((department) => department.name),
       categories: [
         ...new Set(employees.flatMap((employee) => employee.categories)),
       ],
-      managers: employees.filter(
-        (employee) =>
-          employee.manager === null ||
-          employees.some((candidate) => candidate.manager?.id === employee.id),
-      ),
+      managers: employees.filter((employee) => employee.isManager),
     }),
-    [employees],
+    [employees, employeesQuery.data?.departments],
   );
   const filteredEmployees = useMemo(
     () =>
@@ -250,14 +250,25 @@ export function EmployeeDirectory() {
   const hasFilters = Object.values(filters).some(Boolean);
   const activeFilterCount = Object.values(filters).filter(Boolean).length;
 
-  const updateParam = (key: string, value: string) => {
-    const next = new URLSearchParams(searchParams.toString());
-    value ? next.set(key, value) : next.delete(key);
-    if (key !== "page") next.delete("page");
-    router.replace(`${pathname}${next.size ? `?${next}` : ""}`, {
-      scroll: false,
-    });
-  };
+  const updateParam = useCallback(
+    (key: string, value: string) => {
+      const next = new URLSearchParams(searchParams.toString());
+      value ? next.set(key, value) : next.delete(key);
+      if (key !== "page") next.delete("page");
+      router.replace(`${pathname}${next.size ? `?${next}` : ""}`, {
+        scroll: false,
+      });
+    },
+    [pathname, router, searchParams],
+  );
+  useEffect(() => {
+    setSearchValue(appliedSearch);
+  }, [appliedSearch]);
+  useEffect(() => {
+    if (searchValue === appliedSearch) return;
+    const timeout = window.setTimeout(() => updateParam("query", searchValue), 300);
+    return () => window.clearTimeout(timeout);
+  }, [appliedSearch, searchValue, updateParam]);
   const clearFilters = () => router.replace(pathname, { scroll: false });
   const openProfile = (employee: Employee) =>
     router.push(`/admin/employees/${employee.id}`);
@@ -276,6 +287,7 @@ export function EmployeeDirectory() {
           <span className="mt-1 block text-xs text-muted-foreground">
             {row.original.categories.join(", ")}
           </span>
+          <Button className="mt-2 h-7 px-2 text-xs" variant="outline" size="sm" onClick={() => setAssignmentEmployee(row.original)}>Edit</Button>
         </span>
       ),
     },
@@ -294,16 +306,19 @@ export function EmployeeDirectory() {
               {labelFor(row.original.experienceLevel)}
             </span>
           ) : null}
+          <Button className="mt-2 h-7 px-2 text-xs" variant="outline" size="sm" onClick={() => setAssignmentEmployee(row.original)}>Edit</Button>
         </span>
       ),
     },
     {
       id: "manager",
       header: "Manager",
-      cell: ({ row }) =>
-        row.original.manager?.name ?? (
-          <span className="text-muted-foreground">Unassigned</span>
-        ),
+      cell: ({ row }) => (
+        <span>
+          {row.original.manager?.name ?? <span className="text-muted-foreground">Unassigned</span>}
+          <Button className="mt-2 block h-7 px-2 text-xs" variant="outline" size="sm" onClick={() => setAssignmentEmployee(row.original)}>Edit</Button>
+        </span>
+      ),
     },
     {
       id: "workload",
@@ -367,10 +382,21 @@ export function EmployeeDirectory() {
     },
   ];
 
+  if (employeesQuery.isPending) {
+    return <LoadingState label="Loading employees" />;
+  }
+
+  if (employeesQuery.isError) {
+    return (
+      <ErrorState
+        title="Employees could not load"
+        onRetry={() => void employeesQuery.refetch()}
+      />
+    );
+  }
+
   return (
     <div className="flex flex-col gap-[30px]">
-      {employeesQuery.isPending ? <LoadingState label="Loading employees" rows={4} /> : null}
-      {employeesQuery.isError ? <ErrorState title="Employees could not load" onRetry={() => void employeesQuery.refetch()} /> : null}
       <PageHeader
         eyebrow="Workforce"
         title="All employees"
@@ -388,8 +414,8 @@ export function EmployeeDirectory() {
           </div>
           <FilterToolbar
             search={{
-              value: filters.query ?? "",
-              onChange: (value) => updateParam("query", value),
+              value: searchValue,
+              onChange: setSearchValue,
               label: "Search employees",
               placeholder: "Search name or code",
             }}
@@ -535,6 +561,19 @@ export function EmployeeDirectory() {
           toast.success("Capacity updated.");
         }}
       />
+      <AssignmentDialog
+        employee={assignmentEmployee}
+        departments={employeesQuery.data?.departments ?? []}
+        managers={options.managers}
+        onOpenChange={(open) => !open && setAssignmentEmployee(null)}
+        onSaved={async (input) => {
+          if (!assignmentEmployee) return;
+          await updateTenantAdminEmployeeAssignment(assignmentEmployee.id, input);
+          await queryClient.invalidateQueries({ queryKey: ["tenant-admin-employees"] });
+          setAssignmentEmployee(null);
+          toast.success("Employee details updated.");
+        }}
+      />
     </div>
   );
 }
@@ -557,8 +596,27 @@ function CreateEmployeeDialog({
   const [isManager, setIsManager] = useState(false);
   const [weeklyCapacityHours, setWeeklyCapacityHours] = useState("40");
   const [saving, setSaving] = useState(false);
+  const normalizedEmail = email.trim().toLowerCase();
+  const canCheckEmail = isValidEmail(normalizedEmail);
+  const emailAvailability = useQuery({
+    queryKey: ["tenant-admin-employee-email-availability", normalizedEmail],
+    queryFn: () => getTenantAdminEmployeeEmailAvailability(normalizedEmail),
+    enabled: open && canCheckEmail,
+  });
+  const emailUnavailable = canCheckEmail && emailAvailability.data?.available === false;
+  const emailCheckPending = canCheckEmail && emailAvailability.isFetching;
+  const emailCheckFailed = canCheckEmail && emailAvailability.isError;
+  const createDisabled =
+    saving ||
+    !name.trim() ||
+    !email.trim() ||
+    password.length < 8 ||
+    !Number(weeklyCapacityHours) ||
+    emailUnavailable ||
+    emailCheckPending ||
+    emailCheckFailed;
   const save = async () => {
-    if (!name.trim() || !email.trim() || password.length < 8) return;
+    if (createDisabled) return;
     setSaving(true);
     try {
       await createTenantAdminEmployee({
@@ -593,6 +651,8 @@ function CreateEmployeeDialog({
         <div className="grid gap-4 pr-8">
           <label className="text-sm font-medium">Name<Input className="mt-1" value={name} onChange={(event) => setName(event.target.value)} /></label>
           <label className="text-sm font-medium">Email<Input className="mt-1" type="email" value={email} onChange={(event) => setEmail(event.target.value)} /></label>
+          {emailUnavailable ? <p className="-mt-3 text-sm text-danger">Email already exists.</p> : null}
+          {emailCheckFailed ? <p className="-mt-3 text-sm text-danger">Email availability could not be checked.</p> : null}
           <label className="text-sm font-medium">Password<Input className="mt-1" type="password" minLength={8} value={password} onChange={(event) => setPassword(event.target.value)} /></label>
           <label className="text-sm font-medium">Employee code<Input className="mt-1" placeholder="Auto-generated if empty" value={employeeCode} onChange={(event) => setEmployeeCode(event.target.value)} /></label>
           <label className="text-sm font-medium">Skills (optional)<Input className="mt-1" placeholder="GST, Payroll, Compliance" value={skills} onChange={(event) => setSkills(event.target.value)} /></label>
@@ -601,7 +661,7 @@ function CreateEmployeeDialog({
           <label className="flex items-center gap-2 text-sm font-medium"><input type="checkbox" checked={isManager} onChange={(event) => setIsManager(event.target.checked)} />Make this employee a manager</label>
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-            <Button disabled={saving || !name.trim() || !email.trim() || password.length < 8 || !Number(weeklyCapacityHours)} onClick={() => void save()}>{saving ? "Creating..." : "Create employee"}</Button>
+            <Button disabled={createDisabled} onClick={() => void save()}>{saving ? "Creating..." : "Create employee"}</Button>
           </div>
         </div>
       </DialogContent>
@@ -639,6 +699,73 @@ function CapacityDialog({
   );
 }
 
+function AssignmentDialog({
+  employee,
+  departments,
+  managers,
+  onOpenChange,
+  onSaved,
+}: {
+  employee: Employee | null;
+  departments: readonly { id: string; name: string }[];
+  managers: readonly Employee[];
+  onOpenChange: (open: boolean) => void;
+  onSaved: (input: {
+    departmentId: string | null;
+    skills: string[];
+    experienceLevel: "junior" | "mid" | "senior" | "lead" | null;
+    managerId: string | null;
+  }) => Promise<void>;
+}) {
+  const [departmentId, setDepartmentId] = useState("");
+  const [skills, setSkills] = useState("");
+  const [experienceLevel, setExperienceLevel] = useState("");
+  const [managerId, setManagerId] = useState("");
+  const [saving, setSaving] = useState(false);
+  const open = Boolean(employee);
+
+  useEffect(() => {
+    setDepartmentId(employee?.departmentId ?? "");
+    setSkills(employee?.skills.join(", ") ?? "");
+    setExperienceLevel(employee?.experienceLevel ?? "");
+    setManagerId(employee?.manager?.id ?? "");
+  }, [employee]);
+
+  const save = async () => {
+    if (!employee) return;
+    setSaving(true);
+    try {
+      await onSaved({
+        departmentId: departmentId || null,
+        skills: skills.split(",").map((value) => value.trim()).filter(Boolean),
+        experienceLevel: experienceLevel ? (experienceLevel as "junior" | "mid" | "senior" | "lead") : null,
+        managerId: managerId || null,
+      });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Employee details could not be updated.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent title="Edit employee details" description="Update department, skills, level, and reporting manager." className="max-w-md">
+        <div className="grid gap-4 pr-8">
+          <label className="text-sm font-medium">Department<Select className="mt-1" value={departmentId} onChange={(event) => setDepartmentId(event.target.value)}><option value="">Unassigned</option>{departments.map((department) => <option key={department.id} value={department.id}>{department.name}</option>)}</Select></label>
+          <label className="text-sm font-medium">Skills<Input className="mt-1" value={skills} placeholder="GST, Payroll, Compliance" onChange={(event) => setSkills(event.target.value)} /></label>
+          <label className="text-sm font-medium">Level<Select className="mt-1" value={experienceLevel} onChange={(event) => setExperienceLevel(event.target.value)}><option value="">Not set</option><option value="junior">Junior</option><option value="mid">Mid</option><option value="senior">Senior</option><option value="lead">Lead</option></Select></label>
+          <label className="text-sm font-medium">Manager<Select className="mt-1" value={managerId} onChange={(event) => setManagerId(event.target.value)}><option value="">Unassigned</option>{managers.filter((manager) => manager.id !== employee?.id).map((manager) => <option key={manager.id} value={manager.id}>{manager.name}</option>)}</Select></label>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+            <Button disabled={saving} onClick={() => void save()}>{saving ? "Saving..." : "Save changes"}</Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function Filter({
   label,
   value,
@@ -668,4 +795,8 @@ function Filter({
       </Select>
     </label>
   );
+}
+
+function isValidEmail(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }

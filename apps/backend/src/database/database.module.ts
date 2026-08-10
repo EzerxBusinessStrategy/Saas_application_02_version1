@@ -19,6 +19,10 @@ import * as schema from "./schema";
         return new Pool({
           connectionString: config.databaseUrl,
           max: config.databasePoolMax,
+          idleTimeoutMillis: 30_000,
+          connectionTimeoutMillis: 5_000,
+          keepAlive: true,
+          keepAliveInitialDelayMillis: 10_000,
           application_name: "saas-app-backend-api",
         });
       },

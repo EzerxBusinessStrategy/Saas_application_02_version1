@@ -1,4 +1,4 @@
-import { Controller, Get, Inject, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Inject, Patch, UseGuards } from "@nestjs/common";
 import {
   ApiBearerAuth,
   ApiForbiddenResponse,
@@ -14,7 +14,8 @@ import { RequirePermissions } from "../auth/permissions.decorator";
 import { CurrentRequestContext } from "../auth/request-context.decorator";
 import { RequestContext } from "../auth/request-context";
 import { ApiErrorResponseDto } from "../common/errors/api-error.dto";
-import { TenantAdminDashboardResponseDto } from "./tenant-admin-dashboard.dto";
+import { ZodValidationPipe } from "../common/validation/zod-validation.pipe";
+import { TenantAdminDashboardResponseDto, TenantProfileDto, updateTenantProfileSchema, UpdateTenantProfileRequest } from "./tenant-admin-dashboard.dto";
 import { TenantAdminDashboardService } from "./tenant-admin-dashboard.service";
 
 @ApiTags("Tenant Admin")
@@ -35,5 +36,24 @@ export class TenantAdminDashboardController {
   @ApiForbiddenResponse({ type: ApiErrorResponseDto })
   getDashboard(@CurrentRequestContext() context: RequestContext): Promise<TenantAdminDashboardResponseDto> {
     return this.service.getDashboard(context);
+  }
+
+  @Get("profile")
+  @RequirePermissions("tenant.read")
+  @ApiOperation({ summary: "Read the active tenant profile." })
+  @ApiOkResponse({ type: TenantProfileDto })
+  getTenantProfile(@CurrentRequestContext() context: RequestContext): Promise<TenantProfileDto> {
+    return this.service.getTenantProfile(context);
+  }
+
+  @Patch("profile")
+  @RequirePermissions("tenant.update")
+  @ApiOperation({ summary: "Update the active tenant profile." })
+  @ApiOkResponse({ type: TenantProfileDto })
+  updateTenantProfile(
+    @CurrentRequestContext() context: RequestContext,
+    @Body(new ZodValidationPipe(updateTenantProfileSchema)) body: UpdateTenantProfileRequest,
+  ): Promise<TenantProfileDto> {
+    return this.service.updateTenantProfile(context, body);
   }
 }

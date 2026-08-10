@@ -3,7 +3,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ArrowUpDown, MoreHorizontal, Plus } from "lucide-react";
@@ -161,6 +161,23 @@ export function ClientDirectory() {
   const queryClient = useQueryClient();
   const [createOpen, setCreateOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Client | null>(null);
+  const appliedSearch = searchParams.get("query") ?? "";
+  const [searchValue, setSearchValue] = useState(appliedSearch);
+  const setParam = useCallback(
+    (key: string, value: string) =>
+      updateUrl(pathname, new URLSearchParams(searchParams), router, key, value),
+    [pathname, router, searchParams],
+  );
+
+  useEffect(() => {
+    setSearchValue(appliedSearch);
+  }, [appliedSearch]);
+
+  useEffect(() => {
+    if (searchValue === appliedSearch) return;
+    const timeout = window.setTimeout(() => setParam("query", searchValue), 300);
+    return () => window.clearTimeout(timeout);
+  }, [appliedSearch, searchValue, setParam]);
   const request = useMemo<ClientListRequest>(
     () => ({
       query: searchParams.get("query") ?? undefined,
@@ -192,8 +209,6 @@ export function ClientDirectory() {
     toast.success("Client created.");
     router.push(`/admin/clients/${client.id}`);
   };
-  const setParam = (key: string, value: string) =>
-    updateUrl(pathname, new URLSearchParams(searchParams), router, key, value);
   const setParams = (updates: Record<string, string>) => {
     const next = new URLSearchParams(searchParams);
     Object.entries(updates).forEach(([key, value]) => {
@@ -393,8 +408,8 @@ export function ClientDirectory() {
         <CardContent className="flex flex-col gap-5">
           <FilterToolbar
             search={{
-              value: request.query ?? "",
-              onChange: (value) => setParam("query", value),
+              value: searchValue,
+              onChange: setSearchValue,
               label: "Search clients",
               placeholder: "Search client name or ID",
             }}
@@ -1432,10 +1447,11 @@ function WorkGroupForm({
   onClose: () => void;
   onSubmit: (values: WorkGroupFormValues) => void;
 }) {
+  const managers = employees.filter((employee) => employee.isManager);
   const [values, setValues] = useState<WorkGroupFormValues>({
     name: workGroup?.name ?? "",
     clientId: workGroup?.clientId ?? "",
-    managerEmployeeId: workGroup?.managerEmployeeId ?? employees[0]?.id ?? "",
+    managerEmployeeId: workGroup?.managerEmployeeId ?? managers[0]?.id ?? "",
     employeeIds: workGroup?.members.map((member) => member.id) ?? [],
     status: (workGroup?.status as WorkGroupFormValues["status"]) ?? "active",
   });
@@ -1446,13 +1462,13 @@ function WorkGroupForm({
     selectedEmployees.size === 0;
   return (
     <form
-      className="flex max-h-[70vh] flex-col gap-4 overflow-y-auto pr-2"
+      className="grid max-h-[70vh] gap-5 overflow-y-auto pr-1 sm:grid-cols-2"
       onSubmit={(event) => {
         event.preventDefault();
         if (!submitDisabled) onSubmit({ ...values, employeeIds: [...selectedEmployees] });
       }}
     >
-      <label className="text-sm font-medium">
+      <label className="text-sm font-medium sm:col-span-2">
         Work-group name
         <Input className="mt-1" value={values.name} onChange={(event) => setValues((current) => ({ ...current, name: event.target.value }))} />
       </label>
@@ -1482,16 +1498,17 @@ function WorkGroupForm({
           }}
         >
           <option value="">Select manager</option>
-          {employees.map((employee) => (
+          {managers.map((employee) => (
             <option key={employee.id} value={employee.id}>
               {employee.name}
             </option>
           ))}
         </Select>
+        {!managers.length ? <span className="mt-1 block text-xs text-muted-foreground">Mark an employee as a manager before creating this work group.</span> : null}
       </label>
-      <fieldset>
+      <fieldset className="sm:col-span-2">
         <legend className="text-sm font-medium">Employees</legend>
-        <div className="mt-2 grid max-h-48 gap-2 overflow-y-auto rounded-[var(--radius-control)] border p-3 sm:grid-cols-2">
+        <div className="mt-2 grid max-h-44 gap-2 overflow-y-auto rounded-[var(--radius-control)] border p-3 sm:grid-cols-2">
           {employees.length ? (
             employees.map((employee) => (
               <label key={employee.id} className="flex items-center gap-2 text-sm">
@@ -1524,7 +1541,7 @@ function WorkGroupForm({
           <option value="archived">Archived</option>
         </Select>
       </label>
-      <div className="flex justify-end gap-2 pt-2">
+      <div className="flex justify-end gap-2 pt-1 sm:col-span-2">
         <Button type="button" variant="outline" onClick={onClose}>
           Cancel
         </Button>
@@ -1553,7 +1570,8 @@ export function WorkGroupDirectory() {
   const [selected, setSelected] = useState<TenantAdminWorkGroup | null>(null);
   const [editing, setEditing] = useState<TenantAdminWorkGroup | "new" | null>(null);
   const [saving, setSaving] = useState(false);
-  if (groupsQuery.isPending || employeesQuery.isPending || clientsQuery.isPending)
+  const hasInitialData = Boolean(groupsQuery.data && employeesQuery.data && clientsQuery.data);
+  if (!hasInitialData && (groupsQuery.isPending || employeesQuery.isPending || clientsQuery.isPending))
     return <LoadingState label="Loading work groups" rows={4} />;
   if (groupsQuery.isError || employeesQuery.isError || clientsQuery.isError)
     return (
@@ -1754,23 +1772,18 @@ export function WorkGroupDirectory() {
           title={editing === "new" ? "Create work group" : "Edit work group"}
           description="Choose a manager and employees for this group."
         >
-          <div className="pr-8">
-            <h2 className="font-semibold">
-              {editing === "new" ? "Create work group" : "Edit work group"}
-            </h2>
-            {editing ? (
-              <div className="mt-5">
-                <WorkGroupForm
-                  workGroup={editing === "new" ? undefined : editing}
-                  employees={employees}
-                  clientOptions={clientOptions}
-                  onClose={() => setEditing(null)}
-                  onSubmit={saveWorkGroup}
-                />
-                {saving ? <p className="mt-3 text-sm text-muted-foreground">Saving work group...</p> : null}
-              </div>
-            ) : null}
-          </div>
+          {editing ? (
+            <div className="pt-1">
+              <WorkGroupForm
+                workGroup={editing === "new" ? undefined : editing}
+                employees={employees}
+                clientOptions={clientOptions}
+                onClose={() => setEditing(null)}
+                onSubmit={saveWorkGroup}
+              />
+              {saving ? <p className="mt-3 text-sm text-muted-foreground">Saving work group...</p> : null}
+            </div>
+          ) : null}
         </DialogContent>
       </Dialog>
     </div>

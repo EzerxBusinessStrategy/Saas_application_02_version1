@@ -1,0 +1,101 @@
+[TypeError: fetch failed] {
+  [cause]: [Error: self-signed certificate in certificate chain] {
+    code: 'SELF_SIGNED_CERT_IN_CHAIN'
+  }
+}
+ ⨯ [Error: ENOENT: no such file or directory, open 'D:\Saas_app_version_2\.next-dev\server\next-font-manifest.json'] {
+  errno: -4058,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: 'D:\\Saas_app_version_2\\.next-dev\\server\\next-font-manifest.json',
+  page: '/admin/invoices'
+}
+ ⨯ [Error: ENOENT: no such file or directory, open 'D:\Saas_app_version_2\.next-dev\routes-manifest.json'] {
+  errno: -4058,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: 'D:\\Saas_app_version_2\\.next-dev\\routes-manifest.json'
+}
+[Error: ENOENT: no such file or directory, open 'D:\Saas_app_version_2\.next-dev\server\next-font-manifest.json'] {
+  errno: -4058,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: 'D:\\Saas_app_version_2\\.next-dev\\server\\next-font-manifest.json',
+  page: '/admin/invoices'
+}
+ ⨯ [Error: ENOENT: no such file or directory, open 'D:\Saas_app_version_2\.next-dev\routes-manifest.json'] {
+  errno: -4058,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: 'D:\\Saas_app_version_2\\.next-dev\\routes-manifest.json'
+}
+[Error: ENOENT: no such file or directory, open 'D:\Saas_app_version_2\.next-dev\routes-manifest.json'] {
+  errno: -4058,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: 'D:\\Saas_app_version_2\\.next-dev\\routes-manifest.json'
+}
+ ⨯ [Error: ENOENT: no such file or directory, open 'D:\Saas_app_version_2\.next-dev\routes-manifest.json'] {
+  errno: -4058,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: 'D:\\Saas_app_version_2\\.next-dev\\routes-manifest.json',
+  page: '/admin/invoices'
+}
+ ⨯ [Error: ENOENT: no such file or directory, open 'D:\Saas_app_version_2\.next-dev\routes-manifest.json'] {
+  errno: -4058,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: 'D:\\Saas_app_version_2\\.next-dev\\routes-manifest.json'
+}
+[Error: ENOENT: no such file or directory, open 'D:\Saas_app_version_2\.next-dev\routes-manifest.json'] {
+  errno: -4058,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: 'D:\\Saas_app_version_2\\.next-dev\\routes-manifest.json',
+  page: '/admin/invoices'
+}
+ ⨯ [Error: ENOENT: no such file or directory, open 'D:\Saas_app_version_2\.next-dev\routes-manifest.json'] {
+  errno: -4058,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: 'D:\\Saas_app_version_2\\.next-dev\\routes-manifest.json'
+}
+[Error: ENOENT: no such file or directory, open 'D:\Saas_app_version_2\.next-dev\routes-manifest.json'] {
+  errno: -4058,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: 'D:\\Saas_app_version_2\\.next-dev\\routes-manifest.json'
+}
+ ⨯ [Error: ENOENT: no such file or directory, open 'D:\Saas_app_version_2\.next-dev\routes-manifest.json'] {
+  errno: -4058,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: 'D:\\Saas_app_version_2\\.next-dev\\routes-manifest.json',
+  page: '/admin/invoices'
+}
+ ⨯ [Error: ENOENT: no such file or directory, open 'D:\Saas_app_version_2\.next-dev\routes-manifest.json'] {
+  errno: -4058,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: 'D:\\Saas_app_version_2\\.next-dev\\routes-manifest.json'
+}
+[Error: ENOENT: no such file or directory, open 'D:\Saas_app_version_2\.next-dev\routes-manifest.json'] {
+  errno: -4058,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: 'D:\\Saas_app_version_2\\.next-dev\\routes-manifest.json',
+  page: '/admin/invoices'
+}
+ ⨯ [Error: ENOENT: no such file or directory, open 'D:\Saas_app_version_2\.next-dev\routes-manifest.json'] {
+  errno: -4058,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: 'D:\\Saas_app_version_2\\.next-dev\\routes-manifest.json'
+}
+[Error: ENOENT: no such file or directory, open 'D:\Saas_app_version_2\.next-dev\routes-manifest.json'] {
+  errno: -4058,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: 'D:\\Saas_app_version_2\\.next-dev\\routes-manifest.json'
+}

@@ -5,6 +5,7 @@ import { AppConfigModule } from "./config/app-config.module";
 import { ApiExceptionFilter } from "./common/errors/api-exception.filter";
 import { CommonModule } from "./common/common.module";
 import { RequestIdInterceptor } from "./common/request-id/request-id.interceptor";
+import { RequestPerformanceInterceptor } from "./common/logging/request-performance.interceptor";
 import { DatabaseModule } from "./database/database.module";
 import { HealthModule } from "./health/health.module";
 import { AuthModule } from "./auth/auth.module";
@@ -19,6 +20,7 @@ export class AppModule {
       providers: [
         { provide: APP_FILTER, useClass: ApiExceptionFilter },
         { provide: APP_INTERCEPTOR, useClass: RequestIdInterceptor },
+        { provide: APP_INTERCEPTOR, useClass: RequestPerformanceInterceptor },
       ],
     };
   }

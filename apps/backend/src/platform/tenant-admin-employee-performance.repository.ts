@@ -165,7 +165,7 @@ export class TenantAdminEmployeePerformanceRepository {
           and status <> 'cancelled'
           and current_date >= start_date
           and current_date <= end_date
-        order by start_date desc
+        order by (country_code = (select country from public.tenants where id = $1)) desc, start_date desc
         limit 1
       `,
       [tenantId],

@@ -5,16 +5,16 @@ export const sectionAccess: Record<
   { workspaces: Workspace[]; permissions?: Permission[] }
 > = {
   tasks: {
-    workspaces: ["admin", "manager", "employee", "client"],
+    workspaces: ["admin", "employee", "client"],
     permissions: ["task.read", "task.read.assigned"],
   },
-  employees: { workspaces: ["admin", "manager"] },
+  employees: { workspaces: ["admin"] },
   "employee-performance": {
     workspaces: ["admin"],
     permissions: ["employee.read"],
   },
   clients: {
-    workspaces: ["admin", "manager", "employee", "client"],
+    workspaces: ["admin", "employee", "client"],
     permissions: ["client.read", "client.read.assigned"],
   },
   "assign-task": {
@@ -26,14 +26,14 @@ export const sectionAccess: Record<
     permissions: ["work_log.review.assigned_group"],
   },
   "work-groups": {
-    workspaces: ["admin", "manager"],
+    workspaces: ["admin"],
     permissions: ["work_group.manage"],
   },
   documents: {
-    workspaces: ["admin", "manager", "employee"],
+    workspaces: ["admin", "employee"],
     permissions: ["document.read"],
   },
-  invoices: { workspaces: ["admin", "manager", "client"] },
+  invoices: { workspaces: ["admin", "client"] },
   payments: { workspaces: ["admin", "client"] },
   agreements: { workspaces: ["admin", "client"] },
   reports: {
@@ -61,19 +61,6 @@ export const sectionAccess: Record<
   account: { workspaces: ["super-admin"] },
   managers: { workspaces: ["admin"], permissions: ["employee.read"] },
   settings: { workspaces: ["admin"], permissions: ["client.update"] },
-  reviews: {
-    workspaces: ["manager"],
-    permissions: ["work_log.review.assigned_group"],
-  },
-  approvals: {
-    workspaces: ["manager"],
-    permissions: ["task.update.assigned_group"],
-  },
-  workload: { workspaces: ["manager"], permissions: ["task.read.assigned"] },
-  "manager-reports": {
-    workspaces: ["manager"],
-    permissions: ["task.read.assigned"],
-  },
   "work-logs": {
     workspaces: ["employee"],
     permissions: ["work_log.create.self"],
@@ -88,7 +75,7 @@ export const sectionAccess: Record<
     permissions: ["task.read.assigned"],
   },
   recognition: {
-    workspaces: ["manager", "employee"],
+    workspaces: ["employee"],
     permissions: ["task.read.assigned"],
   },
   preferences: {
@@ -104,6 +91,6 @@ export const sectionAccess: Record<
     workspaces: ["client"],
     permissions: ["client.read.assigned"],
   },
-  notifications: { workspaces: ["manager", "employee"] },
-  profile: { workspaces: ["manager", "employee", "client"] },
+  notifications: { workspaces: ["employee"] },
+  profile: { workspaces: ["employee", "client"] },
 };

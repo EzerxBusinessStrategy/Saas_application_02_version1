@@ -1,4 +1,10 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
+import { z } from "zod";
+
+export const updateTenantProfileSchema = z.object({
+  name: z.string().trim().min(2).max(160),
+});
+export type UpdateTenantProfileRequest = z.infer<typeof updateTenantProfileSchema>;
 
 export class TenantInfoDto {
   @ApiProperty({ type: String, format: "uuid" })
@@ -9,6 +15,11 @@ export class TenantInfoDto {
 
   @ApiProperty({ type: String, example: "INR" })
   currencyCode!: string;
+}
+
+export class TenantProfileDto extends TenantInfoDto {
+  @ApiProperty({ type: String, example: "Asia/Kolkata" })
+  timezone!: string;
 }
 
 export class FinancialYearInfoDto {

@@ -9,7 +9,6 @@ import {
 import {
   fetchVerifiedClientPortalMe,
   fetchVerifiedEmployeeMe,
-  fetchVerifiedManagerMe,
   fetchVerifiedSuperAdminMe,
   fetchVerifiedTenantAdminMe,
   refreshSuperAdminSession,
@@ -48,7 +47,6 @@ export async function GET(request: Request) {
 function fetchVerifiedWorkspaceMe(accessToken: string, workspace: Workspace) {
   if (workspace === "client") return fetchVerifiedClientPortalMe(accessToken);
   if (workspace === "admin") return fetchVerifiedTenantAdminMe(accessToken);
-  if (workspace === "manager") return fetchVerifiedManagerMe(accessToken);
   if (workspace === "employee") return fetchVerifiedEmployeeMe(accessToken);
   return fetchVerifiedSuperAdminMe(accessToken);
 }
@@ -57,7 +55,6 @@ function workspaceFromCookie(value: string | undefined): Workspace | null {
   if (
     value === "super-admin" ||
     value === "admin" ||
-    value === "manager" ||
     value === "employee" ||
     value === "client"
   ) {

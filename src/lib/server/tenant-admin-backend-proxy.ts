@@ -21,6 +21,7 @@ export async function proxyTenantAdminBackend({
   unauthenticatedMessage = "Tenant Admin session required.",
   unavailableMessage = "Tenant Admin service unavailable.",
 }: ProxyOptions): Promise<NextResponse> {
+  const startedAt = performance.now();
   const cookieStore = await cookies();
   const rememberMe = cookieStore.get(superAdminRememberMeCookie)?.value === "1";
   const refreshToken = cookieStore.get(superAdminRefreshTokenCookie)?.value;
@@ -31,10 +32,10 @@ export async function proxyTenantAdminBackend({
     refreshed = await refreshSession(refreshToken);
     accessToken = refreshed?.accessToken;
   }
-  if (!accessToken) {
-    const response = NextResponse.json({ message: unauthenticatedMessage }, { status: 401 });
-    clearSuperAdminSessionCookies(response);
-    return response;
+    if (!accessToken) {
+      const response = NextResponse.json({ message: unauthenticatedMessage }, { status: 401 });
+      clearSuperAdminSessionCookies(response);
+      return withTiming(response, path, init, startedAt);
   }
 
   try {
@@ -53,10 +54,21 @@ export async function proxyTenantAdminBackend({
     if (backendResponse.status === 401) {
       clearSuperAdminSessionCookies(response);
     }
-    return response;
+    return withTiming(response, path, init, startedAt);
   } catch {
-    return NextResponse.json({ message: unavailableMessage }, { status: 503 });
+    return withTiming(NextResponse.json({ message: unavailableMessage }, { status: 503 }), path, init, startedAt);
   }
+}
+
+function withTiming(response: NextResponse, path: string, init: RequestInit | undefined, startedAt: number): NextResponse {
+  const durationMs = Math.round(performance.now() - startedAt);
+  response.headers.set("server-timing", `tenant-api;dur=${durationMs}`);
+  if (durationMs >= 500) {
+    const method = init?.method ?? "GET";
+    const route = path.split("?")[0] ?? path;
+    console.info(`[Page data] Tenant Admin ${method} ${route} finished with ${response.status} in ${durationMs}ms. This measures server data time, not browser rendering time.`);
+  }
+  return response;
 }
 
 async function refreshSession(

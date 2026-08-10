@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { index, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { index, integer, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 import { tenants } from "./tenancy.schema";
 import { users } from "./identity.schema";
 
@@ -62,5 +62,29 @@ export const notificationRecipients = pgTable(
       table.createdAt,
       table.notificationId,
     ),
+  }),
+);
+
+export const notificationOutbox = pgTable(
+  "notification_outbox",
+  {
+    id: uuid("id").default(sql`gen_random_uuid()`).primaryKey(),
+    tenantId: uuid("tenant_id").notNull().references(() => tenants.id),
+    notificationId: uuid("notification_id").notNull().references(() => notifications.id),
+    eventType: text("event_type").notNull().default("TASK_NOTIFICATION_READY"),
+    eventKey: text("event_key").notNull(),
+    status: text("status").notNull().default("pending"),
+    attempts: integer("attempts").notNull().default(0),
+    nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }).defaultNow().notNull(),
+    lockedAt: timestamp("locked_at", { withTimezone: true }),
+    deliveredAt: timestamp("delivered_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    eventKeyUnique: uniqueIndex("notification_outbox_event_key_unique").on(table.eventKey),
+    pendingIndex: index("notification_outbox_pending_idx")
+      .on(table.nextAttemptAt, table.createdAt, table.id)
+      .where(sql`${table.status} in ('pending', 'processing')`),
   }),
 );

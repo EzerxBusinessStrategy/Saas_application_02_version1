@@ -68,7 +68,7 @@ async function createPlatformConfigurationTestApp(): Promise<NestFastifyApplicat
     audience: ["authenticated"],
     expiresAt: new Date(Date.now() + 300_000),
   });
-  vi.spyOn(testApp.get(SessionPolicyRepository), "assertActive").mockResolvedValue(undefined);
+  vi.spyOn(testApp.get(SessionPolicyRepository), "assertActive").mockResolvedValue({ auth_context_version: 1 });
   return testApp;
 }
 

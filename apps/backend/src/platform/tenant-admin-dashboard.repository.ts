@@ -11,6 +11,10 @@ export type TenantInfoResult = {
   readonly currencyCode: string;
 };
 
+export type TenantProfileResult = TenantInfoResult & {
+  readonly timezone: string;
+};
+
 export type FinancialYearInfoResult = {
   readonly id: string;
   readonly label: string;
@@ -45,8 +49,6 @@ export type OrganisationSetupResult = {
   readonly employeesComplete: boolean;
   readonly clientsComplete: boolean;
   readonly servicesComplete: boolean;
-  readonly workGroupsComplete: boolean;
-  readonly deliveryRulesComplete: boolean;
 };
 
 export type UpcomingDeadlineResult = {
@@ -100,6 +102,36 @@ export class TenantAdminDashboardRepository {
     });
   }
 
+  async getTenantProfile(context: TenantAdminRequestContext): Promise<TenantProfileResult> {
+    return this.withContext(context, (client) => this.getTenantProfileRow(client, context.tenantId));
+  }
+
+  async updateTenantProfile(context: TenantAdminRequestContext, name: string): Promise<TenantProfileResult> {
+    return this.withContext(context, async (client) => {
+      const result = await client.query<{ id: string; name: string; currency_code: string | null; timezone: string }>(
+        `
+          update public.tenants
+          set display_name = $2, updated_at = now()
+          where id = $1
+          returning id::text, display_name as name, currency as currency_code, timezone
+        `,
+        [context.tenantId, name],
+      );
+      const tenant = result.rows[0];
+      if (!tenant) throw new Error("Tenant profile could not be updated.");
+      await client.query(
+        "select audit.write_audit_event('TENANT_PROFILE_UPDATED', 'tenant', $1::uuid, 'succeeded', null, $2::jsonb)",
+        [context.tenantId, JSON.stringify({ name })],
+      );
+      return {
+        id: tenant.id,
+        name: tenant.name,
+        currencyCode: tenant.currency_code ?? "INR",
+        timezone: tenant.timezone,
+      };
+    });
+  }
+
   private async getTenantInfo(client: PoolClient, tenantId: string): Promise<TenantInfoResult> {
     const result = await client.query<{ id: string; name: string; currency_code: string | null }>(
       `
@@ -116,6 +148,25 @@ export class TenantAdminDashboardRepository {
     return { id: row.id, name: row.name, currencyCode: row.currency_code ?? "INR" };
   }
 
+  private async getTenantProfileRow(client: PoolClient, tenantId: string): Promise<TenantProfileResult> {
+    const result = await client.query<{ id: string; name: string; currency_code: string | null; timezone: string }>(
+      `
+        select id::text, display_name as name, currency as currency_code, timezone
+        from public.tenants
+        where id = $1
+      `,
+      [tenantId],
+    );
+    const tenant = result.rows[0];
+    if (!tenant) throw new Error("Tenant profile could not be found.");
+    return {
+      id: tenant.id,
+      name: tenant.name,
+      currencyCode: tenant.currency_code ?? "INR",
+      timezone: tenant.timezone,
+    };
+  }
+
   private async getCurrentFinancialYear(
     client: PoolClient,
     tenantId: string,
@@ -128,7 +179,7 @@ export class TenantAdminDashboardRepository {
           and status <> 'cancelled'
           and current_date >= start_date
           and current_date <= end_date
-        order by start_date desc
+        order by (country_code = (select country from public.tenants where id = $1)) desc, start_date desc
         limit 1
       `,
       [tenantId],
@@ -270,8 +321,6 @@ export class TenantAdminDashboardRepository {
       employees_complete: boolean;
       clients_complete: boolean;
       services_complete: boolean;
-      work_groups_complete: boolean;
-      delivery_rules_complete: boolean;
     }>(
       `
         select
@@ -318,31 +367,7 @@ export class TenantAdminDashboardRepository {
             from public.services
             where tenant_id = $1
               and status = 'active'
-          ) as services_complete,
-          exists (
-            select 1
-            from public.work_groups wg
-            join public.work_group_memberships wgm
-              on wgm.work_group_id = wg.id
-             and wgm.tenant_id = wg.tenant_id
-             and wgm.status = 'active'
-            where wg.tenant_id = $1
-              and wg.status = 'active'
-          ) as work_groups_complete,
-          (
-            exists (
-              select 1
-              from public.sla_policies
-              where tenant_id = $1
-                and status = 'active'
-            )
-            or exists (
-              select 1
-              from public.compliance_calendar_rules
-              where tenant_id = $1
-                and status = 'active'
-            )
-          ) as delivery_rules_complete
+          ) as services_complete
       `,
       [tenantId],
     );
@@ -354,8 +379,6 @@ export class TenantAdminDashboardRepository {
       employeesComplete: Boolean(row?.employees_complete),
       clientsComplete: Boolean(row?.clients_complete),
       servicesComplete: Boolean(row?.services_complete),
-      workGroupsComplete: Boolean(row?.work_groups_complete),
-      deliveryRulesComplete: Boolean(row?.delivery_rules_complete),
     };
   }
 
@@ -427,5 +450,16 @@ export class TenantAdminDashboardRepository {
       workGroupName: row.work_group_name,
       assigneeCount: Number(row.assigned_employee_count),
     }));
+  }
+
+  private async withContext<T>(
+    context: TenantAdminRequestContext,
+    work: (client: PoolClient) => Promise<T>,
+  ): Promise<T> {
+    if (!this.pool) throw databaseNotConfigured();
+    return withDatabaseTransaction(this.pool, context, async (_tx, client) => {
+      await client.query("select set_config('app.tenant_id', $1, true)", [context.tenantId]);
+      return work(client);
+    });
   }
 }

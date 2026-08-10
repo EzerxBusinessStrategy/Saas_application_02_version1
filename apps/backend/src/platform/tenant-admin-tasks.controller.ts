@@ -18,18 +18,23 @@ import { ApiErrorResponseDto } from "../common/errors/api-error.dto";
 import { ZodValidationPipe } from "../common/validation/zod-validation.pipe";
 import {
   createTenantAdminTaskSchema,
+  decideTenantAdminTaskApprovalSchema,
   createTenantAdminEmployeeSchema,
   CreateTenantAdminEmployeeRequest,
   CreateTenantAdminTaskRequest,
+  TenantAdminTaskApprovalRequest,
   listTenantAdminTasksQuerySchema,
   ListTenantAdminTasksQuery,
   TenantAdminTaskItemDto,
   TenantAdminEmployeeOptionDto,
+  TenantAdminEmployeeEmailAvailabilityDto,
   TenantAdminEmployeesResponseDto,
   TenantAdminTaskOptionsResponseDto,
   TenantAdminTasksResponseDto,
   updateTenantAdminEmployeeCapacitySchema,
   UpdateTenantAdminEmployeeCapacityRequest,
+  updateTenantAdminEmployeeAssignmentSchema,
+  UpdateTenantAdminEmployeeAssignmentRequest,
   TenantAdminWorkGroupDto,
   TenantAdminWorkGroupsResponseDto,
   upsertTenantAdminWorkGroupSchema,
@@ -86,6 +91,21 @@ export class TenantAdminTasksController {
     return this.service.createTask(context, body);
   }
 
+  @Post(":taskId/approval")
+  @RequirePermissions("task.approve")
+  @ApiOperation({ summary: "Record the authenticated Tenant Admin's final task approval or return decision." })
+  @ApiOkResponse({ type: TenantAdminTaskItemDto })
+  @ApiUnauthorizedResponse({ type: ApiErrorResponseDto })
+  @ApiForbiddenResponse({ type: ApiErrorResponseDto })
+  @ApiServiceUnavailableResponse({ type: ApiErrorResponseDto })
+  decideTaskApproval(
+    @CurrentRequestContext() context: RequestContext,
+    @Param("taskId") taskId: string,
+    @Body(new ZodValidationPipe(decideTenantAdminTaskApprovalSchema)) body: TenantAdminTaskApprovalRequest,
+  ): Promise<TenantAdminTaskItemDto> {
+    return this.service.decideTaskApproval(context, taskId, body);
+  }
+
   @Post("employees")
   @RequirePermissions("task.create")
   @ApiOperation({ summary: "Create an active employee option for tenant task assignment." })
@@ -100,12 +120,35 @@ export class TenantAdminTasksController {
     return this.service.createEmployee(context, body);
   }
 
+  @Get("employees/email-availability")
+  @RequirePermissions("task.create")
+  @ApiOperation({ summary: "Check whether an employee email is available in the application database." })
+  @ApiOkResponse({ type: TenantAdminEmployeeEmailAvailabilityDto })
+  getEmployeeEmailAvailability(
+    @CurrentRequestContext() context: RequestContext,
+    @Query("email") email: string,
+  ) {
+    return this.service.getEmployeeEmailAvailability(context, email);
+  }
+
   @Get("employees")
   @RequirePermissions("employee.read")
   @ApiOperation({ summary: "Return tenant-scoped employees for task and workforce screens." })
   @ApiOkResponse({ type: TenantAdminEmployeesResponseDto })
   listEmployees(@CurrentRequestContext() context: RequestContext): Promise<TenantAdminEmployeesResponseDto> {
     return this.service.listEmployees(context);
+  }
+
+  @Patch("employees/:employeeId/assignment")
+  @RequirePermissions("employee.read")
+  @ApiOperation({ summary: "Update an employee's department, skills, level, and manager assignment." })
+  @ApiOkResponse({ type: TenantAdminEmployeeOptionDto })
+  updateEmployeeAssignment(
+    @CurrentRequestContext() context: RequestContext,
+    @Param("employeeId") employeeId: string,
+    @Body(new ZodValidationPipe(updateTenantAdminEmployeeAssignmentSchema)) body: UpdateTenantAdminEmployeeAssignmentRequest,
+  ): Promise<TenantAdminEmployeeOptionDto> {
+    return this.service.updateEmployeeAssignment(context, employeeId, body);
   }
 
   @Patch("employees/:employeeId/manager")

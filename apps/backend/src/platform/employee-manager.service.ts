@@ -5,6 +5,7 @@ import { databaseNotConfigured } from "../auth/auth-errors";
 import { DATABASE_POOL } from "../database/database.tokens";
 import { setTrustedDatabaseContext, withDatabaseTransaction } from "../database/transaction-context";
 import { TenantAdminTasksRepository } from "./tenant-admin-tasks.repository";
+import { publishTaskWorkflowNotification, resumeReturnedTaskTimer } from "./task-workflow-support";
 import { TenantAdminTaskItemDto } from "./tenant-admin-tasks.dto";
 import { requireEmployeeManagerContext } from "./employee-context";
 import {
@@ -95,9 +96,33 @@ export class EmployeeManagerService {
           join public.tenant_memberships tm on tm.tenant_id = e.tenant_id and tm.id = e.membership_id
           left join worked w on w.tenant_id = ls.tenant_id and w.task_id = ls.task_id and w.employee_id = ls.employee_id
           where t.tenant_id = $1 and t.status = 'manager_review'
+            and (
+              exists (
+                select 1
+                from public.work_group_memberships wgm
+                join public.employees manager_employee
+                  on manager_employee.tenant_id = wgm.tenant_id
+                 and manager_employee.id = wgm.employee_id
+                 and manager_employee.membership_id = $2
+                where wgm.tenant_id = t.tenant_id
+                  and wgm.work_group_id = t.work_group_id
+                  and wgm.group_role = 'manager'
+                  and wgm.status = 'active'
+              )
+              or exists (
+                select 1
+                from public.employee_manager_assignments ema
+                join public.employees manager_employee
+                  on manager_employee.tenant_id = ema.tenant_id
+                 and manager_employee.id = ema.manager_employee_id
+                 and manager_employee.membership_id = $2
+                where ema.tenant_id = t.tenant_id
+                  and ema.employee_id = ls.employee_id
+              )
+            )
           order by ls.submitted_at desc
         `,
-        [managerContext.tenantId],
+        [managerContext.tenantId, managerContext.membershipId],
       );
       return {
         tasks: result.rows.map((row) => ({
@@ -122,11 +147,35 @@ export class EmployeeManagerService {
           from public.task_submissions ts
           join public.tasks t on t.tenant_id = ts.tenant_id and t.id = ts.task_id
           where ts.tenant_id = $1 and ts.task_id = $2 and ts.status = 'submitted' and t.status = 'manager_review'
+            and (
+              exists (
+                select 1
+                from public.work_group_memberships wgm
+                join public.employees manager_employee
+                  on manager_employee.tenant_id = wgm.tenant_id
+                 and manager_employee.id = wgm.employee_id
+                 and manager_employee.membership_id = $3
+                where wgm.tenant_id = t.tenant_id
+                  and wgm.work_group_id = t.work_group_id
+                  and wgm.group_role = 'manager'
+                  and wgm.status = 'active'
+              )
+              or exists (
+                select 1
+                from public.employee_manager_assignments ema
+                join public.employees manager_employee
+                  on manager_employee.tenant_id = ema.tenant_id
+                 and manager_employee.id = ema.manager_employee_id
+                 and manager_employee.membership_id = $3
+                where ema.tenant_id = t.tenant_id
+                  and ema.employee_id = ts.employee_id
+              )
+            )
           order by ts.submitted_at desc
           limit 1
           for update of ts, t
         `,
-        [managerContext.tenantId, taskId],
+        [managerContext.tenantId, taskId, managerContext.membershipId],
       );
       const row = submission.rows[0];
       if (!row) throw new ConflictException({ code: "TASK_NOT_AWAITING_MANAGER_REVIEW", message: "This task is not awaiting manager review." });
@@ -143,6 +192,12 @@ export class EmployeeManagerService {
         approved ? "tenant_approval" : "returned",
         managerContext.membershipId,
       ]);
+      if (!approved) {
+        await client.query(
+          "update public.task_assignments set status = 'active', updated_at = now() where tenant_id = $1 and task_id = $2 and employee_id = $3",
+          [managerContext.tenantId, taskId, row.employee_id],
+        );
+      }
       await client.query(
         `
           insert into public.approvals (tenant_id, task_id, submission_id, approval_stage, decision, remarks, decided_by)
@@ -154,6 +209,48 @@ export class EmployeeManagerService {
         "select audit.write_audit_event($1, 'task', $2::uuid, 'succeeded', null, $3::jsonb)",
         [approved ? "MANAGER_APPROVED" : "MANAGER_RETURNED", taskId, JSON.stringify({ remarks: input.remarks || null, employeeId: row.employee_id })],
       );
+      const taskTitle = (await client.query<{ title: string }>(
+        "select title from public.tasks where tenant_id = $1 and id = $2",
+        [managerContext.tenantId, taskId],
+      )).rows[0]?.title ?? "Task";
+      if (approved) {
+        await publishTaskWorkflowNotification(client, {
+          tenantId: managerContext.tenantId,
+          actorUserId: managerContext.userId,
+          taskId,
+          employeeId: row.employee_id,
+          audience: "tenant_admins",
+          type: "TASK_AWAITING_TENANT_APPROVAL",
+          title: "Task awaiting final approval",
+          message: `Manager approved "${taskTitle}". Final Tenant Admin approval is required.`,
+          actionUrl: `/admin/tasks?task=${taskId}`,
+          eventKey: `task-awaiting-tenant-approval:${taskId}`,
+        });
+      } else {
+        const timerStarted = await resumeReturnedTaskTimer(client, managerContext.tenantId, taskId, row.employee_id);
+        if (timerStarted) {
+          await client.query(
+            "update public.tasks set status = 'in_progress', updated_by = $3, updated_at = now() where tenant_id = $1 and id = $2",
+            [managerContext.tenantId, taskId, managerContext.membershipId],
+          );
+          await client.query(
+            "select audit.write_audit_event('TASK_AUTO_RESUMED_AFTER_MANAGER_RETURN', 'task', $1::uuid, 'succeeded', null, $2::jsonb)",
+            [taskId, JSON.stringify({ employeeId: row.employee_id })],
+          );
+        }
+        await publishTaskWorkflowNotification(client, {
+          tenantId: managerContext.tenantId,
+          actorUserId: managerContext.userId,
+          taskId,
+          employeeId: row.employee_id,
+          audience: "employee",
+          type: "TASK_RETURNED_BY_MANAGER",
+          title: "Task returned for changes",
+          message: `"${taskTitle}" was returned. ${timerStarted ? "Your timer has resumed." : "Resume it when your current task is complete."}`,
+          actionUrl: `/employee/tasks?task=${taskId}`,
+          eventKey: `task-returned-by-manager:${taskId}`,
+        });
+      }
       return { ok: true };
     });
   }

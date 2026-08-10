@@ -1,33 +1,69 @@
 import { notFound } from "next/navigation";
-import { EmployeeDirectory } from "@/components/workforce/employee-directory";
-import { TenantDirectory } from "@/components/administration/tenant-management";
-import { TenantAnalyticsPage } from "@/components/administration/tenant-analytics";
-import { TenantPasswordPage } from "@/components/administration/tenant-password";
-import {
-  GlobalAuditLog,
-  PlatformConfiguration,
-  PlatformReports,
-} from "@/components/administration/platform-administration";
-import {
-  ClientDirectory,
-  WorkGroupDirectory,
-} from "@/components/tenant-administration/client-management";
-import { TenantServiceDirectory } from "@/components/tenant-administration/service-management";
-import {
-  ManagerDirectory,
-  TenantSettings,
-} from "@/components/tenant-administration/workforce-administration";
-import { TenantEmployeePerformancePage } from "@/components/tenant-administration/employee-performance";
-import { ClientPortal } from "@/components/operations/client-portal";
-import { EmployeeWorkspace } from "@/components/operations/employee-workspace";
-import { FinanceDocuments } from "@/components/operations/finance-documents";
-import { ManagerWorkspace } from "@/components/operations/manager-workspace";
-import { TenantGamificationSettings } from "@/components/operations/gamification-workflows";
-import { AccountPreferences } from "@/components/app-shell/account-preferences";
+import dynamic from "next/dynamic";
+import type { ComponentType } from "react";
 import { FeatureBoundary } from "@/components/shared/feature-boundary";
+import { SectionSkeleton } from "@/components/shared/section-skeleton";
 import { sectionAccess } from "@/lib/route-access";
 import { workspaceConfig } from "@/mocks/workspaces";
 import type { Workspace } from "@/types/domain";
+
+const dynamicSection = (load: () => Promise<{ default: ComponentType<any> }>) =>
+  dynamic(load, { loading: () => <SectionSkeleton /> });
+
+const EmployeeDirectory = dynamicSection(() =>
+  import("@/components/workforce/employee-directory").then((module) => ({ default: module.EmployeeDirectory })),
+);
+const TenantDirectory = dynamicSection(() =>
+  import("@/components/administration/tenant-management").then((module) => ({ default: module.TenantDirectory })),
+);
+const TenantAnalyticsPage = dynamicSection(() =>
+  import("@/components/administration/tenant-analytics").then((module) => ({ default: module.TenantAnalyticsPage })),
+);
+const TenantPasswordPage = dynamicSection(() =>
+  import("@/components/administration/tenant-password").then((module) => ({ default: module.TenantPasswordPage })),
+);
+const GlobalAuditLog = dynamicSection(() =>
+  import("@/components/administration/platform-administration").then((module) => ({ default: module.GlobalAuditLog })),
+);
+const PlatformConfiguration = dynamicSection(() =>
+  import("@/components/administration/platform-administration").then((module) => ({ default: module.PlatformConfiguration })),
+);
+const PlatformReports = dynamicSection(() =>
+  import("@/components/administration/platform-administration").then((module) => ({ default: module.PlatformReports })),
+);
+const ClientDirectory = dynamicSection(() =>
+  import("@/components/tenant-administration/client-management").then((module) => ({ default: module.ClientDirectory })),
+);
+const WorkGroupDirectory = dynamicSection(() =>
+  import("@/components/tenant-administration/client-management").then((module) => ({ default: module.WorkGroupDirectory })),
+);
+const TenantServiceDirectory = dynamicSection(() =>
+  import("@/components/tenant-administration/service-management").then((module) => ({ default: module.TenantServiceDirectory })),
+);
+const ManagerDirectory = dynamicSection(() =>
+  import("@/components/tenant-administration/workforce-administration").then((module) => ({ default: module.ManagerDirectory })),
+);
+const TenantSettings = dynamicSection(() =>
+  import("@/components/tenant-administration/workforce-administration").then((module) => ({ default: module.TenantSettings })),
+);
+const TenantEmployeePerformancePage = dynamicSection(() =>
+  import("@/components/tenant-administration/employee-performance").then((module) => ({ default: module.TenantEmployeePerformancePage })),
+);
+const ClientPortal = dynamicSection(() =>
+  import("@/components/operations/client-portal").then((module) => ({ default: module.ClientPortal })),
+);
+const EmployeeWorkspace = dynamicSection(() =>
+  import("@/components/operations/employee-workspace").then((module) => ({ default: module.EmployeeWorkspace })),
+);
+const FinanceDocuments = dynamicSection(() =>
+  import("@/components/operations/finance-documents").then((module) => ({ default: module.FinanceDocuments })),
+);
+const TenantGamificationSettings = dynamicSection(() =>
+  import("@/components/operations/gamification-workflows").then((module) => ({ default: module.TenantGamificationSettings })),
+);
+const AccountPreferences = dynamicSection(() =>
+  import("@/components/app-shell/account-preferences").then((module) => ({ default: module.AccountPreferences })),
+);
 
 export default async function Section({
   params,
@@ -121,43 +157,12 @@ export default async function Section({
     );
   }
   if (
-    workspace === "manager" &&
-    [
-      "clients",
-      "work-groups",
-      "employees",
-      "reviews",
-      "approvals",
-      "workload",
-      "manager-reports",
-      "notifications",
-      "profile",
-      "recognition",
-    ].includes(section)
-  ) {
-    const managerSection =
-      section === "manager-reports"
-        ? "reports"
-        : section === "work-groups"
-          ? "work-groups"
-          : section;
-    return (
-      <FeatureBoundary role={user.role} permissions={access?.permissions ?? []}>
-        <ManagerWorkspace
-          section={
-            managerSection as Parameters<typeof ManagerWorkspace>[0]["section"]
-          }
-        />
-      </FeatureBoundary>
-    );
-  }
-  if (
     workspace === "employee" &&
     ["clients", "assign-task", "task-reviews"].includes(section)
   ) {
     return (
       <EmployeeWorkspace
-        section={section as Parameters<typeof EmployeeWorkspace>[0]["section"]}
+        section={section as "clients" | "assign-task" | "task-reviews"}
       />
     );
   }
@@ -178,7 +183,15 @@ export default async function Section({
       <FeatureBoundary role={user.role} permissions={access?.permissions ?? []}>
         <EmployeeWorkspace
           section={
-            section as Parameters<typeof EmployeeWorkspace>[0]["section"]
+            section as
+              | "work-logs"
+              | "timesheet"
+              | "calendar"
+              | "notifications"
+              | "profile"
+              | "achievements"
+              | "recognition"
+              | "preferences"
           }
         />
       </FeatureBoundary>
@@ -196,7 +209,7 @@ export default async function Section({
     return (
       <FeatureBoundary role={user.role} permissions={access?.permissions ?? []}>
         <ClientPortal
-          section={section as Parameters<typeof ClientPortal>[0]["section"]}
+          section={section as "services" | "requests" | "profile" | "deliverables"}
         />
       </FeatureBoundary>
     );
@@ -211,7 +224,6 @@ export default async function Section({
     if (
       workspace === "admin" ||
       workspace === "client" ||
-      (workspace === "manager" && ["documents", "invoices"].includes(section)) ||
       (workspace === "employee" && section === "documents")
     ) {
       return (

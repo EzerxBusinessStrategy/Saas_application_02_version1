@@ -18,6 +18,7 @@ import {
   TenantRoleCode,
 } from "./access-admin.dto";
 import { AccessAdminRepository } from "./access-admin.repository";
+import { parseFinancialYearDate, suggestFinancialYear } from "../platform/financial-year-policy";
 import {
   invitationRoleNotAllowed,
   permissionDenied,
@@ -136,8 +137,14 @@ export class AccessAdminService {
     }
 
     // Date validation
-    const start = parseIsoDate(request.financialYear.startsOn);
-    const end = parseIsoDate(request.financialYear.endsOn);
+    let start: Date;
+    let end: Date;
+    try {
+      start = parseFinancialYearDate(request.financialYear.startsOn);
+      end = parseFinancialYearDate(request.financialYear.endsOn);
+    } catch {
+      throw new BadRequestException({ code: "INVALID_DATE", message: "Date is invalid." });
+    }
     if (start >= end) {
       throw new BadRequestException({
         code: "INVALID_FINANCIAL_YEAR_DATES",
@@ -189,21 +196,7 @@ export class AccessAdminService {
   }
 
   private async isTenantAdminEmailTaken(context: RequestContext, normalizedEmail: string): Promise<boolean> {
-    if (await this.repository.userEmailExists(context, normalizedEmail)) return true;
-    if (!this.config.supabaseUrl || !this.config.supabaseAdminKey) {
-      throw new ServiceUnavailableException({ code: "AUTH_PROVISIONING_UNAVAILABLE", message: "Tenant Administrator account lookup is unavailable." });
-    }
-    const client = createClient(this.config.supabaseUrl, this.config.supabaseAdminKey, {
-      auth: { autoRefreshToken: false, persistSession: false },
-    });
-    for (let page = 1; page <= 100; page += 1) {
-      const { data, error } = await client.auth.admin.listUsers({ page, perPage: 1000 });
-      if (error) throw new ServiceUnavailableException({ code: "AUTH_PROVISIONING_UNAVAILABLE", message: "Tenant Administrator account lookup is unavailable." });
-      const users = data.users ?? [];
-      if (users.some((user) => normalizeEmail(user.email ?? "") === normalizedEmail)) return true;
-      if (users.length < 1000) return false;
-    }
-    throw new ServiceUnavailableException({ code: "AUTH_PROVISIONING_UNAVAILABLE", message: "Tenant Administrator account lookup is unavailable." });
+    return this.repository.userEmailExists(context, normalizedEmail);
   }
 
   async getTenantCreationOptions(
@@ -226,7 +219,13 @@ export class AccessAdminService {
       : undefined;
     if (!selected) return { countries };
 
-    const suggested = suggestFinancialYear(selected, incorporationDate);
+    const suggested = suggestFinancialYear({
+      policyMode: selected.policy_mode,
+      startMonth: selected.start_month,
+      startDay: selected.start_day,
+      endMonth: selected.end_month,
+      endDay: selected.end_day,
+    }, incorporationDate);
     return {
       countries,
       countryCode: selected.country_code,
@@ -520,61 +519,6 @@ function countryName(countryCode: string): string {
   return names[countryCode] ?? countryCode;
 }
 
-function suggestFinancialYear(
-  template: {
-    readonly policy_mode: string;
-    readonly start_month: number;
-    readonly start_day: number;
-    readonly end_month: number;
-    readonly end_day: number;
-  },
-  incorporationDate?: string,
-): { readonly label: string; readonly startsOn: string; readonly endsOn: string } | null {
-  const today = new Date();
-  if (template.policy_mode === "INCORPORATION_DERIVED") {
-    if (!incorporationDate) return null;
-    const incorporated = parseIsoDate(incorporationDate);
-    const anniversaryYear = incorporated.getUTCFullYear() + 1;
-    const endsOn = lastDayOfMonth(anniversaryYear, incorporated.getUTCMonth() + 1);
-    return {
-      label: `FY ending ${endsOn.slice(0, 7)}`,
-      startsOn: incorporationDate,
-      endsOn,
-    };
-  }
-
-  const startYear =
-    today.getUTCMonth() + 1 > template.start_month ||
-      (today.getUTCMonth() + 1 === template.start_month && today.getUTCDate() >= template.start_day)
-      ? today.getUTCFullYear()
-      : today.getUTCFullYear() - 1;
-  const endYear = template.end_month < template.start_month ? startYear + 1 : startYear;
-  const startsOn = iso(startYear, template.start_month, template.start_day);
-  const endsOn = iso(endYear, template.end_month, template.end_day);
-  return {
-    label: template.start_month === 4 && template.end_month === 3
-      ? `FY ${startYear}-${String(endYear).slice(2)}`
-      : `FY ${startYear}`,
-    startsOn,
-    endsOn,
-  };
-}
-
-function parseIsoDate(value: string): Date {
-  const parsed = new Date(`${value}T00:00:00.000Z`);
-  if (Number.isNaN(parsed.getTime())) {
-    throw new BadRequestException({ code: "INVALID_DATE", message: "Date is invalid." });
-  }
-  return parsed;
-}
-
-function iso(year: number, month: number, day: number): string {
-  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-}
-
-function lastDayOfMonth(year: number, month: number): string {
-  return iso(year, month, new Date(Date.UTC(year, month, 0)).getUTCDate());
-}
 
 function isPgUniqueError(error: unknown): boolean {
   return typeof error === "object" && error !== null && "code" in error && error.code === "23505";

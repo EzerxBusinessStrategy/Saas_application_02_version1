@@ -4,10 +4,14 @@ import { Pool, PoolClient } from "pg";
 import { databaseNotConfigured } from "../auth/auth-errors";
 import { DATABASE_POOL } from "../database/database.tokens";
 import { withDatabaseTransaction } from "../database/transaction-context";
+import { suggestFinancialYear } from "./financial-year-policy";
 import { TenantAdminRequestContext } from "./tenant-admin-context";
+import { publishTaskWorkflowNotification, resumeReturnedTaskTimer } from "./task-workflow-support";
 import {
   CreateTenantAdminEmployeeRequest,
   CreateTenantAdminTaskRequest,
+  TenantAdminTaskApprovalRequest,
+  UpdateTenantAdminEmployeeAssignmentRequest,
   UpsertTenantAdminWorkGroupRequest,
 } from "./tenant-admin-tasks.dto";
 
@@ -19,6 +23,8 @@ export type TenantAdminTaskOption = {
 export type TenantAdminEmployeeOption = TenantAdminTaskOption & {
   readonly employeeCode: string | null;
   readonly email: string;
+  readonly departmentId: string | null;
+  readonly departmentName: string | null;
   readonly isManager: boolean;
   readonly skills: readonly string[];
   readonly categories: readonly string[];
@@ -117,6 +123,23 @@ type TaskPricing = {
   readonly currencyCode: string;
 };
 
+type FinancialYearTemplate = {
+  readonly id: string;
+  readonly countryCode: string;
+  readonly policyMode: string;
+  readonly startMonth: number;
+  readonly startDay: number;
+  readonly endMonth: number;
+  readonly endDay: number;
+};
+
+type TaskFinancialYear = {
+  readonly id: string;
+  readonly label: string;
+  readonly startsOn: string;
+  readonly endsOn: string;
+};
+
 @Injectable()
 export class TenantAdminTasksRepository {
   constructor(@Inject(DATABASE_POOL) private readonly pool: Pool | null) {}
@@ -125,7 +148,7 @@ export class TenantAdminTasksRepository {
     return this.withContext(context, async (client) => ({
       clients: await this.getClients(client, context.tenantId),
       services: await this.getServices(client, context.tenantId),
-      employees: await this.getEmployees(client, context.tenantId),
+      employees: await this.getEmployeesForCurrentSchema(client, context.tenantId),
       workGroups: await this.getWorkGroups(client, context.tenantId),
       rateItems: await this.getRateItems(client, context.tenantId),
       countries: await this.getTaskCountries(client, context.tenantId),
@@ -134,6 +157,26 @@ export class TenantAdminTasksRepository {
 
   async listTasks(context: TenantAdminRequestContext, clientId?: string): Promise<readonly TenantAdminTaskRow[]> {
     return this.withContext(context, (client) => this.getTasks(client, context.tenantId, clientId));
+  }
+
+  async listEmployees(context: TenantAdminRequestContext): Promise<{
+    readonly employees: readonly TenantAdminEmployeeOption[];
+    readonly departments: readonly TenantAdminTaskOption[];
+  }> {
+    return this.withContext(context, async (client) => ({
+      employees: await this.getEmployeesForCurrentSchema(client, context.tenantId),
+      departments: await this.getDepartments(client, context.tenantId),
+    }));
+  }
+
+  async userEmailExists(context: TenantAdminRequestContext, normalizedEmail: string): Promise<boolean> {
+    return this.withContext(context, async (client) => {
+      const result = await client.query<{ exists: boolean }>(
+        "select private.user_email_exists($1::text) as exists",
+        [normalizedEmail],
+      );
+      return result.rows[0]?.exists ?? false;
+    });
   }
 
   async createEmployee(
@@ -234,7 +277,15 @@ export class TenantAdminTasksRepository {
       if (input.skills.length) {
         await this.upsertEmployeeSkills(client, context.tenantId, employee.id, input.skills);
       }
-      if (input.isManager) await this.assignManagerRole(client, context, employee.id);
+      if (input.isManager) {
+        await this.assignManagerRole(client, context, employee.id);
+        await this.notifyEmployeeManagerRoleChanged(
+          client,
+          context,
+          await this.getEmployeeForRoleChange(client, context.tenantId, employee.id),
+          true,
+        );
+      }
 
       await client.query(
         "select audit.write_audit_event('EMPLOYEE_CREATED', 'employee', $1::uuid, 'succeeded', null, $2::jsonb)",
@@ -251,8 +302,12 @@ export class TenantAdminTasksRepository {
   ): Promise<TenantAdminEmployeeOption> {
     return this.withContext(context, async (client) => {
       const employee = await this.getEmployeeForRoleChange(client, context.tenantId, employeeId);
+      if (employee.is_manager === isManager) {
+        return this.getEmployeeOptionOrThrow(client, context.tenantId, employee.id);
+      }
       if (isManager) await this.assignManagerRole(client, context, employeeId);
-      else await this.removeManagerRole(client, context, employee.membership_id);
+      else await this.removeManagerRole(client, context, employee.membership_id, employeeId);
+      await this.notifyEmployeeManagerRoleChanged(client, context, employee, isManager);
       await client.query(
         "select audit.write_audit_event($1, 'employee', $2::uuid, 'succeeded', null, $3::jsonb)",
         [isManager ? "EMPLOYEE_PROMOTED_TO_MANAGER" : "MANAGER_ROLE_REMOVED", employeeId, JSON.stringify({ employeeCode: employee.employee_code })],
@@ -291,8 +346,97 @@ export class TenantAdminTasksRepository {
     });
   }
 
-  async listEmployees(context: TenantAdminRequestContext): Promise<readonly TenantAdminEmployeeOption[]> {
-    return this.withContext(context, (client) => this.getEmployees(client, context.tenantId));
+  async updateEmployeeAssignment(
+    context: TenantAdminRequestContext,
+    employeeId: string,
+    input: UpdateTenantAdminEmployeeAssignmentRequest,
+  ): Promise<TenantAdminEmployeeOption> {
+    return this.withContext(context, async (client) => {
+      await this.getEmployeeForRoleChange(client, context.tenantId, employeeId);
+
+      if (input.departmentId !== undefined && input.departmentId !== null) {
+        const department = await client.query(
+          "select 1 from public.departments where tenant_id = $1 and id = $2 and status = 'active'",
+          [context.tenantId, input.departmentId],
+        );
+        if (!department.rowCount) {
+          throw new BadRequestException({ code: "DEPARTMENT_NOT_FOUND", message: "Select an active department in this tenant." });
+        }
+      }
+
+      if (input.managerId !== undefined && input.managerId !== null) {
+        if (input.managerId === employeeId) {
+          throw new BadRequestException({ code: "EMPLOYEE_MANAGER_SELF", message: "An employee cannot be their own manager." });
+        }
+        const manager = await client.query(
+          `
+            select 1
+            from public.employees e
+            join public.membership_roles mr
+              on mr.tenant_id = e.tenant_id
+             and mr.membership_id = e.membership_id
+             and mr.status = 'active'
+            join public.roles r on r.id = mr.role_id and r.code = 'MANAGER'
+            where e.tenant_id = $1
+              and e.id = $2
+              and e.employment_status = 'active'
+          `,
+          [context.tenantId, input.managerId],
+        );
+        if (!manager.rowCount) {
+          throw new BadRequestException({ code: "MANAGER_NOT_FOUND", message: "Select an active manager in this tenant." });
+        }
+      }
+
+      if (input.departmentId !== undefined || input.experienceLevel !== undefined) {
+        await client.query(
+          `
+            update public.employees
+            set department_id = case when $3 then $4::uuid else department_id end,
+                experience_level = case when $5 then $6::text else experience_level end,
+                updated_at = now()
+            where tenant_id = $1 and id = $2 and employment_status = 'active'
+          `,
+          [
+            context.tenantId,
+            employeeId,
+            input.departmentId !== undefined,
+            input.departmentId ?? null,
+            input.experienceLevel !== undefined,
+            input.experienceLevel ?? null,
+          ],
+        );
+      }
+
+      if (input.skills !== undefined) {
+        await client.query("delete from public.employee_skills where tenant_id = $1 and employee_id = $2", [context.tenantId, employeeId]);
+        if (input.skills.length) await this.upsertEmployeeSkills(client, context.tenantId, employeeId, input.skills);
+      }
+
+      if (input.managerId !== undefined) {
+        if (input.managerId === null) {
+          await client.query("delete from public.employee_manager_assignments where tenant_id = $1 and employee_id = $2", [context.tenantId, employeeId]);
+        } else {
+          await client.query(
+            `
+              insert into public.employee_manager_assignments (tenant_id, employee_id, manager_employee_id, assigned_by)
+              values ($1, $2, $3, $4)
+              on conflict (tenant_id, employee_id) do update
+                set manager_employee_id = excluded.manager_employee_id,
+                    assigned_by = excluded.assigned_by,
+                    updated_at = now()
+            `,
+            [context.tenantId, employeeId, input.managerId, context.membershipId],
+          );
+        }
+      }
+
+      await client.query(
+        "select audit.write_audit_event('EMPLOYEE_ASSIGNMENT_UPDATED', 'employee', $1::uuid, 'succeeded', null, $2::jsonb)",
+        [employeeId, JSON.stringify(input)],
+      );
+      return this.getEmployeeOptionOrThrow(client, context.tenantId, employeeId);
+    });
   }
 
   async listWorkGroups(context: TenantAdminRequestContext): Promise<readonly TenantAdminWorkGroupRow[]> {
@@ -304,6 +448,7 @@ export class TenantAdminTasksRepository {
     input: UpsertTenantAdminWorkGroupRequest,
   ): Promise<TenantAdminWorkGroupRow> {
     return this.withContext(context, async (client) => {
+      await this.assertManagerEmployee(client, context.tenantId, input.managerEmployeeId);
       const memberIds = await this.resolveEmployeeIds(
         client,
         context.tenantId,
@@ -341,6 +486,7 @@ export class TenantAdminTasksRepository {
     input: UpsertTenantAdminWorkGroupRequest,
   ): Promise<TenantAdminWorkGroupRow> {
     return this.withContext(context, async (client) => {
+      await this.assertManagerEmployee(client, context.tenantId, input.managerEmployeeId);
       const memberIds = await this.resolveEmployeeIds(
         client,
         context.tenantId,
@@ -453,7 +599,7 @@ export class TenantAdminTasksRepository {
         input.billing.discountValue,
       );
 
-      for (const employeeId of employeeIds) {
+      if (employeeIds.length) {
         await client.query(
           `
             insert into public.task_assignments (
@@ -463,13 +609,14 @@ export class TenantAdminTasksRepository {
               assigned_by,
               assignment_source
             )
-            values ($1, $2, $3, $4, $5)
+            select $1, $2, employee_id, $4, $5
+            from unnest($3::uuid[]) as selected(employee_id)
             on conflict (tenant_id, task_id, employee_id) do nothing
           `,
           [
             context.tenantId,
             taskId,
-            employeeId,
+            employeeIds,
             context.membershipId,
             input.workGroupId && !input.employeeIds.length ? "work_group" : "direct",
           ],
@@ -501,6 +648,170 @@ export class TenantAdminTasksRepository {
     });
   }
 
+  async decideTaskApproval(
+    context: TenantAdminRequestContext,
+    taskId: string,
+    input: TenantAdminTaskApprovalRequest,
+  ): Promise<TenantAdminTaskRow> {
+    return this.withContext(context, async (client) => {
+      const submissionResult = await client.query<{ id: string; employee_id: string }>(
+        `
+          select ts.id::text, ts.employee_id::text
+          from public.tasks t
+          join public.task_submissions ts
+            on ts.tenant_id = t.tenant_id
+           and ts.task_id = t.id
+          where t.tenant_id = $1
+            and t.id = $2
+            and t.status = 'tenant_approval'
+            and ts.status = 'manager_approved'
+          order by ts.submitted_at desc
+          limit 1
+          for update of t, ts
+        `,
+        [context.tenantId, taskId],
+      );
+      const submission = submissionResult.rows[0];
+      if (!submission) {
+        throw new ConflictException({
+          code: "TASK_NOT_AWAITING_TENANT_APPROVAL",
+          message: "This task is not awaiting Tenant Admin approval.",
+        });
+      }
+
+      const approved = input.decision === "approve";
+      const taskStatus = approved ? "completed" : "returned";
+      const billingStatus = approved ? "ready_for_billing" : "pending_completion";
+      await client.query(
+        `
+          update public.task_submissions
+          set status = $3,
+              remarks = coalesce(nullif($4, ''), remarks),
+              updated_at = now()
+          where tenant_id = $1
+            and id = $2
+        `,
+        [context.tenantId, submission.id, approved ? "tenant_approved" : "returned", input.remarks],
+      );
+      await client.query(
+        `
+          update public.task_assignments
+          set status = $4,
+              updated_at = now()
+          where tenant_id = $1
+            and task_id = $2
+            and employee_id = $3
+        `,
+        [context.tenantId, taskId, submission.employee_id, approved ? "completed" : "active"],
+      );
+      await client.query(
+        `
+          update public.tasks
+          set status = $3,
+              billable_status = $4,
+              actual_completed_at = case when $3 = 'completed' then coalesce(actual_completed_at, clock_timestamp()) else actual_completed_at end,
+              updated_by = $5,
+              updated_at = now()
+          where tenant_id = $1
+            and id = $2
+        `,
+        [context.tenantId, taskId, taskStatus, billingStatus, context.membershipId],
+      );
+      const billableEntry = await client.query<{ id: string }>(
+        `
+          update public.billable_task_entries
+          set status = $3,
+              approved_by = case when $3 = 'approved_for_invoice' then $4 else null end,
+              approved_at = case when $3 = 'approved_for_invoice' then clock_timestamp() else null end,
+              updated_at = now()
+          where tenant_id = $1
+            and task_id = $2
+            and status = 'pending_review'
+          returning id::text
+        `,
+        [context.tenantId, taskId, approved ? "approved_for_invoice" : "pending_review", context.membershipId],
+      );
+      if (approved && !billableEntry.rows[0]) {
+        throw new ConflictException({
+          code: "TASK_BILLING_ENTRY_NOT_AVAILABLE",
+          message: "The task charge is not available for invoicing.",
+        });
+      }
+      await client.query(
+        `
+          insert into public.approvals (
+            tenant_id, task_id, submission_id, approval_stage, decision, remarks, decided_by
+          )
+          values ($1, $2, $3, 'tenant_admin_approval', $4, nullif($5, ''), $6)
+        `,
+        [context.tenantId, taskId, submission.id, approved ? "approved" : "returned", input.remarks, context.membershipId],
+      );
+      await client.query(
+        "select audit.write_audit_event($1, 'task', $2::uuid, 'succeeded', null, $3::jsonb)",
+        [
+          approved ? "TENANT_TASK_APPROVED" : "TENANT_TASK_RETURNED",
+          taskId,
+          JSON.stringify({ remarks: input.remarks || null, employeeId: submission.employee_id }),
+        ],
+      );
+      const task = await this.getTasks(client, context.tenantId, undefined, taskId);
+      if (!task[0]) {
+        throw new ConflictException({ code: "TASK_LOAD_FAILED", message: "Task could not be loaded after approval." });
+      }
+      if (approved) {
+        await publishTaskWorkflowNotification(client, {
+          tenantId: context.tenantId,
+          actorUserId: context.userId,
+          taskId,
+          employeeId: submission.employee_id,
+          audience: "employee",
+          type: "TASK_COMPLETED",
+          title: "Task approved",
+          message: `"${task[0].title}" is complete.`,
+          actionUrl: `/employee/tasks?task=${taskId}`,
+          eventKey: `task-completed:${taskId}`,
+        });
+        await publishTaskWorkflowNotification(client, {
+          tenantId: context.tenantId,
+          actorUserId: context.userId,
+          taskId,
+          employeeId: submission.employee_id,
+          audience: "tenant_admins",
+          type: "INVOICE_READY_TO_GENERATE",
+          title: "Invoice ready to generate",
+          message: `"${task[0].title}" is complete and ready to invoice.`,
+          actionUrl: "/admin/invoices",
+          eventKey: `invoice-ready:${taskId}`,
+        });
+      } else {
+        const timerStarted = await resumeReturnedTaskTimer(client, context.tenantId, taskId, submission.employee_id);
+        if (timerStarted) {
+          await client.query(
+            "update public.tasks set status = 'in_progress', updated_by = $3, updated_at = now() where tenant_id = $1 and id = $2",
+            [context.tenantId, taskId, context.membershipId],
+          );
+          await client.query(
+            "select audit.write_audit_event('TASK_AUTO_RESUMED_AFTER_TENANT_RETURN', 'task', $1::uuid, 'succeeded', null, $2::jsonb)",
+            [taskId, JSON.stringify({ employeeId: submission.employee_id })],
+          );
+        }
+        await publishTaskWorkflowNotification(client, {
+          tenantId: context.tenantId,
+          actorUserId: context.userId,
+          taskId,
+          employeeId: submission.employee_id,
+          audience: "employee",
+          type: "TASK_RETURNED_BY_TENANT",
+          title: "Task returned for changes",
+          message: `"${task[0].title}" was returned. ${timerStarted ? "Your timer has resumed." : "Resume it when your current task is complete."}`,
+          actionUrl: `/employee/tasks?task=${taskId}`,
+          eventKey: `task-returned-by-tenant:${taskId}`,
+        });
+      }
+      return task[0];
+    });
+  }
+
   private async getClients(client: PoolClient, tenantId: string): Promise<readonly TenantAdminTaskOption[]> {
     const result = await client.query<{ id: string; name: string }>(
       `
@@ -529,12 +840,133 @@ export class TenantAdminTasksRepository {
     return result.rows;
   }
 
+  private async getDepartments(client: PoolClient, tenantId: string): Promise<readonly TenantAdminTaskOption[]> {
+    const result = await client.query<{ id: string; name: string }>(
+      `
+        select id::text, name
+        from public.departments
+        where tenant_id = $1 and status = 'active'
+        order by name asc
+      `,
+      [tenantId],
+    );
+    return result.rows;
+  }
+
+  private async getEmployeesForCurrentSchema(
+    client: PoolClient,
+    tenantId: string,
+  ): Promise<readonly TenantAdminEmployeeOption[]> {
+    const result = await client.query<{ available: boolean }>(
+      "select to_regclass('public.employee_manager_assignments') is not null as available",
+    );
+    return result.rows[0]?.available
+      ? this.getEmployees(client, tenantId)
+      : this.getEmployeesWithoutDirectManagerAssignments(client, tenantId);
+  }
+
+  private async getEmployeesWithoutDirectManagerAssignments(
+    client: PoolClient,
+    tenantId: string,
+  ): Promise<readonly TenantAdminEmployeeOption[]> {
+    const result = await client.query<{
+      id: string;
+      name: string;
+      employee_code: string | null;
+      email: string;
+      department_id: string | null;
+      department_name: string | null;
+      is_manager: boolean;
+      default_capacity_minutes_per_week: number | null;
+      skills: string[] | null;
+      categories: string[] | null;
+      experience_level: "junior" | "mid" | "senior" | "lead" | null;
+      active_tasks: string;
+      employment_status: string;
+    }>(
+      `
+        select
+          e.id::text,
+          coalesce(tm.display_name, e.employee_code) as name,
+          e.employee_code,
+          u.email,
+          e.department_id::text as department_id,
+          d.name as department_name,
+          e.default_capacity_minutes_per_week,
+          e.experience_level,
+          e.employment_status,
+          exists (
+            select 1
+            from public.membership_roles mr
+            join public.roles r on r.id = mr.role_id and r.code = 'MANAGER'
+            where mr.tenant_id = e.tenant_id
+              and mr.membership_id = e.membership_id
+              and mr.status = 'active'
+          ) as is_manager,
+          coalesce(skill_data.skills, '{}'::text[]) as skills,
+          coalesce(skill_data.categories, '{}'::text[]) as categories,
+          (
+            select count(distinct ta.task_id)::int
+            from public.task_assignments ta
+            where ta.tenant_id = e.tenant_id
+              and ta.employee_id = e.id
+              and ta.status = 'active'
+          )::text as active_tasks
+        from public.employees e
+        join public.tenant_memberships tm
+          on tm.id = e.membership_id
+         and tm.tenant_id = e.tenant_id
+        join public.users u on u.id = tm.user_id
+        left join public.departments d
+          on d.tenant_id = e.tenant_id
+         and d.id = e.department_id
+        left join lateral (
+          select
+            array_agg(distinct s.name order by s.name) as skills,
+            array_agg(distinct s.category order by s.category)
+              filter (where s.category is not null and s.category <> '') as categories
+          from public.employee_skills es
+          join public.skills s
+            on s.id = es.skill_id
+           and s.tenant_id = es.tenant_id
+           and s.status = 'active'
+          where es.tenant_id = e.tenant_id
+            and es.employee_id = e.id
+        ) skill_data on true
+        where e.tenant_id = $1
+          and e.employment_status = 'active'
+        order by coalesce(tm.display_name, e.employee_code) asc
+      `,
+      [tenantId],
+    );
+    return result.rows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      employeeCode: row.employee_code,
+      email: row.email,
+      departmentId: row.department_id,
+      departmentName: row.department_name,
+      isManager: row.is_manager,
+      skills: row.skills ?? [],
+      categories: row.categories ?? [],
+      experienceLevel: row.experience_level,
+      managerId: null,
+      managerName: null,
+      activeTasks: Number(row.active_tasks),
+      workGroups: [],
+      employmentStatus: row.employment_status,
+      weeklyCapacityHours: row.default_capacity_minutes_per_week ? Math.max(1, Math.round(row.default_capacity_minutes_per_week / 60)) : 40,
+    }));
+  }
+
   private async getEmployees(client: PoolClient, tenantId: string): Promise<readonly TenantAdminEmployeeOption[]> {
     const result = await client.query<{
       id: string;
       name: string;
       employee_code: string | null;
       email: string;
+      department_id: string | null;
+      department_name: string | null;
       is_manager: boolean;
       default_capacity_minutes_per_week: number | null;
       skills: string[] | null;
@@ -552,6 +984,8 @@ export class TenantAdminTasksRepository {
           coalesce(tm.display_name, e.employee_code) as name,
           e.employee_code,
           u.email,
+          e.department_id::text as department_id,
+          d.name as department_name,
           e.default_capacity_minutes_per_week,
           e.experience_level,
           e.employment_status,
@@ -565,8 +999,8 @@ export class TenantAdminTasksRepository {
           ) as is_manager,
           coalesce(skill_data.skills, '{}'::text[]) as skills,
           coalesce(skill_data.categories, '{}'::text[]) as categories,
-          manager_data.manager_id,
-          manager_data.manager_name,
+          coalesce(direct_manager.id::text, manager_data.manager_id) as manager_id,
+          coalesce(direct_manager_tm.display_name, direct_manager.employee_code, manager_data.manager_name) as manager_name,
           coalesce(task_data.active_tasks, 0)::text as active_tasks,
           coalesce(work_group_data.work_groups, '[]'::jsonb) as work_groups
         from public.employees e
@@ -575,6 +1009,19 @@ export class TenantAdminTasksRepository {
          and tm.tenant_id = e.tenant_id
         join public.users u
           on u.id = tm.user_id
+        left join public.departments d
+          on d.tenant_id = e.tenant_id
+         and d.id = e.department_id
+        left join public.employee_manager_assignments ema
+          on ema.tenant_id = e.tenant_id
+         and ema.employee_id = e.id
+        left join public.employees direct_manager
+          on direct_manager.tenant_id = ema.tenant_id
+         and direct_manager.id = ema.manager_employee_id
+         and direct_manager.employment_status = 'active'
+        left join public.tenant_memberships direct_manager_tm
+          on direct_manager_tm.tenant_id = direct_manager.tenant_id
+         and direct_manager_tm.id = direct_manager.membership_id
         left join lateral (
           select
             array_agg(distinct s.name order by s.name) as skills,
@@ -643,6 +1090,8 @@ export class TenantAdminTasksRepository {
       name: row.name,
       employeeCode: row.employee_code,
       email: row.email,
+      departmentId: row.department_id,
+      departmentName: row.department_name,
       isManager: row.is_manager,
       skills: row.skills ?? [],
       categories: row.categories ?? [],
@@ -661,18 +1110,41 @@ export class TenantAdminTasksRepository {
     tenantId: string,
     employeeId: string,
   ): Promise<TenantAdminEmployeeOption> {
-    const employee = (await this.getEmployees(client, tenantId)).find((item) => item.id === employeeId);
+    const employee = (await this.getEmployeesForCurrentSchema(client, tenantId)).find((item) => item.id === employeeId);
     if (!employee) throw new ConflictException({ code: "EMPLOYEE_NOT_FOUND", message: "Employee could not be found." });
     return employee;
   }
 
   private async getEmployeeForRoleChange(client: PoolClient, tenantId: string, employeeId: string) {
-    const result = await client.query<{ id: string; name: string; employee_code: string | null; membership_id: string; default_capacity_minutes_per_week: number | null }>(
+    const result = await client.query<{
+      id: string;
+      name: string;
+      employee_code: string | null;
+      membership_id: string;
+      user_id: string;
+      is_manager: boolean;
+      default_capacity_minutes_per_week: number | null;
+    }>(
       `
-        select e.id::text, coalesce(tm.display_name, e.employee_code) as name, e.employee_code, e.membership_id::text, e.default_capacity_minutes_per_week
+        select
+          e.id::text,
+          coalesce(tm.display_name, e.employee_code) as name,
+          e.employee_code,
+          e.membership_id::text,
+          tm.user_id::text,
+          e.default_capacity_minutes_per_week,
+          exists (
+            select 1
+            from public.membership_roles mr
+            join public.roles r on r.id = mr.role_id and r.code = 'MANAGER'
+            where mr.tenant_id = e.tenant_id
+              and mr.membership_id = e.membership_id
+              and mr.status = 'active'
+          ) as is_manager
         from public.employees e
         join public.tenant_memberships tm on tm.id = e.membership_id and tm.tenant_id = e.tenant_id
         where e.tenant_id = $1 and e.id = $2 and e.employment_status = 'active'
+        for update of e
       `,
       [tenantId, employeeId],
     );
@@ -699,7 +1171,7 @@ export class TenantAdminTasksRepository {
     if (!result.rowCount) throw new ConflictException({ code: "MANAGER_ROLE_MISSING", message: "Manager role is not configured." });
   }
 
-  private async removeManagerRole(client: PoolClient, context: TenantAdminRequestContext, membershipId: string): Promise<void> {
+  private async removeManagerRole(client: PoolClient, context: TenantAdminRequestContext, membershipId: string, employeeId: string): Promise<void> {
     await client.query(
       `
         update public.membership_roles mr
@@ -714,6 +1186,49 @@ export class TenantAdminTasksRepository {
           and mr.status = 'active'
       `,
       [context.tenantId, membershipId, context.membershipId],
+    );
+    await client.query(
+      "delete from public.employee_manager_assignments where tenant_id = $1 and manager_employee_id = $2",
+      [context.tenantId, employeeId],
+    );
+  }
+
+  private async notifyEmployeeManagerRoleChanged(
+    client: PoolClient,
+    context: TenantAdminRequestContext,
+    employee: { readonly id: string; readonly user_id: string },
+    isManager: boolean,
+  ): Promise<void> {
+    await client.query(
+      `
+        with notification_row as (
+          insert into public.notifications (
+            type, title, message, severity, tenant_id, actor_user_id,
+            entity_type, entity_id, action_url, metadata, idempotency_key
+          )
+          values (
+            $1, $2, $3, 'SUCCESS', $4, $5,
+            'employee', $6::uuid, '/employee', jsonb_build_object('isManager', $7::boolean), $8
+          )
+          returning id
+        )
+        insert into public.notification_recipients (notification_id, recipient_user_id)
+        select id, $9::uuid from notification_row
+        on conflict (notification_id, recipient_user_id) do nothing
+      `,
+      [
+        isManager ? "EMPLOYEE_PROMOTED_TO_MANAGER" : "EMPLOYEE_MANAGER_ACCESS_REMOVED",
+        isManager ? "Manager access enabled" : "Manager access removed",
+        isManager
+          ? "Your administrator promoted you to Manager. Manager tools are now available in your employee portal."
+          : "Your administrator removed your Manager access. Your employee tasks and profile remain available.",
+        context.tenantId,
+        context.userId,
+        employee.id,
+        isManager,
+        `manager-role:${employee.id}:${isManager ? "enabled" : "disabled"}:${randomUUID()}`,
+        employee.user_id,
+      ],
     );
   }
 
@@ -824,6 +1339,8 @@ export class TenantAdminTasksRepository {
           name: member.name,
           employeeCode: member.employeeCode,
           email: member.email,
+          departmentId: null,
+          departmentName: null,
           isManager: member.id === row.manager_employee_id,
           skills: [],
           categories: [],
@@ -877,6 +1394,7 @@ export class TenantAdminTasksRepository {
         where rci.tenant_id = $1
           and rci.status = 'active'
           and rc.status = 'active'
+          and current_date between rc.effective_from and coalesce(rc.effective_to, 'infinity'::date)
         order by rc.client_id nulls first, rci.task_type asc, rci.rate_amount asc
       `,
       [tenantId],
@@ -906,43 +1424,157 @@ export class TenantAdminTasksRepository {
   }
 
   private async getTaskCountries(client: PoolClient, tenantId: string): Promise<readonly TenantAdminTaskCountryOption[]> {
-    const result = await client.query<{
+    const templates = await client.query<{
+      id: string;
       country_code: string;
-      country_name: string | null;
-      financial_year_id: string;
-      financial_year_label: string;
+      policy_mode: string;
+      start_month: number;
+      start_day: number;
+      end_month: number;
+      end_day: number;
+    }>(
+      `
+        select id::text, country_code, policy_mode, start_month, start_day, end_month, end_day
+        from public.financial_year_templates
+        where is_active
+          and current_date between effective_from and coalesce(effective_to, 'infinity'::date)
+        order by case country_code when 'IN' then 0 else 1 end, country_code
+      `,
+    );
+    const anchorDate = await this.getTenantCalendarAnchor(client, tenantId);
+
+    const countries: TenantAdminTaskCountryOption[] = [];
+    for (const row of templates.rows) {
+      const template: FinancialYearTemplate = {
+        id: row.id,
+        countryCode: row.country_code,
+        policyMode: row.policy_mode,
+        startMonth: row.start_month,
+        startDay: row.start_day,
+        endMonth: row.end_month,
+        endDay: row.end_day,
+      };
+      const financialYear = await this.ensureCurrentTaskFinancialYear(client, tenantId, template, anchorDate);
+      countries.push({
+        countryCode: template.countryCode,
+        name: countryName(template.countryCode),
+        financialYearId: financialYear.id,
+        financialYearLabel: financialYear.label,
+        startsOn: financialYear.startsOn,
+        endsOn: financialYear.endsOn,
+      });
+    }
+    return countries;
+  }
+
+  private async getTenantCalendarAnchor(client: PoolClient, tenantId: string): Promise<string> {
+    const result = await client.query<{ calendar_anchor: string }>(
+      `
+        select coalesce(
+          (
+            select tfy.start_date::text
+            from public.tenant_financial_years tfy
+            where tfy.tenant_id = t.id
+              and tfy.status <> 'cancelled'
+            order by (tfy.country_code = t.country) desc, tfy.is_current desc, tfy.start_date desc
+            limit 1
+          ),
+          t.created_at::date::text
+        ) as calendar_anchor
+        from public.tenants t
+        where t.id = $1
+      `,
+      [tenantId],
+    );
+    const anchorDate = result.rows[0]?.calendar_anchor;
+    if (!anchorDate) throw new ConflictException({ code: "TENANT_NOT_AVAILABLE", message: "Tenant calendar could not be resolved." });
+    return anchorDate;
+  }
+
+  private async ensureCurrentTaskFinancialYear(
+    client: PoolClient,
+    tenantId: string,
+    template: FinancialYearTemplate,
+    calendarAnchorDate: string,
+  ): Promise<TaskFinancialYear> {
+    const existing = await this.getCurrentFinancialYearForCountry(client, tenantId, template.countryCode);
+    if (existing) return existing;
+
+    const suggested = suggestFinancialYear(
+      template,
+      template.policyMode === "INCORPORATION_DERIVED" ? calendarAnchorDate : undefined,
+    );
+    if (!suggested) {
+      throw new ConflictException({
+        code: "COUNTRY_FINANCIAL_YEAR_REQUIRED",
+        message: "A confirmed financial year is required for the selected country.",
+      });
+    }
+
+    await client.query("select pg_advisory_xact_lock(hashtextextended($1::text, 0))", [`${tenantId}:${template.countryCode}`]);
+    const afterLock = await this.getCurrentFinancialYearForCountry(client, tenantId, template.countryCode);
+    if (afterLock) return afterLock;
+
+    await client.query(
+      `
+        update public.tenant_financial_years
+        set is_current = false,
+            updated_at = now()
+        where tenant_id = $1
+          and country_code = $2
+          and is_current
+          and current_date not between start_date and end_date
+      `,
+      [tenantId, template.countryCode],
+    );
+    const inserted = await client.query<{
+      id: string;
+      label: string;
       starts_on: string;
       ends_on: string;
     }>(
       `
-        select distinct on (coalesce(fyt.country_code, t.country))
-          coalesce(fyt.country_code, t.country) as country_code,
-          coalesce(fyt.name, fyt.country_code, t.country) as country_name,
-          tfy.id::text as financial_year_id,
-          tfy.label as financial_year_label,
-          tfy.start_date::text as starts_on,
-          tfy.end_date::text as ends_on
-        from public.tenant_financial_years tfy
-        join public.tenants t
-          on t.id = tfy.tenant_id
-        left join public.financial_year_templates fyt
-          on fyt.id = tfy.template_id
-        where tfy.tenant_id = $1
-          and tfy.status <> 'cancelled'
-          and current_date between tfy.start_date and tfy.end_date
-          and coalesce(fyt.country_code, t.country) is not null
-        order by coalesce(fyt.country_code, t.country), tfy.start_date desc
+        insert into public.tenant_financial_years (
+          tenant_id, template_id, country_code, label, start_date, end_date,
+          status, source, is_current, confirmed_at
+        )
+        values ($1, $2, $3, $4, $5::date, $6::date, 'active', 'COUNTRY_SUGGESTION_CONFIRMED', true, now())
+        on conflict (tenant_id, country_code, start_date, end_date) where status <> 'cancelled'
+        do update set
+          template_id = excluded.template_id,
+          label = excluded.label,
+          status = 'active',
+          is_current = true,
+          updated_at = now()
+        returning id::text, label, start_date::text as starts_on, end_date::text as ends_on
       `,
-      [tenantId],
+      [tenantId, template.id, template.countryCode, suggested.label, suggested.startsOn, suggested.endsOn],
     );
-    return result.rows.map((row) => ({
-      countryCode: row.country_code,
-      name: countryName(row.country_code, row.country_name),
-      financialYearId: row.financial_year_id,
-      financialYearLabel: row.financial_year_label,
-      startsOn: row.starts_on,
-      endsOn: row.ends_on,
-    }));
+    const row = inserted.rows[0];
+    if (!row) throw new ConflictException({ code: "COUNTRY_FINANCIAL_YEAR_REQUIRED", message: "Country financial year could not be prepared." });
+    return { id: row.id, label: row.label, startsOn: row.starts_on, endsOn: row.ends_on };
+  }
+
+  private async getCurrentFinancialYearForCountry(
+    client: PoolClient,
+    tenantId: string,
+    countryCode: string,
+  ): Promise<TaskFinancialYear | null> {
+    const result = await client.query<{ id: string; label: string; starts_on: string; ends_on: string }>(
+      `
+        select id::text, label, start_date::text as starts_on, end_date::text as ends_on
+        from public.tenant_financial_years
+        where tenant_id = $1
+          and country_code = $2
+          and status <> 'cancelled'
+          and current_date between start_date and end_date
+        order by start_date desc
+        limit 1
+      `,
+      [tenantId, countryCode],
+    );
+    const row = result.rows[0];
+    return row ? { id: row.id, label: row.label, startsOn: row.starts_on, endsOn: row.ends_on } : null;
   }
 
   private async resolveBillingRate(
@@ -964,6 +1596,7 @@ export class TenantAdminTasksRepository {
             and rci.service_id = $3
             and rci.status = 'active'
             and rc.status = 'active'
+            and current_date between rc.effective_from and coalesce(rc.effective_to, 'infinity'::date)
             and (rc.client_id = $4 or rc.client_id is null)
           order by rc.client_id nulls first
           limit 1
@@ -1066,7 +1699,7 @@ export class TenantAdminTasksRepository {
           approved_by,
           approved_at
         )
-        values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 0, $12, 'approved_for_invoice', $13, now())
+        values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 0, $12, 'pending_review', null, null)
       `,
       [
         tenantId,
@@ -1178,7 +1811,7 @@ export class TenantAdminTasksRepository {
   ): Promise<void> {
     await client.query(
       `
-        with recipient_users as (
+        with direct_recipient_users as (
           select distinct tm.user_id
           from public.employees e
           join public.tenant_memberships tm
@@ -1188,7 +1821,7 @@ export class TenantAdminTasksRepository {
           where e.tenant_id = $1
             and e.id = any($5::uuid[])
             and e.employment_status = 'active'
-          union
+        ), group_recipient_users as (
           select distinct tm.user_id
           from public.work_group_memberships wgm
           join public.employees e
@@ -1202,7 +1835,27 @@ export class TenantAdminTasksRepository {
           where wgm.tenant_id = $1
             and wgm.work_group_id = $6::uuid
             and wgm.status = 'active'
-            and wgm.group_role = 'manager'
+            and not exists (
+              select 1
+              from direct_recipient_users direct_user
+              where direct_user.user_id = tm.user_id
+            )
+        ), notification_specs as (
+          select
+            'direct'::text as audience,
+            'TASK_ASSIGNED'::text as type,
+            'Task assigned to you'::text as title,
+            'A task has been assigned to you: "' || $4 || '".'::text as message,
+            'task-assigned:' || $3::uuid::text || ':direct'::text as idempotency_key
+          where exists (select 1 from direct_recipient_users)
+          union all
+          select
+            'work_group'::text,
+            'TASK_WORKGROUP_ASSIGNED'::text,
+            'New task in your work group'::text,
+            'A new task was added to your work group: "' || $4 || '".'::text,
+            'task-assigned:' || $3::uuid::text || ':work-group:' || $6::uuid::text
+          where exists (select 1 from group_recipient_users)
         ),
         inserted_notification as (
           insert into public.notifications (
@@ -1219,38 +1872,62 @@ export class TenantAdminTasksRepository {
             idempotency_key
           )
           select
-            'TASK_ASSIGNED',
-            'Task assigned',
-            'A task has been created and assigned: "' || $4 || '".',
+            spec.type,
+            spec.title,
+            spec.message,
             'INFO',
             $1,
             $2,
             'task',
             $3::uuid,
-            '/employee/tasks',
+            '/employee/tasks?taskId=' || $3::uuid::text,
             jsonb_build_object(
               'taskName', $4::text,
-              'employeeCount', cardinality($5::uuid[]),
+              'audience', spec.audience,
               'workGroupId', $6::uuid
             ),
-            'task-assigned:' || $3::uuid::text
-          where exists (select 1 from recipient_users)
+            spec.idempotency_key
+          from notification_specs spec
           on conflict (idempotency_key) where idempotency_key is not null do nothing
-          returning id
+          returning id, idempotency_key
         ),
-        notification_row as (
-          select id from inserted_notification
-          union all
-          select id
-          from public.notifications
-          where idempotency_key = 'task-assigned:' || $3::uuid::text
-          limit 1
+        notification_rows as (
+          select
+            spec.audience,
+            coalesce(inserted.id, existing.id) as id
+          from notification_specs spec
+          left join inserted_notification inserted
+            on inserted.idempotency_key = spec.idempotency_key
+          left join public.notifications existing
+            on existing.idempotency_key = spec.idempotency_key
+        ), inserted_recipients as (
+          insert into public.notification_recipients (notification_id, recipient_user_id)
+          select notification_row.id, recipient_user.user_id
+          from notification_rows notification_row
+          join (
+            select 'direct'::text as audience, user_id from direct_recipient_users
+            union all
+            select 'work_group'::text, user_id from group_recipient_users
+          ) recipient_user
+            on recipient_user.audience = notification_row.audience
+          where notification_row.id is not null
+          on conflict (notification_id, recipient_user_id) do nothing
+          returning notification_id
         )
-        insert into public.notification_recipients (notification_id, recipient_user_id)
-        select notification_row.id, recipient_users.user_id
-        from notification_row
-        cross join recipient_users
-        on conflict (notification_id, recipient_user_id) do nothing
+        insert into public.notification_outbox (
+          tenant_id,
+          notification_id,
+          event_type,
+          event_key
+        )
+        select
+          $1,
+          notification_row.id,
+          'TASK_NOTIFICATION_READY',
+          'task-notification:' || notification_row.id::text
+        from notification_rows notification_row
+        where notification_row.id is not null
+        on conflict (event_key) do nothing
       `,
       [context.tenantId, context.userId, taskId, taskTitle, employeeIds, workGroupId ?? null],
     );
@@ -1305,31 +1982,14 @@ export class TenantAdminTasksRepository {
   }
 
   private async getFinancialYearIdForCountry(client: PoolClient, tenantId: string, countryCode: string): Promise<string> {
-    const result = await client.query<{ id: string }>(
-      `
-        select tfy.id::text
-        from public.tenant_financial_years tfy
-        left join public.financial_year_templates fyt
-          on fyt.id = tfy.template_id
-        join public.tenants t
-          on t.id = tfy.tenant_id
-        where tfy.tenant_id = $1
-          and coalesce(fyt.country_code, t.country) = $2
-          and tfy.status <> 'cancelled'
-          and current_date between tfy.start_date and tfy.end_date
-        order by tfy.start_date desc
-        limit 1
-      `,
-      [tenantId, countryCode],
-    );
-    const financialYearId = result.rows[0]?.id;
-    if (!financialYearId) {
+    const financialYear = await this.getCurrentFinancialYearForCountry(client, tenantId, countryCode);
+    if (!financialYear) {
       throw new ConflictException({
         code: "COUNTRY_FINANCIAL_YEAR_REQUIRED",
         message: "Configure the current financial year for the selected country before creating tasks.",
       });
     }
-    return financialYearId;
+    return financialYear.id;
   }
 
   private async assertClientExists(client: PoolClient, tenantId: string, clientId: string): Promise<void> {
@@ -1467,6 +2127,40 @@ export class TenantAdminTasksRepository {
     return result.rows.map((row) => row.employee_id);
   }
 
+  private async assertManagerEmployee(
+    client: PoolClient,
+    tenantId: string,
+    managerEmployeeId: string,
+  ): Promise<void> {
+    const result = await client.query(
+      `
+        select 1
+        from public.employees employee
+        join public.tenant_memberships membership
+          on membership.id = employee.membership_id
+         and membership.tenant_id = employee.tenant_id
+         and membership.status = 'active'
+        join public.membership_roles membership_role
+          on membership_role.tenant_id = membership.tenant_id
+         and membership_role.membership_id = membership.id
+         and membership_role.status = 'active'
+        join public.roles role on role.id = membership_role.role_id
+        where employee.tenant_id = $1
+          and employee.id = $2
+          and employee.employment_status = 'active'
+          and role.code = 'MANAGER'
+        limit 1
+      `,
+      [tenantId, managerEmployeeId],
+    );
+    if (!result.rowCount) {
+      throw new BadRequestException({
+        code: 'MANAGER_NOT_AVAILABLE',
+        message: 'Select an active employee with manager access.',
+      });
+    }
+  }
+
   private async replaceWorkGroupMembers(
     client: PoolClient,
     context: TenantAdminRequestContext,
@@ -1487,31 +2181,31 @@ export class TenantAdminTasksRepository {
       `,
       [context.tenantId, workGroupId, context.membershipId],
     );
-    for (const employeeId of employeeIds) {
-      await client.query(
-        `
-          insert into public.work_group_memberships (
-            tenant_id,
-            work_group_id,
-            employee_id,
-            group_role,
-            status,
-            added_by
-          )
-          values ($1, $2, $3, $4, 'active', $5)
-          on conflict (tenant_id, work_group_id, employee_id) where status = 'active' do update
-          set group_role = excluded.group_role,
-              updated_at = now()
-        `,
-        [
-          context.tenantId,
-          workGroupId,
-          employeeId,
-          employeeId === managerEmployeeId ? "manager" : "member",
-          context.membershipId,
-        ],
-      );
-    }
+    if (!employeeIds.length) return;
+    await client.query(
+      `
+        insert into public.work_group_memberships (
+          tenant_id,
+          work_group_id,
+          employee_id,
+          group_role,
+          status,
+          added_by
+        )
+        select
+          $1,
+          $2,
+          employee_id,
+          case when employee_id = $3::uuid then 'manager' else 'member' end,
+          'active',
+          $4
+        from unnest($5::uuid[]) as selected(employee_id)
+        on conflict (tenant_id, work_group_id, employee_id) where status = 'active' do update
+        set group_role = excluded.group_role,
+            updated_at = now()
+      `,
+      [context.tenantId, workGroupId, managerEmployeeId, context.membershipId, employeeIds],
+    );
   }
 
   private async getTasks(
@@ -1668,6 +2362,7 @@ function countryName(countryCode: string, fallback?: string | null): string {
   const names: Record<string, string> = {
     GB: "United Kingdom",
     IN: "India",
+    SG: "Singapore",
     US: "United States",
   };
   return names[countryCode] ?? fallback ?? countryCode;

@@ -91,10 +91,6 @@ export async function createClientPortalSessionPolicy(accessToken: string, remem
   return createSessionPolicy(accessToken, rememberMe, "client");
 }
 
-export async function createManagerSessionPolicy(accessToken: string, rememberMe: boolean): Promise<boolean> {
-  return createSessionPolicy(accessToken, rememberMe, "manager");
-}
-
 export async function createEmployeeSessionPolicy(accessToken: string, rememberMe: boolean): Promise<boolean> {
   return createSessionPolicy(accessToken, rememberMe, "employee");
 }
@@ -148,10 +144,6 @@ export async function fetchVerifiedTenantAdminMe(accessToken: string): Promise<S
 
 export async function fetchVerifiedClientPortalMe(accessToken: string): Promise<SuperAdminMe | null> {
   return fetchVerifiedWorkspaceMe(accessToken, "client", ["CLIENT_USER"]);
-}
-
-export async function fetchVerifiedManagerMe(accessToken: string): Promise<SuperAdminMe | null> {
-  return fetchVerifiedWorkspaceMe(accessToken, "manager", ["MANAGER"]);
 }
 
 export async function fetchVerifiedEmployeeMe(accessToken: string): Promise<SuperAdminMe | null> {
@@ -216,10 +208,6 @@ export function userFromTenantAdminMe(me: SuperAdminMe): User {
 
 export function userFromClientPortalMe(me: SuperAdminMe): User {
   return userFromMe(me, "CLIENT_USER");
-}
-
-export function userFromManagerMe(me: SuperAdminMe): User {
-  return userFromMe(me, "MANAGER");
 }
 
 export function userFromEmployeeMe(me: SuperAdminMe): User {

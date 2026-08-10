@@ -32,7 +32,7 @@ export type ResolvedWorkspace = {
 const portalRoles: Readonly<Record<Workspace, readonly string[]>> = {
   "super-admin": ["SUPER_ADMIN"],
   admin: ["TENANT_OWNER", "TENANT_ADMIN", "FINANCE_USER", "HR_OPERATIONS_USER"],
-  manager: ["MANAGER"],
+  manager: [],
   employee: ["EMPLOYEE"],
   client: ["CLIENT_USER"],
 };

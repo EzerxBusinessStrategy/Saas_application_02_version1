@@ -56,6 +56,7 @@ export const tenantFinancialYears = pgTable(
       .notNull()
       .references(() => tenants.id),
     templateId: uuid("template_id").references(() => financialYearTemplates.id),
+    countryCode: text("country_code").notNull(),
     label: text("label").notNull(),
     startDate: date("start_date").notNull(),
     endDate: date("end_date").notNull(),
@@ -73,8 +74,14 @@ export const tenantFinancialYears = pgTable(
       table.tenantId,
       table.id,
     ),
+    tenantIdCountryIdUnique: uniqueIndex("tenant_financial_years_tenant_id_id_country_code_uidx").on(
+      table.tenantId,
+      table.id,
+      table.countryCode,
+    ),
     tenantDateIndex: index("tenant_financial_years_tenant_dates_idx").on(
       table.tenantId,
+      table.countryCode,
       table.startDate,
       table.endDate,
     ),

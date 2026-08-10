@@ -5,16 +5,6 @@ const identifySchema = z.object({
   email: z.string().trim().toLowerCase().email("Enter a valid work email."),
 });
 
-/**
- * POST /api/auth/identify
- *
- * Accepts a work email and determines the correct authentication method.
- * Returns either a password prompt (with optional display name) or an
- * SSO redirect target.
- *
- * Currently all emails resolve to the "password" method.
- * SSO provider mapping will be configured in a future iteration.
- */
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
   const parsed = identifySchema.safeParse(body);
@@ -25,66 +15,29 @@ export async function POST(request: Request) {
     );
   }
 
-  const email = parsed.data.email;
+  const response = await fetch(`${backendApiBaseUrl()}/auth/identify`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ email: parsed.data.email }),
+    cache: "no-store",
+  }).catch(() => null);
 
-  // --- Future SSO lookup ---
-  // Check if the email domain has a configured SSO provider.
-  // const domain = email.split("@")[1];
-  // const ssoConfig = await lookupSsoProvider(domain);
-  // if (ssoConfig) {
-  //   return NextResponse.json({
-  //     method: "sso" as const,
-  //     provider: ssoConfig.provider,
-  //     redirectUrl: ssoConfig.redirectUrl,
-  //   });
-  // }
-
-  // Try to look up display name from Supabase Auth user metadata.
-  // If admin lookup is configured and the email is absent, fail early instead
-  // of showing a password step that can only end in a confusing 401.
-  let displayName: string | undefined;
-  try {
-    const supabaseUrl = process.env.BACKEND_SUPABASE_URL?.replace(/\/+$/, "");
-    const supabaseServiceKey =
-      process.env.BACKEND_SUPABASE_ADMIN_KEY ??
-      process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-    if (supabaseUrl && supabaseServiceKey) {
-      const usersResponse = await fetch(
-        `${supabaseUrl}/auth/v1/admin/users?page=1&per_page=1000`,
-        {
-          headers: {
-            apikey: supabaseServiceKey,
-            authorization: `Bearer ${supabaseServiceKey}`,
-          },
-          cache: "no-store",
-        },
-      );
-      if (usersResponse.ok) {
-        const data = (await usersResponse.json()) as {
-          users?: { email?: string; user_metadata?: { display_name?: string; full_name?: string } }[];
-        };
-        const matchedUser = data.users?.find(
-          (u) => u.email?.toLowerCase() === email,
-        );
-        displayName =
-          matchedUser?.user_metadata?.display_name ??
-          matchedUser?.user_metadata?.full_name ??
-          undefined;
-        if (!matchedUser) {
-          return NextResponse.json(
-            { message: "No account found for this email." },
-            { status: 404 },
-          );
-        }
-      }
-    }
-  } catch {
-    // Gracefully fall back — display name is a UX enhancement, not required
+  if (!response) {
+    return NextResponse.json(
+      { message: "Unable to verify this email. Please try again." },
+      { status: 503 },
+    );
   }
 
-  return NextResponse.json({
-    method: "password" as const,
-    displayName: displayName ?? undefined,
-  });
+  const data = await response.json().catch(() => null);
+  return NextResponse.json(
+    data ?? { message: "Unable to verify this email. Please try again." },
+    { status: response.status },
+  );
+}
+
+function backendApiBaseUrl(): string {
+  const configured = process.env.NEXT_PUBLIC_API_BASE_URL;
+  const fallback = "http://localhost:4000/api/v1";
+  return (!configured || configured === "https://api.example.com" ? fallback : configured).replace(/\/+$/, "");
 }

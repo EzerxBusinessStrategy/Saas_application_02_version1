@@ -11,6 +11,10 @@ export type SessionPolicyRow = {
   readonly created: boolean;
 };
 
+export type ActiveSessionPolicy = {
+  readonly auth_context_version: number;
+};
+
 @Injectable()
 export class SessionPolicyRepository {
   constructor(@Inject(DATABASE_POOL) private readonly pool: Pool | null) {}
@@ -47,23 +51,38 @@ export class SessionPolicyRepository {
     });
   }
 
-  async assertActive(context: RequestContext, sessionId: string | undefined): Promise<void> {
+  async assertActive(context: RequestContext, sessionId: string | undefined): Promise<ActiveSessionPolicy> {
     if (!sessionId) throw sessionExpired();
     if (!this.pool) throw databaseNotConfigured();
-    await withDatabaseTransaction(this.pool, context, async (_tx, client) => {
-      const result = await client.query(
+    return withDatabaseTransaction(this.pool, context, async (_tx, client) => {
+      const result = await client.query<ActiveSessionPolicy>(
         `
-        update public.auth_session_policies
-        set last_seen_at = now()
-        where user_id = $1
-          and supabase_session_id = $2
-          and revoked_at is null
-          and absolute_expires_at > now()
-        returning id
+        with active_policy as materialized (
+          select id, auth_context_version, last_seen_at
+          from public.auth_session_policies
+          where user_id = $1
+            and supabase_session_id = $2
+            and revoked_at is null
+            and absolute_expires_at > clock_timestamp()
+        ), touched as (
+          update public.auth_session_policies policy
+          set last_seen_at = clock_timestamp()
+          from active_policy active
+          where policy.id = active.id
+            and (
+              active.last_seen_at is null
+              or active.last_seen_at <= clock_timestamp() - interval '60 seconds'
+            )
+          returning policy.id
+        )
+        select auth_context_version
+        from active_policy
         `,
         [context.userId, sessionId],
       );
-      if (result.rowCount !== 1) throw sessionExpired();
+      const policy = result.rows[0];
+      if (!policy) throw sessionExpired();
+      return policy;
     });
   }
 

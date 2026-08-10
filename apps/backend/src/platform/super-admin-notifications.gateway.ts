@@ -6,8 +6,7 @@ import {
 } from "@nestjs/websockets";
 import { randomUUID } from "node:crypto";
 import { Server, Socket } from "socket.io";
-import { RequestContextResolver } from "../auth/request-context-resolver.service";
-import { SessionPolicyRepository } from "../auth/session-policy.repository";
+import { ActiveRequestContextService } from "../auth/active-request-context.service";
 import { SupabaseJwtVerifier } from "../auth/supabase-jwt-verifier.service";
 import { superAdminAccessTokenCookie } from "../auth/auth-cookie-names";
 import { NotificationItemDto } from "./super-admin-notifications.dto";
@@ -24,10 +23,8 @@ export class SuperAdminNotificationsGateway implements OnGatewayConnection {
   constructor(
     @Inject(SupabaseJwtVerifier)
     private readonly verifier: SupabaseJwtVerifier,
-    @Inject(RequestContextResolver)
-    private readonly contextResolver: RequestContextResolver,
-    @Inject(SessionPolicyRepository)
-    private readonly sessionPolicies: SessionPolicyRepository,
+    @Inject(ActiveRequestContextService)
+    private readonly activeContext: ActiveRequestContextService,
     @Inject(SuperAdminNotificationsRepository)
     private readonly repository: SuperAdminNotificationsRepository,
   ) {}
@@ -40,7 +37,7 @@ export class SuperAdminNotificationsGateway implements OnGatewayConnection {
         return;
       }
       const verified = await this.verifier.verifyBearerToken(token);
-      const resolved = await this.contextResolver.resolve(
+      const resolved = await this.activeContext.resolve(
         verified,
         { portal: "super-admin" },
         randomUUID(),
@@ -49,8 +46,6 @@ export class SuperAdminNotificationsGateway implements OnGatewayConnection {
         client.disconnect(true);
         return;
       }
-      await this.sessionPolicies.assertActive(resolved.context, verified.sessionId);
-
       client.data.userId = resolved.context.userId;
       client.join(userRoom(resolved.context.userId));
       client.emit("notification:ready", { userId: resolved.context.userId });

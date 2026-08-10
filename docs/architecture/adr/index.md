@@ -7,6 +7,9 @@
 - [0005: Database-backed platform configuration](0005-database-backed-platform-configuration.md) (Accepted)
 - [0006: Direct Tenant Administrator provisioning](0006-direct-tenant-admin-provisioning.md) (Accepted)
 - [0007: Tenant timed suspension and soft revocation](0007-tenant-timed-suspension-and-soft-revocation.md) (Accepted)
+- [0008: Country-scoped tenant financial years](0008-country-scoped-tenant-financial-years.md) (Accepted)
+- [0009: Request-path performance and authenticated-context caching](0009-request-path-performance.md) (Accepted)
+- [0010: Work-group task notification outbox](0010-work-group-task-notification-outbox.md) (Accepted)
 
 Supporting proposed architecture documents:
 

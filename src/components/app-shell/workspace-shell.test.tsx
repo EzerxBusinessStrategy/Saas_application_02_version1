@@ -52,7 +52,7 @@ afterEach(() => {
   document.documentElement.style.removeProperty("--ring");
 });
 
-test("uses the active tenant's branding in manager and employee workspaces", () => {
+test("uses the active tenant's branding in admin and employee workspaces", () => {
   window.localStorage.setItem(
     tenantBrandingStorageKey("acme"),
     JSON.stringify({
@@ -67,9 +67,9 @@ test("uses the active tenant's branding in manager and employee workspaces", () 
       portalSubtitle: "",
     }),
   );
-  pathname.value = "/manager";
+  pathname.value = "/admin";
   const { rerender } = renderShell(
-    <WorkspaceShell workspace="manager" user={workspaceConfig("manager").user}>
+    <WorkspaceShell workspace="admin" user={workspaceConfig("admin").user}>
       <p>Content</p>
     </WorkspaceShell>,
   );

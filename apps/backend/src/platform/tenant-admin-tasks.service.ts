@@ -1,4 +1,4 @@
-import { ConflictException, Inject, Injectable, ServiceUnavailableException } from "@nestjs/common";
+import { BadRequestException, ConflictException, Inject, Injectable, ServiceUnavailableException } from "@nestjs/common";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { RequestContext } from "../auth/request-context";
 import { APP_CONFIG } from "../config/app-config.module";
@@ -9,11 +9,13 @@ import {
   CreateTenantAdminEmployeeRequest,
   TenantAdminEmployeeOptionDto,
   TenantAdminTaskItemDto,
+  TenantAdminTaskApprovalRequest,
   TenantAdminTaskOptionsResponseDto,
   TenantAdminTasksResponseDto,
   TenantAdminEmployeesResponseDto,
   TenantAdminWorkGroupDto,
   TenantAdminWorkGroupsResponseDto,
+  UpdateTenantAdminEmployeeAssignmentRequest,
   UpdateTenantAdminEmployeeCapacityRequest,
   UpsertTenantAdminWorkGroupRequest,
 } from "./tenant-admin-tasks.dto";
@@ -47,6 +49,14 @@ export class TenantAdminTasksService {
     return mapTask(await this.repository.createTask(tenantContext, input));
   }
 
+  async decideTaskApproval(
+    context: RequestContext,
+    taskId: string,
+    input: TenantAdminTaskApprovalRequest,
+  ): Promise<TenantAdminTaskItemDto> {
+    return mapTask(await this.repository.decideTaskApproval(requireTenantAdminContext(context), taskId, input));
+  }
+
   async createEmployee(
     context: RequestContext,
     input: CreateTenantAdminEmployeeRequest,
@@ -59,6 +69,12 @@ export class TenantAdminTasksService {
       });
     }
     const email = input.email.trim().toLowerCase();
+    if (await this.repository.userEmailExists(tenantContext, email)) {
+      throw new ConflictException({
+        code: "EMPLOYEE_EMAIL_EXISTS",
+        message: "This email is already associated with an existing account.",
+      });
+    }
     const client = createSupabaseClient(this.config.supabaseUrl, this.config.supabaseAdminKey, {
       auth: { autoRefreshToken: false, persistSession: false },
     });
@@ -85,9 +101,27 @@ export class TenantAdminTasksService {
     }
   }
 
+  async getEmployeeEmailAvailability(context: RequestContext, email: string) {
+    const tenantContext = requireTenantAdminContext(context);
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+      throw new BadRequestException({ code: "INVALID_EMAIL", message: "Enter a valid email address." });
+    }
+    const exists = await this.repository.userEmailExists(tenantContext, normalizedEmail);
+    return exists ? { available: false, reason: "EMAIL_ALREADY_EXISTS" as const } : { available: true };
+  }
+
   async listEmployees(context: RequestContext): Promise<TenantAdminEmployeesResponseDto> {
     const tenantContext = requireTenantAdminContext(context);
-    return { employees: await this.repository.listEmployees(tenantContext) };
+    return this.repository.listEmployees(tenantContext);
+  }
+
+  async updateEmployeeAssignment(
+    context: RequestContext,
+    employeeId: string,
+    input: UpdateTenantAdminEmployeeAssignmentRequest,
+  ): Promise<TenantAdminEmployeeOptionDto> {
+    return this.repository.updateEmployeeAssignment(requireTenantAdminContext(context), employeeId, input);
   }
 
   async setEmployeeManagerRole(

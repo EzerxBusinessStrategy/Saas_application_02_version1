@@ -8,14 +8,12 @@ export const demoPassword = "1234";
 export const loginRoles = [
   "SUPER_ADMIN",
   "TENANT_ADMIN",
-  "MANAGER",
   "EMPLOYEE",
   "CLIENT_USER",
 ] as const;
 type DemoLoginRole = (typeof loginRoles)[number];
 const demoLoginRoles = [
   "TENANT_ADMIN",
-  "MANAGER",
   "EMPLOYEE",
   "CLIENT_USER",
 ] as const;
@@ -24,7 +22,6 @@ type MockLoginRole = (typeof demoLoginRoles)[number];
 const roleWorkspace: Record<(typeof loginRoles)[number], Workspace> = {
   SUPER_ADMIN: "super-admin",
   TENANT_ADMIN: "admin",
-  MANAGER: "manager",
   EMPLOYEE: "employee",
   CLIENT_USER: "client",
 };

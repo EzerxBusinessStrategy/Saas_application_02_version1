@@ -2,7 +2,7 @@
 
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
@@ -186,6 +186,19 @@ export function GlobalAuditLog({ tenantName }: { tenantName?: string }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [selected, setSelected] = useState<AuditRecord | null>(null);
+  const appliedSearch = searchParams.get("query") ?? "";
+  const [searchValue, setSearchValue] = useState(appliedSearch);
+  const setParam = useCallback(
+    (key: string, value: string) => {
+      const next = new URLSearchParams(searchParams);
+      value ? next.set(key, value) : next.delete(key);
+      if (key !== "page") next.delete("page");
+      router.replace(`${pathname}${next.size ? `?${next}` : ""}`, {
+        scroll: false,
+      });
+    },
+    [pathname, router, searchParams],
+  );
   const request: AuditListRequest = {
     query: searchParams.get("query") ?? undefined,
     result: (searchParams.get("result") as AuditRecord["result"]) || undefined,
@@ -200,14 +213,14 @@ export function GlobalAuditLog({ tenantName }: { tenantName?: string }) {
       queryFn: () => listAuditRecords(request),
   });
   const records = recordsQuery.data?.items ?? [];
-  const setParam = (key: string, value: string) => {
-    const next = new URLSearchParams(searchParams);
-    value ? next.set(key, value) : next.delete(key);
-    if (key !== "page") next.delete("page");
-    router.replace(`${pathname}${next.size ? `?${next}` : ""}`, {
-      scroll: false,
-    });
-  };
+  useEffect(() => {
+    setSearchValue(appliedSearch);
+  }, [appliedSearch]);
+  useEffect(() => {
+    if (searchValue === appliedSearch) return;
+    const timeout = window.setTimeout(() => setParam("query", searchValue), 300);
+    return () => window.clearTimeout(timeout);
+  }, [appliedSearch, searchValue, setParam]);
   const columns: ColumnDef<AuditRecord>[] = [
     { accessorKey: "actor", header: "Actor" },
     { accessorKey: "tenant", header: "Tenant" },
@@ -300,8 +313,8 @@ export function GlobalAuditLog({ tenantName }: { tenantName?: string }) {
         <CardContent className="flex flex-col gap-5">
           <FilterToolbar
             search={{
-              value: request.query ?? "",
-              onChange: (value) => setParam("query", value),
+              value: searchValue,
+              onChange: setSearchValue,
               label: "Search global audit logs",
               placeholder: "Search actor, tenant, action, or resource",
             }}

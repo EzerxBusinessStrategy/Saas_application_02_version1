@@ -6,12 +6,10 @@ import { authenticatedWorkspaceCookie, superAdminAccessTokenCookie, superAdminRe
 import {
   fetchVerifiedClientPortalMe,
   fetchVerifiedEmployeeMe,
-  fetchVerifiedManagerMe,
   fetchVerifiedSuperAdminMe,
   fetchVerifiedTenantAdminMe,
   userFromClientPortalMe,
   userFromEmployeeMe,
-  userFromManagerMe,
   userFromSuperAdminMe,
   userFromTenantAdminMe,
 } from "@/lib/server/super-admin-auth";
@@ -28,6 +26,7 @@ export default async function AppLayout({
   params: Promise<{ workspace: string }>;
 }) {
   const { workspace } = await params;
+  if (workspace === "manager") redirect("/employee");
   if (!workspaces.includes(workspace as Workspace)) notFound();
   const cookieStore = await cookies();
   if (workspace === "super-admin") {
@@ -78,21 +77,6 @@ export default async function AppLayout({
       redirect("/login");
     }
     return <WorkspaceShell workspace="client" user={userFromClientPortalMe(me)}>{children}</WorkspaceShell>;
-  }
-
-  if (workspace === "manager" && cookieStore.get(authenticatedWorkspaceCookie)?.value === "manager") {
-    const accessToken = cookieStore.get(superAdminAccessTokenCookie)?.value;
-    const refreshToken = cookieStore.get(superAdminRefreshTokenCookie)?.value;
-    if (!accessToken) {
-      if (refreshToken) redirect(`/api/demo-auth/refresh?next=/${workspace}`);
-      redirect("/login");
-    }
-    const me = await fetchVerifiedManagerMe(accessToken);
-    if (!me) {
-      if (refreshToken) redirect(`/api/demo-auth/refresh?next=/${workspace}`);
-      redirect("/login");
-    }
-    return <WorkspaceShell workspace="manager" user={userFromManagerMe(me)}>{children}</WorkspaceShell>;
   }
 
   if (workspace === "employee" && cookieStore.get(authenticatedWorkspaceCookie)?.value === "employee") {

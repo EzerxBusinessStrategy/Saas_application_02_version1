@@ -347,12 +347,7 @@ export class AccessAdminRepository {
   async userEmailExists(context: RequestContext, normalizedEmail: string): Promise<boolean> {
     return this.withContext(context, async (client) => {
       const result = await client.query<{ exists: boolean }>(
-        `select exists (
-           select 1
-           from public.users
-           where email_normalized = $1::text
-              or lower(trim(email)) = $1::text
-         )`,
+        "select private.user_email_exists($1::text) as exists",
         [normalizedEmail],
       );
       return result.rows[0]?.exists ?? false;

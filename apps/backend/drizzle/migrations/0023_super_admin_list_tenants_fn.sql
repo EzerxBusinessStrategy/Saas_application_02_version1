@@ -4,7 +4,9 @@
 -- correctly for the Super Admin platform context, eliminating the 500 errors
 -- caused by RLS filtering out all cross-tenant membership rows.
 
-create or replace function private.list_super_admin_tenants(
+drop function if exists private.list_super_admin_tenants(text, text, date, text, integer, integer);
+
+create function private.list_super_admin_tenants(
   p_query        text,
   p_status       text,
   p_created_after date,
@@ -18,6 +20,7 @@ returns table (
   code           text,
   owner_name     text,
   owner_email    text,
+  pending_invitation_id uuid,
   status         text,
   employee_count integer,
   client_count   integer,
@@ -41,6 +44,7 @@ as $$
         'Invitation pending'
       )                                                                       as owner_name,
       coalesce(active_admin.email, pending_invite.email)                      as owner_email,
+      pending_invite.id                                                       as pending_invitation_id,
       t.status,
       (
         select count(distinct tm2.user_id)::integer
@@ -74,7 +78,7 @@ as $$
       limit 1
     ) active_admin on true
     left join lateral (
-      select i.invitee_display_name, i.email
+      select i.id, i.invitee_display_name, i.email
       from public.invitations i
       join public.roles r on r.id = i.intended_role_id
       where i.tenant_id = t.id
@@ -100,6 +104,7 @@ as $$
     b.code,
     b.owner_name,
     b.owner_email,
+    b.pending_invitation_id,
     b.status,
     b.employee_count,
     b.client_count,
@@ -124,13 +129,16 @@ grant execute on function private.list_super_admin_tenants(text, text, date, tex
 -- Single-tenant lookup for the Super Admin (GET /super-admin/tenants/:id)
 -- Same SECURITY DEFINER pattern so RLS is bypassed for cross-tenant reads.
 -- ---------------------------------------------------------------------------
-create or replace function private.get_super_admin_tenant(p_tenant_id uuid)
+drop function if exists private.get_super_admin_tenant(uuid);
+
+create function private.get_super_admin_tenant(p_tenant_id uuid)
 returns table (
   id             uuid,
   name           text,
   code           text,
   owner_name     text,
   owner_email    text,
+  pending_invitation_id uuid,
   status         text,
   employee_count integer,
   client_count   integer,
@@ -152,6 +160,7 @@ as $$
       'Invitation pending'
     )                                                                     as owner_name,
     coalesce(active_admin.email, pending_invite.email)                    as owner_email,
+    pending_invite.id                                                     as pending_invitation_id,
     t.status,
     (
       select count(distinct tm2.user_id)::integer
@@ -185,7 +194,7 @@ as $$
     limit 1
   ) active_admin on true
   left join lateral (
-    select i.invitee_display_name, i.email
+    select i.id, i.invitee_display_name, i.email
     from public.invitations i
     join public.roles r on r.id = i.intended_role_id
     where i.tenant_id = t.id

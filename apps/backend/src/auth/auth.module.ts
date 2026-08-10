@@ -1,8 +1,11 @@
 import { Module } from "@nestjs/common";
 import { DatabaseModule } from "../database/database.module";
 import { AccessAdminController } from "./access-admin.controller";
+import { ActiveRequestContextService } from "./active-request-context.service";
 import { AccessAdminRepository } from "./access-admin.repository";
 import { AccessAdminService } from "./access-admin.service";
+import { AuthIdentifyController } from "./auth-identify.controller";
+import { AuthIdentifyService } from "./auth-identify.service";
 import { AuthContextRepository } from "./auth-context.repository";
 import { ActiveRequestContextGuard } from "./guards/active-request-context.guard";
 import { PermissionGuard } from "./guards/permission.guard";
@@ -16,12 +19,14 @@ import { SupabaseJwtVerifier } from "./supabase-jwt-verifier.service";
 
 @Module({
   imports: [DatabaseModule],
-  controllers: [MeController, AccessAdminController, SessionPolicyController],
+  controllers: [MeController, AccessAdminController, AuthIdentifyController, SessionPolicyController],
   providers: [
     AccessAdminRepository,
     AccessAdminService,
+    AuthIdentifyService,
     AuthContextRepository,
     ActiveRequestContextGuard,
+    ActiveRequestContextService,
     PermissionGuard,
     RequestContextResolver,
     SessionPolicyRepository,
@@ -31,6 +36,7 @@ import { SupabaseJwtVerifier } from "./supabase-jwt-verifier.service";
   ],
   exports: [
     ActiveRequestContextGuard,
+    ActiveRequestContextService,
     PermissionGuard,
     RequestContextResolver,
     SessionPolicyRepository,

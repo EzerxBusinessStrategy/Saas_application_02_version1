@@ -38,6 +38,7 @@ import {
 } from "@/components/operations/gamification-workflows";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ErrorState } from "@/components/shared/error-state";
+import { GravityWellLoader } from "@/components/shared/gravity-well-loader";
 import { LoadingState } from "@/components/shared/loading-state";
 import { MetricCard } from "@/components/shared/metric-card";
 import { PageHeader } from "@/components/shared/page-header";
@@ -1032,7 +1033,53 @@ function EmployeeInfo({ section }: { section: "notifications" | "profile" }) {
   const profile = useQuery({ queryKey: ["employee-profile"], queryFn: getEmployeeProfile, enabled: section === "profile" });
 
   if (section === "notifications") {
-    return <div className="flex flex-col gap-[30px]"><PageHeader eyebrow="Employee" title="Notifications" description="Delivery updates related to your assigned tasks." /><Card><CardContent className="pt-[30px]">{notifications.isLoading ? <p className="text-sm text-muted-foreground">Loading notifications...</p> : null}{notifications.isError ? <p className="text-sm text-danger">Notifications could not load.</p> : null}{!notifications.isLoading && !notifications.isError && !notifications.data?.items.length ? <EmptyState title="No notifications" description="New task and document updates will appear here." /> : null}{notifications.data?.items.length ? <ul className="divide-y">{notifications.data.items.map((item) => <li key={item.id} className="py-4 first:pt-0"><p className="font-medium">{item.title}</p><p className="mt-1 text-sm text-muted-foreground">{item.message}</p><p className="mt-1 text-xs text-muted-foreground">{new Date(item.createdAt).toLocaleString()}</p></li>)}</ul> : null}</CardContent></Card></div>;
+    return (
+      <div className="flex flex-col gap-[30px]">
+        <PageHeader
+          eyebrow="Employee"
+          title="Notifications"
+          description="Delivery updates related to your assigned tasks."
+        />
+        <Card>
+          <CardContent className="pt-[30px]">
+            {notifications.isLoading ? (
+              <GravityWellLoader
+                label="Loading notifications"
+                className="h-64 min-h-64 rounded-[var(--radius-card)] bg-transparent dark:bg-transparent"
+              />
+            ) : null}
+            {notifications.isError ? (
+              <p className="text-sm text-danger">
+                Notifications could not load.
+              </p>
+            ) : null}
+            {!notifications.isLoading &&
+            !notifications.isError &&
+            !notifications.data?.items.length ? (
+              <EmptyState
+                title="No notifications"
+                description="New task and document updates will appear here."
+              />
+            ) : null}
+            {notifications.data?.items.length ? (
+              <ul className="divide-y">
+                {notifications.data.items.map((item) => (
+                  <li key={item.id} className="py-4 first:pt-0">
+                    <p className="font-medium">{item.title}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {item.message}
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {new Date(item.createdAt).toLocaleString()}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </CardContent>
+        </Card>
+      </div>
+    );
   }
 
   if (profile.isLoading) return <LoadingState label="Loading profile" rows={3} />;

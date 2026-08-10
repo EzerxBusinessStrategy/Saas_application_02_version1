@@ -25,6 +25,7 @@ import { EmployeeDocumentsService } from "./employee-documents.service";
 import { EmployeeManagerController } from "./employee-manager.controller";
 import { EmployeeManagerService } from "./employee-manager.service";
 import { EmployeeNotificationsController } from "./employee-notifications.controller";
+import { EmployeeNotificationsGateway } from "./employee-notifications.gateway";
 import { EmployeeNotificationsRepository } from "./employee-notifications.repository";
 import { EmployeeNotificationsService } from "./employee-notifications.service";
 import { EmployeeProfileController } from "./employee-profile.controller";
@@ -76,6 +77,8 @@ import { TenantAdminTasksService } from "./tenant-admin-tasks.service";
 import { TenantAnalyticsController } from "./tenant-analytics.controller";
 import { TenantAnalyticsRepository } from "./tenant-analytics.repository";
 import { TenantAnalyticsService } from "./tenant-analytics.service";
+import { TenantSuspensionMaintenanceService } from "./tenant-suspension-maintenance.service";
+import { TaskNotificationOutboxWorker } from "./task-notification-outbox.worker";
 
 @Module({
   imports: [AuthModule, DatabaseModule],
@@ -135,6 +138,7 @@ import { TenantAnalyticsService } from "./tenant-analytics.service";
     EmployeeManagerService,
     EmployeeNotificationsRepository,
     EmployeeNotificationsService,
+    EmployeeNotificationsGateway,
     EmployeeProfileRepository,
     EmployeeProfileService,
     EmployeeTasksRepository,
@@ -157,6 +161,8 @@ import { TenantAnalyticsService } from "./tenant-analytics.service";
     TenantAdminTasksService,
     TenantAnalyticsRepository,
     TenantAnalyticsService,
+    TenantSuspensionMaintenanceService,
+    TaskNotificationOutboxWorker,
   ],
 })
 export class PlatformModule {}

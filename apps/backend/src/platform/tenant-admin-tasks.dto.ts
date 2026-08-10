@@ -83,6 +83,12 @@ export const createTenantAdminTaskSchema = z.object({
 });
 export type CreateTenantAdminTaskRequest = z.infer<typeof createTenantAdminTaskSchema>;
 
+export const decideTenantAdminTaskApprovalSchema = z.object({
+  decision: z.enum(["approve", "return"]),
+  remarks: z.string().trim().max(2000).optional().default(""),
+});
+export type TenantAdminTaskApprovalRequest = z.infer<typeof decideTenantAdminTaskApprovalSchema>;
+
 export const createTenantAdminEmployeeSchema = z.object({
   name: z.string().trim().min(2).max(160),
   email: z.string().trim().email().transform((value) => value.toLowerCase()),
@@ -94,6 +100,22 @@ export const createTenantAdminEmployeeSchema = z.object({
   weeklyCapacityHours: z.coerce.number().int().min(1).max(168).optional().default(40),
 });
 export type CreateTenantAdminEmployeeRequest = z.infer<typeof createTenantAdminEmployeeSchema>;
+
+export const updateTenantAdminEmployeeAssignmentSchema = z.object({
+  departmentId: z.string().uuid().nullable().optional(),
+  skills: z.array(z.string().trim().min(1).max(120)).max(20).optional(),
+  experienceLevel: z.enum(["junior", "mid", "senior", "lead"]).nullable().optional(),
+  managerId: z.string().uuid().nullable().optional(),
+});
+export type UpdateTenantAdminEmployeeAssignmentRequest = z.infer<typeof updateTenantAdminEmployeeAssignmentSchema>;
+
+export class TenantAdminEmployeeEmailAvailabilityDto {
+  @ApiProperty({ type: Boolean })
+  available!: boolean;
+
+  @ApiPropertyOptional({ enum: ["EMAIL_ALREADY_EXISTS"] })
+  reason?: "EMAIL_ALREADY_EXISTS";
+}
 
 export const updateTenantAdminEmployeeCapacitySchema = z.object({
   weeklyCapacityHours: z.coerce.number().int().min(1).max(168),
@@ -143,6 +165,12 @@ export class TenantAdminEmployeeOptionDto extends TenantAdminTaskOptionDto {
 
   @ApiProperty({ type: String, format: "email" })
   email!: string;
+
+  @ApiPropertyOptional({ type: String, format: "uuid", nullable: true })
+  departmentId!: string | null;
+
+  @ApiPropertyOptional({ type: String, nullable: true })
+  departmentName!: string | null;
 
   @ApiProperty({ type: Boolean })
   isManager!: boolean;
@@ -208,6 +236,9 @@ export class TenantAdminWorkGroupsResponseDto {
 export class TenantAdminEmployeesResponseDto {
   @ApiProperty({ type: () => [TenantAdminEmployeeOptionDto] })
   employees!: readonly TenantAdminEmployeeOptionDto[];
+
+  @ApiProperty({ type: () => [TenantAdminTaskOptionDto] })
+  departments!: readonly TenantAdminTaskOptionDto[];
 }
 
 export class TenantAdminRateCardItemOptionDto {

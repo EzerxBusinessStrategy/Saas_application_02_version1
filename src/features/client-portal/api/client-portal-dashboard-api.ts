@@ -34,6 +34,7 @@ const clientPortalDashboardSchema = z.object({
     z.object({
       id: z.string(),
       invoiceNumber: z.string(),
+      taskTitle: z.string().nullable(),
       status: z.string(),
       issuedOn: z.string(),
       dueOn: z.string().nullable(),

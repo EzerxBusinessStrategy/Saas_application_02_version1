@@ -1,0 +1,60 @@
+   ▲ Next.js 15.5.20
+   - Local:        http://localhost:3001
+   - Network:      http://172.16.0.2:3001
+   - Environments: .env.local
+
+ ✓ Starting...
+ ✓ Ready in 3s
+ ○ Compiling /[workspace]/[section] ...
+ ✓ Compiled /[workspace]/[section] in 17.1s (2690 modules)
+ GET /admin/managers 307 in 20382ms
+ ○ Compiling /api/demo-auth/refresh ...
+ ✓ Compiled /api/demo-auth/refresh in 4.2s (2708 modules)
+ GET /api/demo-auth/refresh?next=/admin 500 in 4784ms
+ GET /admin/employees 307 in 293ms
+ ✓ Compiled in 1519ms (1237 modules)
+ ✓ Compiled in 1464ms (1237 modules)
+ ✓ Compiled in 887ms (1237 modules)
+ ✓ Compiled in 1234ms (1237 modules)
+ ✓ Compiled in 952ms (1237 modules)
+ ✓ Compiled in 1210ms (1237 modules)
+ ✓ Compiled in 1778ms (1237 modules)
+ ✓ Compiled in 1247ms (1237 modules)
+ ✓ Compiled in 815ms (1237 modules)
+ ✓ Compiled in 1038ms (1237 modules)
+ ✓ Compiled in 891ms (1237 modules)
+ ✓ Compiled in 1691ms (1237 modules)
+ ✓ Compiled in 703ms (1237 modules)
+ ✓ Compiled in 718ms (1237 modules)
+ ✓ Compiled in 790ms (1237 modules)
+ ✓ Compiled in 929ms (1237 modules)
+ ✓ Compiled in 1619ms (1237 modules)
+ ✓ Compiled in 680ms (1237 modules)
+ ✓ Compiled in 771ms (1237 modules)
+ ✓ Compiled in 1308ms (1239 modules)
+ ✓ Compiled in 824ms (1239 modules)
+ ✓ Compiled in 1199ms (1239 modules)
+ ✓ Compiled in 1721ms (1239 modules)
+ ✓ Compiled in 610ms (1239 modules)
+ ✓ Compiled in 570ms (1239 modules)
+ ✓ Compiled in 543ms (1239 modules)
+ ✓ Compiled in 836ms (1239 modules)
+ ✓ Compiled in 872ms (1239 modules)
+ ✓ Compiled in 718ms (1239 modules)
+ ✓ Compiled in 544ms (1239 modules)
+ ✓ Compiled in 690ms (1239 modules)
+ ✓ Compiled in 941ms (1239 modules)
+ ✓ Compiled in 815ms (1239 modules)
+ ✓ Compiled in 999ms (1239 modules)
+ ✓ Compiled in 976ms (1239 modules)
+ ○ Compiling /[workspace]/[section] ...
+ ✓ Compiled /[workspace]/[section] in 1007ms (1455 modules)
+ ○ Compiling /_error ...
+ ✓ Compiled /_error in 3s (3040 modules)
+ GET /admin/invoices 500 in 8589ms
+ GET /admin/invoices 500 in 332ms
+ GET /admin/invoices 500 in 1134ms
+ GET /admin/invoices 500 in 913ms
+ GET /admin/invoices 500 in 283ms
+ ✓ Compiled in 1708ms (1391 modules)
+[?25h

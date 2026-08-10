@@ -1,29 +1,25 @@
+import { GravityWellLoader } from "@/components/shared/gravity-well-loader";
+
 export function LoadingState({
   label = "Loading content",
-  rows = 3,
+  rows,
 }: {
   label?: string;
   rows?: number;
 }) {
   return (
     <div
-      className="flex flex-col gap-[30px]"
-      aria-label={label}
       aria-busy="true"
+      aria-label={label}
+      className="grid min-h-[calc(100vh-10rem)] place-items-center"
+      data-loading-rows={rows}
+      role="status"
     >
-      <div className="flex flex-col gap-3">
-        <div className="h-4 w-24 animate-pulse rounded-[var(--radius-control)] bg-muted" />
-        <div className="h-[34px] w-64 max-w-full animate-pulse rounded-[var(--radius-control)] bg-muted" />
-        <div className="h-5 w-96 max-w-full animate-pulse rounded-[var(--radius-control)] bg-muted" />
-      </div>
-      <div className="overflow-hidden rounded-[var(--radius-card)] border bg-card">
-        {Array.from({ length: rows }, (_, index) => (
-          <div
-            key={index}
-            className="h-20 animate-pulse border-b bg-card last:border-0"
-          />
-        ))}
-      </div>
+      <GravityWellLoader
+        className="h-[min(52vw,24rem)] min-h-[18rem] max-w-2xl"
+        label={label}
+        particleCount={90}
+      />
     </div>
   );
 }

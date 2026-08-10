@@ -137,7 +137,12 @@ function LoginForm() {
       });
 
       if (!response.ok) {
-        setServerError("Unable to verify this email. Please try again.");
+        const body = await response.json().catch(() => null);
+        setServerError(
+          typeof body?.message === "string"
+            ? body.message
+            : "Unable to verify this email. Please try again.",
+        );
         setIsIdentifying(false);
         return;
       }

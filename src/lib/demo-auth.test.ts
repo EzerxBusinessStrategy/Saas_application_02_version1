@@ -12,9 +12,9 @@ test("validates the approved demo credentials for every portal role", () => {
     validateDemoLogin({
       identifier: internalDemoEmail,
       password: demoPassword,
-      role: "MANAGER",
+      role: "EMPLOYEE",
     }),
-  ).toEqual({ role: "MANAGER", workspace: "manager" });
+  ).toEqual({ role: "EMPLOYEE", workspace: "employee" });
   expect(
     validateDemoLogin({
       identifier: internalDemoEmail,
