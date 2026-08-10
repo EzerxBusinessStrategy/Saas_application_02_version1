@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import {
+  createClientPortalSessionPolicy,
+  createEmployeeSessionPolicy,
+  createManagerSessionPolicy,
   createSuperAdminSessionPolicy,
   createTenantAdminSessionPolicy,
 } from "@/lib/server/super-admin-auth";
@@ -43,13 +46,11 @@ export async function POST(request: Request) {
     );
   }
 
-  const portalType: "super-admin" | "admin" =
-    workspace === "super-admin" ? "super-admin" : "admin";
-
-  const policyCreated =
-    workspace === "super-admin"
-      ? await createSuperAdminSessionPolicy(accessToken, rememberMe)
-      : await createTenantAdminSessionPolicy(accessToken, rememberMe);
+  const policyCreated = await createPolicyForWorkspace(
+    workspace,
+    accessToken,
+    rememberMe,
+  );
 
   if (!policyCreated) {
     return NextResponse.json(
@@ -63,8 +64,20 @@ export async function POST(request: Request) {
     response,
     { accessToken, refreshToken, expiresIn: 3600 },
     rememberMe,
-    portalType,
+    workspace,
   );
 
   return response;
+}
+
+function createPolicyForWorkspace(
+  workspace: Workspace,
+  accessToken: string,
+  rememberMe: boolean,
+): Promise<boolean> {
+  if (workspace === "super-admin") return createSuperAdminSessionPolicy(accessToken, rememberMe);
+  if (workspace === "client") return createClientPortalSessionPolicy(accessToken, rememberMe);
+  if (workspace === "manager") return createManagerSessionPolicy(accessToken, rememberMe);
+  if (workspace === "employee") return createEmployeeSessionPolicy(accessToken, rememberMe);
+  return createTenantAdminSessionPolicy(accessToken, rememberMe);
 }

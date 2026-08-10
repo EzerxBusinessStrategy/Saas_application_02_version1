@@ -14,8 +14,16 @@ export const sectionAccess: Record<
     permissions: ["employee.read"],
   },
   clients: {
-    workspaces: ["admin", "manager", "client"],
+    workspaces: ["admin", "manager", "employee", "client"],
     permissions: ["client.read", "client.read.assigned"],
+  },
+  "assign-task": {
+    workspaces: ["employee"],
+    permissions: ["task.create"],
+  },
+  "task-reviews": {
+    workspaces: ["employee"],
+    permissions: ["work_log.review.assigned_group"],
   },
   "work-groups": {
     workspaces: ["admin", "manager"],

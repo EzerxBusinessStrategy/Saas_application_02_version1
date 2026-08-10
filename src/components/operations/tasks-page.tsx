@@ -11,9 +11,12 @@ import {
   createTenantAdminEmployee,
   createTenantAdminTask,
   listOperationalTasks,
+  listEmployeeTasks,
   listTenantAdminTaskOptions,
   listTenantAdminTasks,
   listWorkLogs,
+  pauseEmployeeTask,
+  resumeEmployeeTask,
   startEmployeeTask,
   submitEmployeeTaskForReview,
   type CreateTenantAdminTaskInput,
@@ -95,6 +98,7 @@ export function TasksPage({
   const [openedTaskId, setOpenedTaskId] = useState<string | null>(null);
   const [reviewSubmission, setReviewSubmission] =
     useState<OperationalTask | null>(null);
+  const [reviewComment, setReviewComment] = useState("");
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
   const tasksQuery = useQuery({
     queryKey: ["operational-tasks", workspace, selectedClientId, query, status, priority],
@@ -104,6 +108,7 @@ export function TasksPage({
           mapTenantAdminTask,
         );
       }
+      if (workspace === "employee") return listEmployeeTasks();
 
       return listOperationalTasks(workspace, {
         query,
@@ -112,6 +117,8 @@ export function TasksPage({
       });
     },
     enabled: true,
+    refetchInterval: workspace === "employee" ? 30000 : false,
+    refetchOnWindowFocus: true,
   });
   const logsQuery = useQuery({
     queryKey: ["operational-work-logs", workspace, selectedClientId],
@@ -198,7 +205,11 @@ export function TasksPage({
       (task.status === "to-do" || task.status === "rejected")
     ) {
       try {
-        syncTask(await startEmployeeTask(task.id));
+        syncTask(
+          task.timer?.status === "paused"
+            ? await resumeEmployeeTask(task.id)
+            : await startEmployeeTask(task.id),
+        );
         refreshTaskWorkflow();
         toast.success("Task started. The active-task timer is now running.");
       } catch (error) {
@@ -212,13 +223,32 @@ export function TasksPage({
       "Employees can only start assigned work, submit it for review, or resume a rejected task.",
     );
   };
+  const pauseTask = async (task: OperationalTask) => {
+    try {
+      syncTask(await pauseEmployeeTask(task.id));
+      refreshTaskWorkflow();
+      toast.success("Task paused. Worked time was saved.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Task could not be paused.");
+    }
+  };
+  const resumeTask = async (task: OperationalTask) => {
+    try {
+      syncTask(await resumeEmployeeTask(task.id));
+      refreshTaskWorkflow();
+      toast.success("Task resumed.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Task could not be resumed.");
+    }
+  };
   const submitForReview = async () => {
     if (!reviewSubmission) return;
     setIsSubmittingReview(true);
     try {
-      syncTask(await submitEmployeeTaskForReview(reviewSubmission.id));
+      syncTask(await submitEmployeeTaskForReview(reviewSubmission.id, reviewComment));
       refreshTaskWorkflow();
       setReviewSubmission(null);
+      setReviewComment("");
       toast.success("Task submitted to the assigned manager for review.");
     } catch (error) {
       toast.error(
@@ -423,6 +453,8 @@ export function TasksPage({
               <TaskBoard
                 tasks={visibleTasks}
                 onOpen={setSelected}
+                onPause={workspace === "employee" ? pauseTask : undefined}
+                onResume={workspace === "employee" ? resumeTask : undefined}
                 onStatusChange={(id, nextStatus) => {
                   const task = visibleTasks.find((item) => item.id === id);
                   if (!task || !canUpdate) return;
@@ -473,7 +505,12 @@ export function TasksPage({
       />
       <ConfirmationDialog
         open={Boolean(reviewSubmission)}
-        onOpenChange={(open) => !open && setReviewSubmission(null)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setReviewSubmission(null);
+            setReviewComment("");
+          }
+        }}
         title="Submit task for review"
         description="Submitting this task for review locks status changes until your assigned manager approves or rejects the submission."
         confirmLabel="Submit for review"
@@ -483,6 +520,16 @@ export function TasksPage({
         <p className="text-sm text-muted-foreground">
           Assigned manager: {reviewSubmission?.manager}
         </p>
+        <label className="mt-4 flex flex-col gap-1 text-sm font-medium">
+          Task comment
+          <textarea
+            className="min-h-24 rounded-[var(--radius-control)] border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            maxLength={2000}
+            placeholder="Write what you completed before submitting."
+            value={reviewComment}
+            onChange={(event) => setReviewComment(event.target.value)}
+          />
+        </label>
       </ConfirmationDialog>
       </>
     </div>
@@ -1142,33 +1189,15 @@ function billingUnitLabel(unit: string) {
 
 function ActiveTaskTimer({ tasks }: { tasks: OperationalTask[] }) {
   const [now, setNow] = useState(() => Date.now());
-  const activeTasks = tasks.filter((task) => task.status === "in-progress");
-  const [startedAt, setStartedAt] = useState<Record<string, number>>({});
+  const activeTasks = tasks.filter(
+    (task) => task.status === "in-progress" && task.timer,
+  );
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    setStartedAt((current) => {
-      const next = { ...current };
-      tasks.forEach((task) => {
-        const key = `employee-task-started-at:${task.id}`;
-        if (task.status === "in-progress") {
-          const saved = Number(window.sessionStorage.getItem(key));
-          next[task.id] = saved || Date.now();
-          if (!saved) window.sessionStorage.setItem(key, String(next[task.id]));
-        } else {
-          delete next[task.id];
-          window.sessionStorage.removeItem(key);
-        }
-      });
-      return next;
-    });
-  }, [tasks]);
-
-  useEffect(() => {
-    if (!activeTasks.length) return;
+    if (!activeTasks.some((task) => task.timer?.status === "active")) return;
     const interval = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(interval);
-  }, [activeTasks.length]);
+  }, [activeTasks]);
 
   if (!activeTasks.length) return null;
   return (
@@ -1177,19 +1206,29 @@ function ActiveTaskTimer({ tasks }: { tasks: OperationalTask[] }) {
         <div>
           <p className="font-medium">Active task timer</p>
           <p className="mt-1 text-sm text-muted-foreground">
-            Timing stops only after successful review submission.
+            Worked time comes from saved backend work segments.
           </p>
         </div>
         <div className="flex flex-wrap gap-3">
           {activeTasks.map((task) => (
             <p key={task.id} className="text-sm font-medium">
-              {task.title}: {formatElapsed(now - (startedAt[task.id] ?? now))}
+              {task.title}: {formatElapsed(taskWorkedMilliseconds(task, now))}
             </p>
           ))}
         </div>
       </CardContent>
     </Card>
   );
+}
+
+function taskWorkedMilliseconds(task: OperationalTask, now: number): number {
+  const timer = task.timer;
+  if (!timer) return 0;
+  let seconds = timer.workedSeconds;
+  if (timer.status === "active") {
+    seconds += Math.max(0, Math.floor((now - new Date(timer.serverTime).getTime()) / 1000));
+  }
+  return seconds * 1000;
 }
 
 function formatElapsed(milliseconds: number) {

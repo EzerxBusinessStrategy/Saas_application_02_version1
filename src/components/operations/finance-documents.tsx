@@ -10,12 +10,16 @@ import {
   createSharedInvoice,
   createInvoiceFromTask,
   getOperationalWorkspace,
+  listEmployeeDocumentOptions,
   listTenantBillableTaskEntries,
+  listTenantAdminTaskOptions,
   listSharedDocuments,
   listSharedInvoices,
   updateSharedDocumentAccess,
   sendTenantInvoice,
+  type EmployeeDocumentOptions,
   type TenantBillableTaskEntry,
+  type TenantAdminTaskOptions,
 } from "@/features/operations/api/operations-api";
 import { listClients } from "@/features/administration/api/administration-api";
 import { DataTable } from "@/components/operations/data-table";
@@ -65,7 +69,13 @@ function DocumentsWorkspace({ workspace, fixedCategory }: { workspace: Extract<W
   const [uploadOpen, setUploadOpen] = useState(false);
   const [accessOpen, setAccessOpen] = useState(false);
   const clientsQuery = useQuery({ queryKey: ["tenant-finance-clients", workspace], queryFn: () => listClients({ page: 1, pageSize: 100 }), enabled: workspace === "admin" });
-  const clientOptions = workspace === "admin" ? clientsQuery.data?.items.map((client) => ({ id: client.id, name: client.name })) ?? [] : demoClients;
+  const employeeOptionsQuery = useQuery({ queryKey: ["employee-document-options"], queryFn: listEmployeeDocumentOptions, enabled: workspace === "employee" });
+  const adminTaskOptionsQuery = useQuery({ queryKey: ["tenant-document-task-options"], queryFn: listTenantAdminTaskOptions, enabled: workspace === "admin" });
+  const clientOptions = workspace === "admin"
+    ? clientsQuery.data?.items.map((client) => ({ id: client.id, name: client.name })) ?? []
+    : workspace === "employee"
+      ? employeeOptionsQuery.data?.clients ?? []
+      : demoClients;
   const refresh = useCallback(async () => {
     try { setDocuments(await listSharedDocuments(workspace)); setError(false); } catch { setError(true); }
   }, [workspace]);
@@ -87,15 +97,18 @@ function DocumentsWorkspace({ workspace, fixedCategory }: { workspace: Extract<W
     { accessorKey: "updatedOn", header: "Updated" },
     { id: "actions", header: "Actions", cell: ({ row }) => <Button size="sm" variant="outline" onClick={() => setSelected(row.original)}>View details</Button> },
   ];
+  const canUpload = workspace === "admin" || workspace === "employee";
   return <div className="flex flex-col gap-[30px]">
-    <PageHeader eyebrow="Operations" title={fixedCategory === "agreement" ? "Agreements" : "Documents"} description={fixedCategory === "agreement" ? "Upload agreements and send them to the selected client." : "Upload, organise and securely share operational documents with authorised users."} actions={workspace === "admin" ? <Button onClick={() => setUploadOpen(true)}><Upload data-icon="inline-start" />{fixedCategory === "agreement" ? "Upload agreement" : "Upload document"}</Button> : undefined} />
+    <PageHeader eyebrow="Operations" title={fixedCategory === "agreement" ? "Agreements" : "Documents"} description={fixedCategory === "agreement" ? "Upload agreements and send them to the selected client." : "Upload, organise and securely share operational documents with authorised users."} actions={canUpload ? <Button onClick={() => setUploadOpen(true)}><Upload data-icon="inline-start" />{fixedCategory === "agreement" ? "Upload agreement" : "Upload document"}</Button> : undefined} />
     <MetricStrip metrics={[{ label: "All documents", value: String(documents?.length ?? 0) }, { label: "Shared with me", value: String(documents?.filter((item) => item.uploadedByRole !== workspace).length ?? 0) }, { label: "Client documents", value: String(documents?.filter((item) => item.recipientClientIds.length).length ?? 0) }]} />
     <FilterToolbar search={{ value: search, onChange: setSearch, label: "Search documents", placeholder: "Search document name, client, category or uploader" }} activeFilterCount={Number(Boolean(category))} onClear={() => setCategory("")}>
       {!fixedCategory ? <label className="flex flex-col gap-1 text-sm font-medium">Category<Select value={category} onChange={(event) => setCategory(event.target.value)}><option value="">All categories</option>{categories.map((item) => <option key={item} value={item}>{item.replaceAll("-", " ")}</option>)}</Select></label> : null}
     </FilterToolbar>
     <Card><CardContent className="pt-0"><div className="hidden md:block"><DataTable caption="Authorised documents" columns={columns} data={visible} emptyTitle={search || category ? "No documents match these filters" : "No documents yet"} emptyDescription="Upload the first document to securely share files with authorised users." /></div><div className="md:hidden">{visible.length ? visible.map((document) => <MobileEntityCard key={document.id} title={document.title} identifier={`${document.fileType} · ${document.id}`} leading={<FileText className="size-5 text-primary" />} status={<StatusBadge status="on-track" />} metadata={<><dt className="text-muted-foreground">Client</dt><dd>{document.client}</dd><dt className="text-muted-foreground">Shared with</dt><dd><RecipientSummary document={document} /></dd></>} primaryAction={<Button size="sm" variant="outline" onClick={() => setSelected(document)}>View details</Button>} />) : <EmptyState title="No documents match these filters" description="Clear filters or upload a document." />}</div></CardContent></Card>
     <DocumentDialog document={selected} open={Boolean(selected)} onOpenChange={(open) => !open && setSelected(null)} canManage={canManage} onManageAccess={() => setAccessOpen(true)} />
-    <DocumentUploadDialog workspace={workspace} clients={clientOptions} fixedCategory={fixedCategory} open={uploadOpen} onOpenChange={setUploadOpen} onCreated={(document) => { setDocuments((current) => [document, ...(current ?? [])]); setUploadOpen(false); toast.success(fixedCategory === "agreement" ? "Agreement sent to client." : "Document saved."); }} />
+    {workspace === "employee"
+      ? <EmployeeDocumentUploadDialog clients={clientOptions} options={employeeOptionsQuery.data} fixedCategory={fixedCategory} open={uploadOpen} onOpenChange={setUploadOpen} onCreated={(document) => { setDocuments((current) => [document, ...(current ?? [])]); setUploadOpen(false); toast.success("Document shared."); }} />
+      : <DocumentUploadDialog workspace={workspace} clients={clientOptions} adminOptions={adminTaskOptionsQuery.data} fixedCategory={fixedCategory} open={uploadOpen} onOpenChange={setUploadOpen} onCreated={(document) => { setDocuments((current) => [document, ...(current ?? [])]); setUploadOpen(false); toast.success(fixedCategory === "agreement" ? "Agreement sent to client." : "Document saved."); }} />}
     {selected ? <AccessDialog workspace={workspace} document={selected} open={accessOpen} onOpenChange={setAccessOpen} onSaved={(document) => { setDocuments((current) => current?.map((item) => item.id === document.id ? document : item) ?? []); setSelected(document); setAccessOpen(false); toast.success("Document access updated."); }} /> : null}
   </div>;
 }
@@ -134,12 +147,12 @@ function InvoicesWorkspace({ workspace }: { workspace: "admin" | "manager" | "cl
 }
 
 function MetricStrip({ metrics }: { metrics: Array<{ label: string; value: string }> }) { return <section className="grid overflow-hidden rounded-[var(--radius-card)] border border-border bg-border sm:grid-cols-3">{metrics.map((metric) => <MetricCard key={metric.label} metric={metric} className="rounded-none border-y-0 border-l-0 shadow-none last:border-r-0" />)}</section>; }
-function RecipientSummary({ document }: { document: SharedDocument }) { const groups = [["Employee", document.recipientEmployeeIds.length], ["Manager", document.recipientManagerIds.length], ["Client", document.recipientClientIds.length]].filter(([, count]) => Number(count)); return <span className="text-sm text-muted-foreground">{groups.map(([role, count]) => `${role} ${count}`).join(" · ") || "Owner only"}</span>; }
+function RecipientSummary({ document }: { document: SharedDocument }) { const groups = [["Tenant Admin", document.recipientTenantAdminIds.length], ["Employee", document.recipientEmployeeIds.length], ["Manager", document.recipientManagerIds.length], ["Client", document.recipientClientIds.length]].filter(([, count]) => Number(count)); return <span className="text-sm text-muted-foreground">{groups.map(([role, count]) => `${role} ${count}`).join(" · ") || "Owner only"}</span>; }
 
 function DocumentDialog({ document, open, onOpenChange, canManage, onManageAccess }: { document: SharedDocument | null; open: boolean; onOpenChange: (open: boolean) => void; canManage: boolean; onManageAccess: () => void }) {
   const [tab, setTab] = useState("overview");
   if (!document) return null;
-  return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent title={document.title} description="Document details and authorised access." className="left-auto right-0 top-0 h-full max-h-none w-full max-w-2xl translate-x-0 translate-y-0 overflow-y-auto rounded-none"><div className="pr-8"><p className="text-sm font-medium text-primary">{document.id}</p><h2 className="mt-1 text-xl font-semibold">{document.title}</h2><ResponsiveTabs label="Document details" value={tab} onValueChange={setTab} tabs={[{ value: "overview", label: "Overview" }, { value: "access", label: "Access" }, { value: "activity", label: "Activity" }]}>{tab === "overview" ? <dl className="grid gap-4 text-sm sm:grid-cols-2"><Detail label="File" value={`${document.fileName} (${document.fileType})`} /><Detail label="Client" value={document.client} /><Detail label="Category" value={document.category} /><Detail label="Updated" value={document.updatedOn} /><Detail label="Related service" value={document.engagement ?? "Not linked"} /><Detail label="Related task" value={document.task ?? "Not linked"} /></dl> : null}{tab === "access" ? <div className="flex flex-col gap-4"><p className="text-sm text-muted-foreground">Owner: {document.uploadedBy}. Tenant Administration oversight: {document.tenantAdminVisible ? "included" : "not required"}.</p><RecipientSummary document={document} />{canManage ? <Button className="w-fit" size="sm" onClick={onManageAccess}>Manage access</Button> : null}</div> : null}{tab === "activity" ? <ul className="flex flex-col divide-y">{document.activity.map((item) => <li key={item.id} className="py-3 first:pt-0"><p className="font-medium text-sm">{item.action}</p><p className="mt-1 text-sm text-muted-foreground">{item.actor} · {item.at}</p></li>)}</ul> : null}</ResponsiveTabs><p className="mt-6 text-sm text-muted-foreground">Preview and download require the private-storage backend. No public file URL is exposed by this frontend mock.</p></div></DialogContent></Dialog>;
+  return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent title={document.title} description="Document details and authorised access." className="left-auto right-0 top-0 h-full max-h-none w-full max-w-2xl translate-x-0 translate-y-0 overflow-y-auto rounded-none"><div className="pr-8"><p className="text-sm font-medium text-primary">{document.id}</p><h2 className="mt-1 text-xl font-semibold">{document.title}</h2><ResponsiveTabs label="Document details" value={tab} onValueChange={setTab} tabs={[{ value: "overview", label: "Overview" }, { value: "access", label: "Access" }, { value: "activity", label: "Activity" }]}>{tab === "overview" ? <dl className="grid gap-4 text-sm sm:grid-cols-2"><Detail label="File" value={`${document.fileName} (${document.fileType})`} /><Detail label="Client" value={document.client} /><Detail label="Category" value={document.category} /><Detail label="Sent by" value={document.uploadedBy} /><Detail label="Sent at" value={document.updatedOn} /><Detail label="Why sent" value={document.shareReason ?? "Not specified"} /><Detail label="Related service" value={document.engagement ?? "Not linked"} /><Detail label="Related task" value={document.task ?? "Not linked"} /></dl> : null}{tab === "access" ? <div className="flex flex-col gap-4"><p className="text-sm text-muted-foreground">Owner: {document.uploadedBy}. Tenant Administration oversight: {document.tenantAdminVisible ? "included" : "not required"}.</p><RecipientSummary document={document} />{canManage ? <Button className="w-fit" size="sm" onClick={onManageAccess}>Manage access</Button> : null}</div> : null}{tab === "activity" ? <ul className="flex flex-col divide-y">{document.activity.map((item) => <li key={item.id} className="py-3 first:pt-0"><p className="font-medium text-sm">{item.action}</p><p className="mt-1 text-sm text-muted-foreground">{item.actor} · {item.at}</p></li>)}</ul> : null}</ResponsiveTabs><p className="mt-6 text-sm text-muted-foreground">Preview and download require the private-storage backend. No public file URL is exposed.</p></div></DialogContent></Dialog>;
 }
 function InvoiceDialog({ invoice, open, onOpenChange, onSent }: { invoice: SharedInvoice | null; open: boolean; onOpenChange: (open: boolean) => void; onSent: () => void }) { const [sending, setSending] = useState(false); if (!invoice) return null; const send = async () => { setSending(true); try { await sendTenantInvoice(invoice.id); toast.success("Invoice sent to the client portal."); onSent(); onOpenChange(false); } catch (error) { toast.error(error instanceof Error ? error.message : "Invoice could not be sent."); } finally { setSending(false); } }; return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent title={invoice.invoiceNumber} description="Invoice details and authorised visibility."><div className="pr-8"><h2 className="text-xl font-semibold">{invoice.invoiceNumber}</h2><dl className="mt-5 grid gap-4 text-sm sm:grid-cols-2"><Detail label="Client" value={invoice.client} /><Detail label="Amount" value={rupees.format(invoice.amount)} /><Detail label="Due date" value={invoice.dueOn} /><Detail label="Visibility" value={invoice.visibility} /><Detail label="Uploaded by" value={invoice.uploadedBy} /><Detail label="File" value={invoice.fileName} /></dl>{invoice.status === "draft" ? <div className="mt-6 flex justify-end"><Button disabled={sending} onClick={() => void send()}>{sending ? "Sending..." : "Send to client"}</Button></div> : null}</div></DialogContent></Dialog>; }
 
@@ -172,12 +185,80 @@ function FileField({ file, onFile }: { file: File | null; onFile: (file: File | 
   </label>;
 }
 
-function DocumentUploadDialog({ workspace, clients, fixedCategory, open, onOpenChange, onCreated }: { workspace: "admin" | "manager" | "employee" | "client"; clients: Array<{ id: string; name: string }>; fixedCategory?: (typeof categories)[number]; open: boolean; onOpenChange: (open: boolean) => void; onCreated: (document: SharedDocument) => void }) {
-  const [file, setFile] = useState<File | null>(null); const [title, setTitle] = useState(""); const [category, setCategory] = useState<(typeof categories)[number]>(fixedCategory ?? "supporting"); const [clientId, setClientId] = useState(workspace === "client" ? "northstar" : ""); const [employees, setEmployees] = useState<string[]>([]); const [managers, setManagers] = useState<string[]>(workspace === "employee" ? ["mgr-avery"] : []); const [clientRecipients, setClientRecipients] = useState<string[]>([]); const [submitting, setSubmitting] = useState(false);
+function EmployeeDocumentUploadDialog({ clients, options, fixedCategory, open, onOpenChange, onCreated }: { clients: Array<{ id: string; name: string }>; options?: EmployeeDocumentOptions; fixedCategory?: (typeof categories)[number]; open: boolean; onOpenChange: (open: boolean) => void; onCreated: (document: SharedDocument) => void }) {
+  const [file, setFile] = useState<File | null>(null);
+  const [title, setTitle] = useState("");
+  const [category, setCategory] = useState<(typeof categories)[number]>(fixedCategory ?? "supporting");
+  const [clientId, setClientId] = useState("");
+  const [tenantAdminId, setTenantAdminId] = useState("");
+  const [managerId, setManagerId] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!clientId && clients[0]) setClientId(clients[0].id);
+  }, [clientId, clients]);
+
+  const submit = async () => {
+    if (!file || !title.trim() || !clientId || (!tenantAdminId && !managerId)) return;
+    setSubmitting(true);
+    try {
+      onCreated(await createSharedDocument("employee", {
+        clientId,
+        title: title.trim(),
+        fileName: file.name,
+        fileType: file.name.split(".").pop()?.toUpperCase() ?? "FILE",
+        sizeBytes: file.size,
+        category: fixedCategory ?? category,
+        recipientTenantAdminIds: tenantAdminId ? [tenantAdminId] : [],
+        recipientManagerIds: managerId ? [managerId] : [],
+        recipientEmployeeIds: [],
+        recipientClientIds: [],
+      }));
+      setFile(null);
+      setTitle("");
+      setTenantAdminId("");
+      setManagerId("");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Document could not be uploaded.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent title="Upload document" description="Select the authorised recipients for this document." className="max-h-[calc(100vh-2rem)] max-w-2xl overflow-y-auto"><div className="pr-8"><h2 className="text-xl font-semibold">Upload document</h2><p className="mt-2 text-sm text-muted-foreground">The document will be visible only to you and the selected Tenant Admin or Manager.</p><div className="mt-6 grid gap-4 sm:grid-cols-2"><FileField file={file} onFile={setFile} /><label className="flex flex-col gap-1 text-sm font-medium">Document title<Input value={title} maxLength={120} onChange={(event) => setTitle(event.target.value)} /></label><label className="flex flex-col gap-1 text-sm font-medium">Category<Select value={category} onChange={(event) => setCategory(event.target.value as typeof category)}>{categories.map((item) => <option key={item} value={item}>{item.replaceAll("-", " ")}</option>)}</Select></label><label className="flex flex-col gap-1 text-sm font-medium">Related client<Select value={clientId} onChange={(event) => setClientId(event.target.value)}><option value="">Select client</option>{clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}</Select></label><label className="flex flex-col gap-1 text-sm font-medium">Send to Tenant Admin<Select value={tenantAdminId} onChange={(event) => setTenantAdminId(event.target.value)}><option value="">Select Tenant Admin</option>{options?.tenantAdmins.map((recipient) => <option key={recipient.id} value={recipient.id}>{recipient.name}</option>)}</Select></label><label className="flex flex-col gap-1 text-sm font-medium">Send to Manager<Select value={managerId} onChange={(event) => setManagerId(event.target.value)}><option value="">Select Manager</option>{options?.managers.map((recipient) => <option key={recipient.id} value={recipient.id}>{recipient.name}</option>)}</Select></label></div>{!clients.length ? <p className="mt-4 text-sm text-muted-foreground">Assigned task clients will appear here when tasks are assigned to you.</p> : null}<div className="mt-7 flex justify-end gap-2"><Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button><Button disabled={!file || !title.trim() || !clientId || (!tenantAdminId && !managerId) || submitting} onClick={() => void submit()}>{submitting ? "Uploading..." : "Upload document"}</Button></div></div></DialogContent></Dialog>;
+}
+
+function DocumentUploadDialog({ workspace, clients, adminOptions, fixedCategory, open, onOpenChange, onCreated }: { workspace: "admin" | "manager" | "employee" | "client"; clients: Array<{ id: string; name: string }>; adminOptions?: TenantAdminTaskOptions; fixedCategory?: (typeof categories)[number]; open: boolean; onOpenChange: (open: boolean) => void; onCreated: (document: SharedDocument) => void }) {
+  const [file, setFile] = useState<File | null>(null);
+  const [title, setTitle] = useState("");
+  const [category, setCategory] = useState<(typeof categories)[number]>(fixedCategory ?? "supporting");
+  const [clientId, setClientId] = useState(workspace === "client" ? "northstar" : "");
+  const [employeeId, setEmployeeId] = useState("");
+  const [shareReason, setShareReason] = useState("");
+  const [submitting, setSubmitting] = useState(false);
   const eligibleClients = workspace === "manager" ? clients.slice(0, 2) : clients;
-  const toggle = (value: string, values: string[], setter: (next: string[]) => void) => setter(values.includes(value) ? values.filter((item) => item !== value) : [...values, value]);
-  const submit = async () => { if (!file || !title || !clientId) return; setSubmitting(true); try { onCreated(await createSharedDocument(workspace, { clientId, title, fileName: file.name, fileType: file.name.split(".").pop()?.toUpperCase() ?? "FILE", sizeBytes: file.size, category: fixedCategory ?? category, recipientEmployeeIds: employees, recipientManagerIds: managers, recipientClientIds: fixedCategory === "agreement" ? [clientId] : clientRecipients })); } catch (error) { toast.error(error instanceof Error ? error.message : "Document could not be prepared."); } finally { setSubmitting(false); } };
-  return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent title="Upload document" description="Choose document metadata and authorised recipients." className="max-h-[calc(100vh-2rem)] max-w-2xl overflow-y-auto"><div className="pr-8"><h2 className="text-xl font-semibold">Upload document</h2>{workspace === "client" ? <p className="mt-2 text-sm text-muted-foreground">This document will be shared securely with your assigned manager and authorised administration team.</p> : <p className="mt-2 text-sm text-muted-foreground">File bytes are not uploaded by this frontend mock; only validated metadata is retained for portal workflow testing.</p>}<div className="mt-6 grid gap-4 sm:grid-cols-2"><FileField file={file} onFile={setFile} /><label className="flex flex-col gap-1 text-sm font-medium">Document title<Input value={title} maxLength={120} onChange={(event) => setTitle(event.target.value)} /></label><label className="flex flex-col gap-1 text-sm font-medium">Category<Select value={category} onChange={(event) => setCategory(event.target.value as typeof category)}>{categories.map((item) => <option key={item} value={item}>{item.replaceAll("-", " ")}</option>)}</Select></label><label className="flex flex-col gap-1 text-sm font-medium">Related client<Select value={clientId} disabled={workspace === "client"} onChange={(event) => setClientId(event.target.value)}><option value="">Select client</option>{eligibleClients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}</Select></label></div>{workspace !== "client" ? <fieldset className="mt-6"><legend className="font-semibold">Share with</legend><p className="mt-1 text-sm text-muted-foreground">Select only authorised recipients. Tenant Administration oversight is added where policy requires it.</p><div className="mt-4 grid gap-3 sm:grid-cols-3">{workspace !== "employee" ? <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={employees.includes("emp-riley")} onChange={() => toggle("emp-riley", employees, setEmployees)} />Employees</label> : null}<label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={managers.includes("mgr-avery")} onChange={() => toggle("mgr-avery", managers, setManagers)} />Managers</label>{workspace !== "employee" ? <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={clientRecipients.includes(clientId)} disabled={!clientId} onChange={() => toggle(clientId, clientRecipients, setClientRecipients)} />Related client</label> : <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked disabled />Tenant Administration</label>}</div><p className="mt-3 text-sm text-muted-foreground">Access summary: {employees.length} employee, {managers.length} manager, {clientRecipients.length} client recipient{employees.length + managers.length + clientRecipients.length === 1 ? "" : "s"}.</p></fieldset> : null}<div className="mt-7 flex justify-end gap-2"><Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button><Button disabled={!file || !title || !clientId || submitting} onClick={() => void submit()}>{submitting ? "Preparing…" : "Upload document"}</Button></div></div></DialogContent></Dialog>;
+  const submit = async () => {
+    if (!file || !title.trim() || !clientId) return;
+    setSubmitting(true);
+    try {
+      onCreated(await createSharedDocument(workspace, {
+        clientId,
+        title: title.trim(),
+        fileName: file.name,
+        fileType: file.name.split(".").pop()?.toUpperCase() ?? "FILE",
+        sizeBytes: file.size,
+        category: fixedCategory ?? category,
+        recipientEmployeeIds: employeeId ? [employeeId] : [],
+        recipientClientIds: fixedCategory === "agreement" ? [clientId] : [],
+        shareReason,
+      }));
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Document could not be prepared.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+  return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent title="Upload document" description="Choose document metadata and authorised recipients." className="max-h-[calc(100vh-2rem)] max-w-2xl overflow-y-auto"><div className="pr-8"><h2 className="text-xl font-semibold">Upload document</h2><div className="mt-6 grid gap-4 sm:grid-cols-2"><FileField file={file} onFile={setFile} /><label className="flex flex-col gap-1 text-sm font-medium">Document title<Input value={title} maxLength={120} onChange={(event) => setTitle(event.target.value)} /></label><label className="flex flex-col gap-1 text-sm font-medium">Category<Select value={category} onChange={(event) => setCategory(event.target.value as typeof category)}>{categories.map((item) => <option key={item} value={item}>{item.replaceAll("-", " ")}</option>)}</Select></label><label className="flex flex-col gap-1 text-sm font-medium">Related client<Select value={clientId} disabled={workspace === "client"} onChange={(event) => setClientId(event.target.value)}><option value="">Select client</option>{eligibleClients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}</Select></label>{workspace === "admin" ? <label className="flex flex-col gap-1 text-sm font-medium">Send to employee<Select value={employeeId} onChange={(event) => setEmployeeId(event.target.value)}><option value="">Select employee</option>{adminOptions?.employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.name}</option>)}</Select></label> : null}{workspace === "admin" ? <label className="flex flex-col gap-1 text-sm font-medium">Why sent<Input value={shareReason} maxLength={1000} onChange={(event) => setShareReason(event.target.value)} /></label> : null}</div><div className="mt-7 flex justify-end gap-2"><Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button><Button disabled={!file || !title.trim() || !clientId || submitting} onClick={() => void submit()}>{submitting ? "Preparing..." : "Upload document"}</Button></div></div></DialogContent></Dialog>;
 }
 
 function InvoiceUploadDialog({ workspace, clients, open, onOpenChange, onCreated }: { workspace: "admin" | "manager" | "client"; clients: Array<{ id: string; name: string }>; open: boolean; onOpenChange: (open: boolean) => void; onCreated: (invoice: SharedInvoice) => void }) {

@@ -16,6 +16,23 @@ import { ClientPortalProfileService } from "./client-portal-profile.service";
 import { ClientPortalRequestsController } from "./client-portal-requests.controller";
 import { ClientPortalRequestsRepository } from "./client-portal-requests.repository";
 import { ClientPortalRequestsService } from "./client-portal-requests.service";
+import { EmployeeDashboardController } from "./employee-dashboard.controller";
+import { EmployeeDashboardRepository } from "./employee-dashboard.repository";
+import { EmployeeDashboardService } from "./employee-dashboard.service";
+import { EmployeeDocumentsController } from "./employee-documents.controller";
+import { EmployeeDocumentsRepository } from "./employee-documents.repository";
+import { EmployeeDocumentsService } from "./employee-documents.service";
+import { EmployeeManagerController } from "./employee-manager.controller";
+import { EmployeeManagerService } from "./employee-manager.service";
+import { EmployeeNotificationsController } from "./employee-notifications.controller";
+import { EmployeeNotificationsRepository } from "./employee-notifications.repository";
+import { EmployeeNotificationsService } from "./employee-notifications.service";
+import { EmployeeProfileController } from "./employee-profile.controller";
+import { EmployeeProfileRepository } from "./employee-profile.repository";
+import { EmployeeProfileService } from "./employee-profile.service";
+import { EmployeeTasksController } from "./employee-tasks.controller";
+import { EmployeeTasksRepository } from "./employee-tasks.repository";
+import { EmployeeTasksService } from "./employee-tasks.service";
 import { SuperAdminAuditLogController } from "./super-admin-audit-log.controller";
 import { SuperAdminAuditLogRepository } from "./super-admin-audit-log.repository";
 import { SuperAdminAuditLogService } from "./super-admin-audit-log.service";
@@ -73,6 +90,12 @@ import { TenantAnalyticsService } from "./tenant-analytics.service";
     ClientPortalNotificationsController,
     ClientPortalProfileController,
     ClientPortalRequestsController,
+    EmployeeDashboardController,
+    EmployeeDocumentsController,
+    EmployeeManagerController,
+    EmployeeNotificationsController,
+    EmployeeProfileController,
+    EmployeeTasksController,
     TenantAdminDashboardController,
     TenantAdminClientsController,
     TenantAdminEmployeePerformanceController,
@@ -105,6 +128,17 @@ import { TenantAnalyticsService } from "./tenant-analytics.service";
     ClientPortalProfileService,
     ClientPortalRequestsRepository,
     ClientPortalRequestsService,
+    EmployeeDashboardRepository,
+    EmployeeDashboardService,
+    EmployeeDocumentsRepository,
+    EmployeeDocumentsService,
+    EmployeeManagerService,
+    EmployeeNotificationsRepository,
+    EmployeeNotificationsService,
+    EmployeeProfileRepository,
+    EmployeeProfileService,
+    EmployeeTasksRepository,
+    EmployeeTasksService,
     TenantAdminDashboardRepository,
     TenantAdminDashboardService,
     TenantAdminClientsRepository,

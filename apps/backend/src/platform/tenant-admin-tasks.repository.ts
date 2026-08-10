@@ -744,7 +744,7 @@ export class TenantAdminTasksRepository {
       manager_employee_id: string | null;
       manager_name: string | null;
       member_count: string;
-      members: readonly { id: string; name: string; employeeCode: string | null }[] | null;
+      members: readonly { id: string; name: string; employeeCode: string | null; email: string }[] | null;
       status: string;
     }>(
       `
@@ -761,7 +761,8 @@ export class TenantAdminTasksRepository {
               distinct jsonb_build_object(
                 'id', e.id::text,
                 'name', coalesce(tm.display_name, e.employee_code),
-                'employeeCode', e.employee_code
+                'employeeCode', e.employee_code,
+                'email', u.email
               )
             ) filter (where e.id is not null),
             '[]'::jsonb
@@ -781,6 +782,8 @@ export class TenantAdminTasksRepository {
         left join public.tenant_memberships tm
           on tm.id = e.membership_id
          and tm.tenant_id = e.tenant_id
+        left join public.users u
+          on u.id = tm.user_id
         left join lateral (
           select
             mwgm.employee_id,
@@ -820,6 +823,7 @@ export class TenantAdminTasksRepository {
           id: member.id,
           name: member.name,
           employeeCode: member.employeeCode,
+          email: member.email,
           isManager: member.id === row.manager_employee_id,
           skills: [],
           categories: [],

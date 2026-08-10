@@ -41,6 +41,14 @@ export const taskSchema = z.object({
   ]),
   approvalStatus: z.enum(["not-required", "pending", "rejected", "approved"]),
   blocked: z.boolean(),
+  timer: z
+    .object({
+      status: z.enum(["not_started", "active", "paused", "submitted"]),
+      workedSeconds: z.number().int().nonnegative(),
+      activeSegmentStartedAt: z.string().datetime().nullable(),
+      serverTime: z.string().datetime(),
+    })
+    .optional(),
 });
 export type OperationalTask = z.infer<typeof taskSchema>;
 
@@ -134,8 +142,10 @@ export const sharedDocumentSchema = z.object({
   clientDecisionComment: z.string().nullable().default(null),
   recipientEmployeeIds: z.array(z.string()),
   recipientManagerIds: z.array(z.string()),
+  recipientTenantAdminIds: z.array(z.string()).default([]),
   recipientClientIds: z.array(z.string()),
   tenantAdminVisible: z.boolean(),
+  shareReason: z.string().nullable().default(null),
   activity: z.array(
     z.object({ id: z.string(), action: z.string(), actor: z.string(), at: z.string() }),
   ),
@@ -154,14 +164,18 @@ export const documentUploadInputSchema = sharedDocumentSchema
     task: true,
     recipientEmployeeIds: true,
     recipientManagerIds: true,
+    recipientTenantAdminIds: true,
     recipientClientIds: true,
+    shareReason: true,
   })
   .partial({
     engagement: true,
     task: true,
     recipientEmployeeIds: true,
     recipientManagerIds: true,
+    recipientTenantAdminIds: true,
     recipientClientIds: true,
+    shareReason: true,
   });
 export type DocumentUploadInput = z.infer<typeof documentUploadInputSchema>;
 

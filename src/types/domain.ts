@@ -59,6 +59,7 @@ export type User = {
   email: string;
   initials: string;
   role: Role;
+  roles?: Role[];
   permissions: Permission[];
 };
 export type Metric = {

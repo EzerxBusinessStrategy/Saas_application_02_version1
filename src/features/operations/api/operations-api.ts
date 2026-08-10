@@ -45,6 +45,7 @@ import {
   type DocumentUploadInput,
   type InvoiceUploadInput,
   type OperationalTask,
+  type WorkLog,
   type SharedDocument,
   type SharedInvoice,
   type SupportTicket,
@@ -208,8 +209,43 @@ const tenantFinanceDocumentSchema = z.object({
   clientDecisionAt: z.string().nullable(),
   clientDecisionBy: z.string().nullable(),
   clientDecisionComment: z.string().nullable(),
+  shareReason: z.string().nullable().optional(),
 });
 const tenantFinanceDocumentsResponseSchema = z.object({ documents: z.array(tenantFinanceDocumentSchema) });
+const employeeDocumentRecipientOptionSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  email: z.string().nullable(),
+});
+const employeeDocumentOptionsSchema = z.object({
+  clients: z.array(z.object({ id: z.string(), name: z.string() })),
+  tenantAdmins: z.array(employeeDocumentRecipientOptionSchema),
+  managers: z.array(employeeDocumentRecipientOptionSchema),
+});
+const employeeDocumentSchema = z.object({
+  id: z.string(),
+  clientId: z.string(),
+  client: z.string(),
+  title: z.string(),
+  fileName: z.string(),
+  fileType: z.string(),
+  sizeBytes: z.number(),
+  category: sharedDocumentSchema.shape.category,
+  uploadedBy: z.string(),
+  uploadedById: z.string(),
+  updatedOn: z.string(),
+  status: z.enum(["active", "archived"]),
+  clientDecisionStatus: z.enum(["pending", "approved", "rejected"]),
+  clientDecisionAt: z.string().nullable(),
+  clientDecisionBy: z.string().nullable(),
+  clientDecisionComment: z.string().nullable(),
+  recipientTenantAdminIds: z.array(z.string()),
+  recipientManagerIds: z.array(z.string()),
+  shareReason: z.string().nullable().optional(),
+});
+const employeeDocumentsResponseSchema = z.object({ documents: z.array(employeeDocumentSchema) });
+export type EmployeeDocumentRecipientOption = z.infer<typeof employeeDocumentRecipientOptionSchema>;
+export type EmployeeDocumentOptions = z.infer<typeof employeeDocumentOptionsSchema>;
 const tenantFinanceInvoiceSchema = z.object({
   id: z.string(),
   clientId: z.string(),
@@ -257,11 +293,55 @@ const tenantAdminTaskSchema = z.object({
 const tenantAdminTasksResponseSchema = z.object({
   tasks: z.array(tenantAdminTaskSchema),
 });
+const employeeTaskTimerSchema = z.object({
+  status: z.enum(["not_started", "active", "paused", "submitted"]),
+  workedSeconds: z.number().int().nonnegative(),
+  activeSegmentStartedAt: z.string().datetime().nullable(),
+  serverTime: z.string().datetime(),
+});
+const employeeTaskSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  description: z.string(),
+  clientId: z.string(),
+  clientName: z.string(),
+  serviceId: z.string(),
+  serviceName: z.string(),
+  workGroupId: z.string().nullable(),
+  workGroupName: z.string().nullable(),
+  assignedBy: z.string().nullable(),
+  priority: tenantAdminTaskPrioritySchema,
+  status: tenantAdminTaskStatusSchema,
+  plannedDueAt: z.string().datetime().nullable(),
+  needsChanges: z.boolean(),
+  latestManagerNote: z.string().nullable(),
+  timer: employeeTaskTimerSchema,
+});
+const employeeTasksResponseSchema = z.object({ tasks: z.array(employeeTaskSchema) });
+const employeeWorkLogsResponseSchema = z.object({
+  logs: z.array(
+    z.object({
+      date: z.string(),
+      taskId: z.string(),
+      taskTitle: z.string(),
+      clientName: z.string(),
+      workedSeconds: z.number().int().nonnegative(),
+      segments: z.array(
+        z.object({
+          startedAt: z.string().datetime(),
+          endedAt: z.string().datetime().nullable(),
+          workedSeconds: z.number().int().nonnegative(),
+        }),
+      ),
+    }),
+  ),
+});
 export type TenantAdminTaskOptions = z.infer<typeof tenantAdminTaskOptionsSchema>;
 export type TenantAdminEmployeeOption = z.infer<typeof tenantAdminEmployeeOptionSchema>;
 export type TenantAdminWorkGroup = z.infer<typeof tenantAdminWorkGroupSchema>;
 export type TenantAdminTask = z.infer<typeof tenantAdminTaskSchema>;
 export type TenantAdminService = z.infer<typeof tenantAdminServiceSchema>;
+type EmployeeTask = z.infer<typeof employeeTaskSchema>;
 export type CreateTenantAdminServiceInput = {
   name: string;
   taskType: string;
@@ -557,8 +637,10 @@ export async function listSharedDocuments(workspace: Workspace) {
       uploadedById: "tenant-admin",
         recipientEmployeeIds: [],
         recipientManagerIds: [],
+        recipientTenantAdminIds: [],
         recipientClientIds: [document.clientId],
         tenantAdminVisible: true,
+        shareReason: document.shareReason ?? null,
         activity: [{ id: `${document.id}-created`, action: "Created", actor: document.uploadedBy, at: document.updatedOn }],
     }));
   }
@@ -576,12 +658,39 @@ export async function listSharedDocuments(workspace: Workspace) {
       clientDecisionBy: null,
       recipientEmployeeIds: [],
       recipientManagerIds: [],
+      recipientTenantAdminIds: [],
       recipientClientIds: [clientId],
       tenantAdminVisible: true,
       activity: [{ id: `${document.id}-shared`, action: "Shared", actor: document.uploadedBy, at: document.updatedOn }],
     }));
   }
+  if (workspace === "employee") return listEmployeeDocuments();
   return currentSharedDocuments().filter((record) => documentVisibleTo(workspace, record));
+}
+
+export async function listEmployeeDocumentOptions(): Promise<EmployeeDocumentOptions> {
+  const response = await fetch("/api/employee/documents/options", { cache: "no-store" });
+  return employeeDocumentOptionsSchema.parse(await parseJsonResponse(response));
+}
+
+export async function listEmployeeDocuments(): Promise<SharedDocument[]> {
+  const response = await fetch("/api/employee/documents", { cache: "no-store" });
+  return employeeDocumentsResponseSchema.parse(await parseJsonResponse(response)).documents.map(mapEmployeeDocument);
+}
+
+function mapEmployeeDocument(document: z.infer<typeof employeeDocumentSchema>): SharedDocument {
+  return sharedDocumentSchema.parse({
+    ...document,
+    tenantId: "tenant",
+    engagement: null,
+    task: null,
+    uploadedByRole: "employee",
+    recipientEmployeeIds: [],
+    recipientClientIds: [],
+    tenantAdminVisible: document.recipientTenantAdminIds.length > 0,
+    shareReason: document.shareReason ?? null,
+    activity: [{ id: `${document.id}-shared`, action: "Uploaded and shared", actor: document.uploadedBy, at: document.updatedOn }],
+  });
 }
 
 export async function listSharedInvoices(workspace: Workspace) {
@@ -648,6 +757,8 @@ export async function createSharedDocument(
         fileType: value.fileType,
         sizeBytes: value.sizeBytes,
         category: value.category,
+        recipientEmployeeIds: value.recipientEmployeeIds ?? [],
+        shareReason: value.shareReason ?? "",
       }),
     });
     const document = tenantFinanceDocumentSchema.parse(await parseJsonResponse(response));
@@ -660,10 +771,29 @@ export async function createSharedDocument(
       uploadedById: "tenant-admin",
         recipientEmployeeIds: value.recipientEmployeeIds ?? [],
         recipientManagerIds: value.recipientManagerIds ?? [],
+        recipientTenantAdminIds: value.recipientTenantAdminIds ?? [],
         recipientClientIds: value.recipientClientIds ?? [value.clientId],
         tenantAdminVisible: true,
+        shareReason: document.shareReason ?? value.shareReason ?? null,
         activity: [{ id: `${document.id}-created`, action: "Created", actor: document.uploadedBy, at: document.updatedOn }],
     };
+  }
+  if (workspace === "employee") {
+    const response = await fetch("/api/employee/documents", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        clientId: value.clientId,
+        title: value.title,
+        fileName: value.fileName,
+        fileType: value.fileType,
+        sizeBytes: value.sizeBytes,
+        category: value.category,
+        recipientTenantAdminIds: value.recipientTenantAdminIds ?? [],
+        recipientManagerIds: value.recipientManagerIds ?? [],
+      }),
+    });
+    return mapEmployeeDocument(employeeDocumentSchema.parse(await parseJsonResponse(response)));
   }
   const actor = documentActors[workspace];
   const targetClientId = workspace === "client" ? clientId : value.clientId;
@@ -672,10 +802,6 @@ export async function createSharedDocument(
   const recipientEmployeeIds = value.recipientEmployeeIds ?? [];
   const recipientManagerIds = value.recipientManagerIds ?? [];
   const recipientClientIds = value.recipientClientIds ?? [];
-  if (workspace === "employee" && recipientEmployeeIds.length + recipientClientIds.length)
-    throw new Error("Employees can share documents only with their manager and Tenant Administration.");
-  if (workspace === "employee" && !recipientManagerIds.includes(managerId))
-    throw new Error("Select your assigned manager before uploading.");
   if (workspace === "manager" && !recipientEmployeeIds.length && !recipientManagerIds.length && !recipientClientIds.length)
     throw new Error("Select at least one authorised recipient.");
   if (workspace === "manager" && recipientClientIds.some((id) => !documentActors.manager.clientIds.includes(id as never)))
@@ -688,8 +814,9 @@ export async function createSharedDocument(
       engagement: value.engagement ?? null, task: value.task ?? null, uploadedBy: actor.name, uploadedByRole: workspace,
       uploadedById: actor.id, updatedOn: now, status: "active", clientDecisionStatus: "pending", clientDecisionAt: null, clientDecisionBy: null, clientDecisionComment: null, recipientEmployeeIds,
       recipientManagerIds: workspace === "client" ? [managerId] : recipientManagerIds,
+      recipientTenantAdminIds: value.recipientTenantAdminIds ?? [],
       recipientClientIds: workspace === "client" ? [clientId] : recipientClientIds,
-      tenantAdminVisible: true, activity: [{ id: `DOC-ACT-${Date.now()}`, action: "Uploaded and shared", actor: actor.name, at: now }],
+      tenantAdminVisible: true, shareReason: value.shareReason ?? null, activity: [{ id: `DOC-ACT-${Date.now()}`, action: "Uploaded and shared", actor: actor.name, at: now }],
   };
   sessionDocuments = [record, ...currentSharedDocuments()];
   saveStoredRecords(documentStorageKey, sessionDocuments);
@@ -756,7 +883,7 @@ export async function updateSharedDocumentAccess(
   documentId: string,
   recipients: Pick<
     DocumentUploadInput,
-    "recipientEmployeeIds" | "recipientManagerIds" | "recipientClientIds"
+    "recipientEmployeeIds" | "recipientManagerIds" | "recipientTenantAdminIds" | "recipientClientIds"
   >,
 ) {
   const current = currentSharedDocuments();
@@ -770,6 +897,7 @@ export async function updateSharedDocumentAccess(
       ...document,
       recipientEmployeeIds: recipients.recipientEmployeeIds ?? [],
       recipientManagerIds: recipients.recipientManagerIds ?? [],
+      recipientTenantAdminIds: recipients.recipientTenantAdminIds ?? document.recipientTenantAdminIds,
       recipientClientIds,
     tenantAdminVisible: true,
     updatedOn: "Just now",
@@ -883,6 +1011,85 @@ export async function listTenantAdminTasks(clientId?: string): Promise<TenantAdm
   return tenantAdminTasksResponseSchema.parse(await parseJsonResponse(response)).tasks;
 }
 
+export async function listEmployeeTasks(): Promise<OperationalTask[]> {
+  const response = await fetch("/api/employee/tasks", { cache: "no-store" });
+  return employeeTasksResponseSchema.parse(await parseJsonResponse(response)).tasks.map(mapEmployeeTask);
+}
+
+export async function startEmployeeTask(taskId: string): Promise<OperationalTask> {
+  return mutateEmployeeTask(taskId, "start");
+}
+
+export async function pauseEmployeeTask(taskId: string): Promise<OperationalTask> {
+  return mutateEmployeeTask(taskId, "pause");
+}
+
+export async function resumeEmployeeTask(taskId: string): Promise<OperationalTask> {
+  return mutateEmployeeTask(taskId, "resume");
+}
+
+export async function submitEmployeeTaskForReview(taskId: string, taskComment = ""): Promise<OperationalTask> {
+  return mutateEmployeeTask(taskId, "submit", { taskComment });
+}
+
+async function mutateEmployeeTask(taskId: string, action: "start" | "pause" | "resume" | "submit", body?: unknown): Promise<OperationalTask> {
+  const response = await fetch(`/api/employee/tasks/${encodeURIComponent(taskId)}/${action}`, {
+    method: "POST",
+    headers: body ? { "content-type": "application/json" } : undefined,
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  return mapEmployeeTask(employeeTaskSchema.parse(await parseJsonResponse(response)));
+}
+
+function mapEmployeeTask(task: EmployeeTask): OperationalTask {
+  return {
+    id: task.id,
+    tenantId: "authenticated",
+    clientId: task.clientId,
+    client: task.clientName,
+    engagement: task.serviceName,
+    workGroup: task.workGroupName ?? "Direct assignment",
+    managerId: "",
+    manager: task.assignedBy ?? "Tenant assignment",
+    assigneeId: "current",
+    assignee: "Current employee",
+    title: task.title,
+    description: task.description,
+    priority: mapTenantPriority(task.priority),
+    complexity: "standard",
+    status: mapEmployeeStatus(task.status),
+    sla: "on-track",
+    dueDate: task.plannedDueAt ? task.plannedDueAt.slice(0, 10) : "No due date",
+    checklist: [],
+    dependencyIds: [],
+    attachmentCount: 0,
+    commentCount: 0,
+    reviewStatus:
+      task.status === "returned"
+        ? "changes-requested"
+        : ["submitted", "manager_review", "tenant_approval"].includes(task.status)
+          ? "pending"
+          : "not-required",
+    approvalStatus: task.status === "tenant_approval" ? "pending" : "not-required",
+    blocked: task.needsChanges,
+    timer: task.timer,
+  };
+}
+
+function mapTenantPriority(priority: EmployeeTask["priority"]): OperationalTask["priority"] {
+  if (priority === "high" || priority === "urgent") return "high";
+  if (priority === "low") return "low";
+  return "medium";
+}
+
+function mapEmployeeStatus(status: EmployeeTask["status"]): OperationalTask["status"] {
+  if (status === "in_progress") return "in-progress";
+  if (status === "returned") return "rejected";
+  if (["submitted", "manager_review", "tenant_approval", "approved"].includes(status)) return "review";
+  if (status === "completed") return "done";
+  return "to-do";
+}
+
 export async function createTenantAdminTask(input: CreateTenantAdminTaskInput): Promise<TenantAdminTask> {
   const response = await fetch("/api/tenant-admin/tasks", {
     method: "POST",
@@ -919,44 +1126,24 @@ export async function sendTenantInvoice(invoiceId: string) {
 }
 
 export async function listWorkLogs(workspace: Workspace) {
+  if (workspace === "employee") {
+    const response = await fetch("/api/employee/work-logs", { cache: "no-store" });
+    return employeeWorkLogsResponseSchema.parse(await parseJsonResponse(response)).logs.map((log): WorkLog => ({
+      id: `${log.taskId}:${log.date}`,
+      taskId: log.taskId,
+      employeeId: "current",
+      employee: "Current employee",
+      date: log.date,
+      durationMinutes: Math.max(1, Math.round(log.workedSeconds / 60)),
+      description: `${log.taskTitle} - ${log.clientName}`,
+      status: "reviewed",
+      reviewerComment: null,
+    }));
+  }
   const taskIds = new Set(scopedTasks(workspace).map((task) => task.id));
   return z
     .array(workLogSchema)
     .parse(workLogs.filter((log) => taskIds.has(log.taskId)));
-}
-
-export async function startEmployeeTask(taskId: string) {
-  const task = currentTasks().find((item) => item.id === taskId);
-  if (
-    !task ||
-    task.assigneeId !== employeeId ||
-    !["to-do", "rejected"].includes(task.status)
-  ) {
-    throw new Error("This task cannot be started from its current status.");
-  }
-  return updateSessionTask({
-    ...task,
-    status: "in-progress",
-    reviewStatus: "not-required",
-    approvalStatus: "not-required",
-  });
-}
-
-export async function submitEmployeeTaskForReview(taskId: string) {
-  const task = currentTasks().find((item) => item.id === taskId);
-  if (
-    !task ||
-    task.assigneeId !== employeeId ||
-    task.status !== "in-progress"
-  ) {
-    throw new Error("Only an in-progress assigned task can be submitted.");
-  }
-  return updateSessionTask({
-    ...task,
-    status: "review",
-    reviewStatus: "pending",
-    approvalStatus: "not-required",
-  });
 }
 
 export async function decideEmployeeTaskReview(

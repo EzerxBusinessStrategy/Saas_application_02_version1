@@ -153,6 +153,16 @@ export default async function Section({
   }
   if (
     workspace === "employee" &&
+    ["clients", "assign-task", "task-reviews"].includes(section)
+  ) {
+    return (
+      <EmployeeWorkspace
+        section={section as Parameters<typeof EmployeeWorkspace>[0]["section"]}
+      />
+    );
+  }
+  if (
+    workspace === "employee" &&
     [
       "work-logs",
       "timesheet",

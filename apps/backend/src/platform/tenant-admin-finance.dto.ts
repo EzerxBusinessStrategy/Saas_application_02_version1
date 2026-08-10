@@ -10,6 +10,8 @@ export const createTenantDocumentSchema = z.object({
   fileType: z.string().trim().min(1).max(24),
   sizeBytes: z.coerce.number().int().nonnegative().default(0),
   category: z.string().trim().min(1).max(80).default("supporting"),
+  recipientEmployeeIds: z.array(z.string().uuid()).default([]),
+  shareReason: z.string().trim().max(1000).optional().default(""),
 });
 export type CreateTenantDocumentRequest = z.infer<typeof createTenantDocumentSchema>;
 
@@ -62,6 +64,7 @@ export class TenantDocumentDto {
   @ApiPropertyOptional({ type: String, nullable: true }) clientDecisionAt!: string | null;
   @ApiPropertyOptional({ type: String, nullable: true }) clientDecisionBy!: string | null;
   @ApiPropertyOptional({ type: String, nullable: true }) clientDecisionComment!: string | null;
+  @ApiPropertyOptional({ type: String, nullable: true }) shareReason!: string | null;
 }
 
 export class TenantDocumentsResponseDto {

@@ -28,7 +28,7 @@ export async function proxyTenantAdminBackend({
   let accessToken = cookieStore.get(superAdminAccessTokenCookie)?.value;
 
   if (!accessToken && refreshToken) {
-    refreshed = await refreshSuperAdminSession(refreshToken);
+    refreshed = await refreshSession(refreshToken);
     accessToken = refreshed?.accessToken;
   }
   if (!accessToken) {
@@ -40,7 +40,7 @@ export async function proxyTenantAdminBackend({
   try {
     let backendResponse = await fetchBackend(path, accessToken, init);
     if (backendResponse.status === 401 && refreshToken) {
-      refreshed = await refreshSuperAdminSession(refreshToken);
+      refreshed = await refreshSession(refreshToken);
       if (refreshed) {
         backendResponse = await fetchBackend(path, refreshed.accessToken, init);
       }
@@ -57,6 +57,12 @@ export async function proxyTenantAdminBackend({
   } catch {
     return NextResponse.json({ message: unavailableMessage }, { status: 503 });
   }
+}
+
+async function refreshSession(
+  refreshToken: string,
+): ReturnType<typeof refreshSuperAdminSession> {
+  return refreshSuperAdminSession(refreshToken).catch(() => null);
 }
 
 function fetchBackend(path: string, accessToken: string, init?: RequestInit): Promise<Response> {

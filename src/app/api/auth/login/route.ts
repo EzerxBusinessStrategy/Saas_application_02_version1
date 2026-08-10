@@ -6,9 +6,13 @@ import {
   fetchVerifiedSuperAdminMe,
   fetchVerifiedTenantAdminMe,
   fetchVerifiedClientPortalMe,
+  fetchVerifiedManagerMe,
+  fetchVerifiedEmployeeMe,
   createSuperAdminSessionPolicy,
   createTenantAdminSessionPolicy,
   createClientPortalSessionPolicy,
+  createManagerSessionPolicy,
+  createEmployeeSessionPolicy,
 } from "@/lib/server/super-admin-auth";
 import {
   clearSuperAdminSessionCookies,
@@ -88,6 +92,16 @@ export async function POST(request: Request) {
         await createClientPortalSessionPolicy(session.accessToken, rememberMe);
         meData = await fetchMeContext(session.accessToken);
       }
+      if (!meData) {
+        console.log("[Login Route] Trying employee session policy...");
+        await createEmployeeSessionPolicy(session.accessToken, rememberMe);
+        meData = await fetchMeContext(session.accessToken);
+      }
+      if (!meData) {
+        console.log("[Login Route] Trying manager session policy...");
+        await createManagerSessionPolicy(session.accessToken, rememberMe);
+        meData = await fetchMeContext(session.accessToken);
+      }
 
       if (meData) {
         const workspaces = resolveWorkspaces({
@@ -101,15 +115,8 @@ export async function POST(request: Request) {
 
         if (single) {
           const workspace = single.workspace;
-          const portalType =
-            workspace === "super-admin"
-              ? ("super-admin" as const)
-              : workspace === "client"
-                ? ("client" as const)
-                : ("admin" as const);
-
           const response = NextResponse.json({ redirect: `/${workspace}` });
-          setSuperAdminSessionCookies(response, session, rememberMe, portalType);
+          setSuperAdminSessionCookies(response, session, rememberMe, workspace);
           response.cookies.set(demoSessionCookie, "", { maxAge: 0, path: "/" });
           return response;
         }
@@ -169,7 +176,7 @@ export async function POST(request: Request) {
 
 /**
  * Fetch the user's membership context from the backend.
- * Tries super-admin first, then tenant admin, then client portal.
+ * Tries each supported real portal.
  */
 async function fetchMeContext(
   accessToken: string,
@@ -220,6 +227,38 @@ async function fetchMeContext(
       availableMemberships: [],
       activeMembership: clientPortalMe.activeMembership,
       roles: clientPortalMe.roles,
+      permissions: [],
+      isPlatformAdmin: false,
+    };
+  }
+
+  const employeeMe = await fetchVerifiedEmployeeMe(accessToken);
+  if (employeeMe) {
+    return {
+      user: {
+        id: "",
+        email: employeeMe.user.email,
+        displayName: employeeMe.user.displayName,
+      },
+      availableMemberships: [],
+      activeMembership: employeeMe.activeMembership,
+      roles: employeeMe.roles,
+      permissions: [],
+      isPlatformAdmin: false,
+    };
+  }
+
+  const managerMe = await fetchVerifiedManagerMe(accessToken);
+  if (managerMe) {
+    return {
+      user: {
+        id: "",
+        email: managerMe.user.email,
+        displayName: managerMe.user.displayName,
+      },
+      availableMemberships: [],
+      activeMembership: managerMe.activeMembership,
+      roles: managerMe.roles,
       permissions: [],
       isPlatformAdmin: false,
     };

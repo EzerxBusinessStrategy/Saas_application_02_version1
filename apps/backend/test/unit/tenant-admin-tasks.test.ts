@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { RequestContext } from "../../src/auth/request-context";
+import { AppConfig } from "../../src/config/app-config";
 import { createTenantAdminTaskSchema } from "../../src/platform/tenant-admin-tasks.dto";
 import { TenantAdminTasksRepository } from "../../src/platform/tenant-admin-tasks.repository";
 import { TenantAdminTasksService } from "../../src/platform/tenant-admin-tasks.service";
@@ -27,7 +28,11 @@ describe("TenantAdminTasksService", () => {
       listTasks: vi.fn(),
       createTask: vi.fn(),
     } as unknown as TenantAdminTasksRepository;
-    const service = new TenantAdminTasksService(repository);
+    const config = {
+      supabaseUrl: undefined,
+      supabaseAdminKey: undefined,
+    } as AppConfig;
+    const service = new TenantAdminTasksService(repository, config);
 
     const deniedContexts: RequestContext[] = [
       {

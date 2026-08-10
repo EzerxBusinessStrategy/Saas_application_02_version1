@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { expect, test } from "vitest";
+import { afterEach, expect, test, vi } from "vitest";
 import {
   listOperationalTasks,
   submitEmployeeTaskForReview,
@@ -18,7 +18,24 @@ function renderWithQuery(ui: React.ReactElement) {
   );
 }
 
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
 test("links employees to the real work-log route", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () =>
+      Response.json({
+        employeeName: "abcdef",
+        today: "2026-08-09T00:00:00.000Z",
+        summary: { dueToday: 0, inProgress: 0, needsChanges: 0 },
+        tasks: [],
+        workLog: { loggedMinutes: 0, status: "not_started" },
+      }),
+    ),
+  );
+
   renderWithQuery(<EmployeeWorkspace />);
 
   expect(

@@ -59,6 +59,7 @@ export const rolePermissions: Record<Role, Permission[]> = {
     "report.read",
   ],
   MANAGER: [
+    "client.read",
     "client.read.assigned",
     "task.read.assigned",
     "task.create",

@@ -36,15 +36,17 @@ import type { NavigationItem } from "@/types/navigation";
 
 function filterNavigation(
   items: NavigationItem[],
-  role: User["role"],
+  roles: readonly User["role"][],
 ): NavigationItem[] {
   return items.flatMap((item) => {
     const children = item.children
-      ? filterNavigation(item.children, role)
+      ? filterNavigation(item.children, roles)
       : undefined;
     if (children?.length) return [{ ...item, children }];
     if (item.children) return [];
-    return hasAnyPermission(role, item.permissions) ? [{ ...item }] : [];
+    return roles.some((role) => hasAnyPermission(role, item.permissions))
+      ? [{ ...item }]
+      : [];
   });
 }
 
@@ -356,8 +358,8 @@ export function WorkspaceShell({
     enabled: workspace === "client" && user.role === "CLIENT_USER",
   });
   const items = useMemo(
-    () => filterNavigation(navigationFor(workspace), user.role),
-    [user.role, workspace],
+    () => filterNavigation(navigationFor(workspace, user.roles?.includes("MANAGER") ?? false), user.roles ?? [user.role]),
+    [user.role, user.roles, workspace],
   );
 
   useEffect(() => {

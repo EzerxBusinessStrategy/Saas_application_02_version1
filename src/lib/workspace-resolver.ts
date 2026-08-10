@@ -53,6 +53,7 @@ const workspaceLabels: Record<Workspace, string> = {
  * Returns the first matching workspace in priority order.
  */
 export function workspaceForRoles(roles: readonly string[]): Workspace | null {
+  if (roles.includes("EMPLOYEE")) return "employee";
   const entries = Object.entries(portalRoles) as [Workspace, readonly string[]][];
   for (const [workspace, allowedRoles] of entries) {
     if (allowedRoles.some((role) => roles.includes(role))) {

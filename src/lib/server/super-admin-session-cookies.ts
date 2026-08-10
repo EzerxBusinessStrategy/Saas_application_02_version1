@@ -5,6 +5,7 @@ import {
   superAdminRememberMeCookie,
   authenticatedWorkspaceCookie,
 } from "@/lib/auth-cookies";
+import type { Workspace } from "@/types/domain";
 
 type CookieSession = {
   accessToken: string;
@@ -18,7 +19,7 @@ export function setSuperAdminSessionCookies(
   response: NextResponse,
   session: CookieSession,
   rememberMe: boolean,
-  workspace: "super-admin" | "admin" | "client" = "super-admin",
+  workspace: Workspace = "super-admin",
 ): void {
   const common = {
     httpOnly: true,

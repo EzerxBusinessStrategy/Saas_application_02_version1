@@ -1,4 +1,4 @@
-import type { User } from "@/types/domain";
+import type { Role, User, Workspace } from "@/types/domain";
 import { rolePermissions } from "@/lib/permissions";
 
 type SupabasePasswordSession = {
@@ -6,6 +6,8 @@ type SupabasePasswordSession = {
   refresh_token?: string;
   expires_in?: number;
 };
+
+const supabaseAuthTimeoutMs = 5000;
 
 type SuperAdminMe = {
   user: {
@@ -32,7 +34,7 @@ export async function signInSuperAdminWithPassword({
 }): Promise<SuperAdminLoginSession | null> {
   const supabaseUrl = requiredServerEnv("BACKEND_SUPABASE_URL");
   const supabaseAnonKey = requiredServerEnv("BACKEND_SUPABASE_ANON_KEY");
-  const response = await fetch(`${stripTrailingSlash(supabaseUrl)}/auth/v1/token?grant_type=password`, {
+  const response = await fetchWithTimeout(`${stripTrailingSlash(supabaseUrl)}/auth/v1/token?grant_type=password`, {
     method: "POST",
     headers: {
       apikey: supabaseAnonKey,
@@ -56,7 +58,7 @@ export async function signInSuperAdminWithPassword({
 export async function refreshSuperAdminSession(refreshToken: string): Promise<Pick<SuperAdminLoginSession, "accessToken" | "refreshToken" | "expiresIn"> | null> {
   const supabaseUrl = requiredServerEnv("BACKEND_SUPABASE_URL");
   const supabaseAnonKey = requiredServerEnv("BACKEND_SUPABASE_ANON_KEY");
-  const response = await fetch(`${stripTrailingSlash(supabaseUrl)}/auth/v1/token?grant_type=refresh_token`, {
+  const response = await fetchWithTimeout(`${stripTrailingSlash(supabaseUrl)}/auth/v1/token?grant_type=refresh_token`, {
     method: "POST",
     headers: {
       apikey: supabaseAnonKey,
@@ -89,9 +91,17 @@ export async function createClientPortalSessionPolicy(accessToken: string, remem
   return createSessionPolicy(accessToken, rememberMe, "client");
 }
 
+export async function createManagerSessionPolicy(accessToken: string, rememberMe: boolean): Promise<boolean> {
+  return createSessionPolicy(accessToken, rememberMe, "manager");
+}
+
+export async function createEmployeeSessionPolicy(accessToken: string, rememberMe: boolean): Promise<boolean> {
+  return createSessionPolicy(accessToken, rememberMe, "employee");
+}
+
 export async function revokeSessionPolicy(
   accessToken: string,
-  workspace: "super-admin" | "admin" | "client",
+  workspace: Workspace,
 ): Promise<void> {
   await fetch(`${backendApiBaseUrl()}/auth/session-policy`, {
     method: "DELETE",
@@ -100,7 +110,7 @@ export async function revokeSessionPolicy(
   }).catch(() => undefined);
 }
 
-async function createSessionPolicy(accessToken: string, rememberMe: boolean, portal: "super-admin" | "admin" | "client"): Promise<boolean> {
+async function createSessionPolicy(accessToken: string, rememberMe: boolean, portal: Workspace): Promise<boolean> {
   const response = await fetch(`${backendApiBaseUrl()}/auth/session-policy`, {
     method: "POST",
     headers: {
@@ -133,26 +143,34 @@ export async function fetchVerifiedSuperAdminMe(accessToken: string): Promise<Su
 }
 
 export async function fetchVerifiedTenantAdminMe(accessToken: string): Promise<SuperAdminMe | null> {
-  const response = await fetch(`${backendApiBaseUrl()}/me`, {
-    headers: { authorization: `Bearer ${accessToken}`, "x-portal": "admin" },
-    cache: "no-store",
-  }).catch(() => null);
-  if (!response) return null;
-  if (!response.ok) return null;
-  const me = (await response.json()) as SuperAdminMe;
-  if (me.isPlatformAdmin || !me.roles.includes("TENANT_ADMIN") || !me.activeMembership) return null;
-  return me;
+  return fetchVerifiedWorkspaceMe(accessToken, "admin", ["TENANT_OWNER", "TENANT_ADMIN", "FINANCE_USER", "HR_OPERATIONS_USER"]);
 }
 
 export async function fetchVerifiedClientPortalMe(accessToken: string): Promise<SuperAdminMe | null> {
+  return fetchVerifiedWorkspaceMe(accessToken, "client", ["CLIENT_USER"]);
+}
+
+export async function fetchVerifiedManagerMe(accessToken: string): Promise<SuperAdminMe | null> {
+  return fetchVerifiedWorkspaceMe(accessToken, "manager", ["MANAGER"]);
+}
+
+export async function fetchVerifiedEmployeeMe(accessToken: string): Promise<SuperAdminMe | null> {
+  return fetchVerifiedWorkspaceMe(accessToken, "employee", ["EMPLOYEE"]);
+}
+
+async function fetchVerifiedWorkspaceMe(
+  accessToken: string,
+  portal: Workspace,
+  allowedRoles: readonly Role[],
+): Promise<SuperAdminMe | null> {
   const response = await fetch(`${backendApiBaseUrl()}/me`, {
-    headers: { authorization: `Bearer ${accessToken}`, "x-portal": "client" },
+    headers: { authorization: `Bearer ${accessToken}`, "x-portal": portal },
     cache: "no-store",
   }).catch(() => null);
   if (!response) return null;
   if (!response.ok) return null;
   const me = (await response.json()) as SuperAdminMe;
-  if (me.isPlatformAdmin || !me.roles.includes("CLIENT_USER") || !me.activeMembership) return null;
+  if (me.isPlatformAdmin || !allowedRoles.some((role) => me.roles.includes(role)) || !me.activeMembership) return null;
   return me;
 }
 
@@ -193,11 +211,32 @@ export function userFromSuperAdminMe(me: SuperAdminMe): User {
 }
 
 export function userFromTenantAdminMe(me: SuperAdminMe): User {
-  return { name: me.user.displayName, email: me.user.email, initials: initialsFromName(me.user.displayName), role: "TENANT_ADMIN", permissions: rolePermissions.TENANT_ADMIN };
+  return userFromMe(me, "TENANT_ADMIN");
 }
 
 export function userFromClientPortalMe(me: SuperAdminMe): User {
-  return { name: me.user.displayName, email: me.user.email, initials: initialsFromName(me.user.displayName), role: "CLIENT_USER", permissions: rolePermissions.CLIENT_USER };
+  return userFromMe(me, "CLIENT_USER");
+}
+
+export function userFromManagerMe(me: SuperAdminMe): User {
+  return userFromMe(me, "MANAGER");
+}
+
+export function userFromEmployeeMe(me: SuperAdminMe): User {
+  return userFromMe(me, "EMPLOYEE", "EMPLOYEE");
+}
+
+function userFromMe(me: SuperAdminMe, fallbackRole: Role, preferredRole?: Role): User {
+  const roles = me.roles.filter((candidate): candidate is Role => candidate in rolePermissions);
+  const role = (preferredRole && roles.includes(preferredRole) ? preferredRole : roles[0]) ?? fallbackRole;
+  return {
+    name: me.user.displayName,
+    email: me.user.email,
+    initials: initialsFromName(me.user.displayName),
+    role,
+    roles: roles.length ? roles : [role],
+    permissions: [...new Set(roles.flatMap((item) => rolePermissions[item]))],
+  };
 }
 
 function backendApiBaseUrl(): string {
@@ -214,6 +253,16 @@ function requiredServerEnv(name: "BACKEND_SUPABASE_URL" | "BACKEND_SUPABASE_ANON
 
 function stripTrailingSlash(value: string): string {
   return value.replace(/\/+$/, "");
+}
+
+async function fetchWithTimeout(input: string, init: RequestInit): Promise<Response> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), supabaseAuthTimeoutMs);
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 function initialsFromName(name: string): string {

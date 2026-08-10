@@ -183,13 +183,15 @@ const managerNavigation: NavigationItem[] = [
 const employeeNavigation: NavigationItem[] = [
   { label: "Dashboard", href: "", icon: LayoutDashboard },
   { label: "My tasks", href: "/tasks", icon: CheckSquare },
-  { label: "Work logs", href: "/work-logs", icon: ClipboardList },
-  { label: "Timesheet", href: "/timesheet", icon: CalendarDays },
   { label: "Calendar", href: "/calendar", icon: CalendarDays },
   { label: "Documents", href: "/documents", icon: FileText },
-  { label: "Recognition", href: "/recognition", icon: Award },
-  { label: "Notifications", href: "/notifications", icon: Bell },
   { label: "Profile", href: "/profile", icon: Users },
+];
+
+const employeeManagerNavigation: NavigationItem[] = [
+  { label: "Clients", href: "/clients", icon: Building2, permissions: ["client.read"] },
+  { label: "Assign Task", href: "/assign-task", icon: CheckSquare, permissions: ["task.create"] },
+  { label: "Task Reviews", href: "/task-reviews", icon: ClipboardList, permissions: ["work_log.review.assigned_group"] },
 ];
 
 const clientNavigation: NavigationItem[] = [
@@ -233,7 +235,7 @@ const superAdminNavigation = filterForWorkspace(common, "super-admin").flatMap(
   (item) => item.children ?? [item],
 );
 
-export const navigationFor = (workspace: Workspace) =>
+export const navigationFor = (workspace: Workspace, isManager = false) =>
   workspace === "super-admin"
     ? superAdminNavigation
     : workspace === "admin"
@@ -243,7 +245,9 @@ export const navigationFor = (workspace: Workspace) =>
     : workspace === "manager"
     ? managerNavigation
     : workspace === "employee"
-      ? employeeNavigation
+      ? isManager
+        ? [...employeeNavigation, { label: "Manager", icon: Users, children: employeeManagerNavigation }]
+        : employeeNavigation
       : workspace === "client"
         ? clientNavigation
         : filterForWorkspace(common, workspace);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import {
   addMonths,
@@ -15,9 +15,19 @@ import {
   startOfWeek,
   subMonths,
 } from "date-fns";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CalendarDays, CheckCircle2, Clock3, FileText } from "lucide-react";
-import { getGamificationWorkspace } from "@/features/operations/api/operations-api";
+import { getEmployeeDashboard, type EmployeeDashboard } from "@/features/employee/api/employee-dashboard-api";
+import {
+  createEmployeeManagerTask,
+  decideEmployeeManagerReview,
+  getEmployeeManagerTaskOptions,
+  listEmployeeManagerClients,
+  listEmployeeManagerReviews,
+} from "@/features/employee/api/employee-manager-api";
+import { getEmployeeNotifications } from "@/features/employee/api/employee-notifications-api";
+import { getEmployeeProfile } from "@/features/employee/api/employee-profile-api";
+import { getGamificationWorkspace, listEmployeeTasks } from "@/features/operations/api/operations-api";
 import { TaskDetailsDrawer } from "@/components/operations/task-details-drawer";
 import {
   AchievementCatalogue,
@@ -53,10 +63,42 @@ export function EmployeeWorkspace({
     | "documents"
     | "notifications"
     | "profile"
+    | "clients"
+    | "assign-task"
+    | "task-reviews"
     | "achievements"
     | "recognition"
     | "preferences";
 }) {
+  if (section === "day") return <EmployeeDayDashboard />;
+  if (section === "achievements") return <AchievementCatalogue />;
+  if (section === "recognition") return <EmployeeRecognition />;
+  if (section === "preferences") return <EmployeePreferences />;
+  if (section === "calendar") return <EmployeeCalendarPage />;
+  if (section === "clients") return <EmployeeManagerClientsPage />;
+  if (section === "assign-task") return <EmployeeManagerAssignTaskPage />;
+  if (section === "task-reviews") return <EmployeeManagerTaskReviewsPage />;
+  return (
+    <EmployeeLegacyWorkspace
+      section={
+        section as Parameters<typeof EmployeeLegacyWorkspace>[0]["section"]
+      }
+    />
+  );
+}
+
+function EmployeeLegacyWorkspace({
+  section,
+}: {
+  section:
+    | "work-logs"
+    | "timesheet"
+    | "calendar"
+    | "documents"
+    | "notifications"
+    | "profile";
+}) {
+
   const query = useQuery({
     queryKey: ["gamification", "employee"],
     queryFn: () => getGamificationWorkspace("employee"),
@@ -71,9 +113,6 @@ export function EmployeeWorkspace({
       />
     );
   const data = query.data;
-  if (section === "achievements") return <AchievementCatalogue />;
-  if (section === "recognition") return <EmployeeRecognition />;
-  if (section === "preferences") return <EmployeePreferences />;
   if (section === "work-logs" || section === "timesheet")
     return (
       <div className="flex flex-col gap-[30px]">
@@ -84,8 +123,6 @@ export function EmployeeWorkspace({
         <WorkLogConsistency data={data} />
       </div>
     );
-  if (section === "calendar")
-    return <CalendarPage tasks={data.tasks} workLogs={data.workLogs} />;
   if (section === "documents")
     return (
       <DocumentPage
@@ -187,6 +224,180 @@ export function EmployeeWorkspace({
   );
 }
 
+function EmployeeDayDashboard() {
+  const query = useQuery({
+    queryKey: ["employee-dashboard"],
+    queryFn: getEmployeeDashboard,
+    refetchInterval: 30000,
+    refetchOnWindowFocus: true,
+  });
+
+  if (query.isPending) return <LoadingState label="Loading my day" rows={4} />;
+  if (query.isError)
+    return (
+      <ErrorState
+        title="Employee profile could not load"
+        onRetry={() => void query.refetch()}
+      />
+    );
+
+  const data = query.data;
+  return (
+    <div className="mx-auto flex w-full max-w-[900px] flex-col gap-6">
+      <header>
+        <p className="text-sm font-medium text-primary">Employee</p>
+        <h1 className="mt-1 text-[28px] leading-[34px] font-bold tracking-tight">
+          My day
+        </h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          {format(new Date(data.today), "EEEE, d MMMM")}
+        </p>
+        {data.employeeName ? (
+          <p className="mt-1 text-sm text-muted-foreground">
+            Good {dayPart()}, {data.employeeName}
+          </p>
+        ) : null}
+        <p className="mt-4 text-sm font-medium text-foreground">
+          {data.summary.dueToday} due today{" "}
+          <span className="text-muted-foreground">·</span>{" "}
+          {data.summary.inProgress} in progress{" "}
+          <span className="text-muted-foreground">·</span>{" "}
+          {data.summary.needsChanges} needs changes
+        </p>
+      </header>
+
+      <section aria-labelledby="my-work-today">
+        <h2
+          id="my-work-today"
+          className="mb-3 text-sm font-semibold uppercase tracking-normal text-muted-foreground"
+        >
+          My work today
+        </h2>
+        <Card className="overflow-hidden">
+          <CardContent className="p-0">
+            {data.tasks.length ? (
+              <ul className="divide-y">
+                {data.tasks.map((task) => (
+                  <EmployeeTaskRow key={task.id} task={task} />
+                ))}
+              </ul>
+            ) : (
+              <div className="p-6">
+                <EmptyState
+                  title="No work assigned for today"
+                  description="Assigned tasks from your tenant or manager will appear here."
+                />
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </section>
+
+      <section aria-labelledby="today-work-log">
+        <h2
+          id="today-work-log"
+          className="mb-3 text-sm font-semibold uppercase tracking-normal text-muted-foreground"
+        >
+          Today&apos;s work log
+        </h2>
+        <WorkLogCard workLog={data.workLog} />
+      </section>
+    </div>
+  );
+}
+
+function EmployeeTaskRow({
+  task,
+}: {
+  task: EmployeeDashboard["tasks"][number];
+}) {
+  return (
+    <li className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
+      <div className="min-w-0">
+        {task.needsChanges ? (
+          <p className="mb-2 text-sm font-medium text-danger">Needs changes</p>
+        ) : null}
+        <p className="font-medium text-foreground">{task.title}</p>
+        <p className="mt-1 text-sm text-muted-foreground">{task.clientName}</p>
+        <p className="mt-2 text-sm text-muted-foreground">
+          {task.statusLabel} <span aria-hidden="true">·</span>{" "}
+          {formatDue(task.plannedDueAt, task.dueToday)}
+        </p>
+        {task.needsChanges ? (
+          <p className="mt-2 text-sm text-muted-foreground">
+            {task.latestManagerNote || "Manager requested changes"}
+          </p>
+        ) : null}
+      </div>
+      <Link
+        href={`/employee/tasks?task=${encodeURIComponent(task.id)}`}
+        className={buttonVariants({ size: "sm" })}
+      >
+        {task.actionLabel}
+      </Link>
+    </li>
+  );
+}
+
+function WorkLogCard({
+  workLog,
+}: {
+  workLog: EmployeeDashboard["workLog"];
+}) {
+  const hasLoggedTime = workLog.loggedMinutes > 0;
+  return (
+    <Card>
+      <CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="font-medium text-foreground">
+            {hasLoggedTime
+              ? formatMinutes(workLog.loggedMinutes)
+              : "No work logged yet"}
+          </p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {workLog.status === "not_started"
+              ? "Not started"
+              : workLogStatus(workLog.status)}
+          </p>
+        </div>
+        <Link
+          href="/employee/work-logs"
+          className={buttonVariants({ variant: "outline", size: "sm" })}
+        >
+          {hasLoggedTime ? "Open work log" : "Add work log"}
+        </Link>
+      </CardContent>
+    </Card>
+  );
+}
+
+function formatDue(plannedDueAt: string | null, dueToday: boolean): string {
+  if (!plannedDueAt) return "No due date";
+  if (dueToday) return "Due today";
+  return `Due ${format(parseISO(plannedDueAt), "d MMM")}`;
+}
+
+function formatMinutes(minutes: number): string {
+  const hours = Math.floor(minutes / 60);
+  const remaining = minutes % 60;
+  if (!hours) return `${remaining}m logged`;
+  if (!remaining) return `${hours}h logged`;
+  return `${hours}h ${remaining}m logged`;
+}
+
+function workLogStatus(status: "draft" | "submitted" | "reviewed"): string {
+  if (status === "draft") return "Draft";
+  if (status === "submitted") return "Submitted";
+  return "Reviewed";
+}
+
+function dayPart(): string {
+  const hour = new Date().getHours();
+  if (hour < 12) return "morning";
+  if (hour < 17) return "afternoon";
+  return "evening";
+}
+
 function WorkLogPage({
   title,
   logs,
@@ -250,6 +461,27 @@ function WorkLogPage({
     </div>
   );
 }
+
+function EmployeeCalendarPage() {
+  const query = useQuery({
+    queryKey: ["employee-calendar-tasks"],
+    queryFn: listEmployeeTasks,
+    refetchInterval: 30000,
+    refetchOnWindowFocus: true,
+  });
+
+  if (query.isPending) return <LoadingState label="Loading calendar" rows={4} />;
+  if (query.isError)
+    return (
+      <ErrorState
+        title="Calendar could not load"
+        onRetry={() => void query.refetch()}
+      />
+    );
+
+  return <CalendarPage tasks={query.data} workLogs={[]} />;
+}
+
 function CalendarPage({
   tasks,
   workLogs,
@@ -257,16 +489,17 @@ function CalendarPage({
   tasks: OperationalTask[];
   workLogs: WorkLog[];
 }) {
+  const datedTasks = tasks.filter((task) => /^\d{4}-\d{2}-\d{2}$/.test(task.dueDate));
   const [month, setMonth] = useState(() =>
-    startOfMonth(parseISO(tasks[0]?.dueDate ?? "2026-07-01")),
+    startOfMonth(parseISO(datedTasks[0]?.dueDate ?? format(new Date(), "yyyy-MM-dd"))),
   );
   const [selectedDate, setSelectedDate] = useState(
-    tasks[0]?.dueDate ?? "2026-07-01",
+    datedTasks[0]?.dueDate ?? format(new Date(), "yyyy-MM-dd"),
   );
   const [selectedTask, setSelectedTask] = useState<OperationalTask | null>(
     null,
   );
-  const milestones = tasks.map((task) => ({
+  const milestones = datedTasks.map((task) => ({
     id: task.id,
     label: task.title,
     date: task.dueDate,
@@ -280,18 +513,18 @@ function CalendarPage({
     days.slice(index * 7, index * 7 + 7),
   );
   const tasksFor = (day: Date) =>
-    tasks
+    datedTasks
       .filter((task) => task.dueDate === format(day, "yyyy-MM-dd"))
       .map((task) => ({
         id: task.id,
         label: task.title,
         complete: task.status === "done",
       }));
-  const selectedTasks = tasks.filter((task) => task.dueDate === selectedDate);
+  const selectedTasks = datedTasks.filter((task) => task.dueDate === selectedDate);
   const changeMonth = (nextMonth: Date) => {
     setMonth(nextMonth);
     setSelectedDate(
-      tasks.find((task) => isSameMonth(parseISO(task.dueDate), nextMonth))
+      datedTasks.find((task) => isSameMonth(parseISO(task.dueDate), nextMonth))
         ?.dueDate ?? format(startOfMonth(nextMonth), "yyyy-MM-dd"),
     );
   };
@@ -574,6 +807,172 @@ function DocumentPage({
     </div>
   );
 }
+
+function EmployeeManagerClientsPage() {
+  const query = useQuery({ queryKey: ["employee-manager-clients"], queryFn: listEmployeeManagerClients });
+  if (query.isPending) return <LoadingState label="Loading clients" rows={4} />;
+  if (query.isError) return <ErrorState title="Clients could not load" onRetry={() => void query.refetch()} />;
+  return (
+    <div className="flex flex-col gap-[30px]">
+      <PageHeader eyebrow="Manager" title="Clients" description="Tenant clients available for task assignment." />
+      <Card>
+        <CardContent className="pt-[30px]">
+          {query.data.length ? (
+            <ul className="divide-y">
+              {query.data.map((client) => (
+                <li key={client.id} className="flex flex-wrap items-center justify-between gap-3 py-4 first:pt-0">
+                  <div>
+                    <p className="font-medium">{client.name}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">{client.status} · {client.openTasks} open tasks</p>
+                  </div>
+                  <Link href={`/employee/assign-task?client=${client.id}`} className={buttonVariants({ size: "sm", variant: "outline" })}>Assign task</Link>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <EmptyState title="No clients" description="Active tenant clients will appear here." />
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function EmployeeManagerAssignTaskPage() {
+  const queryClient = useQueryClient();
+  const optionsQuery = useQuery({ queryKey: ["employee-manager-task-options"], queryFn: getEmployeeManagerTaskOptions });
+  const [clientId, setClientId] = useState("");
+  const [serviceId, setServiceId] = useState("");
+  const [employeeId, setEmployeeId] = useState("");
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [priority, setPriority] = useState<"low" | "normal" | "high" | "urgent">("normal");
+  const [dueDate, setDueDate] = useState("");
+  const [message, setMessage] = useState("");
+  const mutation = useMutation({
+    mutationFn: createEmployeeManagerTask,
+    onSuccess: async () => {
+      setMessage("Task assigned.");
+      setTitle("");
+      setDescription("");
+      await queryClient.invalidateQueries({ queryKey: ["employee-manager-task-options"] });
+    },
+    onError: (error) => setMessage(error instanceof Error ? error.message : "Task could not be assigned."),
+  });
+  const options = optionsQuery.data;
+  const selectedService = serviceId || options?.services[0]?.id || "";
+  const selectedClient = clientId || options?.clients[0]?.id || "";
+  const selectedEmployee = employeeId || options?.employees[0]?.id || "";
+  const assign = () => {
+    if (!options || !selectedClient || !selectedService || !selectedEmployee || !title.trim()) return;
+    const country = options.countries[0];
+    const rate = options.rateItems.find((item) => item.serviceId === selectedService && (!item.clientId || item.clientId === selectedClient));
+    if (!country) {
+      setMessage("No active financial year is configured for this tenant.");
+      return;
+    }
+    mutation.mutate({
+      clientId: selectedClient,
+      serviceId: selectedService,
+      countryCode: country.countryCode,
+      title,
+      description,
+      priority,
+      plannedDueAt: dueDate ? new Date(`${dueDate}T18:00:00`).toISOString() : undefined,
+      employeeIds: [selectedEmployee],
+      billing: rate
+        ? { rateSource: "existing", rateCardItemId: rate.id, quantity: 1, discountValue: 0 }
+        : {
+            rateSource: "new",
+            taskType: title,
+            unitType: "per_task",
+            rateAmount: 0,
+            currencyCode: "INR",
+            effectiveFrom: new Date().toISOString().slice(0, 10),
+            saveToRateCard: false,
+            oneTimeReason: "Manager V1 task assignment",
+            quantity: 1,
+            discountValue: 0,
+          },
+    });
+  };
+  if (optionsQuery.isPending) return <LoadingState label="Loading task form" rows={4} />;
+  if (optionsQuery.isError || !options) return <ErrorState title="Task form could not load" onRetry={() => void optionsQuery.refetch()} />;
+  return (
+    <div className="flex flex-col gap-[30px]">
+      <PageHeader eyebrow="Manager" title="Assign Task" description="Create a task for an employee in this tenant." />
+      <Card>
+        <CardContent className="grid gap-4 pt-[30px] sm:grid-cols-2">
+          <ManagerField label="Client"><select className={managerInputClass} value={selectedClient} onChange={(event) => setClientId(event.target.value)}>{options.clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}</select></ManagerField>
+          <ManagerField label="Service"><select className={managerInputClass} value={selectedService} onChange={(event) => setServiceId(event.target.value)}>{options.services.map((service) => <option key={service.id} value={service.id}>{service.name}</option>)}</select></ManagerField>
+          <ManagerField label="Task title"><input className={managerInputClass} value={title} onChange={(event) => setTitle(event.target.value)} /></ManagerField>
+          <ManagerField label="Assign employee"><select className={managerInputClass} value={selectedEmployee} onChange={(event) => setEmployeeId(event.target.value)}>{options.employees.filter((employee) => employee.employmentStatus === "active").map((employee) => <option key={employee.id} value={employee.id}>{employee.name}</option>)}</select></ManagerField>
+          <ManagerField label="Priority"><select className={managerInputClass} value={priority} onChange={(event) => setPriority(event.target.value as typeof priority)}><option value="normal">Normal</option><option value="high">High</option><option value="urgent">Urgent</option><option value="low">Low</option></select></ManagerField>
+          <ManagerField label="Due date"><input type="date" className={managerInputClass} value={dueDate} onChange={(event) => setDueDate(event.target.value)} /></ManagerField>
+          <label className="flex flex-col gap-1 text-sm font-medium sm:col-span-2">Description<textarea className={`${managerInputClass} min-h-28`} value={description} onChange={(event) => setDescription(event.target.value)} /></label>
+          <div className="flex items-center justify-end gap-3 sm:col-span-2">
+            {message ? <p className="mr-auto text-sm text-muted-foreground">{message}</p> : null}
+            <Button disabled={mutation.isPending || !title.trim() || !selectedClient || !selectedService || !selectedEmployee} onClick={assign}>{mutation.isPending ? "Assigning..." : "Assign Task"}</Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function EmployeeManagerTaskReviewsPage() {
+  const queryClient = useQueryClient();
+  const [remarksByTask, setRemarksByTask] = useState<Record<string, string>>({});
+  const query = useQuery({ queryKey: ["employee-manager-reviews"], queryFn: listEmployeeManagerReviews });
+  const mutation = useMutation({
+    mutationFn: ({ taskId, decision, remarks }: { taskId: string; decision: "approve" | "return"; remarks?: string }) => decideEmployeeManagerReview(taskId, decision, remarks),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["employee-manager-reviews"] }),
+  });
+  if (query.isPending) return <LoadingState label="Loading task reviews" rows={4} />;
+  if (query.isError) return <ErrorState title="Task reviews could not load" onRetry={() => void query.refetch()} />;
+  return (
+    <div className="flex flex-col gap-[30px]">
+      <PageHeader eyebrow="Manager" title="Task Reviews" description={`${query.data.length} pending review${query.data.length === 1 ? "" : "s"}.`} />
+      {query.data.length ? (
+        <div className="grid gap-4">
+          {query.data.map((task) => (
+            <Card key={task.id}>
+              <CardContent className="pt-[30px]">
+                <div className="flex flex-wrap justify-between gap-3">
+                  <div>
+                    <p className="font-medium">{task.title}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">{task.clientName} · {task.employeeName}</p>
+                  </div>
+                  <p className="text-sm text-muted-foreground">Worked {formatWorked(task.workedSeconds)}</p>
+                </div>
+                {task.taskComment ? <p className="mt-4 rounded-[var(--radius-control)] bg-muted p-3 text-sm">{task.taskComment}</p> : null}
+                <textarea className={`${managerInputClass} mt-4 min-h-20`} placeholder="Reason for changes" value={remarksByTask[task.id] ?? ""} onChange={(event) => setRemarksByTask((current) => ({ ...current, [task.id]: event.target.value }))} />
+                <div className="mt-4 flex justify-end gap-2">
+                  <Button variant="outline" disabled={mutation.isPending || !(remarksByTask[task.id] ?? "").trim()} onClick={() => mutation.mutate({ taskId: task.id, decision: "return", remarks: remarksByTask[task.id] ?? "" })}>Request Changes</Button>
+                  <Button disabled={mutation.isPending} onClick={() => mutation.mutate({ taskId: task.id, decision: "approve" })}>Approve</Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : (
+        <Card><CardContent className="pt-[30px]"><EmptyState title="No pending reviews" description="Submitted employee tasks will appear here." /></CardContent></Card>
+      )}
+    </div>
+  );
+}
+
+const managerInputClass = "min-h-11 rounded-[var(--radius-control)] border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring";
+
+function ManagerField({ label, children }: { label: string; children: ReactNode }) {
+  return <label className="flex flex-col gap-1 text-sm font-medium">{label}{children}</label>;
+}
+
+function formatWorked(seconds: number) {
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  return hours ? `${hours}h ${minutes}m` : `${minutes}m`;
+}
 function ProfessionalProgress({
   data,
 }: {
@@ -629,31 +1028,20 @@ function ProfessionalProgress({
   );
 }
 function EmployeeInfo({ section }: { section: "notifications" | "profile" }) {
-  return (
-    <div className="flex flex-col gap-[30px]">
-      <PageHeader
-        eyebrow="Employee"
-        title={section === "profile" ? "Profile" : "Notifications"}
-        description={
-          section === "profile"
-            ? "Your work identity and private preferences."
-            : "Delivery updates related to your assigned tasks."
-        }
-      />
-      <Card>
-        <CardContent className="pt-[30px]">
-          <p className="font-medium">
-            {section === "profile"
-              ? "Riley Shah"
-              : "One review comment needs a resubmission"}
-          </p>
-          <p className="mt-2 text-sm text-muted-foreground">
-            {section === "profile"
-              ? "Employee · GST Review work group"
-              : "Link the source document to the rejected work log before resubmitting."}
-          </p>
-        </CardContent>
-      </Card>
-    </div>
-  );
+  const notifications = useQuery({ queryKey: ["employee-notifications", "page"], queryFn: getEmployeeNotifications, enabled: section === "notifications", refetchInterval: 10000 });
+  const profile = useQuery({ queryKey: ["employee-profile"], queryFn: getEmployeeProfile, enabled: section === "profile" });
+
+  if (section === "notifications") {
+    return <div className="flex flex-col gap-[30px]"><PageHeader eyebrow="Employee" title="Notifications" description="Delivery updates related to your assigned tasks." /><Card><CardContent className="pt-[30px]">{notifications.isLoading ? <p className="text-sm text-muted-foreground">Loading notifications...</p> : null}{notifications.isError ? <p className="text-sm text-danger">Notifications could not load.</p> : null}{!notifications.isLoading && !notifications.isError && !notifications.data?.items.length ? <EmptyState title="No notifications" description="New task and document updates will appear here." /> : null}{notifications.data?.items.length ? <ul className="divide-y">{notifications.data.items.map((item) => <li key={item.id} className="py-4 first:pt-0"><p className="font-medium">{item.title}</p><p className="mt-1 text-sm text-muted-foreground">{item.message}</p><p className="mt-1 text-xs text-muted-foreground">{new Date(item.createdAt).toLocaleString()}</p></li>)}</ul> : null}</CardContent></Card></div>;
+  }
+
+  if (profile.isLoading) return <LoadingState label="Loading profile" rows={3} />;
+  if (profile.isError || !profile.data) return <ErrorState title="Employee profile could not load" onRetry={() => void profile.refetch()} />;
+  const data = profile.data;
+
+  return <div className="flex flex-col gap-[30px]"><PageHeader eyebrow="Employee" title="Profile" description="Your work identity." /><Card><CardContent className="pt-[30px]"><p className="font-medium">{data.name}</p><p className="mt-2 text-sm text-muted-foreground">{data.role} - {data.tenantName}</p><dl className="mt-6 grid gap-4 text-sm sm:grid-cols-2 lg:grid-cols-3"><ProfileDetail label="Email" value={data.email} /><ProfileDetail label="Employee code" value={data.employeeCode} /><ProfileDetail label="Status" value={data.status} /><ProfileDetail label="Department" value={data.department ?? "Not set"} /><ProfileDetail label="Experience" value={data.experienceLevel ?? "Not set"} /><ProfileDetail label="Weekly capacity" value={data.weeklyCapacityHours === null ? "Not set" : `${data.weeklyCapacityHours}h`} /></dl><div className="mt-6"><p className="text-sm font-medium">Work groups</p><p className="mt-2 text-sm text-muted-foreground">{data.workGroups.length ? data.workGroups.join(", ") : "No active work group"}</p></div></CardContent></Card></div>;
+}
+
+function ProfileDetail({ label, value }: { label: string; value: string }) {
+  return <div><dt className="text-muted-foreground">{label}</dt><dd className="mt-1 font-medium">{value}</dd></div>;
 }
