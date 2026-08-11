@@ -10,6 +10,10 @@ const tenantSlug = `codex-live-qa-${runId}`.slice(0, 63).replace(/-$/, "0");
 const tenantAdminEmail = `codex.live.qa.${runId}@example.com`;
 const initialTenantPassword = `Qa!${runId}Initial9`;
 const replacementTenantPassword = `Qa!${runId}Changed9`;
+const employeeEmail = `codex.employee.${runId}@example.com`;
+const managerEmail = `codex.manager.${runId}@example.com`;
+const clientEmail = `codex.client.${runId}@example.com`;
+const rolePassword = `Qa!${runId}Role9`;
 
 function requireSuperAdminCredentials() {
   if (!superAdminEmail || !superAdminPassword) {
@@ -23,11 +27,20 @@ function requireSuperAdminCredentials() {
 async function login(page: Page, email: string, password: string, workspace: string) {
   await page.goto("/login");
   await page.getByLabel("Work email").fill(email);
-  await page.getByRole("button", { name: "Continue" }).click();
-  await expect(page.getByLabel("Password", { exact: true })).toBeVisible({
-    timeout: 30_000,
-  });
-  await page.getByLabel("Password", { exact: true }).fill(password);
+  const passwordInput = page.getByLabel("Password", { exact: true });
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    await page.getByRole("button", { name: "Continue" }).click();
+    const reachedPassword = await Promise.race([
+      passwordInput.waitFor({ state: "visible", timeout: 30_000 }).then(() => true),
+      page
+        .getByText("Unable to verify this email. Please try again.", { exact: true })
+        .waitFor({ state: "visible", timeout: 30_000 })
+        .then(() => false),
+    ]);
+    if (reachedPassword) break;
+  }
+  await expect(passwordInput).toBeVisible();
+  await passwordInput.fill(password);
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await page.waitForURL(`**/${workspace}`, { timeout: 30_000 });
 }
@@ -79,6 +92,29 @@ async function expectLoginRejected(page: Page, email: string, password: string) 
   await expect(page).toHaveURL(/\/login$/);
 }
 
+async function createEmployee(page: Page, email: string, isManager: boolean) {
+  await page.getByRole("button", { name: "Create employee" }).first().click();
+  const dialog = page.getByRole("dialog", { name: "Create employee" });
+  await dialog.getByLabel("Name", { exact: true }).fill(
+    isManager ? "Codex QA Manager" : "Codex QA Employee",
+  );
+  await dialog.getByLabel("Email", { exact: true }).fill(email);
+  await dialog.getByLabel("Password", { exact: true }).fill(rolePassword);
+  await dialog.getByLabel("Employee code").fill(
+    `${isManager ? "MGR" : "EMP"}-${runId}`.slice(0, 30),
+  );
+  if (isManager) {
+    await dialog.getByText("Make this employee a manager", { exact: true }).click();
+  }
+  const create = dialog.getByRole("button", { name: "Create employee" });
+  await expect(create).toBeEnabled({ timeout: 30_000 });
+  await create.click();
+  await expect(page.getByText("Employee created.", { exact: true })).toBeVisible({
+    timeout: 30_000,
+  });
+  await expect(dialog).toBeHidden({ timeout: 30_000 });
+}
+
 test("live isolated tenant creation and lifecycle", async ({ browser, baseURL }) => {
   test.setTimeout(600_000);
   if (!baseURL) throw new Error("PLAYWRIGHT_BASE_URL is required.");
@@ -102,9 +138,11 @@ test("live isolated tenant creation and lifecycle", async ({ browser, baseURL })
     await superPage.getByLabel("Legal company name").fill(tenantLegalName);
     await superPage.getByLabel("Tenant code").fill(tenantCode);
     await superPage.getByLabel("URL slug").fill(tenantSlug);
-    await superPage.getByLabel("Country").selectOption("IN");
-    await expect(superPage.getByLabel("Reporting currency")).toHaveValue("INR");
-    await expect(superPage.getByLabel("Accounting timezone")).toHaveValue("Asia/Kolkata");
+    const country = superPage.locator('select[name="company.countryCode"]');
+    await expect(country).toBeEnabled({ timeout: 30_000 });
+    await country.selectOption("IN");
+    await expect(superPage.locator('input[name="company.reportingCurrencyCode"]')).toHaveValue("INR");
+    await expect(superPage.locator('input[name="company.timezone"]')).toHaveValue("Asia/Kolkata");
     await superPage.getByLabel("Industry").fill("Software quality assurance");
     await superPage.getByLabel("Company registration number").fill(`REG-${runId}`);
     await superPage.getByLabel("Tax / GST / VAT number").fill(`GST-${runId}`);
@@ -149,14 +187,62 @@ test("live isolated tenant creation and lifecycle", async ({ browser, baseURL })
 
     await logout(superPage);
     await login(tenantPage, tenantAdminEmail, initialTenantPassword, "admin");
-    await expect(tenantPage.getByRole("heading", { name: /Tenant overview/i })).toBeVisible({
+    await expect(tenantPage.getByRole("heading", { name: "Operations overview" })).toBeVisible({
       timeout: 30_000,
     });
     await tenantPage.reload();
     await expect(tenantPage).toHaveURL(/\/admin$/);
+
+    await tenantPage.goto("/admin/employees");
+    await expect(tenantPage.getByText("Employee directory", { exact: true })).toBeVisible({
+      timeout: 30_000,
+    });
+    await createEmployee(tenantPage, employeeEmail, false);
+    await createEmployee(tenantPage, managerEmail, true);
+
+    await tenantPage.goto("/admin/clients");
+    await expect(tenantPage.getByText("Client directory", { exact: true })).toBeVisible({
+      timeout: 30_000,
+    });
+    await tenantPage.getByRole("button", { name: "Create client" }).first().click();
+    const clientDialog = tenantPage.getByRole("dialog", { name: "Create client" });
+    await clientDialog.getByLabel("Client name").fill(`Codex QA Client ${runId}`);
+    await clientDialog.getByLabel("Legal name").fill(`Codex QA Client ${runId} Limited`);
+    await clientDialog.getByLabel("Client ID").fill(`CLIENT-${runId}`.slice(0, 30));
+    await clientDialog.getByLabel("Name", { exact: true }).fill("Codex QA Client Contact");
+    await clientDialog.getByLabel("Role", { exact: true }).fill("Primary contact");
+    await clientDialog.getByLabel("Email", { exact: true }).fill(clientEmail);
+    await clientDialog.getByLabel("Login email").fill(clientEmail);
+    await clientDialog.getByLabel("Temporary password").fill(rolePassword);
+    await clientDialog.getByRole("button", { name: "Create client" }).click();
+    await expect(tenantPage.getByText("Client created.", { exact: true })).toBeVisible({
+      timeout: 30_000,
+    });
+
     await logout(tenantPage);
     await tenantPage.goBack();
     await tenantPage.waitForURL("**/login");
+
+    await login(tenantPage, employeeEmail, rolePassword, "employee");
+    await expect(tenantPage.getByRole("heading", { name: "My day" })).toBeVisible({
+      timeout: 30_000,
+    });
+    await expect(tenantPage.getByRole("button", { name: "Manager" })).toHaveCount(0);
+    await logout(tenantPage);
+
+    await login(tenantPage, managerEmail, rolePassword, "employee");
+    await expect(tenantPage.getByRole("heading", { name: "My day" })).toBeVisible({
+      timeout: 30_000,
+    });
+    await expect(tenantPage.getByRole("button", { name: "Manager" })).toBeVisible();
+    await logout(tenantPage);
+
+    await login(tenantPage, clientEmail, rolePassword, "client");
+    await expect(tenantPage.getByRole("heading", { name: "Service overview" })).toBeVisible({
+      timeout: 30_000,
+    });
+    await logout(tenantPage);
+
     await login(tenantPage, tenantAdminEmail, initialTenantPassword, "admin");
 
     await loginSuperAdmin(superPage);

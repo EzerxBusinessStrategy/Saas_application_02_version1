@@ -20,6 +20,7 @@ export async function POST(request: Request) {
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ email: parsed.data.email }),
     cache: "no-store",
+    signal: AbortSignal.timeout(15_000),
   }).catch(() => null);
 
   if (!response) {

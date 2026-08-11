@@ -140,8 +140,12 @@ test.describe("live Super Admin authentication and session", () => {
     await expect(page).toHaveURL(/\/super-admin$/);
   });
 
-  test("manager route redirects to the employee workspace route", async ({ request }) => {
-    const response = await request.get("/manager", { maxRedirects: 0 });
+  test("manager route redirects to the employee workspace route", async ({ page }) => {
+    const managerResponse = page.waitForResponse(
+      (response) => new URL(response.url()).pathname === "/manager",
+    );
+    await page.goto("/manager", { waitUntil: "commit", timeout: 60_000 });
+    const response = await managerResponse;
     expect([307, 308]).toContain(response.status());
     expect(response.headers().location).toBe("/employee");
   });
