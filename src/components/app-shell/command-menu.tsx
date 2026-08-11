@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, type KeyboardEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { Building2, Search, UserRound, type LucideIcon } from "lucide-react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -31,6 +32,7 @@ export function CommandMenu({
   role: Role;
 }) {
   const router = useRouter();
+  const t = useTranslations("CommandMenu");
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SuperAdminSearchResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -111,21 +113,21 @@ export function CommandMenu({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        title={remoteSearch ? "Search platform" : "Navigate workspace"}
-        description={remoteSearch ? "Search tenants and users." : "Search available workspace navigation."}
+        title={remoteSearch ? t("searchPlatform") : t("navigateWorkspace")}
+        description={remoteSearch ? t("searchPlatformHint") : t("searchNavigation")}
         className="top-20 max-h-[calc(100dvh-6rem)] -translate-y-0 overflow-y-auto sm:top-1/2 sm:-translate-y-1/2"
       >
         <div className="pr-8">
-          <h2 className="font-semibold">{remoteSearch ? "Search platform" : "Navigate workspace"}</h2>
+          <h2 className="font-semibold">{remoteSearch ? t("searchPlatform") : t("navigateWorkspace")}</h2>
           <label className="relative mt-4 block">
-            <span className="sr-only">{remoteSearch ? "Search platform" : "Search navigation"}</span>
+            <span className="sr-only">{remoteSearch ? t("searchPlatform") : t("searchNavigation")}</span>
             <Search className="pointer-events-none absolute left-3 top-3 size-4 text-muted-foreground" />
             <Input
               autoFocus
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               onKeyDown={onSearchKeyDown}
-              placeholder={remoteSearch ? "Search tenants, users, email or code" : "Search pages"}
+              placeholder={remoteSearch ? t("searchTenants") : t("searchPages")}
               className="pl-9"
             />
           </label>
@@ -147,17 +149,18 @@ export function CommandMenu({
 }
 
 function useLocalCommands(workspace: Workspace, role: Role): LocalCommand[] {
+  const t = useTranslations();
   return useMemo(
     () =>
       flattenNavigation(navigationFor(workspace))
         .filter((item) => item.href !== undefined)
         .filter((item) => hasAnyPermission(role, item.permissions))
         .map((item) => ({
-          label: item.label,
+          label: t(item.labelKey ?? item.label),
           href: `/${workspace}${item.href ?? ""}`,
           Icon: item.icon,
         })),
-    [role, workspace],
+    [role, t, workspace],
   );
 }
 
@@ -170,9 +173,10 @@ function LocalResults({
   query: string;
   onOpenChange: (open: boolean) => void;
 }) {
+  const t = useTranslations("CommandMenu");
   return (
     <div className="mt-4">
-      <p className="px-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">Navigation</p>
+      <p className="px-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">{t("navigation")}</p>
       {matches.length ? (
         <ul className="mt-2 flex flex-col gap-1" aria-label="Navigation results">
           {matches.map(({ label, href, Icon }) => (
@@ -190,7 +194,7 @@ function LocalResults({
         </ul>
       ) : (
         <p className="mt-3 rounded-[var(--radius-control)] bg-muted px-3 py-4 text-sm text-muted-foreground">
-          No available pages match &quot;{query}&quot;.
+          {t("noPages", { query })}
         </p>
       )}
     </div>
@@ -210,8 +214,9 @@ function RemoteResults({
   activeIndex: number;
   onOpen: (result: SuperAdminSearchResult) => void;
 }) {
+  const t = useTranslations("CommandMenu");
   if (query.length === 1) {
-    return <p className="mt-3 rounded-[var(--radius-control)] bg-muted px-3 py-4 text-sm text-muted-foreground">Type at least 2 characters.</p>;
+    return <p className="mt-3 rounded-[var(--radius-control)] bg-muted px-3 py-4 text-sm text-muted-foreground">{t("minimumCharacters")}</p>;
   }
 
   const tenants = results.filter((result) => result.type === "tenant");
@@ -219,14 +224,14 @@ function RemoteResults({
 
   return (
     <div className="mt-4">
-      {loading ? <p className="px-1 py-3 text-sm text-muted-foreground">Searching...</p> : null}
+      {loading ? <p className="px-1 py-3 text-sm text-muted-foreground">{t("searching")}</p> : null}
       {!loading && !results.length ? (
         <p className="rounded-[var(--radius-control)] bg-muted px-3 py-4 text-sm text-muted-foreground">
-          {query ? `No records match "${query}".` : "Recent platform records will appear here."}
+          {query ? t("noRecords", { query }) : t("recentRecords")}
         </p>
       ) : null}
-      <ResultGroup title="Tenants" results={tenants} allResults={results} activeIndex={activeIndex} onOpen={onOpen} />
-      <ResultGroup title="Users" results={users} allResults={results} activeIndex={activeIndex} onOpen={onOpen} />
+      <ResultGroup title={t("tenants")} results={tenants} allResults={results} activeIndex={activeIndex} onOpen={onOpen} />
+      <ResultGroup title={t("users")} results={users} allResults={results} activeIndex={activeIndex} onOpen={onOpen} />
     </div>
   );
 }

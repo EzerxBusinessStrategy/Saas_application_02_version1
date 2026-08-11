@@ -21,6 +21,7 @@ const config: AppConfig = {
   apiBasePath: "/api/v1",
   corsOrigins: ["https://app.example.com"],
   requestBodyLimitBytes: 1024,
+  trustProxy: false,
   databasePoolMax: 1,
   supabaseUrl: "https://auth.example.test",
   supabaseAdminKey: "service-role-key",

@@ -10,6 +10,7 @@
 - [0008: Country-scoped tenant financial years](0008-country-scoped-tenant-financial-years.md) (Accepted)
 - [0009: Request-path performance and authenticated-context caching](0009-request-path-performance.md) (Accepted)
 - [0010: Work-group task notification outbox](0010-work-group-task-notification-outbox.md) (Accepted)
+- [0011: User-owned localization and time-zone preferences](0011-user-localization-preferences.md) (Proposed)
 
 Supporting proposed architecture documents:
 

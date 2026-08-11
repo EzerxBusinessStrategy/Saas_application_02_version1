@@ -6,6 +6,7 @@ import {
   authenticatedWorkspaceCookie,
 } from "@/lib/auth-cookies";
 import type { Workspace } from "@/types/domain";
+import { appLocaleCookie, type AppLocale } from "@/i18n/config";
 
 type CookieSession = {
   accessToken: string;
@@ -20,6 +21,7 @@ export function setSuperAdminSessionCookies(
   session: CookieSession,
   rememberMe: boolean,
   workspace: Workspace = "super-admin",
+  locale?: AppLocale,
 ): void {
   const common = {
     httpOnly: true,
@@ -41,6 +43,9 @@ export function setSuperAdminSessionCookies(
     ...(rememberMe ? { maxAge: maxRememberMeAge } : {}),
   });
   response.cookies.set(authenticatedWorkspaceCookie, workspace, { ...common, ...(rememberMe ? { maxAge: maxRememberMeAge } : {}) });
+  if (locale) {
+    response.cookies.set(appLocaleCookie, locale, { ...common, ...(rememberMe ? { maxAge: maxRememberMeAge } : {}) });
+  }
 }
 
 export function clearSuperAdminSessionCookies(response: NextResponse): void {
@@ -48,4 +53,5 @@ export function clearSuperAdminSessionCookies(response: NextResponse): void {
   response.cookies.set(superAdminRefreshTokenCookie, "", { maxAge: 0, path: "/" });
   response.cookies.set(superAdminRememberMeCookie, "", { maxAge: 0, path: "/" });
   response.cookies.set(authenticatedWorkspaceCookie, "", { maxAge: 0, path: "/" });
+  response.cookies.set(appLocaleCookie, "", { maxAge: 0, path: "/" });
 }

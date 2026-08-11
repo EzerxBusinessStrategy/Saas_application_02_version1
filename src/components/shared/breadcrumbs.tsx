@@ -1,5 +1,8 @@
+"use client";
+
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { breadcrumbsFor } from "@/lib/breadcrumbs";
 import type { Role, Workspace } from "@/types/domain";
 
@@ -12,6 +15,7 @@ export function Breadcrumbs({
   workspace: Workspace;
   role: Role;
 }) {
+  const t = useTranslations();
   const items = breadcrumbsFor({ pathname, workspace, role });
 
   return (
@@ -29,17 +33,17 @@ export function Breadcrumbs({
               <span
                 className="truncate font-medium text-foreground"
                 aria-current="page"
-                title={item.label}
+                title={item.labelKey ? t(item.labelKey) : item.label}
               >
-                {item.label}
+                {item.labelKey ? t(item.labelKey) : item.label}
               </span>
             ) : item.href ? (
               <Link
                 className="truncate hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 href={item.href}
-                title={item.label}
+                title={item.labelKey ? t(item.labelKey) : item.label}
               >
-                {item.label}
+                {item.labelKey ? t(item.labelKey) : item.label}
               </Link>
             ) : null}
           </li>

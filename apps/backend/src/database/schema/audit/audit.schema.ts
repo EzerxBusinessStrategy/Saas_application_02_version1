@@ -16,6 +16,7 @@ export const auditEvents = auditSchema.table(
     resourceId: uuid("resource_id"),
     result: text("result").notNull(),
     reason: text("reason"),
+    reasonSource: text("reason_source").notNull().default("explicit"),
     requestId: text("request_id"),
     ipAddress: text("ip_address"),
     userAgent: text("user_agent"),

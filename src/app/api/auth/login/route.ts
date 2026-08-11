@@ -21,6 +21,7 @@ import {
   autoSelectWorkspace,
   workspaceForRoles,
 } from "@/lib/workspace-resolver";
+import { defaultLocale, timezones, type AppLocale, type AppTimezone } from "@/i18n/config";
 
 const loginSchema = z.object({
   email: z.string().trim().toLowerCase().min(1, "Enter your email."),
@@ -40,6 +41,7 @@ type MeResponse = {
   roles: readonly string[];
   permissions: readonly string[];
   isPlatformAdmin: boolean;
+  preferences: { locale: AppLocale; timezone: AppTimezone };
 };
 
 /**
@@ -108,7 +110,7 @@ export async function POST(request: Request) {
         if (single) {
           const workspace = single.workspace;
           const response = NextResponse.json({ redirect: `/${workspace}` });
-          setSuperAdminSessionCookies(response, session, rememberMe, workspace);
+          setSuperAdminSessionCookies(response, session, rememberMe, workspace, meData.preferences.locale);
           response.cookies.set(demoSessionCookie, "", { maxAge: 0, path: "/" });
           return response;
         }
@@ -120,6 +122,7 @@ export async function POST(request: Request) {
             session,
             rememberMe,
             "super-admin",
+            meData.preferences.locale,
           );
           response.cookies.set(demoSessionCookie, "", { maxAge: 0, path: "/" });
           return response;
@@ -188,6 +191,7 @@ async function fetchMeContext(
       roles: superAdminMe.roles,
       permissions: [],
       isPlatformAdmin: superAdminMe.isPlatformAdmin,
+      preferences: preferencesFor(superAdminMe.preferences),
     };
   }
 
@@ -205,6 +209,7 @@ async function fetchMeContext(
       roles: tenantAdminMe.roles,
       permissions: [],
       isPlatformAdmin: false,
+      preferences: preferencesFor(tenantAdminMe.preferences),
     };
   }
 
@@ -221,6 +226,7 @@ async function fetchMeContext(
       roles: clientPortalMe.roles,
       permissions: [],
       isPlatformAdmin: false,
+      preferences: preferencesFor(clientPortalMe.preferences),
     };
   }
 
@@ -237,8 +243,13 @@ async function fetchMeContext(
       roles: employeeMe.roles,
       permissions: [],
       isPlatformAdmin: false,
+      preferences: preferencesFor(employeeMe.preferences),
     };
   }
 
   return null;
+}
+
+function preferencesFor(preferences: MeResponse["preferences"] | undefined): MeResponse["preferences"] {
+  return preferences ?? { locale: defaultLocale, timezone: timezones[0].timezone };
 }

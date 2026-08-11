@@ -3,10 +3,15 @@ import { AuthContextRepository, AuthContextRow } from "./auth-context.repository
 import { applicationUserNotFound, forbiddenPortal } from "./auth-errors";
 import { MeMembershipDto, MeResponseDto } from "./me.dto";
 import { RequestContext } from "./request-context";
+import { UserPreferencesRepository } from "./user-preferences.repository";
+import { UserPreferences } from "./user-preferences.types";
 
 @Injectable()
 export class MeService {
-  constructor(@Inject(AuthContextRepository) private readonly repository: AuthContextRepository) {}
+  constructor(
+    @Inject(AuthContextRepository) private readonly repository: AuthContextRepository,
+    @Inject(UserPreferencesRepository) private readonly userPreferencesRepository: UserPreferencesRepository,
+  ) {}
 
   async getMe(context: RequestContext): Promise<MeResponseDto> {
     const rows = await this.repository.findBySupabaseAuthUserId(context.authUserId);
@@ -20,6 +25,7 @@ export class MeService {
     if (context.membershipId && (!active || !active.tenant_id || !active.membership_id)) {
       throw new Error("Resolved request context no longer matches membership data.");
     }
+    const preferences = await this.userPreferencesRepository.getOrCreate(context);
 
     return {
       user: {
@@ -29,6 +35,7 @@ export class MeService {
         displayName: userRow.user_display_name,
         status: "active",
       },
+      preferences,
       availableMemberships: rows
         .filter((row) => row.membership_id && row.tenant_id)
         .map((row) => membershipDto(row as typeof row & { tenant_id: string; membership_id: string })),
@@ -50,6 +57,13 @@ export class MeService {
     const updated = await this.repository.updateDisplayName(context.userId, displayName);
     if (!updated) throw applicationUserNotFound();
     return this.getMe(context);
+  }
+
+  async updatePreferences(
+    context: RequestContext,
+    preferences: UserPreferences,
+  ): Promise<{ preferences: UserPreferences }> {
+    return { preferences: await this.userPreferencesRepository.update(context, preferences) };
   }
 }
 

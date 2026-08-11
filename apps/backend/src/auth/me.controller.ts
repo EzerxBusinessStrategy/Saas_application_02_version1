@@ -15,7 +15,14 @@ import { ZodValidationPipe } from "../common/validation/zod-validation.pipe";
 import { ActiveRequestContextGuard } from "./guards/active-request-context.guard";
 import { PermissionGuard } from "./guards/permission.guard";
 import { SupabaseAuthGuard } from "./guards/supabase-auth.guard";
-import { MeResponseDto, UpdateMyProfileDto, updateMyProfileSchema } from "./me.dto";
+import {
+  MeResponseDto,
+  UpdateMyPreferencesDto,
+  UpdateMyProfileDto,
+  UserPreferencesDto,
+  updateMyPreferencesSchema,
+  updateMyProfileSchema,
+} from "./me.dto";
 import { MeService } from "./me.service";
 import { CurrentRequestContext } from "./request-context.decorator";
 import { RequestContext } from "./request-context";
@@ -58,5 +65,19 @@ export class MeController {
     @Body(new ZodValidationPipe(updateMyProfileSchema)) body: UpdateMyProfileDto,
   ): Promise<MeResponseDto> {
     return this.meService.updateProfile(context, body.displayName);
+  }
+
+  @Patch("preferences")
+  @HttpCode(200)
+  @ApiOperation({ summary: "Update the verified user's locale and time-zone preferences." })
+  @ApiBody({ type: UpdateMyPreferencesDto })
+  @ApiOkResponse({ type: UserPreferencesDto })
+  @ApiUnauthorizedResponse({ type: ApiErrorResponseDto })
+  @ApiForbiddenResponse({ type: ApiErrorResponseDto })
+  updatePreferences(
+    @CurrentRequestContext() context: RequestContext,
+    @Body(new ZodValidationPipe(updateMyPreferencesSchema)) body: UpdateMyPreferencesDto,
+  ): Promise<{ preferences: UserPreferencesDto }> {
+    return this.meService.updatePreferences(context, body);
   }
 }

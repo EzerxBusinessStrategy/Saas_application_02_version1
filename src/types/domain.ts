@@ -1,3 +1,5 @@
+import type { AppLocale, AppTimezone } from "@/i18n/config";
+
 export const roles = [
   "SUPER_ADMIN",
   "TENANT_OWNER",
@@ -61,6 +63,10 @@ export type User = {
   role: Role;
   roles?: Role[];
   permissions: Permission[];
+  preferences?: {
+    locale: AppLocale;
+    timezone: AppTimezone;
+  };
 };
 export type Metric = {
   label: string;

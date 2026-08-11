@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import { z } from "zod";
+import { appLocales, appTimezones } from "./user-preferences.types";
 
 export const updateMyProfileSchema = z.object({
   displayName: z.string().trim().min(1).max(160),
@@ -7,9 +8,32 @@ export const updateMyProfileSchema = z.object({
 
 export type UpdateMyProfileRequest = z.infer<typeof updateMyProfileSchema>;
 
+export const updateMyPreferencesSchema = z.object({
+  locale: z.enum(appLocales),
+  timezone: z.enum(appTimezones),
+});
+
+export type UpdateMyPreferencesRequest = z.infer<typeof updateMyPreferencesSchema>;
+
 export class UpdateMyProfileDto {
   @ApiProperty({ type: String, example: "Platform Owner" })
   displayName!: string;
+}
+
+export class UpdateMyPreferencesDto {
+  @ApiProperty({ enum: appLocales })
+  locale!: UpdateMyPreferencesRequest["locale"];
+
+  @ApiProperty({ enum: appTimezones })
+  timezone!: UpdateMyPreferencesRequest["timezone"];
+}
+
+export class UserPreferencesDto {
+  @ApiProperty({ enum: appLocales })
+  locale!: UpdateMyPreferencesRequest["locale"];
+
+  @ApiProperty({ enum: appTimezones })
+  timezone!: UpdateMyPreferencesRequest["timezone"];
 }
 
 export class MeUserDto {
@@ -66,6 +90,9 @@ export class MeMembershipDto {
 export class MeResponseDto {
   @ApiProperty({ type: () => MeUserDto })
   user!: MeUserDto;
+
+  @ApiProperty({ type: () => UserPreferencesDto })
+  preferences!: UserPreferencesDto;
 
   @ApiProperty({ type: () => [MeMembershipDto] })
   availableMemberships!: readonly MeMembershipDto[];

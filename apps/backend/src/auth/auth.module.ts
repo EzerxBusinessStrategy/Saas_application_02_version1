@@ -16,6 +16,7 @@ import { RequestContextResolver } from "./request-context-resolver.service";
 import { SessionPolicyController } from "./session-policy.controller";
 import { SessionPolicyRepository } from "./session-policy.repository";
 import { SupabaseJwtVerifier } from "./supabase-jwt-verifier.service";
+import { UserPreferencesRepository } from "./user-preferences.repository";
 
 @Module({
   imports: [DatabaseModule],
@@ -32,6 +33,7 @@ import { SupabaseJwtVerifier } from "./supabase-jwt-verifier.service";
     SessionPolicyRepository,
     SupabaseAuthGuard,
     SupabaseJwtVerifier,
+    UserPreferencesRepository,
     MeService,
   ],
   exports: [

@@ -12,6 +12,7 @@ export type TrustedDatabaseContext = {
   readonly isPlatformAdmin?: boolean;
   readonly supportAccessSessionId?: string;
   readonly requestId?: string;
+  readonly ipAddress?: string;
 };
 
 const createDrizzleClient = (client: PoolClient) => drizzle(client, { schema });
@@ -52,7 +53,8 @@ export async function setTrustedDatabaseContext(
       set_config('app.employee_id', $6, true),
       set_config('app.client_id', $7, true),
       set_config('app.support_access_session_id', $8, true),
-      set_config('app.request_id', $9, true)
+      set_config('app.request_id', $9, true),
+      set_config('app.ip_address', $10, true)
     `,
     [
       context.isPlatformAdmin ? "true" : "false",
@@ -64,6 +66,7 @@ export async function setTrustedDatabaseContext(
       context.clientAccountId ?? "",
       context.supportAccessSessionId ?? "",
       context.requestId ?? "",
+      context.ipAddress ?? "",
     ],
   );
 }

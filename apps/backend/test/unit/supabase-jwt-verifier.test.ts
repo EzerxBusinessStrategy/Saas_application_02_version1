@@ -10,6 +10,7 @@ const config: AppConfig = {
   apiBasePath: "/api/v1",
   corsOrigins: [],
   requestBodyLimitBytes: 1024,
+  trustProxy: false,
   databasePoolMax: 1,
   supabaseUrl: "https://example.supabase.co",
   supabaseAnonKey: "anon-key",

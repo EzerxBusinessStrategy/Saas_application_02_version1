@@ -24,6 +24,16 @@ export const users = pgTable(
   }),
 );
 
+export const userPreferences = pgTable("user_preferences", {
+  userId: uuid("user_id")
+    .primaryKey()
+    .references(() => users.id, { onDelete: "cascade" }),
+  locale: text("locale").notNull().default("en"),
+  timezone: text("timezone").notNull().default("Asia/Kolkata"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
 export const tenantMemberships = pgTable(
   "tenant_memberships",
   {

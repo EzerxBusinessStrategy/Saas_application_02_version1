@@ -13,6 +13,7 @@ import { setupOpenApi } from "./openapi";
 export async function createBackendApp(config: AppConfig): Promise<NestFastifyApplication> {
   const adapter = new FastifyAdapter({
     bodyLimit: config.requestBodyLimitBytes,
+    trustProxy: config.trustProxy,
     genReqId: (request: IncomingMessage) => resolveRequestId(request.headers[REQUEST_ID_HEADER]),
     logger: createFastifyLoggerOptions(config),
   });

@@ -27,6 +27,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import { Pagination } from "@/components/shared/pagination";
 import { ResponsiveTabs } from "@/components/shared/responsive-tabs";
 import { StatusBadge } from "@/components/shared/status-badge";
+import { TenantCreateLoader } from "@/components/shared/tenant-create-loader";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Card,
@@ -210,6 +211,7 @@ export function TenantDirectory() {
   const [showFinalRevokeWarning, setShowFinalRevokeWarning] = useState(false);
   const [revokeAcknowledged, setRevokeAcknowledged] = useState(false);
   const [suspensionDuration, setSuspensionDuration] = useState<SuspensionDuration>("24h");
+  const [createTenantPending, setCreateTenantPending] = useState(false);
   const request = useMemo<TenantListRequest>(
     () => ({
       query: submittedQuery.trim() || undefined,
@@ -452,12 +454,17 @@ export function TenantDirectory() {
         title="Tenant list"
         description="Tenant registry with lifecycle, administrator access, and activity timestamps."
         actions={
-          <Link
-            href="/super-admin/tenants/new"
-            className={buttonVariants({ className: "super-admin-action" })}
-          >
-            Create tenant
-          </Link>
+          <div className="flex items-center gap-2">
+            {createTenantPending ? <TenantCreateLoader /> : null}
+            <Link
+              href="/super-admin/tenants/new"
+              data-suppress-shared-pending="true"
+              className={buttonVariants({ className: "super-admin-action" })}
+              onClick={() => setCreateTenantPending(true)}
+            >
+              Create tenant
+            </Link>
+          </div>
         }
       />
       <Card>

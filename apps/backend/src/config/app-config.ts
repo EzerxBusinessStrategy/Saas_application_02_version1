@@ -14,6 +14,7 @@ export type AppConfig = {
   readonly corsOrigins: readonly string[];
   readonly publicAppUrl?: string;
   readonly requestBodyLimitBytes: number;
+  readonly trustProxy: boolean;
   readonly databaseUrl?: string;
   readonly databaseMigrationUrl?: string;
   readonly databasePoolMax: number;
@@ -67,6 +68,7 @@ const rawEnvSchema = z
       .min(1024)
       .max(10 * 1024 * 1024)
       .default(1024 * 1024),
+    BACKEND_TRUST_PROXY: z.enum(["true", "false"]).default("false"),
     BACKEND_DATABASE_URL: optionalString,
     BACKEND_DATABASE_MIGRATION_URL: optionalString,
     BACKEND_DATABASE_POOL_MAX: z.coerce.number().int().min(1).max(50).default(5),
@@ -132,6 +134,7 @@ export function loadAppConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     corsOrigins,
     publicAppUrl: parsed.data.BACKEND_PUBLIC_APP_URL,
     requestBodyLimitBytes: parsed.data.BACKEND_REQUEST_BODY_LIMIT_BYTES,
+    trustProxy: parsed.data.BACKEND_TRUST_PROXY === "true",
     databaseUrl: parsed.data.BACKEND_DATABASE_URL,
     databaseMigrationUrl: parsed.data.BACKEND_DATABASE_MIGRATION_URL,
     databasePoolMax: parsed.data.BACKEND_DATABASE_POOL_MAX,

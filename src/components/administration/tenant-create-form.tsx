@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import { TenantCreateLoader } from "@/components/shared/tenant-create-loader";
 
 const steps = [
   "Company details",
@@ -70,6 +71,7 @@ const defaultValues: CreateTenantInput = {
 export function TenantCreatePageForm() {
   const router = useRouter();
   const [step, setStep] = useState(0);
+  const [continuePending, setContinuePending] = useState(false);
   const form = useForm<CreateTenantInput>({
     resolver: zodResolver(createTenantSchema),
     defaultValues,
@@ -193,9 +195,15 @@ export function TenantCreatePageForm() {
   );
 
   async function continueStep() {
-    const valid = await form.trigger(fieldGroups[step] as Parameters<typeof form.trigger>[0]);
-    if (step === 2 && (emailUnavailable || emailCheckPending)) return;
-    if (valid) setStep((current) => Math.min(current + 1, steps.length - 1));
+    if (continuePending) return;
+    setContinuePending(true);
+    try {
+      const valid = await form.trigger(fieldGroups[step] as Parameters<typeof form.trigger>[0]);
+      if (step === 2 && (emailUnavailable || emailCheckPending)) return;
+      if (valid) setStep((current) => Math.min(current + 1, steps.length - 1));
+    } finally {
+      setContinuePending(false);
+    }
   }
 
   return (
@@ -211,9 +219,12 @@ export function TenantCreatePageForm() {
               Cancel
             </Link>
             {step < steps.length - 1 ? (
-              <Button type="button" onClick={continueStep} disabled={blockContinue}>
-                Save and continue
-              </Button>
+              <div className="flex items-center gap-2">
+                {continuePending ? <TenantCreateLoader /> : null}
+                <Button type="button" onClick={continueStep} disabled={blockContinue || continuePending}>
+                  Save and continue
+                </Button>
+              </div>
             ) : (
               <Button type="submit" form="create-tenant-form" disabled={blockCreate}>
                 {mutation.isPending ? "Creating..." : "Create tenant and administrator account"}
@@ -266,9 +277,12 @@ export function TenantCreatePageForm() {
           Back
         </Button>
         {step < steps.length - 1 ? (
-          <Button type="button" onClick={continueStep} disabled={blockContinue}>
-            Save and continue
-          </Button>
+          <div className="flex items-center gap-2">
+            {continuePending ? <TenantCreateLoader /> : null}
+            <Button type="button" onClick={continueStep} disabled={blockContinue || continuePending}>
+              Save and continue
+            </Button>
+          </div>
         ) : (
           <Button type="submit" form="create-tenant-form" disabled={blockCreate}>
             {mutation.isPending ? "Creating..." : "Create tenant and administrator account"}
@@ -292,7 +306,6 @@ function CompanyStep({
     <Card>
       <CardHeader>
         <CardTitle>Company details</CardTitle>
-        <CardDescription>Capture the tenant identity stored in PostgreSQL.</CardDescription>
       </CardHeader>
       <CardContent className="grid gap-5 md:grid-cols-2">
         <Field label="Company display name" error={form.formState.errors.company?.displayName?.message}>

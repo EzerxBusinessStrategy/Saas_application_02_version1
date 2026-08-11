@@ -16,6 +16,7 @@ export type TenantSelectionInput = {
 
 export type RequestContext = {
   readonly requestId: string;
+  readonly ipAddress?: string;
   readonly authUserId: string;
   readonly userId: string;
   readonly tenantId?: string;

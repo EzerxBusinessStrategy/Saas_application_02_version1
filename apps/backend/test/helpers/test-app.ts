@@ -11,6 +11,7 @@ export const testConfig: AppConfig = {
   corsOrigins: ["https://app.example.com"],
   publicAppUrl: "https://app.example.com",
   requestBodyLimitBytes: 1024 * 1024,
+  trustProxy: false,
   databasePoolMax: 2,
   supabaseJwksTimeoutMs: 1500,
 };

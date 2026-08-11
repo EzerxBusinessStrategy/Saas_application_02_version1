@@ -20,6 +20,7 @@ export class ActiveRequestContextGuard implements CanActivate {
       request.verifiedAuthUser,
       tenantSelectionFromRequest(request),
       resolveRequestId(request.headers[REQUEST_ID_HEADER], request.id),
+      request.ip,
     );
     request.requestContext = resolved.context;
     return true;

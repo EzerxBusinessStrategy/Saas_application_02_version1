@@ -12,7 +12,7 @@ function requestMethod(input: RequestInfo | URL, init?: RequestInit) {
   return input instanceof Request ? input.method.toUpperCase() : "GET";
 }
 
-export function PendingActionIndicator() {
+export function PendingActionIndicator({ suppressed = false }: { suppressed?: boolean }) {
   const pathname = usePathname();
   const queryMutations = useIsMutating();
   const [fetchMutations, setFetchMutations] = useState(0);
@@ -40,6 +40,7 @@ export function PendingActionIndicator() {
       if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
       const link = (event.target as HTMLElement | null)?.closest<HTMLAnchorElement>("a[href]");
       if (!link || link.target || link.hasAttribute("download")) return;
+      if (link.dataset.suppressSharedPending === "true") return;
       const destination = new URL(link.href, window.location.href);
       if (destination.origin !== window.location.origin || destination.pathname === pathname) return;
       setNavigationPending(true);
@@ -52,7 +53,7 @@ export function PendingActionIndicator() {
     setNavigationPending(false);
   }, [pathname]);
 
-  if (!pending) return null;
+  if (!pending || suppressed) return null;
 
   const label = navigationPending && queryMutations === 0 && fetchMutations === 0
     ? "Loading workspace"

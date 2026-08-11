@@ -45,6 +45,7 @@ export class RequestContextResolver {
     verifiedUser: VerifiedAuthUser,
     selection: TenantSelectionInput,
     requestId: string,
+    ipAddress?: string,
     expectedAuthContextVersion?: number,
   ): Promise<ResolvedRequestContext> {
     const cacheKey = authContextCacheKey(verifiedUser.authUserId, selection);
@@ -79,6 +80,7 @@ export class RequestContextResolver {
       return {
         context: freezeRequestContext({
           requestId,
+          ipAddress,
           authUserId: verifiedUser.authUserId,
           userId: first.user_id,
           roles,
@@ -109,6 +111,7 @@ export class RequestContextResolver {
     return {
       context: freezeRequestContext({
         requestId,
+        ipAddress,
         authUserId: verifiedUser.authUserId,
         userId: first.user_id,
         tenantId: selected.tenant_id,

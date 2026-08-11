@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   ChevronDown,
   ChevronsLeft,
@@ -17,11 +18,13 @@ import { Breadcrumbs } from "@/components/shared/breadcrumbs";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { CommandMenu } from "@/components/app-shell/command-menu";
+import { LiveWorldClock } from "@/components/app-shell/live-world-clock";
+import { LanguageSelector } from "@/components/app-shell/language-selector";
 import { NotificationMenu } from "@/components/app-shell/notification-menu";
 import { PendingActionIndicator } from "@/components/app-shell/pending-action-indicator";
-import { TenantSwitcher } from "@/components/app-shell/tenant-switcher";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { UserMenu } from "@/components/app-shell/user-menu";
+import { GravityWellLoader } from "@/components/shared/gravity-well-loader";
 import { getClientPortalProfile } from "@/features/client-portal/api/client-portal-profile-api";
 import { getPlatformConfiguration } from "@/features/platform/api/super-admin-platform-configuration-api";
 import { navigationFor } from "@/lib/nav";
@@ -32,6 +35,7 @@ import {
   tenantBrandingStorageKey,
 } from "@/lib/tenant-branding-session";
 import { cn } from "@/lib/utils";
+import { timezones } from "@/i18n/config";
 import type { User, Workspace } from "@/types/domain";
 import type { NavigationItem } from "@/types/navigation";
 
@@ -82,6 +86,7 @@ function WorkspaceNavigation({
   collapsed: boolean;
   onNavigate?: () => void;
 }) {
+  const t = useTranslations();
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>(
     {},
   );
@@ -92,6 +97,7 @@ function WorkspaceNavigation({
       ? "pointer-events-none absolute -translate-x-1 opacity-0"
       : "translate-x-0 opacity-100",
   );
+  const labelFor = (item: NavigationItem) => t(item.labelKey ?? item.label);
 
   const renderFlyoutItem = (item: NavigationItem) => {
     const Icon = item.icon;
@@ -115,7 +121,7 @@ function WorkspaceNavigation({
         {Icon ? (
           <Icon className="size-[18px] shrink-0" aria-hidden="true" />
         ) : null}
-        <span className="truncate">{item.label}</span>
+        <span className="truncate">{labelFor(item)}</span>
       </Link>
     ) : null;
   };
@@ -141,7 +147,7 @@ function WorkspaceNavigation({
           role="tooltip"
           className="pointer-events-none invisible absolute left-[calc(100%+8px)] top-1/2 z-20 -translate-y-1/2 whitespace-nowrap rounded-[var(--radius-control)] bg-foreground px-2 py-1 text-xs text-card opacity-0 shadow-sm transition-[opacity,visibility] duration-200 group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100 motion-reduce:transition-none"
         >
-          {item.label}
+          {labelFor(item)}
         </span>
       ) : null;
 
@@ -151,8 +157,8 @@ function WorkspaceNavigation({
           key={item.label}
           href={href}
           className={commonClassName}
-          title={collapsed ? item.label : undefined}
-          aria-label={collapsed ? item.label : undefined}
+          title={collapsed ? labelFor(item) : undefined}
+          aria-label={collapsed ? labelFor(item) : undefined}
           aria-describedby={collapsed ? tooltipId : undefined}
           aria-current={active ? "page" : undefined}
           onClick={onNavigate}
@@ -161,7 +167,7 @@ function WorkspaceNavigation({
             <Icon className="size-[18px] shrink-0" aria-hidden="true" />
           ) : null}
           <span aria-hidden={collapsed} className={labelClassName}>
-            {item.label}
+            {labelFor(item)}
           </span>
           {!collapsed && item.badge ? (
             <span className="ml-auto rounded-[var(--radius-control)] bg-primary px-[7px] py-px text-xs leading-[18px] text-primary-foreground">
@@ -179,8 +185,8 @@ function WorkspaceNavigation({
           type="button"
           className={commonClassName}
           aria-expanded={collapsed ? openFlyoutGroup === item.label : expanded}
-          aria-label={collapsed ? `${item.label} navigation` : undefined}
-          title={collapsed ? item.label : undefined}
+          aria-label={collapsed ? `${labelFor(item)} navigation` : undefined}
+          title={collapsed ? labelFor(item) : undefined}
           aria-describedby={
             collapsed && openFlyoutGroup !== item.label ? tooltipId : undefined
           }
@@ -205,7 +211,7 @@ function WorkspaceNavigation({
             <Icon className="size-[18px] shrink-0" aria-hidden="true" />
           ) : null}
           <span aria-hidden={collapsed} className={labelClassName}>
-            {item.label}
+            {labelFor(item)}
           </span>
           {!collapsed ? (
             <ChevronDown
@@ -227,11 +233,11 @@ function WorkspaceNavigation({
           <div
             id={`${itemId}-navigation`}
             role="group"
-            aria-label={`${item.label} navigation`}
+            aria-label={`${labelFor(item)} navigation`}
             className="absolute left-[calc(100%+8px)] top-0 z-20 flex w-52 flex-col gap-1 rounded-[var(--radius-control)] border bg-sidebar p-2 shadow-[var(--shadow-card)]"
           >
             <p className="px-2 py-1 text-xs font-medium text-sidebar-muted">
-              {item.label}
+              {labelFor(item)}
             </p>
             {item.children.map(renderFlyoutItem)}
           </div>
@@ -343,11 +349,15 @@ export function WorkspaceShell({
   user: User;
   children: ReactNode;
 }) {
+  const t = useTranslations();
   const pathname = usePathname();
+  const router = useRouter();
+  const queryClient = useQueryClient();
   const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [commandMenuOpen, setCommandMenuOpen] = useState(false);
   const [companyName, setCompanyName] = useState("SaaS App");
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const platformConfigurationQuery = useQuery({
     queryKey: ["platform-configuration"],
     queryFn: getPlatformConfiguration,
@@ -362,6 +372,16 @@ export function WorkspaceShell({
     () => filterNavigation(navigationFor(workspace, user.roles?.includes("MANAGER") ?? false), user.roles ?? [user.role]),
     [user.role, user.roles, workspace],
   );
+  const updateWorkspace = async () => {
+    if (isRefreshing) return;
+    setIsRefreshing(true);
+    router.refresh();
+    try {
+      await queryClient.refetchQueries({ type: "active" });
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   useEffect(() => {
     setMobileNavigationOpen(false);
@@ -428,7 +448,12 @@ export function WorkspaceShell({
       className="app-shell min-h-screen bg-background"
       data-sidebar={sidebarCollapsed ? "collapsed" : "expanded"}
     >
-      <PendingActionIndicator />
+      <PendingActionIndicator suppressed={pathname.endsWith("/tenant-password")} />
+      {isRefreshing ? (
+        <div className="fixed inset-0 z-[70] grid place-items-center bg-background/85 backdrop-blur-sm" role="status" aria-label="Updating workspace">
+          <GravityWellLoader className="h-72 min-h-[280px] w-72" label="Updating workspace..." particleCount={90} />
+        </div>
+      ) : null}
       <a href="#main-content" className="skip-link">
         Skip to content
       </a>
@@ -483,27 +508,29 @@ export function WorkspaceShell({
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-1 sm:gap-2">
-            {user.role === "SUPER_ADMIN" ? <TenantSwitcher /> : null}
+            <LiveWorldClock preferences={user.preferences} />
+            <LanguageSelector timezone={user.preferences?.timezone ?? timezones[0].timezone} />
             <Button
               variant="ghost"
               size="sm"
               className="size-10 p-0"
-              aria-label="Refresh dashboard data"
-              title="Refresh dashboard data"
-              onClick={() => window.location.reload()}
+              aria-label={t("Common.update")}
+              title={t("Common.update")}
+              disabled={isRefreshing}
+              onClick={() => void updateWorkspace()}
             >
               <RefreshCw className="size-[18px]" aria-hidden="true" />
             </Button>
             <Button
-              variant="outline"
+              variant="ghost"
               size="sm"
-              className="size-10 justify-center p-0 sm:w-52 sm:justify-start sm:px-3"
-              aria-label="Search workspace navigation"
+              className="size-10 p-0"
+              aria-label={t("CommandMenu.searchNavigation")}
+              title={t("Common.search")}
               onClick={() => setCommandMenuOpen(true)}
             >
               <Search className="size-[18px]" aria-hidden="true" />
-              <span className="hidden sm:inline">Search</span>
-              <kbd className="ml-auto hidden text-xs text-muted-foreground sm:block">
+              <kbd className="hidden">
                 ⌘K
               </kbd>
             </Button>

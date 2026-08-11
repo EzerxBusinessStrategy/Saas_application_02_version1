@@ -141,7 +141,7 @@ test("shows Tenant Admin navigation as direct links without dropdown groups", ()
   expect(screen.queryByRole("button", { name: "Operations" })).not.toBeInTheDocument();
 });
 
-test("opens the mobile navigation drawer and limits the tenant switcher to super admins", () => {
+test("opens the mobile navigation drawer and exposes the workspace update control", () => {
   const admin = workspaceConfig("admin").user;
   pathname.value = "/admin";
   const { rerender } = renderShell(
@@ -166,11 +166,9 @@ test("opens the mobile navigation drawer and limits the tenant switcher to super
       <p>Content</p>
     </WorkspaceShell>,
   );
+  expect(screen.queryByLabelText(/Tenant context:/)).not.toBeInTheDocument();
   expect(
-    screen.getByLabelText("Tenant context: Platform context"),
-  ).toBeInTheDocument();
-  expect(
-    screen.getByRole("button", { name: "Refresh dashboard data" }),
+    screen.getByRole("button", { name: "Update dashboard data" }),
   ).toBeInTheDocument();
 });
 

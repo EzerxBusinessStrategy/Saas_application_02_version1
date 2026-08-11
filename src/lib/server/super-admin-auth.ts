@@ -1,4 +1,5 @@
 import type { Role, User, Workspace } from "@/types/domain";
+import { defaultLocale, timezones, type AppLocale, type AppTimezone } from "@/i18n/config";
 import { rolePermissions } from "@/lib/permissions";
 
 type SupabasePasswordSession = {
@@ -11,8 +12,13 @@ const supabaseAuthTimeoutMs = 5000;
 
 type SuperAdminMe = {
   user: {
+    id?: string;
     email: string;
     displayName: string;
+  };
+  preferences?: {
+    locale: AppLocale;
+    timezone: AppTimezone;
   };
   activeMembership: null | {
     tenant?: {
@@ -203,6 +209,7 @@ export function userFromSuperAdminMe(me: SuperAdminMe): User {
     initials: initialsFromName(me.user.displayName),
     role: "SUPER_ADMIN",
     permissions: rolePermissions.SUPER_ADMIN,
+    preferences: preferencesFor(me),
   };
 }
 
@@ -236,7 +243,12 @@ function userFromMe(me: SuperAdminMe, fallbackRole: Role, preferredRole?: Role):
     role,
     roles: roles.length ? roles : [role],
     permissions: [...new Set(roles.flatMap((item) => rolePermissions[item]))],
+    preferences: preferencesFor(me),
   };
+}
+
+function preferencesFor(me: SuperAdminMe): { locale: AppLocale; timezone: AppTimezone } {
+  return me.preferences ?? { locale: defaultLocale, timezone: timezones[0].timezone };
 }
 
 function backendApiBaseUrl(): string {

@@ -4,6 +4,7 @@ import type { Role, Workspace } from "@/types/domain";
 
 export type BreadcrumbItem = {
   label: string;
+  labelKey?: string;
   href?: string;
   current?: boolean;
 };
@@ -14,6 +15,14 @@ const workspaceLabels: Record<Workspace, string> = {
   manager: "Manager",
   employee: "Employee",
   client: "Client portal",
+};
+
+const workspaceLabelKeys: Record<Workspace, string> = {
+  "super-admin": "Workspace.platform",
+  admin: "Workspace.tenantAdministration",
+  manager: "Workspace.manager",
+  employee: "Workspace.employee",
+  client: "Workspace.clientPortal",
 };
 
 const titleCase = (value: string) =>
@@ -31,7 +40,7 @@ export function breadcrumbsFor({
   const parts = pathname.split("/").filter(Boolean);
   const workspaceHref = `/${workspace}`;
   const result: BreadcrumbItem[] = [
-    { label: workspaceLabels[workspace], href: workspaceHref },
+    { label: workspaceLabels[workspace], labelKey: workspaceLabelKeys[workspace], href: workspaceHref },
   ];
   const section = parts[1];
 
@@ -48,7 +57,7 @@ export function breadcrumbsFor({
     return result;
   }
 
-  result.push({ label: item.label, href: `${workspaceHref}/${section}` });
+  result.push({ label: item.label, labelKey: item.labelKey, href: `${workspaceHref}/${section}` });
   const entity = parts[2];
   if (entity) {
     result.push({ label: titleCase(entity), current: true });

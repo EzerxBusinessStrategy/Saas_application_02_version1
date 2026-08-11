@@ -62,6 +62,8 @@ export const migrationNames = [
   "0052_country_scoped_tenant_financial_years.sql",
   "0053_request_path_performance.sql",
   "0054_task_notification_outbox.sql",
+  "0055_user_localization_preferences.sql",
+  "0056_audit_event_detail_context.sql",
 ] as const;
 
 export async function runMigrations(

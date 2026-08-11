@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import { NextIntlClientProvider } from "next-intl";
 import { notFound, redirect } from "next/navigation";
 import { WorkspaceShell } from "@/components/app-shell/workspace-shell";
 import { demoSessionCookie, isWorkspaceAllowed, roleFromSession } from "@/lib/demo-auth";
@@ -14,9 +15,28 @@ import {
   userFromTenantAdminMe,
 } from "@/lib/server/super-admin-auth";
 import { workspaceConfig, workspaces } from "@/mocks/workspaces";
+import { defaultLocale } from "@/i18n/config";
+import { getMessagesForLocale } from "@/i18n/messages";
 import type { Workspace } from "@/types/domain";
 
 export const dynamic = "force-dynamic";
+
+function WorkspaceIntlShell({
+  children,
+  user,
+  workspace,
+}: {
+  children: React.ReactNode;
+  user: Parameters<typeof WorkspaceShell>[0]["user"];
+  workspace: Workspace;
+}) {
+  const locale = user.preferences?.locale ?? defaultLocale;
+  return (
+    <NextIntlClientProvider locale={locale} messages={getMessagesForLocale(locale)}>
+      <WorkspaceShell workspace={workspace} user={user}>{children}</WorkspaceShell>
+    </NextIntlClientProvider>
+  );
+}
 
 export default async function AppLayout({
   children,
@@ -43,9 +63,7 @@ export default async function AppLayout({
     }
 
     return (
-      <WorkspaceShell workspace="super-admin" user={userFromSuperAdminMe(me)}>
-        {children}
-      </WorkspaceShell>
+      <WorkspaceIntlShell workspace="super-admin" user={userFromSuperAdminMe(me)}>{children}</WorkspaceIntlShell>
     );
   }
 
@@ -61,7 +79,7 @@ export default async function AppLayout({
       if (refreshToken) redirect(`/api/demo-auth/refresh?next=/${workspace}`);
       redirect("/login");
     }
-    return <WorkspaceShell workspace="admin" user={userFromTenantAdminMe(me)}>{children}</WorkspaceShell>;
+    return <WorkspaceIntlShell workspace="admin" user={userFromTenantAdminMe(me)}>{children}</WorkspaceIntlShell>;
   }
 
   if (workspace === "client" && cookieStore.get(authenticatedWorkspaceCookie)?.value === "client") {
@@ -76,7 +94,7 @@ export default async function AppLayout({
       if (refreshToken) redirect(`/api/demo-auth/refresh?next=/${workspace}`);
       redirect("/login");
     }
-    return <WorkspaceShell workspace="client" user={userFromClientPortalMe(me)}>{children}</WorkspaceShell>;
+    return <WorkspaceIntlShell workspace="client" user={userFromClientPortalMe(me)}>{children}</WorkspaceIntlShell>;
   }
 
   if (workspace === "employee" && cookieStore.get(authenticatedWorkspaceCookie)?.value === "employee") {
@@ -91,7 +109,7 @@ export default async function AppLayout({
       if (refreshToken) redirect(`/api/demo-auth/refresh?next=/${workspace}`);
       redirect("/login");
     }
-    return <WorkspaceShell workspace="employee" user={userFromEmployeeMe(me)}>{children}</WorkspaceShell>;
+    return <WorkspaceIntlShell workspace="employee" user={userFromEmployeeMe(me)}>{children}</WorkspaceIntlShell>;
   }
 
   const sessionRole = roleFromSession(cookieStore.get(demoSessionCookie)?.value);
@@ -101,8 +119,6 @@ export default async function AppLayout({
   }
   const config = workspaceConfig(workspace as Workspace);
   return (
-    <WorkspaceShell workspace={workspace as Workspace} user={config.user}>
-      {children}
-    </WorkspaceShell>
+    <WorkspaceIntlShell workspace={workspace as Workspace} user={config.user}>{children}</WorkspaceIntlShell>
   );
 }

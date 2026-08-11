@@ -3,6 +3,7 @@ import type { Permission } from "@/types/domain";
 
 export type NavigationItem = {
   label: string;
+  labelKey?: string;
   href?: string;
   icon?: LucideIcon;
   permissions?: Permission[];

@@ -14,7 +14,8 @@ export type AuditLogRow = {
   readonly resource: string;
   readonly timestamp: Date;
   readonly ip_address: string | null;
-  readonly reason: string | null;
+  readonly reason: string;
+  readonly reason_source: "explicit" | "auto_generated";
   readonly result: string;
   readonly detail: string | null;
 };
@@ -49,6 +50,7 @@ export class SuperAdminAuditLogRepository {
           ae.created_at as timestamp,
           ae.ip_address,
           ae.reason,
+          ae.reason_source,
           ae.result,
           coalesce(ae.metadata::text, '') as detail
         from audit.audit_events ae

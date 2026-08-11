@@ -14,8 +14,9 @@ export class ActiveRequestContextService {
     verifiedUser: VerifiedAuthUser,
     selection: TenantSelectionInput,
     requestId: string,
+    ipAddress?: string,
   ): Promise<ResolvedRequestContext> {
-    let resolved = await this.resolver.resolve(verifiedUser, selection, requestId);
+    let resolved = await this.resolver.resolve(verifiedUser, selection, requestId, ipAddress);
     const session = await this.sessionPolicies.assertActive(resolved.context, verifiedUser.sessionId);
 
     if (resolved.authContextVersion !== session.auth_context_version) {
@@ -23,6 +24,7 @@ export class ActiveRequestContextService {
         verifiedUser,
         selection,
         requestId,
+        ipAddress,
         session.auth_context_version,
       );
     }

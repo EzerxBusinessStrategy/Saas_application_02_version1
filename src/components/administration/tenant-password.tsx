@@ -2,14 +2,13 @@
 
 import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { KeyRound, ShieldCheck } from "lucide-react";
+import { KeyRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { ErrorState } from "@/components/shared/error-state";
 import { LoadingState } from "@/components/shared/loading-state";
-import { PageHeader } from "@/components/shared/page-header";
 import { listTenants, resetTenantAdministratorPassword } from "@/features/administration/api/administration-api";
 
 export function TenantPasswordPage() {
@@ -39,9 +38,9 @@ export function TenantPasswordPage() {
 
   const canSubmit = tenantId && password.length >= 8 && password === confirmation && !resetMutation.isPending;
   return (
-    <div className="super-admin-portal flex flex-col gap-[30px]">
-      <PageHeader eyebrow="Super Admin" eyebrowIcon={ShieldCheck} title="Tenant password" description="Set a new password for a tenant's active Tenant Administrator." />
-      <Card className="max-w-2xl">
+    <div className="super-admin-portal flex justify-center">
+      <div className="w-full max-w-3xl">
+      <Card className="w-full">
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><KeyRound className="size-5" aria-hidden="true" />Set Tenant Administrator password</CardTitle>
           <CardDescription>The password is sent directly to Supabase Auth and cannot be viewed after saving.</CardDescription>
@@ -67,10 +66,21 @@ export function TenantPasswordPage() {
             {confirmation && password !== confirmation ? <p className="text-sm text-danger">Passwords do not match.</p> : null}
             {resetMutation.error ? <p className="text-sm text-danger">{resetMutation.error.message}</p> : null}
             {message ? <p className="text-sm text-success">{message}</p> : null}
-            <div><Button type="submit" disabled={!canSubmit}>{resetMutation.isPending ? "Updating..." : "Update password"}</Button></div>
+            <div className="flex items-center gap-2"><TenantPasswordLoader visible={resetMutation.isPending} /><Button type="submit" disabled={!canSubmit}>Update password</Button></div>
           </form>
         </CardContent>
       </Card>
+      </div>
+    </div>
+  );
+}
+
+function TenantPasswordLoader({ visible }: { visible: boolean }) {
+  if (!visible) return null;
+  return (
+    <div className="tenant-password-loader-wrapper" role="status" aria-label="Updating tenant password">
+      <div className="tenant-password-loader-orbit" aria-hidden="true" />
+      {["U", "P", "D", "A", "T", "E"].map((letter) => <span key={letter} className="tenant-password-loader-letter">{letter}</span>)}
     </div>
   );
 }
