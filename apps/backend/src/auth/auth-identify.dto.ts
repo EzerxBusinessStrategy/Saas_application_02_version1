@@ -1,4 +1,4 @@
-import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
+import { ApiProperty } from "@nestjs/swagger";
 import { z } from "zod";
 
 export const identifyEmailSchema = z.object({
@@ -15,7 +15,4 @@ export class IdentifyEmailRequestDto {
 export class IdentifyEmailResponseDto {
   @ApiProperty({ enum: ["password"] })
   method!: "password";
-
-  @ApiPropertyOptional({ type: String })
-  displayName?: string;
 }
