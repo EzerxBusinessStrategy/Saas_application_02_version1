@@ -14,7 +14,11 @@ type SuperAdminMe = {
     email: string;
     displayName: string;
   };
-  activeMembership: null | unknown;
+  activeMembership: null | {
+    tenant?: {
+      displayName?: string;
+    };
+  };
   roles: string[];
   isPlatformAdmin: boolean;
 };
@@ -203,7 +207,15 @@ export function userFromSuperAdminMe(me: SuperAdminMe): User {
 }
 
 export function userFromTenantAdminMe(me: SuperAdminMe): User {
-  return userFromMe(me, "TENANT_ADMIN");
+  const user = userFromMe(me, "TENANT_ADMIN");
+  const tenantName = me.activeMembership?.tenant?.displayName?.trim();
+  if (!tenantName) return user;
+
+  return {
+    ...user,
+    name: tenantName,
+    initials: initialsFromName(tenantName),
+  };
 }
 
 export function userFromClientPortalMe(me: SuperAdminMe): User {

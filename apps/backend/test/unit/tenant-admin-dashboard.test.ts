@@ -1,8 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
+import type { Pool } from "pg";
 import { RequestContext } from "../../src/auth/request-context";
 import { TenantAdminDashboardService } from "../../src/platform/tenant-admin-dashboard.service";
 import type { DashboardMetricsResult } from "../../src/platform/tenant-admin-dashboard.repository";
 import { TenantAdminDashboardRepository } from "../../src/platform/tenant-admin-dashboard.repository";
+import type { TenantAdminRequestContext } from "../../src/platform/tenant-admin-context";
 
 describe("TenantAdminDashboardService", () => {
   it("rejects platform admin and incomplete tenant contexts before querying", async () => {
@@ -331,5 +333,64 @@ describe("TenantAdminDashboardService", () => {
     expect(queries.join("\n")).toContain("c.tenant_id = t.tenant_id");
     expect(params[0]).toEqual(["tenant-1"]);
     expect(result[0]).toMatchObject({ taskTitle: "GST Return Filing", clientName: "ABC Pvt Ltd", assigneeCount: 3 });
+  });
+
+  it("records the previous and new tenant profile names only when the name changes", async () => {
+    const queries: Array<{ sql: string; values: readonly unknown[] | undefined }> = [];
+    const profileRows = [
+      {
+        id: "tenant-1",
+        name: "Northstar Advisory",
+        previous_name: "Northstar Consulting",
+        currency_code: "INR",
+        timezone: "Asia/Kolkata",
+      },
+      {
+        id: "tenant-1",
+        name: "Northstar Advisory",
+        previous_name: "Northstar Advisory",
+        currency_code: "INR",
+        timezone: "Asia/Kolkata",
+      },
+    ];
+    const client = {
+      query: vi.fn(async (sql: string, values?: readonly unknown[]) => {
+        queries.push({ sql, values });
+        if (sql.includes("update public.tenants")) {
+          return {
+            rows: [profileRows.shift()],
+          };
+        }
+        return { rows: [] };
+      }),
+      release: vi.fn(),
+    };
+    const pool = { connect: vi.fn().mockResolvedValue(client) } as unknown as Pool;
+    const repository = new TenantAdminDashboardRepository(pool);
+    const context: TenantAdminRequestContext = {
+      userId: "user-1",
+      authUserId: "auth-user-1",
+      tenantId: "tenant-1",
+      membershipId: "membership-1",
+      isPlatformAdmin: false,
+      roles: ["TENANT_ADMIN"],
+      permissions: ["tenant.update"],
+      requestId: "request-1",
+    };
+
+    await expect(repository.updateTenantProfile(context, "Northstar Advisory")).resolves.toMatchObject({
+      name: "Northstar Advisory",
+    });
+
+    const audit = queries.find(({ sql }) => sql.includes("audit.write_audit_event"));
+    expect(audit?.sql).toContain("TENANT_PROFILE_NAME_CHANGED");
+    expect(audit?.values).toEqual([
+      "tenant-1",
+      JSON.stringify({ previousName: "Northstar Consulting", updatedName: "Northstar Advisory" }),
+    ]);
+
+    queries.length = 0;
+    await repository.updateTenantProfile(context, "Northstar Advisory");
+    expect(queries.some(({ sql }) => sql.includes("audit.write_audit_event"))).toBe(false);
   });
 });

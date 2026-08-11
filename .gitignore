@@ -3,6 +3,8 @@ node_modules
 .next-dev
 .next-dev*/
 .tmp-*.png
+next-env.d.ts
+test-results/
 tsconfig.tsbuildinfo
 dist
 coverage

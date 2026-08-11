@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { CommandMenu } from "@/components/app-shell/command-menu";
 import { NotificationMenu } from "@/components/app-shell/notification-menu";
+import { PendingActionIndicator } from "@/components/app-shell/pending-action-indicator";
 import { TenantSwitcher } from "@/components/app-shell/tenant-switcher";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { UserMenu } from "@/components/app-shell/user-menu";
@@ -427,6 +428,7 @@ export function WorkspaceShell({
       className="app-shell min-h-screen bg-background"
       data-sidebar={sidebarCollapsed ? "collapsed" : "expanded"}
     >
+      <PendingActionIndicator />
       <a href="#main-content" className="skip-link">
         Skip to content
       </a>

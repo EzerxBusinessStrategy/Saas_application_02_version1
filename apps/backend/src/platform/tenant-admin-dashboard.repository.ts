@@ -108,21 +108,46 @@ export class TenantAdminDashboardRepository {
 
   async updateTenantProfile(context: TenantAdminRequestContext, name: string): Promise<TenantProfileResult> {
     return this.withContext(context, async (client) => {
-      const result = await client.query<{ id: string; name: string; currency_code: string | null; timezone: string }>(
+      const result = await client.query<{
+        id: string;
+        name: string;
+        currency_code: string | null;
+        timezone: string;
+        previous_name: string;
+      }>(
         `
+          with current_tenant as (
+            select display_name as previous_name
+            from public.tenants
+            where id = $1
+            for update
+          )
           update public.tenants
           set display_name = $2, updated_at = now()
           where id = $1
-          returning id::text, display_name as name, currency as currency_code, timezone
+          returning
+            id::text,
+            display_name as name,
+            currency as currency_code,
+            timezone,
+            (select previous_name from current_tenant) as previous_name
         `,
         [context.tenantId, name],
       );
       const tenant = result.rows[0];
       if (!tenant) throw new Error("Tenant profile could not be updated.");
-      await client.query(
-        "select audit.write_audit_event('TENANT_PROFILE_UPDATED', 'tenant', $1::uuid, 'succeeded', null, $2::jsonb)",
-        [context.tenantId, JSON.stringify({ name })],
-      );
+      if (tenant.previous_name !== tenant.name) {
+        await client.query(
+          "select audit.write_audit_event('TENANT_PROFILE_NAME_CHANGED', 'tenant', $1::uuid, 'succeeded', null, $2::jsonb)",
+          [
+            context.tenantId,
+            JSON.stringify({
+              previousName: tenant.previous_name,
+              updatedName: tenant.name,
+            }),
+          ],
+        );
+      }
       return {
         id: tenant.id,
         name: tenant.name,

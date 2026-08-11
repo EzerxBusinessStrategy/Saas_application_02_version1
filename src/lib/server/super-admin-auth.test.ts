@@ -5,6 +5,7 @@ import {
   refreshSuperAdminSession,
   signInSuperAdminWithPassword,
   userFromEmployeeMe,
+  userFromTenantAdminMe,
 } from "@/lib/server/super-admin-auth";
 
 afterEach(() => {
@@ -140,6 +141,22 @@ test("creates and verifies an employee portal session", async () => {
     email: "abc@emp.com",
     name: "abcdef",
     role: "EMPLOYEE",
+  });
+});
+
+test("uses the active tenant profile name in the Tenant Admin header", () => {
+  const user = userFromTenantAdminMe({
+    user: { email: "admin@example.com", displayName: "Asha Patel" },
+    activeMembership: { tenant: { displayName: "Northstar Advisory" } },
+    roles: ["TENANT_ADMIN"],
+    isPlatformAdmin: false,
+  });
+
+  expect(user).toMatchObject({
+    email: "admin@example.com",
+    name: "Northstar Advisory",
+    initials: "NA",
+    role: "TENANT_ADMIN",
   });
 });
 

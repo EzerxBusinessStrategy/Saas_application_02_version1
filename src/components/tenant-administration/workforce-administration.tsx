@@ -671,6 +671,7 @@ function BrandingSettings() {
 }
 
 export function TenantSettings() {
+  const router = useRouter();
   const [tab, setTab] = useState("branding");
   const [saved, setSaved] = useState(false);
   const tenantProfileQuery = useQuery({ queryKey: ["tenant-profile"], queryFn: getTenantProfile });
@@ -688,6 +689,7 @@ export function TenantSettings() {
     try {
       await updateTenantProfile(profileName);
       await tenantProfileQuery.refetch();
+      router.refresh();
       setSaved(true);
       toast.success("Tenant profile updated.");
     } catch (error) {

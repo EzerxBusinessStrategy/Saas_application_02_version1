@@ -15,31 +15,8 @@ export async function POST(request: Request) {
     );
   }
 
-  const response = await fetch(`${backendApiBaseUrl()}/auth/identify`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ email: parsed.data.email }),
-    cache: "no-store",
-    // Render free instances can take longer than 15 seconds to wake the API.
-    signal: AbortSignal.timeout(60_000),
-  }).catch(() => null);
-
-  if (!response) {
-    return NextResponse.json(
-      { message: "Unable to verify this email. Please try again." },
-      { status: 503 },
-    );
-  }
-
-  const data = await response.json().catch(() => null);
-  return NextResponse.json(
-    data ?? { message: "Unable to verify this email. Please try again." },
-    { status: response.status },
-  );
-}
-
-function backendApiBaseUrl(): string {
-  const configured = process.env.NEXT_PUBLIC_API_BASE_URL;
-  const fallback = "http://localhost:4000/api/v1";
-  return (!configured || configured === "https://api.example.com" ? fallback : configured).replace(/\/+$/, "");
+  // The backend deliberately returns this same result for every valid email
+  // to prevent account enumeration. Keeping that advisory step local avoids
+  // blocking the login form while a Render API instance wakes up.
+  return NextResponse.json({ method: "password" });
 }
