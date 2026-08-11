@@ -30,9 +30,23 @@ export class SessionPolicyRepository {
           remember_me,
           issued_at,
           absolute_expires_at,
-          last_seen_at
+          last_seen_at,
+          auth_context_version
         )
-        values ($1, $2, $3, now(), now() + interval '24 hours', now())
+        values (
+          $1,
+          $2,
+          $3,
+          now(),
+          now() + interval '24 hours',
+          now(),
+          coalesce(
+            (select max(policy.auth_context_version)
+             from public.auth_session_policies policy
+             where policy.user_id = $1),
+            1
+          )
+        )
         on conflict (supabase_session_id) do update
         set remember_me = excluded.remember_me,
             last_seen_at = now()
