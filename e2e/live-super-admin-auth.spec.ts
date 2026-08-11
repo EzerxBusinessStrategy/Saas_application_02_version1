@@ -81,7 +81,7 @@ test.describe("live Super Admin authentication and session", () => {
     await page.keyboard.press("Escape");
 
     await page.getByRole("button", { name: "Search workspace navigation" }).click();
-    await expect(page.getByRole("heading", { name: "Search platform" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Search platform" }).last()).toBeVisible();
     await page
       .getByPlaceholder("Search tenants, users, email or code")
       .fill("tenant");
@@ -93,7 +93,7 @@ test.describe("live Super Admin authentication and session", () => {
     await page.getByRole("link", { name: "Tenant list" }).click();
     await page.waitForURL("**/super-admin/tenants");
     await expect(page.getByRole("heading", { name: "Tenant list" })).toBeVisible();
-    await expect(page.getByLabel("Search tenants")).toBeVisible();
+    await expect(page.getByPlaceholder("Search tenant, code, or owner")).toBeVisible();
     await expect(page.getByLabel("Tenant sort order")).toBeVisible();
     await expect(page.getByLabel("Pagination")).toBeVisible();
 

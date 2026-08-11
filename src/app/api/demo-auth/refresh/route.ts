@@ -14,6 +14,7 @@ import {
   refreshSuperAdminSession,
 } from "@/lib/server/super-admin-auth";
 import { clearSuperAdminSessionCookies, setSuperAdminSessionCookies } from "@/lib/server/super-admin-session-cookies";
+import { publicRedirectUrl } from "@/lib/server/public-app-url";
 import type { Workspace } from "@/types/domain";
 
 export async function GET(request: Request) {
@@ -29,12 +30,12 @@ export async function GET(request: Request) {
     ? await fetchVerifiedWorkspaceMe(refreshed.accessToken, authWorkspace)
     : null;
   if (!refreshed || !authWorkspace || !validSession) {
-    const response = NextResponse.redirect(new URL("/login", request.url));
+    const response = NextResponse.redirect(publicRedirectUrl(request.url, "/login"));
     clearSuperAdminSessionCookies(response);
     return response;
   }
 
-  const response = NextResponse.redirect(new URL(next, request.url));
+  const response = NextResponse.redirect(publicRedirectUrl(request.url, next));
   setSuperAdminSessionCookies(
     response,
     refreshed,
