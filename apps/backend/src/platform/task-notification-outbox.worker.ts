@@ -92,7 +92,7 @@ export class TaskNotificationOutboxWorker implements OnApplicationBootstrap, OnA
       );
       let connectedSockets = 0;
       for (const recipient of recipients.rows) {
-        const item = {
+        const item: NotificationItemDto = {
           id: recipient.notification_id,
           type: recipient.notification_type,
           title: recipient.title,
