@@ -34,23 +34,32 @@ function BoardColumn({
   status,
   label,
   enabled = true,
+  actionTarget = false,
   children,
 }: {
   status: OperationalTask["status"];
   label: string;
   enabled?: boolean;
+  actionTarget?: boolean;
   children: React.ReactNode;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: status, disabled: !enabled });
   return (
     <section
       ref={setNodeRef}
-      className={`min-w-60 rounded-[var(--radius-card)] bg-muted p-[15px] ${isOver ? "ring-2 ring-primary" : ""} ${enabled ? "" : "opacity-65"}`}
+      className={`min-w-60 rounded-[var(--radius-card)] bg-muted p-[15px] transition-colors ${
+        actionTarget ? "border border-dashed border-primary/40 bg-primary/[0.035]" : ""
+      } ${isOver ? "ring-2 ring-primary" : ""}`}
       aria-label={label}
     >
       <div className="mb-4 flex items-center justify-between">
         <h2 className="text-sm font-semibold">{label}</h2>
       </div>
+      {actionTarget ? (
+        <p className="mb-4 text-xs font-medium text-primary">
+          Drop a reviewed task here
+        </p>
+      ) : null}
       <div className="flex flex-col gap-[15px]">{children}</div>
     </section>
   );
@@ -63,6 +72,7 @@ function DraggableTask({
   onPause,
   onResume,
   canDrag = true,
+  showDecisionHint = false,
 }: {
   task: OperationalTask;
   now: number;
@@ -70,6 +80,7 @@ function DraggableTask({
   onPause?: () => void;
   onResume?: () => void;
   canDrag?: boolean;
+  showDecisionHint?: boolean;
 }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } =
     useDraggable({ id: task.id, disabled: !canDrag });
@@ -113,6 +124,11 @@ function DraggableTask({
         <p className="mt-1 text-xs text-muted-foreground">
           {task.client} - due {task.dueDate}
         </p>
+        {showDecisionHint ? (
+          <p className="mt-3 text-xs font-medium text-primary">
+            Drag to Returned or Done
+          </p>
+        ) : null}
         {activeTimer ? (
           <div className="mt-3 rounded-[var(--radius-control)] border border-border bg-muted/40 p-3">
             <p className="text-xs font-medium">
@@ -197,6 +213,9 @@ export function TaskBoard({
             key={column.value}
             status={column.value}
             enabled={!allowedDropStatuses || allowedDropStatuses.includes(column.value)}
+            actionTarget={Boolean(
+              allowedDropStatuses?.includes(column.value),
+            )}
             label={`${column.label} (${tasks.filter((task) => task.status === column.value).length})`}
           >
             {tasks
@@ -210,6 +229,9 @@ export function TaskBoard({
                   onPause={() => onPause?.(task)}
                   onResume={() => onResume?.(task)}
                   canDrag={canDragTask?.(task) ?? true}
+                  showDecisionHint={Boolean(
+                    allowedDropStatuses?.length && (canDragTask?.(task) ?? true),
+                  )}
                 />
               ))}
           </BoardColumn>

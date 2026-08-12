@@ -105,6 +105,7 @@ export function TasksPage({
   const [tenantReturnTask, setTenantReturnTask] = useState<OperationalTask | null>(null);
   const [tenantReturnRemarks, setTenantReturnRemarks] = useState("");
   const [isReturningTenantTask, setIsReturningTenantTask] = useState(false);
+  const [tenantDecisionTaskId, setTenantDecisionTaskId] = useState<string | null>(null);
   const tasksQuery = useQuery({
     queryKey: ["operational-tasks", workspace, selectedClientId, query, status, priority],
     queryFn: async () => {
@@ -182,6 +183,8 @@ export function TasksPage({
     decision: "approve" | "return",
     remarks = "",
   ) => {
+    if (tenantDecisionTaskId) return false;
+    setTenantDecisionTaskId(task.id);
     try {
       syncTask(mapTenantAdminTask(await decideTenantTaskApproval(task.id, decision, remarks)));
       refreshTaskWorkflow();
@@ -198,6 +201,8 @@ export function TasksPage({
           : "The tenant approval decision could not be saved.",
       );
       return false;
+    } finally {
+      setTenantDecisionTaskId(null);
     }
   };
   const isAwaitingTenantApproval = (task: OperationalTask) =>
@@ -500,7 +505,10 @@ export function TasksPage({
                 onResume={workspace === "employee" ? resumeTask : undefined}
                 canDragTask={
                   workspace === "admin"
-                    ? (task) => canUpdate && isAwaitingTenantApproval(task)
+                    ? (task) =>
+                        canUpdate &&
+                        !tenantDecisionTaskId &&
+                        isAwaitingTenantApproval(task)
                     : undefined
                 }
                 allowedDropStatuses={
@@ -508,7 +516,7 @@ export function TasksPage({
                 }
                 onStatusChange={(id, nextStatus) => {
                   const task = visibleTasks.find((item) => item.id === id);
-                  if (!task || !canUpdate) return;
+                  if (!task || !canUpdate || tenantDecisionTaskId) return;
                   if (workspace === "admin") {
                     handleTenantBoardStatusChange(task, nextStatus);
                     return;
