@@ -34,7 +34,7 @@ test("shows tenant approval actions only to an authorised tenant reviewer", () =
       task={{
         ...operationalTasks[0],
         status: "review",
-        reviewStatus: "approved",
+        reviewStatus: "pending",
         approvalStatus: "pending",
       }}
       open
@@ -61,7 +61,7 @@ test("requires and submits Tenant Admin rework comments", () => {
       task={{
         ...operationalTasks[0],
         status: "review",
-        reviewStatus: "approved",
+        reviewStatus: "pending",
         approvalStatus: "pending",
       }}
       open

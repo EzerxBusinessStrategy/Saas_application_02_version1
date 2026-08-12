@@ -166,18 +166,18 @@ export function TaskDetailsDrawer({
               </p>
               <p className="mt-3 text-sm font-medium">
                 {task.reviewStatus === "approved"
-                  ? "Manager review approved"
+                  ? "Legacy manager approval recorded"
                   : task.reviewStatus === "pending"
-                    ? "Awaiting manager review"
+                    ? "Awaiting manager or Tenant Admin review"
                     : task.reviewStatus.replaceAll("-", " ")}
               </p>
             </div>
             <div>
               <h3 className="font-semibold">Tenant approval</h3>
               <p className="mt-2 text-sm text-muted-foreground">
-                The Tenant Admin records the final delivery decision after manager approval.
+                An authorised manager or Tenant Admin can record the final delivery decision.
               </p>
-              {task.reviewStatus === "approved" && task.approvalStatus === "pending" ? (
+              {task.reviewStatus === "pending" && task.approvalStatus === "pending" ? (
                 canTenantApprove && onTenantApproval ? (
                   <div className="mt-3">
                     <div className="flex flex-wrap gap-2">

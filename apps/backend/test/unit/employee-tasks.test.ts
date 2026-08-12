@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { EmployeeTasksRepository } from "../../src/platform/employee-tasks.repository";
 
 describe("EmployeeTasksRepository", () => {
-  it("creates a new manager-review notification for every task submission", async () => {
+  it("creates manager and Tenant Admin review notifications for every task submission", async () => {
     const calls: Array<{ sql: string; values: readonly unknown[] }> = [];
     const client = {
       query: vi.fn(async (sqlText: string, values: readonly unknown[] = []) => {
@@ -53,8 +53,10 @@ describe("EmployeeTasksRepository", () => {
     expect(
       calls.find((call) => call.sql.includes("update public.tasks set status = 'manager_review'"))?.values,
     ).toEqual(["tenant-1", "task-1", "employee-membership-1"]);
-    expect(
-      calls.find((call) => call.sql.includes("insert into public.notifications"))?.values,
-    ).toContain("task-submitted-manager-review:submission-2");
+    const notificationValues = calls
+      .filter((call) => call.sql.includes("insert into public.notifications"))
+      .flatMap((call) => call.values);
+    expect(notificationValues).toContain("task-submitted-manager-review:submission-2");
+    expect(notificationValues).toContain("task-submitted-tenant-review:submission-2");
   });
 });

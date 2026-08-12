@@ -111,7 +111,7 @@ Use these modules as boundaries, not scaffolding permission:
 | Clients | Clients, contacts, client user links | Client users access only their own client account. |
 | Engagements | Services, engagements, milestones | Links client work to services. |
 | Work Groups | Work groups and memberships | Source of manager/employee work scope. |
-| Tasks | Tasks, checklist, comments, dependencies, task decisions | Must preserve manager review then tenant approval workflow. |
+| Tasks | Tasks, checklist, comments, dependencies, task decisions | Must preserve the shared manager and Tenant Admin final-review workflow in ADR 0012. |
 | Work Logs | Work logs and review decisions | Employee self-owned creation, manager review. |
 | Billing | Invoices, lines, payments, allocations, agreements | Financial mutations need idempotency and audit. |
 | Documents | Documents, versions, grants, activity, storage metadata | Owns metadata, not object bytes. |

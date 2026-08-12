@@ -29,6 +29,7 @@ import {
 import { getEmployeeNotifications } from "@/features/employee/api/employee-notifications-api";
 import { getEmployeeProfile } from "@/features/employee/api/employee-profile-api";
 import { getGamificationWorkspace, listEmployeeTasks } from "@/features/operations/api/operations-api";
+import { TaskBoard } from "@/components/operations/task-board";
 import { TaskDetailsDrawer } from "@/components/operations/task-details-drawer";
 import {
   AchievementCatalogue,
@@ -38,6 +39,7 @@ import {
   WorkLogConsistency,
 } from "@/components/operations/gamification-workflows";
 import { EmptyState } from "@/components/shared/empty-state";
+import { ConfirmationDialog } from "@/components/shared/confirmation-dialog";
 import { ErrorState } from "@/components/shared/error-state";
 import { BoxBuildLoader } from "@/components/shared/box-build-loader";
 import { LoadingState } from "@/components/shared/loading-state";
@@ -924,17 +926,15 @@ function EmployeeManagerAssignTaskPage() {
 
 function EmployeeManagerTaskReviewsPage() {
   const queryClient = useQueryClient();
-  const [remarksByTask, setRemarksByTask] = useState<Record<string, string>>({});
+  const [returnTaskId, setReturnTaskId] = useState<string | null>(null);
+  const [returnRemarks, setReturnRemarks] = useState("");
   const query = useQuery({ queryKey: ["employee-manager-reviews"], queryFn: listEmployeeManagerReviews });
   const mutation = useMutation({
     mutationFn: ({ taskId, decision, remarks }: { taskId: string; decision: "approve" | "return"; remarks?: string }) => decideEmployeeManagerReview(taskId, decision, remarks),
     onSuccess: async (_result, variables) => {
-      toast.success(variables.decision === "approve" ? "Task approved and sent for Tenant Admin approval." : "Changes requested and task returned to the employee.");
-      setRemarksByTask((current) => {
-        const next = { ...current };
-        delete next[variables.taskId];
-        return next;
-      });
+      toast.success(variables.decision === "approve" ? "Task completed. The invoice queue is ready for the Tenant Admin." : "Changes requested and task returned to the employee.");
+      setReturnTaskId(null);
+      setReturnRemarks("");
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["employee-manager-reviews"] }),
         queryClient.invalidateQueries({ queryKey: ["employee-notifications"] }),
@@ -944,34 +944,80 @@ function EmployeeManagerTaskReviewsPage() {
   });
   if (query.isPending) return <LoadingState label="Loading task reviews" rows={4} />;
   if (query.isError) return <ErrorState title="Task reviews could not load" onRetry={() => void query.refetch()} />;
+  const returnTask = query.data.find((task) => task.id === returnTaskId) ?? null;
+  const boardTasks: OperationalTask[] = query.data.map((task) => ({
+    id: task.id,
+    tenantId: "authenticated",
+    clientId: task.id,
+    client: task.clientName,
+    engagement: "Submitted work",
+    workGroup: "Assigned work group",
+    managerId: "current",
+    manager: "Current manager",
+    assigneeId: task.id,
+    assignee: task.employeeName,
+    title: task.title,
+    description: task.taskComment ?? "No submission comment.",
+    priority: "medium",
+    complexity: "standard",
+    status: "review",
+    sla: "on-track",
+    dueDate: `Submitted ${format(parseISO(task.submittedAt), "d MMM, p")}`,
+    checklist: [],
+    dependencyIds: [],
+    attachmentCount: 0,
+    commentCount: 0,
+    reviewStatus: "pending",
+    approvalStatus: "pending",
+    blocked: false,
+  }));
   return (
     <div className="flex flex-col gap-[30px]">
-      <PageHeader eyebrow="Manager" title="Task Reviews" description={`${query.data.length} pending review${query.data.length === 1 ? "" : "s"}.`} />
+      <PageHeader eyebrow="Manager" title="Task Reviews" description={`${query.data.length} submitted task${query.data.length === 1 ? "" : "s"}. Drag each task to Returned or Done.`} />
       {query.data.length ? (
-        <div className="grid gap-4">
-          {query.data.map((task) => (
-            <Card key={task.id}>
-              <CardContent className="pt-[30px]">
-                <div className="flex flex-wrap justify-between gap-3">
-                  <div>
-                    <p className="font-medium">{task.title}</p>
-                    <p className="mt-1 text-sm text-muted-foreground">{task.clientName} · {task.employeeName}</p>
-                  </div>
-                  <p className="text-sm text-muted-foreground">Worked {formatWorked(task.workedSeconds)}</p>
-                </div>
-                {task.taskComment ? <p className="mt-4 rounded-[var(--radius-control)] bg-muted p-3 text-sm">{task.taskComment}</p> : null}
-                <textarea className={`${managerInputClass} mt-4 min-h-20`} placeholder="Reason for changes" value={remarksByTask[task.id] ?? ""} onChange={(event) => setRemarksByTask((current) => ({ ...current, [task.id]: event.target.value }))} />
-                <div className="mt-4 flex justify-end gap-2">
-                  <Button variant="outline" disabled={mutation.isPending || !(remarksByTask[task.id] ?? "").trim()} onClick={() => mutation.mutate({ taskId: task.id, decision: "return", remarks: remarksByTask[task.id] ?? "" })}>Request Changes</Button>
-                  <Button disabled={mutation.isPending} onClick={() => mutation.mutate({ taskId: task.id, decision: "approve" })}>Approve</Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+        <TaskBoard
+          tasks={boardTasks}
+          onOpen={() => undefined}
+          canDragTask={() => !mutation.isPending}
+          allowedDropStatuses={["rejected", "done"]}
+          onStatusChange={(taskId, status) => {
+            if (mutation.isPending) return;
+            if (status === "done") {
+              mutation.mutate({ taskId, decision: "approve" });
+              return;
+            }
+            if (status === "rejected") {
+              setReturnTaskId(taskId);
+              setReturnRemarks("");
+            }
+          }}
+        />
       ) : (
         <Card><CardContent className="pt-[30px]"><EmptyState title="No pending reviews" description="Submitted employee tasks will appear here." /></CardContent></Card>
       )}
+      <ConfirmationDialog
+        open={Boolean(returnTask)}
+        onOpenChange={(open) => {
+          if (!open && !mutation.isPending) {
+            setReturnTaskId(null);
+            setReturnRemarks("");
+          }
+        }}
+        title="Return task for changes"
+        description="Explain what the employee must change. The task will return to in progress."
+        confirmLabel="Return task"
+        warning
+        isConfirming={mutation.isPending}
+        confirmDisabled={!returnRemarks.trim()}
+        onConfirm={() => {
+          if (returnTask) mutation.mutate({ taskId: returnTask.id, decision: "return", remarks: returnRemarks.trim() });
+        }}
+      >
+        <label className="flex flex-col gap-1 text-sm font-medium">
+          Changes required
+          <textarea className={`${managerInputClass} min-h-24`} value={returnRemarks} onChange={(event) => setReturnRemarks(event.target.value)} placeholder="Describe what must be changed" />
+        </label>
+      </ConfirmationDialog>
     </div>
   );
 }
@@ -982,11 +1028,6 @@ function ManagerField({ label, children }: { label: string; children: ReactNode 
   return <label className="flex flex-col gap-1 text-sm font-medium">{label}{children}</label>;
 }
 
-function formatWorked(seconds: number) {
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
-  return hours ? `${hours}h ${minutes}m` : `${minutes}m`;
-}
 function ProfessionalProgress({
   data,
 }: {

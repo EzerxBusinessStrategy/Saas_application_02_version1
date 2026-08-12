@@ -150,7 +150,7 @@ export function TasksPage({
       ? tasks.filter(
           (task) =>
             task.status === "review" &&
-            task.reviewStatus === "approved" &&
+            task.reviewStatus === "pending" &&
             task.approvalStatus === "pending",
         )
       : tasks;
@@ -207,7 +207,7 @@ export function TasksPage({
   };
   const isAwaitingTenantApproval = (task: OperationalTask) =>
     task.status === "review" &&
-    task.reviewStatus === "approved" &&
+    task.reviewStatus === "pending" &&
     task.approvalStatus === "pending";
   const handleTenantBoardStatusChange = (
     task: OperationalTask,
@@ -417,7 +417,7 @@ export function TasksPage({
             { value: "all", label: "All client tasks" },
             {
               value: "awaiting-tenant-approval",
-              label: `Awaiting tenant approval (${tasks.filter((task) => task.status === "review" && task.reviewStatus === "approved" && task.approvalStatus === "pending").length})`,
+              label: `Submitted for review (${tasks.filter((task) => task.status === "review" && task.reviewStatus === "pending" && task.approvalStatus === "pending").length})`,
             },
           ]}
         />
@@ -475,14 +475,14 @@ export function TasksPage({
         <EmptyState
           title={
             tenantApprovalView === "awaiting-tenant-approval"
-              ? "No tasks are awaiting tenant approval"
+              ? "No tasks are submitted for review"
               : query || status || priority
               ? "No tasks match these filters"
               : "No tasks are assigned"
           }
           description={
             tenantApprovalView === "awaiting-tenant-approval"
-              ? "Manager-approved work for this client will appear here for the final delivery decision."
+              ? "Employee submissions will appear here for a Tenant Admin or manager decision."
               : "Clear filters or wait for authorised work to be assigned."
           }
         />
@@ -655,14 +655,16 @@ function mapTenantAdminTask(task: TenantAdminTask): OperationalTask {
     attachmentCount: 0,
     commentCount: 0,
     reviewStatus:
-      task.status === "tenant_approval"
-        ? "approved"
-        : ["submitted", "manager_review", "approved"].includes(task.status)
+      ["submitted", "manager_review"].includes(task.status)
+        ? "pending"
+        : task.status === "tenant_approval"
+          ? "approved"
+          : task.status === "approved"
           ? "pending"
           : task.status === "returned"
             ? "changes-requested"
             : "not-required",
-    approvalStatus: task.status === "tenant_approval" ? "pending" : "not-required",
+    approvalStatus: ["manager_review", "tenant_approval"].includes(task.status) ? "pending" : "not-required",
     blocked: task.status === "returned",
   };
 }

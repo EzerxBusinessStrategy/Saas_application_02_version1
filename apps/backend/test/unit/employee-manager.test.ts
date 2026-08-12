@@ -3,7 +3,7 @@ import { EmployeeManagerService } from "../../src/platform/employee-manager.serv
 import { TenantAdminTasksRepository } from "../../src/platform/tenant-admin-tasks.repository";
 
 describe("EmployeeManagerService", () => {
-  it("moves a manager-approved submission into the Tenant Admin approval queue", async () => {
+  it("lets an authorised manager complete a shared review and unlock invoice billing", async () => {
     const calls: Array<{ sql: string; values: readonly unknown[] }> = [];
     const client = {
       query: vi.fn(async (sqlText: string, values: readonly unknown[] = []) => {
@@ -13,6 +13,9 @@ describe("EmployeeManagerService", () => {
         }
         if (sqlText.includes("select title from public.tasks")) {
           return { rows: [{ title: "GST filing" }], rowCount: 1 };
+        }
+        if (sqlText.includes("update public.billable_task_entries")) {
+          return { rows: [{ id: "entry-1" }], rowCount: 1 };
         }
         return { rows: [], rowCount: 0 };
       }),
@@ -44,9 +47,9 @@ describe("EmployeeManagerService", () => {
     ).toEqual(["tenant-1", "submission-1", "manager_approved"]);
     expect(
       calls.find((call) => call.sql.includes("update public.tasks set status"))?.values,
-    ).toEqual(["tenant-1", "task-1", "tenant_approval", "manager-membership-1"]);
+    ).toEqual(["tenant-1", "task-1", "completed", "ready_for_billing", "manager-membership-1"]);
     const notificationValues = calls.find((call) => call.sql.includes("insert into public.notifications"))?.values;
-    expect(notificationValues).toContain("TASK_AWAITING_TENANT_APPROVAL");
-    expect(notificationValues).toContain("task-awaiting-tenant-approval:submission-1");
+    expect(notificationValues).toContain("INVOICE_READY_TO_GENERATE");
+    expect(notificationValues).toContain("invoice-ready:task-1");
   });
 });

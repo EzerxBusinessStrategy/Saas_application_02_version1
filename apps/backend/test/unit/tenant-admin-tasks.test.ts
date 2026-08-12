@@ -316,7 +316,7 @@ describe("TenantAdminTasksRepository", () => {
     );
 
     const sql = queries.join("\n");
-    expect(sql).toContain("t.status = 'tenant_approval'");
+    expect(sql).toContain("t.status in ('manager_review', 'tenant_approval')");
     expect(sql).toContain("and status = 'pending_review'");
     expect(sql).toContain("'approved_for_invoice'");
   });

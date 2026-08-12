@@ -666,8 +666,8 @@ export class TenantAdminTasksRepository {
            and ts.task_id = t.id
           where t.tenant_id = $1
             and t.id = $2
-            and t.status = 'tenant_approval'
-            and ts.status = 'manager_approved'
+            and t.status in ('manager_review', 'tenant_approval')
+            and ts.status in ('submitted', 'manager_approved')
           order by ts.submitted_at desc
           limit 1
           for update of t, ts
@@ -677,8 +677,8 @@ export class TenantAdminTasksRepository {
       const submission = submissionResult.rows[0];
       if (!submission) {
         throw new ConflictException({
-          code: "TASK_NOT_AWAITING_TENANT_APPROVAL",
-          message: "This task is not awaiting Tenant Admin approval.",
+          code: "TASK_NOT_AWAITING_REVIEW",
+          message: "This task is no longer awaiting review.",
         });
       }
 
@@ -745,7 +745,7 @@ export class TenantAdminTasksRepository {
           insert into public.approvals (
             tenant_id, task_id, submission_id, approval_stage, decision, remarks, decided_by
           )
-          values ($1, $2, $3, 'tenant_admin_approval', $4, nullif($5, ''), $6)
+          values ($1, $2, $3, 'tenant_final_review', $4, nullif($5, ''), $6)
         `,
         [context.tenantId, taskId, submission.id, approved ? "approved" : "returned", input.remarks, context.membershipId],
       );
@@ -786,6 +786,18 @@ export class TenantAdminTasksRepository {
           actionUrl: "/admin/invoices",
           eventKey: `invoice-ready:${taskId}`,
         });
+        await publishTaskWorkflowNotification(client, {
+          tenantId: context.tenantId,
+          actorUserId: context.userId,
+          taskId,
+          employeeId: submission.employee_id,
+          audience: "managers",
+          type: "TASK_REVIEW_CLOSED_BY_TENANT",
+          title: "Task completed by Tenant Admin",
+          message: `Tenant Admin completed "${task[0].title}". This task is no longer awaiting your review.`,
+          actionUrl: "/employee/task-reviews",
+          eventKey: `manager-review-closed-by-tenant:${submission.id}`,
+        });
       } else {
         const timerStarted = await resumeReturnedTaskTimer(client, context.tenantId, taskId, submission.employee_id);
         if (timerStarted) {
@@ -805,6 +817,18 @@ export class TenantAdminTasksRepository {
           message: `"${task[0].title}" was returned: ${input.remarks}. ${timerStarted ? "Your timer has resumed." : "Resume it when your current task is complete."}`,
           actionUrl: `/employee/tasks?task=${taskId}`,
           eventKey: `task-returned-by-tenant:${submission.id}`,
+        });
+        await publishTaskWorkflowNotification(client, {
+          tenantId: context.tenantId,
+          actorUserId: context.userId,
+          taskId,
+          employeeId: submission.employee_id,
+          audience: "managers",
+          type: "TASK_REVIEW_CLOSED_BY_TENANT",
+          title: "Task returned by Tenant Admin",
+          message: `Tenant Admin returned "${task[0].title}" for changes. This task is no longer awaiting your review.`,
+          actionUrl: "/employee/task-reviews",
+          eventKey: `manager-review-returned-by-tenant:${submission.id}`,
         });
       }
       return task[0];

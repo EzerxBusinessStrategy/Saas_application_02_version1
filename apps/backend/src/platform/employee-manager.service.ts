@@ -186,22 +186,41 @@ export class EmployeeManagerService {
         row.id,
         approved ? "manager_approved" : "returned",
       ]);
-      await client.query("update public.tasks set status = $3, updated_by = $4, updated_at = now() where tenant_id = $1 and id = $2", [
+      await client.query("update public.tasks set status = $3, billable_status = $4, actual_completed_at = case when $3 = 'completed' then coalesce(actual_completed_at, clock_timestamp()) else actual_completed_at end, updated_by = $5, updated_at = now() where tenant_id = $1 and id = $2", [
         managerContext.tenantId,
         taskId,
-        approved ? "tenant_approval" : "in_progress",
+        approved ? "completed" : "in_progress",
+        approved ? "ready_for_billing" : "pending_completion",
         managerContext.membershipId,
       ]);
-      if (!approved) {
-        await client.query(
-          "update public.task_assignments set status = 'active', updated_at = now() where tenant_id = $1 and task_id = $2 and employee_id = $3",
-          [managerContext.tenantId, taskId, row.employee_id],
-        );
+      await client.query(
+        "update public.task_assignments set status = $4, updated_at = now() where tenant_id = $1 and task_id = $2 and employee_id = $3",
+        [managerContext.tenantId, taskId, row.employee_id, approved ? "completed" : "active"],
+      );
+      const billableEntry = await client.query<{ id: string }>(
+        `
+          update public.billable_task_entries
+          set status = $3,
+              approved_by = case when $3 = 'approved_for_invoice' then $4 else null end,
+              approved_at = case when $3 = 'approved_for_invoice' then clock_timestamp() else null end,
+              updated_at = now()
+          where tenant_id = $1
+            and task_id = $2
+            and status = 'pending_review'
+          returning id::text
+        `,
+        [managerContext.tenantId, taskId, approved ? "approved_for_invoice" : "pending_review", managerContext.membershipId],
+      );
+      if (approved && !billableEntry.rows[0]) {
+        throw new ConflictException({
+          code: "TASK_BILLING_ENTRY_NOT_AVAILABLE",
+          message: "The task charge is not available for invoicing.",
+        });
       }
       await client.query(
         `
           insert into public.approvals (tenant_id, task_id, submission_id, approval_stage, decision, remarks, decided_by)
-          values ($1, $2, $3, 'manager_review', $4, nullif($5, ''), $6)
+          values ($1, $2, $3, 'manager_final_review', $4, nullif($5, ''), $6)
         `,
         [managerContext.tenantId, taskId, row.id, approved ? "approved" : "returned", input.remarks, managerContext.membershipId],
       );
@@ -220,11 +239,23 @@ export class EmployeeManagerService {
           taskId,
           employeeId: row.employee_id,
           audience: "tenant_admins",
-          type: "TASK_AWAITING_TENANT_APPROVAL",
-          title: "Task awaiting final approval",
-          message: `Manager approved "${taskTitle}". Final Tenant Admin approval is required.`,
-          actionUrl: `/admin/tasks?task=${taskId}`,
-          eventKey: `task-awaiting-tenant-approval:${row.id}`,
+          type: "INVOICE_READY_TO_GENERATE",
+          title: `Invoice ready: ${taskTitle}`,
+          message: `Manager completed "${taskTitle}". Generate its invoice and send it to the client.`,
+          actionUrl: "/admin/invoices",
+          eventKey: `invoice-ready:${taskId}`,
+        });
+        await publishTaskWorkflowNotification(client, {
+          tenantId: managerContext.tenantId,
+          actorUserId: managerContext.userId,
+          taskId,
+          employeeId: row.employee_id,
+          audience: "employee",
+          type: "TASK_COMPLETED",
+          title: "Task approved",
+          message: `"${taskTitle}" is complete.`,
+          actionUrl: `/employee/tasks?task=${taskId}`,
+          eventKey: `task-completed:${taskId}`,
         });
       } else {
         const timerStarted = await resumeReturnedTaskTimer(client, managerContext.tenantId, taskId, row.employee_id);
@@ -246,6 +277,18 @@ export class EmployeeManagerService {
           actionUrl: `/employee/tasks?task=${taskId}`,
           eventKey: `task-returned-by-manager:${row.id}`,
         });
+        await publishTaskWorkflowNotification(client, {
+          tenantId: managerContext.tenantId,
+          actorUserId: managerContext.userId,
+          taskId,
+          employeeId: row.employee_id,
+          audience: "tenant_admins",
+          type: "TASK_REVIEW_CLOSED_BY_MANAGER",
+          title: "Task returned by manager",
+          message: `Manager returned "${taskTitle}" for changes. This task is no longer awaiting review.`,
+          actionUrl: `/admin/tasks?task=${taskId}`,
+          eventKey: `tenant-review-returned-by-manager:${row.id}`,
+        });
       }
       await publishTaskWorkflowNotification(client, {
         tenantId: managerContext.tenantId,
@@ -256,7 +299,7 @@ export class EmployeeManagerService {
         type: approved ? "MANAGER_TASK_APPROVED" : "MANAGER_TASK_CHANGES_REQUESTED",
         title: approved ? "Task approved" : "Changes requested",
         message: approved
-          ? `You approved "${taskTitle}" and sent it for final Tenant Admin approval.`
+          ? `You completed "${taskTitle}". Its invoice is ready for the Tenant Admin.`
           : `You returned "${taskTitle}" to the employee: ${input.remarks}`,
         actionUrl: "/employee/task-reviews",
         eventKey: `manager-decision:${row.id}:${input.decision}`,

@@ -125,5 +125,10 @@ export class TaskNotificationOutboxWorker implements OnApplicationBootstrap, OnA
 }
 
 function isTenantAdminNotification(type: string): boolean {
-  return type === "TASK_AWAITING_TENANT_APPROVAL" || type === "INVOICE_READY_TO_GENERATE";
+  return [
+    "TASK_AWAITING_TENANT_APPROVAL",
+    "TASK_SUBMITTED_FOR_TENANT_REVIEW",
+    "TASK_REVIEW_CLOSED_BY_MANAGER",
+    "INVOICE_READY_TO_GENERATE",
+  ].includes(type);
 }

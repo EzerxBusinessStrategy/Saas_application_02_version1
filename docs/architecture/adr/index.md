@@ -11,6 +11,7 @@
 - [0009: Request-path performance and authenticated-context caching](0009-request-path-performance.md) (Accepted)
 - [0010: Work-group task notification outbox](0010-work-group-task-notification-outbox.md) (Accepted)
 - [0011: User-owned localization and time-zone preferences](0011-user-localization-preferences.md) (Proposed)
+- [0012: Parallel Manager and Tenant Admin final task review](0012-parallel-manager-tenant-task-review.md) (Accepted)
 
 Supporting proposed architecture documents:
 

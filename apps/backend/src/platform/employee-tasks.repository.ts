@@ -186,6 +186,18 @@ export class EmployeeTasksRepository {
         actionUrl: "/employee/task-reviews",
         eventKey: `task-submitted-manager-review:${submissionId}`,
       });
+      await publishTaskWorkflowNotification(client, {
+        tenantId: context.tenantId,
+        actorUserId: context.userId,
+        taskId,
+        employeeId: employee.id,
+        audience: "tenant_admins",
+        type: "TASK_SUBMITTED_FOR_TENANT_REVIEW",
+        title: "Task ready for review",
+        message: `An employee submitted "${task.title}" for review.`,
+        actionUrl: `/admin/tasks?task=${taskId}`,
+        eventKey: `task-submitted-tenant-review:${submissionId}`,
+      });
       return task;
     });
   }
