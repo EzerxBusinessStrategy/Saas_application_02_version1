@@ -8,9 +8,11 @@ import {
   within,
 } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { NextIntlClientProvider } from "next-intl";
 import type { ReactElement } from "react";
 import { afterEach, expect, test, vi } from "vitest";
 import { WorkspaceShell } from "@/components/app-shell/workspace-shell";
+import { getMessagesForLocale } from "@/i18n/messages";
 import { tenantBrandingStorageKey } from "@/lib/tenant-branding-session";
 import { workspaceConfig } from "@/mocks/workspaces";
 
@@ -37,11 +39,17 @@ vi.mock("@/features/platform/api/super-admin-platform-configuration-api", () => 
 
 function renderShell(ui: ReactElement) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  const result = render(<QueryClientProvider client={client}>{ui}</QueryClientProvider>);
+  const messages = getMessagesForLocale("en");
+  const wrap = (content: ReactElement) => (
+    <NextIntlClientProvider locale="en" messages={messages}>
+      <QueryClientProvider client={client}>{content}</QueryClientProvider>
+    </NextIntlClientProvider>
+  );
+  const result = render(wrap(ui));
   return {
     ...result,
     rerender: (next: ReactElement) =>
-      result.rerender(<QueryClientProvider client={client}>{next}</QueryClientProvider>),
+      result.rerender(wrap(next)),
   };
 }
 
@@ -122,7 +130,7 @@ test("collapses inside the sidebar and keeps active, labelled navigation accessi
   ).toHaveAttribute("aria-hidden", "false");
 });
 
-test("shows Tenant Admin navigation as direct links without dropdown groups", () => {
+test("groups Tenant Admin navigation in the requested operational order", () => {
   const admin = workspaceConfig("admin").user;
   pathname.value = "/admin/tasks";
   renderShell(
@@ -137,14 +145,34 @@ test("shows Tenant Admin navigation as direct links without dropdown groups", ()
   );
   expect(screen.getByRole("link", { name: "Clients" })).toBeInTheDocument();
   expect(screen.getByRole("link", { name: "Employees" })).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Managers" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "People & Teams" })).toHaveAttribute(
+    "aria-expanded",
+    "true",
+  );
+  expect(screen.getByRole("button", { name: "Operations" })).toHaveAttribute(
+    "aria-expanded",
+    "true",
+  );
   expect(
     within(screen.getByRole("navigation", { name: "Workspace navigation" }))
       .getAllByRole("link")
-      .slice(0, 6)
       .map((link) => link.textContent?.trim()),
-  ).toEqual(["Dashboard", "Employees", "Work groups", "Services", "Clients", "Tasks"]);
+  ).toEqual([
+    "Dashboard",
+    "Employees",
+    "Managers",
+    "Work groups",
+    "Employee performance",
+    "Tasks",
+    "Services",
+    "Clients",
+    "Agreements",
+    "Invoices",
+    "Documents",
+    "Settings",
+  ]);
   expect(screen.queryByRole("button", { name: "Delivery" })).not.toBeInTheDocument();
-  expect(screen.queryByRole("button", { name: "Operations" })).not.toBeInTheDocument();
 });
 
 test("opens the mobile navigation drawer and exposes the workspace update control", () => {
@@ -174,7 +202,7 @@ test("opens the mobile navigation drawer and exposes the workspace update contro
   );
   expect(screen.queryByLabelText(/Tenant context:/)).not.toBeInTheDocument();
   expect(
-    screen.getByRole("button", { name: "Update dashboard data" }),
+    screen.getByRole("button", { name: "Update" }),
   ).toBeInTheDocument();
 });
 

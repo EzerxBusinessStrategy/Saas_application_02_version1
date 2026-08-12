@@ -4,7 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Check, Eye, EyeOff, ShieldCheck } from "lucide-react";
+import { Check, Eye, EyeOff, LoaderCircle, ShieldCheck } from "lucide-react";
 import type React from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
@@ -88,6 +88,7 @@ export function TenantCreatePageForm() {
   const options = useQuery({
     queryKey: ["tenant-creation-options", countryCode, incorporationDate],
     queryFn: () => getTenantCreationOptions(countryCode, incorporationDate || undefined),
+    placeholderData: (previousData) => previousData,
   });
   const selectedOptions = options.data?.countryCode === countryCode ? options.data : undefined;
   const selectedCountry = selectedOptions?.countries.find((country) => country.countryCode === countryCode);
@@ -259,8 +260,8 @@ export function TenantCreatePageForm() {
         {step === 0 ? (
           <CompanyStep
             form={form}
-            countries={selectedOptions?.countries ?? []}
-            isLoadingCountries={options.isLoading}
+            countries={options.data?.countries ?? []}
+            isLoadingCountries={options.isFetching}
             selectedCountryName={selectedCountry?.name}
             policyMode={selectedOptions?.policyMode}
           />
@@ -341,19 +342,35 @@ function CompanyStep({
           <Input required data-field-label="URL slug" {...form.register("company.slug")} />
         </Field>
         <Field label="Country" error={form.formState.errors.company?.countryCode?.message}>
-          <Select 
-            {...form.register("company.countryCode")} 
-            required
-            data-field-label="Country"
-            value={form.watch("company.countryCode")}
-            disabled={isLoadingCountries}
-          >
-            {countries.map((country) => (
-              <option key={country.countryCode} value={country.countryCode}>
-                {country.name}
-              </option>
-            ))}
-          </Select>
+          <div className="relative">
+            <Select
+              {...form.register("company.countryCode")}
+              required
+              data-field-label="Country"
+              className="pr-10"
+              value={form.watch("company.countryCode")}
+              disabled={isLoadingCountries}
+              aria-busy={isLoadingCountries}
+            >
+              {!countries.length ? (
+                <option value={form.watch("company.countryCode")}>Loading countries...</option>
+              ) : null}
+              {countries.map((country) => (
+                <option key={country.countryCode} value={country.countryCode}>
+                  {country.name}
+                </option>
+              ))}
+            </Select>
+            {isLoadingCountries ? (
+              <span
+                className="pointer-events-none absolute right-8 top-1/2 -translate-y-1/2 text-primary"
+                role="status"
+                aria-label="Loading country details"
+              >
+                <LoaderCircle className="size-3.5 animate-spin" aria-hidden="true" />
+              </span>
+            ) : null}
+          </div>
         </Field>
         <Field
           label="Reporting currency"

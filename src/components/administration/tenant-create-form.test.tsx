@@ -87,3 +87,23 @@ test("updates incorporation guidance and financial setup when the country change
   await waitFor(() => expect(screen.getByText("Financial setup for United States")).toBeInTheDocument());
   expect(screen.getByText("Use suggested United States financial year")).toBeInTheDocument();
 });
+
+test("shows an inline country loader instead of a blank selector while options load", async () => {
+  let resolveOptions!: (value: ReturnType<typeof optionsFor>) => void;
+  mockAdministrationApi.getTenantCreationOptions.mockImplementation(
+    () => new Promise<ReturnType<typeof optionsFor>>((resolve) => {
+      resolveOptions = resolve;
+    }),
+  );
+
+  renderWithQuery(<TenantCreatePageForm />);
+
+  expect(screen.getByRole("status", { name: "Loading country details" })).toBeInTheDocument();
+    expect(screen.getByRole("combobox")).toBeDisabled();
+  expect(screen.getByRole("option", { name: "Loading countries..." })).toBeInTheDocument();
+
+  resolveOptions(optionsFor());
+
+  await waitFor(() => expect(screen.queryByRole("status", { name: "Loading country details" })).not.toBeInTheDocument());
+    expect(screen.getByRole("combobox")).not.toBeDisabled();
+});

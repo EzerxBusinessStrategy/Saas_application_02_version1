@@ -216,31 +216,53 @@ const superAdminNavigation = filterForWorkspace(common, "super-admin").flatMap(
   (item) => item.children ?? [item],
 );
 
-const tenantAdminNavigation = filterForWorkspace(common, "admin").flatMap(
-  (item) => item.children ?? [item],
+const tenantAdminItemsByLabel = new Map(
+  filterForWorkspace(common, "admin")
+    .flatMap((item) => item.children ?? [item])
+    .map((item) => [item.label, item]),
 );
-const tenantAdminPrimaryOrder = [
-  "Dashboard",
-  "Employees",
-  "Work groups",
-  "Services",
-  "Clients",
-  "Tasks",
-] as const;
-const tenantAdminPrimaryOrderIndex = new Map<string, number>(
-  tenantAdminPrimaryOrder.map((label, index) => [label, index]),
-);
-const orderedTenantAdminNavigation = [...tenantAdminNavigation].sort(
-  (left, right) =>
-    (tenantAdminPrimaryOrderIndex.get(left.label) ?? tenantAdminPrimaryOrder.length) -
-    (tenantAdminPrimaryOrderIndex.get(right.label) ?? tenantAdminPrimaryOrder.length),
-);
+
+const tenantAdminItem = (label: string) => tenantAdminItemsByLabel.get(label);
+const tenantAdminGroup = (
+  label: string,
+  icon: NavigationItem["icon"],
+  childLabels: readonly string[],
+): NavigationItem | undefined => {
+  const children = childLabels
+    .map(tenantAdminItem)
+    .filter((item): item is NavigationItem => Boolean(item));
+  return children.length ? { label, icon, children } : undefined;
+};
+
+const tenantAdminNavigation = [
+  tenantAdminItem("Dashboard"),
+  tenantAdminGroup("People & Teams", Users, [
+    "Employees",
+    "Managers",
+    "Work groups",
+    "Employee Performance",
+  ]),
+  tenantAdminGroup("Operations", ClipboardList, [
+    "Tasks",
+    "Services",
+  ]),
+  tenantAdminGroup("Clients", Building2, [
+    "Clients",
+    "Agreements",
+  ]),
+  tenantAdminGroup(
+    "Finance & Documents",
+    ReceiptText,
+    ["Invoices", "Documents"],
+  ),
+  tenantAdminItem("Settings"),
+].filter((item): item is NavigationItem => Boolean(item));
 
 export const navigationFor = (workspace: Workspace, isManager = false) =>
   workspace === "super-admin"
     ? superAdminNavigation
     : workspace === "admin"
-      ? orderedTenantAdminNavigation
+      ? tenantAdminNavigation
     : workspace === "employee"
       ? isManager
         ? [...employeeNavigation, { label: "Manager", labelKey: "Workspace.manager", icon: Users, children: employeeManagerNavigation }]

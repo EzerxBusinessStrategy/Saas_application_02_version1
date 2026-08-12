@@ -97,7 +97,8 @@ function WorkspaceNavigation({
       ? "pointer-events-none absolute -translate-x-1 opacity-0"
       : "translate-x-0 opacity-100",
   );
-  const labelFor = (item: NavigationItem) => t(item.labelKey ?? item.label);
+  const labelFor = (item: NavigationItem) =>
+    item.labelKey ? t(item.labelKey) : item.label;
 
   const renderFlyoutItem = (item: NavigationItem) => {
     const Icon = item.icon;
@@ -132,7 +133,8 @@ function WorkspaceNavigation({
     const href =
       item.href !== undefined ? `/${workspace}${item.href}` : undefined;
     const hasChildren = Boolean(item.children?.length);
-    const expanded = expandedGroups[item.label] ?? active;
+    const expanded =
+      expandedGroups[item.label] ?? (workspace === "admin" || active);
     const itemId = item.label.toLowerCase().replaceAll(" ", "-");
     const tooltipId = `${workspace}-${itemId}-tooltip`;
     const commonClassName = cn(
