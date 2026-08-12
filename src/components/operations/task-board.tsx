@@ -33,17 +33,19 @@ const priorityTone = {
 function BoardColumn({
   status,
   label,
+  enabled = true,
   children,
 }: {
   status: OperationalTask["status"];
   label: string;
+  enabled?: boolean;
   children: React.ReactNode;
 }) {
-  const { setNodeRef, isOver } = useDroppable({ id: status });
+  const { setNodeRef, isOver } = useDroppable({ id: status, disabled: !enabled });
   return (
     <section
       ref={setNodeRef}
-      className={`min-w-60 rounded-[var(--radius-card)] bg-muted p-[15px] ${isOver ? "ring-2 ring-primary" : ""}`}
+      className={`min-w-60 rounded-[var(--radius-card)] bg-muted p-[15px] ${isOver ? "ring-2 ring-primary" : ""} ${enabled ? "" : "opacity-65"}`}
       aria-label={label}
     >
       <div className="mb-4 flex items-center justify-between">
@@ -60,15 +62,17 @@ function DraggableTask({
   onOpen,
   onPause,
   onResume,
+  canDrag = true,
 }: {
   task: OperationalTask;
   now: number;
   onOpen: () => void;
   onPause?: () => void;
   onResume?: () => void;
+  canDrag?: boolean;
 }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } =
-    useDraggable({ id: task.id });
+    useDraggable({ id: task.id, disabled: !canDrag });
   const style = transform
     ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` }
     : undefined;
@@ -87,15 +91,17 @@ function DraggableTask({
       <CardContent className="p-4">
         <div className="flex justify-between gap-2">
           <Badge tone={priorityTone[task.priority]}>{task.priority}</Badge>
-          <button
-            type="button"
-            className="rounded text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            aria-label={`Drag ${task.title}`}
-            {...attributes}
-            {...listeners}
-          >
-            <GripVertical className="size-4" />
-          </button>
+          {canDrag ? (
+            <button
+              type="button"
+              className="rounded text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              aria-label={`Drag ${task.title}`}
+              {...attributes}
+              {...listeners}
+            >
+              <GripVertical className="size-4" />
+            </button>
+          ) : null}
         </div>
         <button
           type="button"
@@ -149,12 +155,16 @@ export function TaskBoard({
   onOpen,
   onPause,
   onResume,
+  canDragTask,
+  allowedDropStatuses,
 }: {
   tasks: OperationalTask[];
   onStatusChange: (id: string, status: OperationalTask["status"]) => void;
   onOpen: (task: OperationalTask) => void;
   onPause?: (task: OperationalTask) => void;
   onResume?: (task: OperationalTask) => void;
+  canDragTask?: (task: OperationalTask) => boolean;
+  allowedDropStatuses?: readonly OperationalTask["status"][];
 }) {
   const [now, setNow] = React.useState(() => Date.now());
   const sensors = useSensors(
@@ -171,7 +181,11 @@ export function TaskBoard({
     const status = columns.find(
       (column) => column.value === event.over?.id,
     )?.value;
-    if (status && event.active.id !== event.over?.id)
+    if (
+      status &&
+      event.active.id !== event.over?.id &&
+      (!allowedDropStatuses || allowedDropStatuses.includes(status))
+    )
       onStatusChange(String(event.active.id), status);
   };
 
@@ -182,6 +196,7 @@ export function TaskBoard({
           <BoardColumn
             key={column.value}
             status={column.value}
+            enabled={!allowedDropStatuses || allowedDropStatuses.includes(column.value)}
             label={`${column.label} (${tasks.filter((task) => task.status === column.value).length})`}
           >
             {tasks
@@ -194,6 +209,7 @@ export function TaskBoard({
                   onOpen={() => onOpen(task)}
                   onPause={() => onPause?.(task)}
                   onResume={() => onResume?.(task)}
+                  canDrag={canDragTask?.(task) ?? true}
                 />
               ))}
           </BoardColumn>

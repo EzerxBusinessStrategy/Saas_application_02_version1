@@ -102,6 +102,9 @@ export function TasksPage({
     useState<OperationalTask | null>(null);
   const [reviewComment, setReviewComment] = useState("");
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+  const [tenantReturnTask, setTenantReturnTask] = useState<OperationalTask | null>(null);
+  const [tenantReturnRemarks, setTenantReturnRemarks] = useState("");
+  const [isReturningTenantTask, setIsReturningTenantTask] = useState(false);
   const tasksQuery = useQuery({
     queryKey: ["operational-tasks", workspace, selectedClientId, query, status, priority],
     queryFn: async () => {
@@ -120,7 +123,7 @@ export function TasksPage({
     },
     enabled: true,
     refetchInterval: workspace === "employee" ? 30000 : false,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
   });
   const logsQuery = useQuery({
     queryKey: ["operational-work-logs", workspace, selectedClientId],
@@ -195,6 +198,41 @@ export function TasksPage({
           : "The tenant approval decision could not be saved.",
       );
       return false;
+    }
+  };
+  const isAwaitingTenantApproval = (task: OperationalTask) =>
+    task.status === "review" &&
+    task.reviewStatus === "approved" &&
+    task.approvalStatus === "pending";
+  const handleTenantBoardStatusChange = (
+    task: OperationalTask,
+    nextStatus: OperationalTask["status"],
+  ) => {
+    if (!isAwaitingTenantApproval(task)) return;
+    if (nextStatus === "done") {
+      void handleTenantApproval(task, "approve");
+      return;
+    }
+    if (nextStatus === "rejected") {
+      setTenantReturnTask(task);
+      setTenantReturnRemarks("");
+    }
+  };
+  const returnTenantTask = async () => {
+    if (!tenantReturnTask || !tenantReturnRemarks.trim()) return;
+    setIsReturningTenantTask(true);
+    try {
+      const saved = await handleTenantApproval(
+        tenantReturnTask,
+        "return",
+        tenantReturnRemarks.trim(),
+      );
+      if (saved) {
+        setTenantReturnTask(null);
+        setTenantReturnRemarks("");
+      }
+    } finally {
+      setIsReturningTenantTask(false);
     }
   };
   const handleEmployeeStatusChange = async (
@@ -460,9 +498,21 @@ export function TasksPage({
                 onOpen={setSelected}
                 onPause={workspace === "employee" ? pauseTask : undefined}
                 onResume={workspace === "employee" ? resumeTask : undefined}
+                canDragTask={
+                  workspace === "admin"
+                    ? (task) => canUpdate && isAwaitingTenantApproval(task)
+                    : undefined
+                }
+                allowedDropStatuses={
+                  workspace === "admin" ? ["rejected", "done"] : undefined
+                }
                 onStatusChange={(id, nextStatus) => {
                   const task = visibleTasks.find((item) => item.id === id);
                   if (!task || !canUpdate) return;
+                  if (workspace === "admin") {
+                    handleTenantBoardStatusChange(task, nextStatus);
+                    return;
+                  }
                   if (workspace === "employee") {
                     void handleEmployeeStatusChange(task, nextStatus);
                     return;
@@ -533,6 +583,34 @@ export function TasksPage({
             placeholder="Write what you completed before submitting."
             value={reviewComment}
             onChange={(event) => setReviewComment(event.target.value)}
+          />
+        </label>
+      </ConfirmationDialog>
+      <ConfirmationDialog
+        open={Boolean(tenantReturnTask)}
+        onOpenChange={(open) => {
+          if (!open && !isReturningTenantTask) {
+            setTenantReturnTask(null);
+            setTenantReturnRemarks("");
+          }
+        }}
+        title="Return task for changes"
+        description="Explain what the employee must change. The task will return to in progress once this is saved."
+        confirmLabel="Return task"
+        warning
+        confirmDisabled={!tenantReturnRemarks.trim()}
+        isConfirming={isReturningTenantTask}
+        onConfirm={() => void returnTenantTask()}
+      >
+        <label className="flex flex-col gap-1 text-sm font-medium">
+          Changes required
+          <textarea
+            required
+            className="min-h-24 rounded-[var(--radius-control)] border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            maxLength={2000}
+            placeholder="Describe what must be changed"
+            value={tenantReturnRemarks}
+            onChange={(event) => setTenantReturnRemarks(event.target.value)}
           />
         </label>
       </ConfirmationDialog>
