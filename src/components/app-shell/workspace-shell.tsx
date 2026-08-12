@@ -536,7 +536,7 @@ export function WorkspaceShell({
             </Button>
             <ThemeToggle />
             {workspace !== "client" ? (
-              <NotificationMenu workspace={workspace} />
+              <NotificationMenu workspace={workspace} userEmail={user.email} />
             ) : null}
             <UserMenu user={user} workspace={workspace} />
           </div>

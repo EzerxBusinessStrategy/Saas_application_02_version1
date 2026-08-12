@@ -33,6 +33,7 @@ import {
 } from "@/features/employee/api/employee-notifications-api";
 import { getClientPortalNotifications } from "@/features/client-portal/api/client-portal-notifications-api";
 import { cn } from "@/lib/utils";
+import { readNotificationCache, writeNotificationCache } from "@/lib/client/notification-cache";
 import type { Notification } from "@/types/app-shell";
 import type { Workspace } from "@/types/domain";
 import type {
@@ -42,58 +43,69 @@ import type {
 
 export type NotificationMenuState = "ready" | "loading" | "error" | "empty";
 
-const superAdminNotificationsQueryKey = ["super-admin-notifications", "recent"] as const;
-const tenantAdminNotificationsQueryKey = ["tenant-admin-notifications", "recent"] as const;
-const employeeNotificationsQueryKey = ["employee-notifications", "recent"] as const;
 const clientPortalNotificationsQueryKey = ["client-portal-notifications", "recent"] as const;
 
 const superAdminSoundPreferenceKey = "super-admin-notification-sound-enabled";
 const tenantAdminSoundPreferenceKey = "tenant-admin-notification-sound-enabled";
+
+function scopedNotificationQueryKey(scope: string, userEmail: string) {
+  return [`${scope}-notifications`, "recent", userEmail.trim().toLowerCase()] as const;
+}
 
 export function NotificationMenu({
   workspace,
   initialItems = notificationFixtures,
   state = "ready",
   open,
+  userEmail = "",
 }: {
   workspace: Workspace;
   initialItems?: Notification[];
   state?: NotificationMenuState;
   open?: boolean;
+  userEmail?: string;
 }) {
   if (workspace === "super-admin") {
-    return <SuperAdminNotificationMenu open={open} />;
+    return <SuperAdminNotificationMenu open={open} userEmail={userEmail} />;
   }
   if (workspace === "admin") {
-    return <TenantAdminNotificationMenu open={open} />;
+    return <TenantAdminNotificationMenu open={open} userEmail={userEmail} />;
   }
   if (workspace === "client") {
     return <ClientPortalNotificationMenu open={open} />;
   }
   if (workspace === "employee") {
-    return <EmployeeNotificationMenu open={open} />;
+    return <EmployeeNotificationMenu open={open} userEmail={userEmail} />;
   }
   return <MockNotificationMenu workspace={workspace} initialItems={initialItems} state={state} open={open} />;
 }
 
-function SuperAdminNotificationMenu({ open }: { open?: boolean }) {
+function SuperAdminNotificationMenu({ open, userEmail }: { open?: boolean; userEmail: string }) {
   const queryClient = useQueryClient();
+  const notificationQueryKey = useMemo(
+    () => scopedNotificationQueryKey("super-admin", userEmail),
+    [userEmail],
+  );
   const processedIds = useRef(new Set<string>());
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const query = useQuery({
-    queryKey: superAdminNotificationsQueryKey,
+    queryKey: notificationQueryKey,
     queryFn: () => getSuperAdminNotifications({ status: "ALL", limit: 20 }),
+    initialData: () => readNotificationCache("super-admin", userEmail),
+    staleTime: 48 * 60 * 60 * 1000,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
   });
   const data = query.data;
   const items = data?.items ?? [];
   const unreadCount = data?.unreadCount ?? 0;
 
   const markRead = useMutation(
-    optimisticReadMutation(queryClient, superAdminNotificationsQueryKey, markSuperAdminNotificationRead),
+    optimisticReadMutation(queryClient, notificationQueryKey, markSuperAdminNotificationRead),
   );
   const markAllRead = useMutation(
-    optimisticMarkAllReadMutation(queryClient, superAdminNotificationsQueryKey, markAllSuperAdminNotificationsRead),
+    optimisticMarkAllReadMutation(queryClient, notificationQueryKey, markAllSuperAdminNotificationsRead),
   );
 
   useEffect(() => {
@@ -113,7 +125,7 @@ function SuperAdminNotificationMenu({ open }: { open?: boolean }) {
     socket.on("notification:new", (item: SuperAdminNotification) => {
       if (processedIds.current.has(item.id)) return;
       processedIds.current.add(item.id);
-      queryClient.setQueryData<SuperAdminNotificationsResponse>(superAdminNotificationsQueryKey, (current) => {
+      queryClient.setQueryData<SuperAdminNotificationsResponse>(notificationQueryKey, (current) => {
         if (!current) return { unreadCount: 1, items: [item] };
         if (current.items.some((existing) => existing.id === item.id)) return current;
         return { unreadCount: current.unreadCount + 1, items: [item, ...current.items].slice(0, 20) };
@@ -123,17 +135,19 @@ function SuperAdminNotificationMenu({ open }: { open?: boolean }) {
     });
 
     socket.on("connect", () => {
-      void queryClient.invalidateQueries({ queryKey: superAdminNotificationsQueryKey });
+      void queryClient.invalidateQueries({ queryKey: notificationQueryKey });
     });
 
     socket.on("reconnect", () => {
-      void queryClient.invalidateQueries({ queryKey: superAdminNotificationsQueryKey });
+      void queryClient.invalidateQueries({ queryKey: notificationQueryKey });
     });
 
     return () => {
       socket.disconnect();
     };
-  }, [queryClient, soundEnabled]);
+  }, [notificationQueryKey, queryClient, soundEnabled]);
+
+  useEffect(() => { if (data) writeNotificationCache("super-admin", userEmail, data); }, [data, userEmail]);
 
   const toggleSound = () => {
     setSoundEnabled((enabled) => {
@@ -183,11 +197,11 @@ function SuperAdminNotificationMenu({ open }: { open?: boolean }) {
         </div>
         <DropdownMenuSeparator className="my-1 h-px bg-border" />
         {query.isLoading ? <NotificationLoading /> : null}
-        {query.isError ? <NotificationError /> : null}
-        {!query.isLoading && !query.isError && !items.length ? (
+        {query.isError && !data ? <NotificationError /> : null}
+        {!query.isLoading && !(query.isError && !data) && !items.length ? (
           <div className="px-3 py-5 text-sm text-muted-foreground">You&apos;re all caught up.</div>
         ) : null}
-        {!query.isLoading && !query.isError && items.length ? (
+        {!query.isLoading && !(query.isError && !data) && items.length ? (
           <NotificationList items={items} onRead={(id) => markRead.mutate(id)} defaultHref="/super-admin" />
         ) : null}
         <DropdownMenuSeparator className="my-1 h-px bg-border" />
@@ -199,25 +213,33 @@ function SuperAdminNotificationMenu({ open }: { open?: boolean }) {
   );
 }
 
-function TenantAdminNotificationMenu({ open }: { open?: boolean }) {
+function TenantAdminNotificationMenu({ open, userEmail }: { open?: boolean; userEmail: string }) {
   const queryClient = useQueryClient();
+  const notificationQueryKey = useMemo(
+    () => scopedNotificationQueryKey("tenant-admin", userEmail),
+    [userEmail],
+  );
   const processedIds = useRef(new Set<string>());
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [soundEnabled, setSoundEnabled] = useState(true);
 
   const query = useQuery({
-    queryKey: tenantAdminNotificationsQueryKey,
+    queryKey: notificationQueryKey,
     queryFn: () => getTenantAdminNotifications({ status: "ALL", limit: 20 }),
+    initialData: () => readNotificationCache("admin", userEmail),
+    staleTime: 48 * 60 * 60 * 1000,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
   });
   const data = query.data;
   const items = data?.items ?? [];
   const unreadCount = data?.unreadCount ?? 0;
 
   const markRead = useMutation(
-    optimisticReadMutation(queryClient, tenantAdminNotificationsQueryKey, markTenantAdminNotificationRead),
+    optimisticReadMutation(queryClient, notificationQueryKey, markTenantAdminNotificationRead),
   );
   const markAllRead = useMutation(
-    optimisticMarkAllReadMutation(queryClient, tenantAdminNotificationsQueryKey, markAllTenantAdminNotificationsRead),
+    optimisticMarkAllReadMutation(queryClient, notificationQueryKey, markAllTenantAdminNotificationsRead),
   );
 
   useEffect(() => {
@@ -237,7 +259,7 @@ function TenantAdminNotificationMenu({ open }: { open?: boolean }) {
     socket.on("notification:new", (item: SuperAdminNotification) => {
       if (processedIds.current.has(item.id)) return;
       processedIds.current.add(item.id);
-      queryClient.setQueryData<SuperAdminNotificationsResponse>(tenantAdminNotificationsQueryKey, (current) => {
+      queryClient.setQueryData<SuperAdminNotificationsResponse>(notificationQueryKey, (current) => {
         if (!current) return { unreadCount: 1, items: [item] };
         if (current.items.some((existing) => existing.id === item.id)) return current;
         return { unreadCount: current.unreadCount + 1, items: [item, ...current.items].slice(0, 20) };
@@ -249,17 +271,19 @@ function TenantAdminNotificationMenu({ open }: { open?: boolean }) {
     });
 
     socket.on("connect", () => {
-      void queryClient.invalidateQueries({ queryKey: tenantAdminNotificationsQueryKey });
+      void queryClient.invalidateQueries({ queryKey: notificationQueryKey });
     });
 
     socket.on("reconnect", () => {
-      void queryClient.invalidateQueries({ queryKey: tenantAdminNotificationsQueryKey });
+      void queryClient.invalidateQueries({ queryKey: notificationQueryKey });
     });
 
     return () => {
       socket.disconnect();
     };
-  }, [queryClient, soundEnabled]);
+  }, [notificationQueryKey, queryClient, soundEnabled]);
+
+  useEffect(() => { if (data) writeNotificationCache("admin", userEmail, data); }, [data, userEmail]);
 
   const toggleSound = () => {
     setSoundEnabled((enabled) => {
@@ -309,11 +333,11 @@ function TenantAdminNotificationMenu({ open }: { open?: boolean }) {
         </div>
         <DropdownMenuSeparator className="my-1 h-px bg-border" />
         {query.isLoading ? <NotificationLoading /> : null}
-        {query.isError ? <NotificationError /> : null}
-        {!query.isLoading && !query.isError && !items.length ? (
+        {query.isError && !data ? <NotificationError /> : null}
+        {!query.isLoading && !(query.isError && !data) && !items.length ? (
           <div className="px-3 py-5 text-sm text-muted-foreground">You&apos;re all caught up.</div>
         ) : null}
-        {!query.isLoading && !query.isError && items.length ? (
+        {!query.isLoading && !(query.isError && !data) && items.length ? (
           <NotificationList items={items} onRead={(id) => markRead.mutate(id)} defaultHref="/admin" />
         ) : null}
         <DropdownMenuSeparator className="my-1 h-px bg-border" />
@@ -325,21 +349,29 @@ function TenantAdminNotificationMenu({ open }: { open?: boolean }) {
   );
 }
 
-function EmployeeNotificationMenu({ open }: { open?: boolean }) {
+function EmployeeNotificationMenu({ open, userEmail }: { open?: boolean; userEmail: string }) {
   const queryClient = useQueryClient();
+  const notificationQueryKey = useMemo(
+    () => scopedNotificationQueryKey("employee", userEmail),
+    [userEmail],
+  );
   const processedIds = useRef(new Set<string>());
   const query = useQuery({
-    queryKey: employeeNotificationsQueryKey,
+    queryKey: notificationQueryKey,
     queryFn: getEmployeeNotifications,
-    refetchInterval: 30_000,
+    initialData: () => readNotificationCache("employee", userEmail),
+    staleTime: 48 * 60 * 60 * 1000,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
   });
-  const items = query.data?.items ?? [];
-  const unreadCount = query.data?.unreadCount ?? 0;
+  const data = query.data;
+  const items = data?.items ?? [];
+  const unreadCount = data?.unreadCount ?? 0;
   const markRead = useMutation(
-    optimisticReadMutation(queryClient, employeeNotificationsQueryKey, markEmployeeNotificationRead),
+    optimisticReadMutation(queryClient, notificationQueryKey, markEmployeeNotificationRead),
   );
   const markAllRead = useMutation(
-    optimisticMarkAllReadMutation(queryClient, employeeNotificationsQueryKey, markAllEmployeeNotificationsRead),
+    optimisticMarkAllReadMutation(queryClient, notificationQueryKey, markAllEmployeeNotificationsRead),
   );
 
   useEffect(() => {
@@ -352,7 +384,7 @@ function EmployeeNotificationMenu({ open }: { open?: boolean }) {
     socket.on("notification:new", (item: SuperAdminNotification) => {
       if (processedIds.current.has(item.id)) return;
       processedIds.current.add(item.id);
-      queryClient.setQueryData<SuperAdminNotificationsResponse>(employeeNotificationsQueryKey, (current) => {
+      queryClient.setQueryData<SuperAdminNotificationsResponse>(notificationQueryKey, (current) => {
         if (!current) return { unreadCount: 1, items: [item] };
         if (current.items.some((existing) => existing.id === item.id)) return current;
         return { unreadCount: current.unreadCount + 1, items: [item, ...current.items].slice(0, 20) };
@@ -361,12 +393,13 @@ function EmployeeNotificationMenu({ open }: { open?: boolean }) {
       void queryClient.invalidateQueries({ queryKey: ["operational-tasks"] });
       void queryClient.invalidateQueries({ queryKey: ["employee-manager-reviews"] });
     });
-    socket.on("connect", () => void queryClient.invalidateQueries({ queryKey: employeeNotificationsQueryKey }));
-
+    socket.on("connect", () => void queryClient.invalidateQueries({ queryKey: notificationQueryKey }));
     return () => {
       socket.disconnect();
     };
-  }, [queryClient]);
+  }, [notificationQueryKey, queryClient]);
+
+  useEffect(() => { if (data) writeNotificationCache("employee", userEmail, data); }, [data, userEmail]);
 
   return (
     <DropdownMenu open={open}>
@@ -383,9 +416,9 @@ function EmployeeNotificationMenu({ open }: { open?: boolean }) {
         </div>
         <DropdownMenuSeparator className="my-1 h-px bg-border" />
         {query.isLoading ? <NotificationLoading /> : null}
-        {query.isError ? <NotificationError /> : null}
-        {!query.isLoading && !query.isError && !items.length ? <div className="px-3 py-5 text-sm text-muted-foreground">You&apos;re all caught up.</div> : null}
-        {!query.isLoading && !query.isError && items.length ? <NotificationList items={items} onRead={(id) => markRead.mutate(id)} defaultHref="/employee" /> : null}
+        {query.isError && !data ? <NotificationError /> : null}
+        {!query.isLoading && !(query.isError && !data) && !items.length ? <div className="px-3 py-5 text-sm text-muted-foreground">You&apos;re all caught up.</div> : null}
+        {!query.isLoading && !(query.isError && !data) && items.length ? <NotificationList items={items} onRead={(id) => markRead.mutate(id)} defaultHref="/employee" /> : null}
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -609,9 +642,6 @@ function optimisticReadMutation(
     onError(_error: unknown, _notificationId: string, rollback: NotificationRollback | undefined) {
       queryClient.setQueryData(queryKey, rollback?.previous);
     },
-    onSettled() {
-      return queryClient.invalidateQueries({ queryKey });
-    },
   };
 }
 
@@ -637,9 +667,6 @@ function optimisticMarkAllReadMutation(
     },
     onError(_error: unknown, _variables: void, rollback: NotificationRollback | undefined) {
       queryClient.setQueryData(queryKey, rollback?.previous);
-    },
-    onSettled() {
-      return queryClient.invalidateQueries({ queryKey });
     },
   };
 }
