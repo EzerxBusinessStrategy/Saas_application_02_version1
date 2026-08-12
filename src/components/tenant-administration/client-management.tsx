@@ -47,7 +47,7 @@ import {
 } from "@/features/administration/api/administration-api";
 import {
   createTenantAdminWorkGroup,
-  listTenantAdminEmployees,
+  listTenantAdminEmployeeDirectory,
   listTenantAdminWorkGroups,
   updateTenantAdminWorkGroup,
   type TenantAdminEmployeeOption,
@@ -1649,7 +1649,7 @@ export function WorkGroupDirectory() {
   });
   const employeesQuery = useQuery({
     queryKey: ["tenant-admin-employees"],
-    queryFn: listTenantAdminEmployees,
+    queryFn: listTenantAdminEmployeeDirectory,
   });
   const clientsQuery = useQuery({
     queryKey: ["clients", "work-group-options"],
@@ -1678,7 +1678,7 @@ export function WorkGroupDirectory() {
       />
     );
   const groups = groupsQuery.data ?? [];
-  const employees = employeesQuery.data ?? [];
+  const employees = employeesQuery.data?.employees ?? [];
   const clientOptions = clientsQuery.data?.items.map((client) => ({ id: client.id, name: client.name })) ?? [];
   const saveWorkGroup = async (values: WorkGroupFormValues) => {
     setSaving(true);

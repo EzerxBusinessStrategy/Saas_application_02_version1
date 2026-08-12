@@ -67,14 +67,19 @@ describe("task workflow notification persistence", () => {
 });
 
 describe("returned task timer resumption", () => {
-  it("does not start a second timer when the employee already has an active segment", async () => {
+  it("creates a paused rework session when the employee already has an active segment", async () => {
     const client: FakeClient = {
-      query: vi.fn(async (_sql: string, _values: unknown[]) => queryResult([], 1)),
+      query: vi.fn(async (sql: string, _values: unknown[]) =>
+        sql.includes("insert into public.task_work_sessions")
+          ? queryResult([{ id: "paused-session-1" }])
+          : queryResult([], 1),
+      ),
     };
 
     await expect(resumeReturnedTaskTimer(client as never, "tenant-1", "task-1", "employee-1")).resolves.toBe(false);
-    expect(client.query).toHaveBeenCalledTimes(2);
+    expect(client.query).toHaveBeenCalledTimes(3);
     expect(client.query.mock.calls[1]?.[0]).toContain("ended_at is null");
+    expect(client.query.mock.calls[2]?.[1]).toEqual(["tenant-1", "task-1", "employee-1", "paused"]);
   });
 
   it("creates exactly one session and open segment when no active timer exists", async () => {
@@ -93,11 +98,13 @@ describe("returned task timer resumption", () => {
     expect(client.query.mock.calls[3]?.[1]).toEqual(["tenant-1", "task-1", "employee-1", "session-1"]);
   });
 
-  it("does not create a segment when session creation returns no id", async () => {
+  it("fails the workflow when session creation returns no id", async () => {
     const responses = [queryResult(), queryResult(), queryResult()];
     const client: FakeClient = { query: vi.fn(async () => responses.shift() ?? queryResult()) };
 
-    await expect(resumeReturnedTaskTimer(client as never, "tenant-1", "task-1", "employee-1")).resolves.toBe(false);
+    await expect(resumeReturnedTaskTimer(client as never, "tenant-1", "task-1", "employee-1")).rejects.toThrow(
+      "Returned task work session could not be created.",
+    );
     expect(client.query).toHaveBeenCalledTimes(3);
   });
 });

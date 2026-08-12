@@ -32,7 +32,7 @@ export class EmployeeDashboardService {
 }
 
 function mapTask(row: EmployeeDashboardTaskRow) {
-  const needsChanges = row.status === "returned";
+  const needsChanges = row.status === "returned" || (row.status === "in_progress" && Boolean(row.latest_manager_note));
   return {
     id: row.id,
     title: row.title,

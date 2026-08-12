@@ -1,8 +1,9 @@
-import { Inject, Injectable, Logger, OnApplicationBootstrap, OnApplicationShutdown } from "@nestjs/common";
+import { Inject, Injectable, Logger, OnApplicationBootstrap, OnApplicationShutdown, Optional } from "@nestjs/common";
 import { Pool } from "pg";
 import { DATABASE_POOL } from "../database/database.tokens";
 import { NotificationItemDto } from "./super-admin-notifications.dto";
 import { EmployeeNotificationsGateway } from "./employee-notifications.gateway";
+import { TenantAdminNotificationsGateway } from "./tenant-admin-notifications.gateway";
 
 const POLL_INTERVAL_MS = 500;
 const BATCH_SIZE = 50;
@@ -37,6 +38,8 @@ export class TaskNotificationOutboxWorker implements OnApplicationBootstrap, OnA
   constructor(
     @Inject(DATABASE_POOL) private readonly pool: Pool | null,
     @Inject(EmployeeNotificationsGateway) private readonly gateway: EmployeeNotificationsGateway,
+    @Optional() @Inject(TenantAdminNotificationsGateway)
+    private readonly tenantAdminGateway?: TenantAdminNotificationsGateway,
   ) {}
 
   onApplicationBootstrap(): void {
@@ -89,7 +92,7 @@ export class TaskNotificationOutboxWorker implements OnApplicationBootstrap, OnA
       );
       let connectedSockets = 0;
       for (const recipient of recipients.rows) {
-        connectedSockets += this.gateway.emitNewNotification(recipient.recipient_user_id, event.tenant_id, {
+        const item = {
           id: recipient.notification_id,
           type: recipient.notification_type,
           title: recipient.title,
@@ -99,7 +102,10 @@ export class TaskNotificationOutboxWorker implements OnApplicationBootstrap, OnA
           actionUrl: recipient.action_url,
           createdAt: recipient.created_at.toISOString(),
           readAt: recipient.read_at?.toISOString() ?? null,
-        });
+        };
+        connectedSockets += isTenantAdminNotification(recipient.notification_type)
+          ? this.tenantAdminGateway?.emitNewNotification(recipient.recipient_user_id, event.tenant_id, item) ?? 0
+          : this.gateway.emitNewNotification(recipient.recipient_user_id, event.tenant_id, item);
       }
       await this.pool.query("select private.complete_task_notification_outbox($1::uuid)", [event.event_id]);
       const createdAt = recipients.rows[0]?.created_at;
@@ -116,4 +122,8 @@ export class TaskNotificationOutboxWorker implements OnApplicationBootstrap, OnA
       return { recipients: 0, connectedSockets: 0 };
     }
   }
+}
+
+function isTenantAdminNotification(type: string): boolean {
+  return type === "TASK_AWAITING_TENANT_APPROVAL" || type === "INVOICE_READY_TO_GENERATE";
 }

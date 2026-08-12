@@ -1,6 +1,6 @@
 import { PoolClient } from "pg";
 
-type NotificationAudience = "employee" | "managers" | "tenant_admins";
+type NotificationAudience = "actor" | "employee" | "managers" | "tenant_admins";
 
 type TaskWorkflowNotification = {
   tenantId: string;
@@ -19,7 +19,9 @@ export async function publishTaskWorkflowNotification(
   client: PoolClient,
   notification: TaskWorkflowNotification,
 ): Promise<void> {
-  const recipients = notification.audience === "employee"
+  const recipients = notification.audience === "actor"
+    ? "select $2::uuid as user_id"
+    : notification.audience === "employee"
     ? `select tm.user_id
        from public.employees e
        join public.tenant_memberships tm on tm.tenant_id = e.tenant_id and tm.id = e.membership_id
@@ -101,13 +103,14 @@ export async function resumeReturnedTaskTimer(
     "select 1 from public.task_work_segments where tenant_id = $1 and employee_id = $2 and ended_at is null limit 1",
     [tenantId, employeeId],
   );
-  if (active.rowCount) return false;
+  const sessionStatus = active.rowCount ? "paused" : "active";
   const session = await client.query<{ id: string }>(
-    "insert into public.task_work_sessions (tenant_id, task_id, employee_id, status) values ($1, $2, $3, 'active') returning id::text",
-    [tenantId, taskId, employeeId],
+    "insert into public.task_work_sessions (tenant_id, task_id, employee_id, status) values ($1, $2, $3, $4) returning id::text",
+    [tenantId, taskId, employeeId, sessionStatus],
   );
   const sessionId = session.rows[0]?.id;
-  if (!sessionId) return false;
+  if (!sessionId) throw new Error("Returned task work session could not be created.");
+  if (sessionStatus === "paused") return false;
   await client.query(
     "insert into public.task_work_segments (tenant_id, task_id, employee_id, work_session_id) values ($1, $2, $3, $4)",
     [tenantId, taskId, employeeId, sessionId],

@@ -3,12 +3,25 @@ import { RequestContext } from "../../src/auth/request-context";
 import { AppConfig } from "../../src/config/app-config";
 import {
   createTenantAdminTaskSchema,
+  decideTenantAdminTaskApprovalSchema,
   updateTenantAdminEmployeeAssignmentSchema,
 } from "../../src/platform/tenant-admin-tasks.dto";
 import { TenantAdminTasksRepository } from "../../src/platform/tenant-admin-tasks.repository";
 import { TenantAdminTasksService } from "../../src/platform/tenant-admin-tasks.service";
 
 describe("TenantAdminTasksService", () => {
+  it("requires actionable remarks when a Tenant Admin returns a task", () => {
+    expect(() =>
+      decideTenantAdminTaskApprovalSchema.parse({ decision: "return", remarks: "" }),
+    ).toThrow("Enter the changes required before returning this task.");
+    expect(
+      decideTenantAdminTaskApprovalSchema.parse({
+        decision: "return",
+        remarks: "Correct the GST amount and attach the revised worksheet.",
+      }),
+    ).toMatchObject({ decision: "return" });
+  });
+
   it("accepts only UUID work group IDs in employee assignment requests", () => {
     expect(
       updateTenantAdminEmployeeAssignmentSchema.parse({
@@ -306,5 +319,55 @@ describe("TenantAdminTasksRepository", () => {
     expect(sql).toContain("t.status = 'tenant_approval'");
     expect(sql).toContain("and status = 'pending_review'");
     expect(sql).toContain("'approved_for_invoice'");
+  });
+
+  it("returns the same employee assignment to active rework with Tenant Admin remarks", async () => {
+    const calls: Array<{ sql: string; values: readonly unknown[] }> = [];
+    const client = {
+      query: vi.fn(async (sqlText: string, values: readonly unknown[] = []) => {
+        calls.push({ sql: sqlText, values });
+        if (sqlText.includes("from public.tasks t")) {
+          return { rows: [{ id: "submission-1", employee_id: "employee-1" }], rowCount: 1 };
+        }
+        if (sqlText.includes("insert into public.task_work_sessions")) {
+          return { rows: [{ id: "session-1" }], rowCount: 1 };
+        }
+        return { rows: [], rowCount: 0 };
+      }),
+    };
+    const repository = new TenantAdminTasksRepository(null);
+    const repositoryForTest = repository as unknown as {
+      withContext(context: unknown, work: (transactionClient: typeof client) => Promise<unknown>): Promise<unknown>;
+      getTasks(): Promise<Array<{ id: string; title: string }>>;
+    };
+    repositoryForTest.withContext = async (_context, work) => work(client);
+    repositoryForTest.getTasks = async () => [{ id: "task-1", title: "GST filing" }];
+
+    await repository.decideTaskApproval(
+      { tenantId: "tenant-1", membershipId: "member-1", userId: "user-1" } as never,
+      "task-1",
+      {
+        decision: "return",
+        remarks: "Correct the GST amount and attach the revised worksheet.",
+      },
+    );
+
+    expect(
+      calls.find((call) => call.sql.includes("update public.task_assignments"))?.values,
+    ).toEqual(["tenant-1", "task-1", "employee-1", "active"]);
+    expect(
+      calls.find((call) => call.sql.includes("update public.task_submissions"))?.values,
+    ).toEqual([
+      "tenant-1",
+      "submission-1",
+      "returned",
+      "Correct the GST amount and attach the revised worksheet.",
+    ]);
+    expect(
+      calls.find((call) => call.sql.includes("update public.tasks") && call.sql.includes("billable_status"))?.values,
+    ).toEqual(["tenant-1", "task-1", "in_progress", "pending_completion", "member-1"]);
+    expect(
+      calls.find((call) => call.sql.includes("insert into public.notifications"))?.values,
+    ).toContain("task-returned-by-tenant:submission-1");
   });
 });

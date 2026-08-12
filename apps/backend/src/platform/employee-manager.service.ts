@@ -189,7 +189,7 @@ export class EmployeeManagerService {
       await client.query("update public.tasks set status = $3, updated_by = $4, updated_at = now() where tenant_id = $1 and id = $2", [
         managerContext.tenantId,
         taskId,
-        approved ? "tenant_approval" : "returned",
+        approved ? "tenant_approval" : "in_progress",
         managerContext.membershipId,
       ]);
       if (!approved) {
@@ -224,15 +224,11 @@ export class EmployeeManagerService {
           title: "Task awaiting final approval",
           message: `Manager approved "${taskTitle}". Final Tenant Admin approval is required.`,
           actionUrl: `/admin/tasks?task=${taskId}`,
-          eventKey: `task-awaiting-tenant-approval:${taskId}`,
+          eventKey: `task-awaiting-tenant-approval:${row.id}`,
         });
       } else {
         const timerStarted = await resumeReturnedTaskTimer(client, managerContext.tenantId, taskId, row.employee_id);
         if (timerStarted) {
-          await client.query(
-            "update public.tasks set status = 'in_progress', updated_by = $3, updated_at = now() where tenant_id = $1 and id = $2",
-            [managerContext.tenantId, taskId, managerContext.membershipId],
-          );
           await client.query(
             "select audit.write_audit_event('TASK_AUTO_RESUMED_AFTER_MANAGER_RETURN', 'task', $1::uuid, 'succeeded', null, $2::jsonb)",
             [taskId, JSON.stringify({ employeeId: row.employee_id })],
@@ -246,11 +242,25 @@ export class EmployeeManagerService {
           audience: "employee",
           type: "TASK_RETURNED_BY_MANAGER",
           title: "Task returned for changes",
-          message: `"${taskTitle}" was returned. ${timerStarted ? "Your timer has resumed." : "Resume it when your current task is complete."}`,
+          message: `"${taskTitle}" was returned: ${input.remarks}. ${timerStarted ? "Your timer has resumed." : "Resume it when your current task is complete."}`,
           actionUrl: `/employee/tasks?task=${taskId}`,
-          eventKey: `task-returned-by-manager:${taskId}`,
+          eventKey: `task-returned-by-manager:${row.id}`,
         });
       }
+      await publishTaskWorkflowNotification(client, {
+        tenantId: managerContext.tenantId,
+        actorUserId: managerContext.userId,
+        taskId,
+        employeeId: row.employee_id,
+        audience: "actor",
+        type: approved ? "MANAGER_TASK_APPROVED" : "MANAGER_TASK_CHANGES_REQUESTED",
+        title: approved ? "Task approved" : "Changes requested",
+        message: approved
+          ? `You approved "${taskTitle}" and sent it for final Tenant Admin approval.`
+          : `You returned "${taskTitle}" to the employee: ${input.remarks}`,
+        actionUrl: "/employee/task-reviews",
+        eventKey: `manager-decision:${row.id}:${input.decision}`,
+      });
       return { ok: true };
     });
   }

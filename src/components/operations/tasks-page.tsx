@@ -177,21 +177,24 @@ export function TasksPage({
   const handleTenantApproval = async (
     task: OperationalTask,
     decision: "approve" | "return",
+    remarks = "",
   ) => {
     try {
-      syncTask(mapTenantAdminTask(await decideTenantTaskApproval(task.id, decision)));
+      syncTask(mapTenantAdminTask(await decideTenantTaskApproval(task.id, decision, remarks)));
       refreshTaskWorkflow();
       toast.success(
         decision === "approve"
           ? "Tenant approval recorded. The task is complete."
           : "Task returned to the employee for rework.",
       );
+      return true;
     } catch (error) {
       toast.error(
         error instanceof Error
           ? error.message
           : "The tenant approval decision could not be saved.",
       );
+      return false;
     }
   };
   const handleEmployeeStatusChange = async (

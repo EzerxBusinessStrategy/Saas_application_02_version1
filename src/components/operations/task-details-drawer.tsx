@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { CheckCircle2, FileText, MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
@@ -39,11 +40,42 @@ export function TaskDetailsDrawer({
   onTenantApproval?: (
     task: OperationalTask,
     decision: "approve" | "return",
-  ) => void;
+    remarks?: string,
+  ) => Promise<boolean | void> | boolean | void;
   onUpdate: (task: OperationalTask) => void;
 }) {
+  const [showReturnComment, setShowReturnComment] = useState(false);
+  const [returnComment, setReturnComment] = useState("");
+  const [returnCommentError, setReturnCommentError] = useState("");
+  const [isDeciding, setIsDeciding] = useState(false);
+
+  useEffect(() => {
+    setShowReturnComment(false);
+    setReturnComment("");
+    setReturnCommentError("");
+    setIsDeciding(false);
+  }, [open, task?.id]);
+
   if (!task) return null;
   const taskLogs = workLogs.filter((log) => log.taskId === task.id);
+  const decideTenantApproval = async (decision: "approve" | "return") => {
+    const remarks = returnComment.trim();
+    if (decision === "return" && !remarks) {
+      setReturnCommentError("Enter the changes required before returning this task.");
+      return;
+    }
+    if (!onTenantApproval) return;
+    setIsDeciding(true);
+    try {
+      const saved = await onTenantApproval(task, decision, remarks);
+      if (saved === false) return;
+      setShowReturnComment(false);
+      setReturnComment("");
+      setReturnCommentError("");
+    } finally {
+      setIsDeciding(false);
+    }
+  };
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
@@ -119,6 +151,12 @@ export function TaskDetailsDrawer({
               </div>
             </div>
           </section>
+          {task.reviewStatus === "changes-requested" && task.reviewComment ? (
+            <section className="mt-6 border-l-4 border-warning bg-warning/10 px-4 py-3" aria-labelledby="changes-requested-heading">
+              <h3 id="changes-requested-heading" className="font-semibold text-foreground">Changes requested</h3>
+              <p className="mt-1 whitespace-pre-wrap text-sm text-foreground">{task.reviewComment}</p>
+            </section>
+          ) : null}
           <section className="mt-7 grid gap-5 lg:grid-cols-2">
             <div>
               <h3 className="font-semibold">Manager review</h3>
@@ -141,13 +179,74 @@ export function TaskDetailsDrawer({
               </p>
               {task.reviewStatus === "approved" && task.approvalStatus === "pending" ? (
                 canTenantApprove && onTenantApproval ? (
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <Button size="sm" onClick={() => onTenantApproval(task, "approve")}>
-                      Approve delivery
-                    </Button>
-                    <Button size="sm" variant="outline" onClick={() => onTenantApproval(task, "return")}>
-                      Return for rework
-                    </Button>
+                  <div className="mt-3">
+                    <div className="flex flex-wrap gap-2">
+                      <Button size="sm" disabled={isDeciding} onClick={() => void decideTenantApproval("approve")}>
+                        {isDeciding ? "Saving..." : "Approve delivery"}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={isDeciding}
+                        onClick={() => {
+                          setShowReturnComment(true);
+                          setReturnCommentError("");
+                        }}
+                      >
+                        Return for rework
+                      </Button>
+                    </div>
+                    {showReturnComment ? (
+                      <form
+                        aria-label="Return task for rework"
+                        className="mt-4 rounded-[var(--radius-control)] border border-border bg-muted/30 p-4"
+                        onSubmit={(event) => {
+                          event.preventDefault();
+                          void decideTenantApproval("return");
+                        }}
+                      >
+                        <label className="flex flex-col gap-1 text-sm font-medium">
+                          Changes required
+                          <textarea
+                            required
+                            autoFocus
+                            maxLength={2000}
+                            className="min-h-24 rounded-[var(--radius-control)] border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                            placeholder="Explain what the employee must change before resubmitting."
+                            value={returnComment}
+                            aria-invalid={Boolean(returnCommentError)}
+                            aria-describedby={returnCommentError ? "tenant-return-comment-error" : undefined}
+                            onChange={(event) => {
+                              setReturnComment(event.target.value);
+                              if (event.target.value.trim()) setReturnCommentError("");
+                            }}
+                          />
+                        </label>
+                        {returnCommentError ? (
+                          <p id="tenant-return-comment-error" className="mt-2 text-sm text-danger" role="alert">
+                            {returnCommentError}
+                          </p>
+                        ) : null}
+                        <div className="mt-3 flex justify-end gap-2">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            disabled={isDeciding}
+                            onClick={() => {
+                              setShowReturnComment(false);
+                              setReturnComment("");
+                              setReturnCommentError("");
+                            }}
+                          >
+                            Cancel
+                          </Button>
+                          <Button type="submit" size="sm" disabled={isDeciding}>
+                            {isDeciding ? "Returning..." : "Confirm return"}
+                          </Button>
+                        </div>
+                      </form>
+                    ) : null}
                   </div>
                 ) : (
                   <p className="mt-3 text-sm font-medium">Awaiting tenant approval</p>

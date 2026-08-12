@@ -16,6 +16,7 @@ import {
   subMonths,
 } from "date-fns";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { CalendarDays, CheckCircle2, Clock3, FileText } from "lucide-react";
 import { getEmployeeDashboard, type EmployeeDashboard } from "@/features/employee/api/employee-dashboard-api";
 import {
@@ -267,12 +268,12 @@ function EmployeeDayDashboard() {
         </p>
       </header>
 
-      <section aria-labelledby="my-work-today">
+      <section aria-labelledby="my-assigned-work">
         <h2
-          id="my-work-today"
+          id="my-assigned-work"
           className="mb-3 text-sm font-semibold uppercase tracking-normal text-muted-foreground"
         >
-          My work today
+          My assigned work
         </h2>
         <Card className="overflow-hidden">
           <CardContent className="p-0">
@@ -285,8 +286,8 @@ function EmployeeDayDashboard() {
             ) : (
               <div className="p-6">
                 <EmptyState
-                  title="No work assigned for today"
-                  description="Assigned tasks from your tenant or manager will appear here."
+                  title="No assigned work"
+                  description="Tasks assigned by your tenant or manager will appear here."
                 />
               </div>
             )}
@@ -927,7 +928,19 @@ function EmployeeManagerTaskReviewsPage() {
   const query = useQuery({ queryKey: ["employee-manager-reviews"], queryFn: listEmployeeManagerReviews });
   const mutation = useMutation({
     mutationFn: ({ taskId, decision, remarks }: { taskId: string; decision: "approve" | "return"; remarks?: string }) => decideEmployeeManagerReview(taskId, decision, remarks),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["employee-manager-reviews"] }),
+    onSuccess: async (_result, variables) => {
+      toast.success(variables.decision === "approve" ? "Task approved and sent for Tenant Admin approval." : "Changes requested and task returned to the employee.");
+      setRemarksByTask((current) => {
+        const next = { ...current };
+        delete next[variables.taskId];
+        return next;
+      });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["employee-manager-reviews"] }),
+        queryClient.invalidateQueries({ queryKey: ["employee-notifications"] }),
+      ]);
+    },
+    onError: (error) => toast.error(error instanceof Error ? error.message : "The review decision could not be saved."),
   });
   if (query.isPending) return <LoadingState label="Loading task reviews" rows={4} />;
   if (query.isError) return <ErrorState title="Task reviews could not load" onRetry={() => void query.refetch()} />;

@@ -1147,12 +1147,13 @@ function mapEmployeeTask(task: EmployeeTask): OperationalTask {
     attachmentCount: 0,
     commentCount: 0,
     reviewStatus:
-      task.status === "returned"
+      task.needsChanges
         ? "changes-requested"
         : ["submitted", "manager_review", "tenant_approval"].includes(task.status)
           ? "pending"
           : "not-required",
     approvalStatus: task.status === "tenant_approval" ? "pending" : "not-required",
+    reviewComment: task.latestManagerNote,
     blocked: task.needsChanges,
     timer: task.timer,
   };
@@ -1261,11 +1262,12 @@ export async function decideEmployeeTaskReview(
 export async function decideTenantTaskApproval(
   taskId: string,
   decision: "approve" | "return",
+  remarks = "",
 ): Promise<TenantAdminTask> {
   const response = await fetch(`/api/tenant-admin/tasks/${encodeURIComponent(taskId)}/approval`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ decision }),
+    body: JSON.stringify({ decision, remarks }),
   });
   return tenantAdminTaskSchema.parse(await parseJsonResponse(response));
 }

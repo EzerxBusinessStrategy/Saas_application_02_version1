@@ -50,5 +50,63 @@ test("shows tenant approval actions only to an authorised tenant reviewer", () =
   expect(onTenantApproval).toHaveBeenCalledWith(
     expect.objectContaining({ id: operationalTasks[0].id }),
     "approve",
+    "",
   );
+});
+
+test("requires and submits Tenant Admin rework comments", () => {
+  const onTenantApproval = vi.fn();
+  render(
+    <TaskDetailsDrawer
+      task={{
+        ...operationalTasks[0],
+        status: "review",
+        reviewStatus: "approved",
+        approvalStatus: "pending",
+      }}
+      open
+      onOpenChange={vi.fn()}
+      workLogs={workLogs}
+      canUpdate
+      canTenantApprove
+      onTenantApproval={onTenantApproval}
+      onUpdate={vi.fn()}
+    />,
+  );
+
+  fireEvent.click(screen.getByRole("button", { name: "Return for rework" }));
+  const comment = screen.getByLabelText("Changes required");
+  expect(comment).toBeRequired();
+  fireEvent.change(comment, {
+    target: { value: "Correct the GST amount and attach the revised worksheet." },
+  });
+  fireEvent.submit(screen.getByRole("form", { name: "Return task for rework" }));
+
+  expect(onTenantApproval).toHaveBeenCalledWith(
+    expect.objectContaining({ id: operationalTasks[0].id }),
+    "return",
+    "Correct the GST amount and attach the revised worksheet.",
+  );
+});
+
+test("shows requested changes to the employee in task details", () => {
+  render(
+    <TaskDetailsDrawer
+      task={{
+        ...operationalTasks[0],
+        status: "in-progress",
+        reviewStatus: "changes-requested",
+        approvalStatus: "rejected",
+        reviewComment: "Correct the GST amount and attach the revised worksheet.",
+      }}
+      open
+      onOpenChange={vi.fn()}
+      workLogs={workLogs}
+      canUpdate={false}
+      onUpdate={vi.fn()}
+    />,
+  );
+
+  expect(screen.getByRole("heading", { name: "Changes requested" })).toBeInTheDocument();
+  expect(screen.getByText("Correct the GST amount and attach the revised worksheet.")).toBeInTheDocument();
 });

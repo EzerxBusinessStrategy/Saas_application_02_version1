@@ -86,6 +86,14 @@ export type CreateTenantAdminTaskRequest = z.infer<typeof createTenantAdminTaskS
 export const decideTenantAdminTaskApprovalSchema = z.object({
   decision: z.enum(["approve", "return"]),
   remarks: z.string().trim().max(2000).optional().default(""),
+}).superRefine((value, ctx) => {
+  if (value.decision === "return" && !value.remarks) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["remarks"],
+      message: "Enter the changes required before returning this task.",
+    });
+  }
 });
 export type TenantAdminTaskApprovalRequest = z.infer<typeof decideTenantAdminTaskApprovalSchema>;
 

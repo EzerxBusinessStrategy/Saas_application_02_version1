@@ -111,10 +111,6 @@ export class EmployeeDashboardRepository {
           order by a.decided_at desc
           limit 1
         ) returned on true
-        where at.status = 'returned'
-           or at.status = 'in_progress'
-           or at.planned_due_at::date = current_date
-           or at.planned_due_at is null
         order by
           case when at.status = 'returned' then 0 else 1 end,
           case when at.status = 'in_progress' then 0 else 1 end,

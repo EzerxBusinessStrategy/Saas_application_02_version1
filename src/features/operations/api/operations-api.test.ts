@@ -2,6 +2,7 @@ import { afterEach, expect, test, vi } from "vitest";
 import {
   assignSupportTicket,
   createSupportTicket,
+  decideTenantTaskApproval,
   isGamificationVisible,
   listSupportTickets,
   listOperationalTasks,
@@ -57,6 +58,49 @@ test("confirms an initially empty employee directory before displaying it", asyn
 
   await expect(directory).resolves.toMatchObject({ employees: [{ id: "employee-1" }] });
   expect(fetchMock).toHaveBeenCalledTimes(2);
+});
+
+test("sends Tenant Admin rework remarks with the approval decision", async () => {
+  const fetchMock = vi.fn().mockResolvedValue(
+    new Response(
+      JSON.stringify({
+        id: "task-1",
+        title: "GST filing",
+        description: null,
+        clientId: "client-1",
+        clientName: "ABC Pvt Ltd",
+        serviceId: "service-1",
+        serviceName: "GST Filing",
+        workGroupId: null,
+        workGroupName: null,
+        priority: "high",
+        status: "returned",
+        slaStatus: "running",
+        plannedDueAt: null,
+        assigneeCount: 1,
+        assignees: [{ id: "employee-1", name: "Rahul" }],
+      }),
+      { status: 200, headers: { "content-type": "application/json" } },
+    ),
+  );
+  vi.stubGlobal("fetch", fetchMock);
+
+  await decideTenantTaskApproval(
+    "task-1",
+    "return",
+    "Correct the GST amount and attach the revised worksheet.",
+  );
+
+  expect(fetchMock).toHaveBeenCalledWith(
+    "/api/tenant-admin/tasks/task-1/approval",
+    expect.objectContaining({
+      method: "POST",
+      body: JSON.stringify({
+        decision: "return",
+        remarks: "Correct the GST amount and attach the revised worksheet.",
+      }),
+    }),
+  );
 });
 
 test("limits manager, employee, and client task results to their assigned scope", async () => {

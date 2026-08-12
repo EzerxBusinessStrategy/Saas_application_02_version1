@@ -40,6 +40,7 @@ export const taskSchema = z.object({
     "approved",
   ]),
   approvalStatus: z.enum(["not-required", "pending", "rejected", "approved"]),
+  reviewComment: z.string().nullable().optional(),
   blocked: z.boolean(),
   timer: z
     .object({

@@ -391,6 +391,7 @@ function EmployeeNotificationMenu({ open, userEmail }: { open?: boolean; userEma
       });
       toast(item.title, { description: item.message });
       void queryClient.invalidateQueries({ queryKey: ["operational-tasks"] });
+      void queryClient.invalidateQueries({ queryKey: ["employee-dashboard"] });
       void queryClient.invalidateQueries({ queryKey: ["employee-manager-reviews"] });
     });
     socket.on("connect", () => void queryClient.invalidateQueries({ queryKey: notificationQueryKey }));

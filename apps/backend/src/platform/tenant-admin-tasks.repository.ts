@@ -683,7 +683,7 @@ export class TenantAdminTasksRepository {
       }
 
       const approved = input.decision === "approve";
-      const taskStatus = approved ? "completed" : "returned";
+      const taskStatus = approved ? "completed" : "in_progress";
       const billingStatus = approved ? "ready_for_billing" : "pending_completion";
       await client.query(
         `
@@ -781,18 +781,14 @@ export class TenantAdminTasksRepository {
           employeeId: submission.employee_id,
           audience: "tenant_admins",
           type: "INVOICE_READY_TO_GENERATE",
-          title: "Invoice ready to generate",
-          message: `"${task[0].title}" is complete and ready to invoice.`,
+          title: `Invoice ready: ${task[0].title}`,
+          message: `Task "${task[0].title}" is completed. Generate its invoice and send it to the client.`,
           actionUrl: "/admin/invoices",
           eventKey: `invoice-ready:${taskId}`,
         });
       } else {
         const timerStarted = await resumeReturnedTaskTimer(client, context.tenantId, taskId, submission.employee_id);
         if (timerStarted) {
-          await client.query(
-            "update public.tasks set status = 'in_progress', updated_by = $3, updated_at = now() where tenant_id = $1 and id = $2",
-            [context.tenantId, taskId, context.membershipId],
-          );
           await client.query(
             "select audit.write_audit_event('TASK_AUTO_RESUMED_AFTER_TENANT_RETURN', 'task', $1::uuid, 'succeeded', null, $2::jsonb)",
             [taskId, JSON.stringify({ employeeId: submission.employee_id })],
@@ -806,9 +802,9 @@ export class TenantAdminTasksRepository {
           audience: "employee",
           type: "TASK_RETURNED_BY_TENANT",
           title: "Task returned for changes",
-          message: `"${task[0].title}" was returned. ${timerStarted ? "Your timer has resumed." : "Resume it when your current task is complete."}`,
+          message: `"${task[0].title}" was returned: ${input.remarks}. ${timerStarted ? "Your timer has resumed." : "Resume it when your current task is complete."}`,
           actionUrl: `/employee/tasks?task=${taskId}`,
-          eventKey: `task-returned-by-tenant:${taskId}`,
+          eventKey: `task-returned-by-tenant:${submission.id}`,
         });
       }
       return task[0];

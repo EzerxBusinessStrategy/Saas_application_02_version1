@@ -3,6 +3,7 @@ import dynamic from "next/dynamic";
 import type { ComponentType } from "react";
 import { FeatureBoundary } from "@/components/shared/feature-boundary";
 import { SectionSkeleton } from "@/components/shared/section-skeleton";
+import { ManagerDirectory } from "@/components/tenant-administration/workforce-administration";
 import { sectionAccess } from "@/lib/route-access";
 import { workspaceConfig } from "@/mocks/workspaces";
 import type { Workspace } from "@/types/domain";
@@ -39,9 +40,6 @@ const WorkGroupDirectory = dynamicSection(() =>
 );
 const TenantServiceDirectory = dynamicSection(() =>
   import("@/components/tenant-administration/service-management").then((module) => ({ default: module.TenantServiceDirectory })),
-);
-const ManagerDirectory = dynamicSection(() =>
-  import("@/components/tenant-administration/workforce-administration").then((module) => ({ default: module.ManagerDirectory })),
 );
 const TenantSettings = dynamicSection(() =>
   import("@/components/tenant-administration/workforce-administration").then((module) => ({ default: module.TenantSettings })),

@@ -59,7 +59,7 @@ function mapTask(row: EmployeeTaskRow): EmployeeTaskDto {
     priority: row.priority,
     status: row.status,
     plannedDueAt: row.planned_due_at?.toISOString() ?? null,
-    needsChanges: row.status === "returned",
+    needsChanges: row.status === "returned" || (row.status === "in_progress" && Boolean(row.latest_manager_note)),
     latestManagerNote: row.latest_manager_note,
     timer: {
       status: row.timer_status,

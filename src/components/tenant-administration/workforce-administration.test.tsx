@@ -2,14 +2,16 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, expect, test, vi } from "vitest";
-import { EmployeeProfile, TenantSettings } from "@/components/tenant-administration/workforce-administration";
+import { EmployeeProfile, ManagerDirectory, TenantSettings } from "@/components/tenant-administration/workforce-administration";
 import { FeatureBoundary } from "@/components/shared/feature-boundary";
 
 const routerRefresh = vi.hoisted(() => vi.fn());
 const getTenantProfile = vi.hoisted(() => vi.fn());
+const listTenantAdminEmployeeDirectory = vi.hoisted(() => vi.fn());
 const updateTenantProfile = vi.hoisted(() => vi.fn());
 
 vi.mock("next/navigation", () => ({
+  usePathname: () => "/admin/managers",
   useRouter: () => ({ push: vi.fn(), refresh: routerRefresh }),
 }));
 
@@ -17,7 +19,7 @@ vi.mock("@/features/operations/api/operations-api", async () => {
   const actual = await vi.importActual<typeof import("@/features/operations/api/operations-api")>(
     "@/features/operations/api/operations-api",
   );
-  return { ...actual, getTenantProfile, updateTenantProfile };
+  return { ...actual, getTenantProfile, listTenantAdminEmployeeDirectory, updateTenantProfile };
 });
 
 beforeEach(() => {
@@ -34,12 +36,34 @@ beforeEach(() => {
     currencyCode: "INR",
     timezone: "Asia/Kolkata",
   });
+  listTenantAdminEmployeeDirectory.mockResolvedValue({
+    employees: [
+      {
+        id: "employee-1",
+        name: "Aarav Mehta",
+        employeeCode: "EMP-001",
+        email: "aarav@example.test",
+        isManager: true,
+        skills: [],
+        categories: [],
+        experienceLevel: null,
+        managerId: null,
+        managerName: null,
+        activeTasks: 0,
+        workGroups: [],
+        employmentStatus: "active",
+        weeklyCapacityHours: 40,
+      },
+    ],
+    departments: [],
+  });
 });
 
-function renderWithQueryClient(ui: ReactNode) {
-  const client = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
-  });
+function createQueryClient() {
+  return new QueryClient({ defaultOptions: { queries: { retry: false } } });
+}
+
+function renderWithQueryClient(ui: ReactNode, client = createQueryClient()) {
   return render(<QueryClientProvider client={client}>{ui}</QueryClientProvider>);
 }
 
@@ -47,6 +71,42 @@ test("renders employee profile tabs with an accessible skills panel", () => {
   renderWithQueryClient(<EmployeeProfile employeeId="emp-001" />);
   fireEvent.click(screen.getByRole("tab", { name: "Skills" }));
   expect(screen.getByRole("tabpanel")).toHaveTextContent("GST returns");
+});
+
+test("renders the manager directory from the tenant employee list", async () => {
+  renderWithQueryClient(<ManagerDirectory />);
+  expect(await screen.findByRole("table", { name: "Managers in the active tenant" })).toBeInTheDocument();
+  expect(screen.getAllByText("Aarav Mehta").length).toBeGreaterThan(0);
+});
+
+test("renders managers after navigating from the employee directory", async () => {
+  const client = createQueryClient();
+  client.setQueryData(["tenant-admin-employees"], {
+    employees: [
+      {
+        id: "employee-1",
+        name: "Aarav Mehta",
+        employeeCode: "EMP-001",
+        email: "aarav@example.test",
+        isManager: true,
+        skills: [],
+        categories: [],
+        experienceLevel: null,
+        managerId: null,
+        managerName: null,
+        activeTasks: 0,
+        workGroups: [],
+        employmentStatus: "active",
+        weeklyCapacityHours: 40,
+      },
+    ],
+    departments: [],
+  });
+
+  const view = renderWithQueryClient(<ManagerDirectory />, client);
+  const managerDirectory = within(view.container);
+  expect(await managerDirectory.findByRole("table", { name: "Managers in the active tenant" })).toBeInTheDocument();
+  expect(managerDirectory.getAllByText("Aarav Mehta").length).toBeGreaterThan(0);
 });
 
 test("keeps administration content behind the existing permission boundary", () => {

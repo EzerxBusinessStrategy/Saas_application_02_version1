@@ -38,7 +38,6 @@ import {
 import {
   getTenantProfile,
   listTenantAdminEmployeeDirectory,
-  listTenantAdminEmployees,
   setTenantAdminEmployeeManager,
   updateTenantProfile,
   type TenantAdminEmployeeOption,
@@ -264,9 +263,9 @@ export function ManagerDirectory() {
   const pathname = usePathname();
   const employeesQuery = useQuery({
     queryKey: ["tenant-admin-employees"],
-    queryFn: listTenantAdminEmployees,
+    queryFn: listTenantAdminEmployeeDirectory,
   });
-  const employees = employeesQuery.data ?? [];
+  const employees = employeesQuery.data?.employees ?? [];
   useEffect(() => {
     if (readFormDraft(`${pathname}:tenant-add-manager`)) setAddOpen(true);
   }, [pathname]);

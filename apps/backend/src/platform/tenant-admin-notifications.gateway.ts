@@ -55,9 +55,12 @@ export class TenantAdminNotificationsGateway implements OnGatewayConnection {
     }
   }
 
-  emitNewNotification(userId: string, tenantId: string, item: NotificationItemDto): void {
-    this.server?.to(tenantUserRoom(tenantId, userId)).emit("notification:new", item);
+  emitNewNotification(userId: string, tenantId: string, item: NotificationItemDto): number {
+    const room = tenantUserRoom(tenantId, userId);
+    const connectedSockets = this.server?.sockets.adapter.rooms.get(room)?.size ?? 0;
+    this.server?.to(room).emit("notification:new", item);
     void this.repository.markDelivered(userId, item.id);
+    return connectedSockets;
   }
 }
 

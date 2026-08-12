@@ -156,13 +156,18 @@ export class EmployeeTasksRepository {
         "update public.tasks set status = 'manager_review', updated_by = $3, updated_at = now() where tenant_id = $1 and id = $2",
         [context.tenantId, taskId, context.membershipId],
       );
-      await client.query(
+      const submission = await client.query<{ id: string }>(
         `
           insert into public.task_submissions (tenant_id, task_id, employee_id, submitted_by, status, remarks, task_comment)
           values ($1, $2, $3, $4, 'submitted', nullif($5, ''), nullif($5, ''))
+          returning id::text
         `,
         [context.tenantId, taskId, employee.id, context.membershipId, taskComment],
       );
+      const submissionId = submission.rows[0]?.id;
+      if (!submissionId) {
+        throw new ConflictException({ code: "TASK_SUBMISSION_CREATE_FAILED", message: "The task could not be submitted for review." });
+      }
       await this.audit(client, "TASK_SUBMITTED", taskId, {
         employeeId: employee.id,
         totalWorkedSeconds: await this.workedSeconds(client, context.tenantId, taskId, employee.id),
@@ -179,7 +184,7 @@ export class EmployeeTasksRepository {
         title: "Task ready for review",
         message: `An employee submitted "${task.title}" for your review.`,
         actionUrl: "/employee/task-reviews",
-        eventKey: `task-submitted-manager-review:${taskId}`,
+        eventKey: `task-submitted-manager-review:${submissionId}`,
       });
       return task;
     });
