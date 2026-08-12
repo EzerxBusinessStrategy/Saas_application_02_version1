@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { demoSessionCookie, validateDemoLogin } from "@/lib/demo-auth";
+import { demoSessionCookie } from "@/lib/auth-cookies";
 import {
   signInSuperAdminWithPassword,
   fetchVerifiedSuperAdminMe,
@@ -12,10 +12,7 @@ import {
   createClientPortalSessionPolicy,
   createEmployeeSessionPolicy,
 } from "@/lib/server/super-admin-auth";
-import {
-  clearSuperAdminSessionCookies,
-  setSuperAdminSessionCookies,
-} from "@/lib/server/super-admin-session-cookies";
+import { setSuperAdminSessionCookies } from "@/lib/server/super-admin-session-cookies";
 import {
   resolveWorkspaces,
   autoSelectWorkspace,
@@ -55,7 +52,7 @@ type MeResponse = {
  * 2. If Supabase succeeds → call backend `/me` → resolve workspace(s)
  * 3. If single workspace → set cookies + return redirect URL
  * 4. If multiple workspaces → set auth cookies + return redirect to /select-workspace
- * 5. If Supabase fails → fall back to demo auth for dev/testing
+ * 5. If Supabase fails -> return a generic invalid-login response
  */
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
@@ -136,31 +133,6 @@ export async function POST(request: Request) {
     }
   } catch (error) {
     console.error("[Login Route] Exception during Supabase Auth:", error);
-  }
-
-  // --- Demo auth fallback (for development/testing) ---
-  // Try each demo role to find a matching credential set
-  const demoRoles = ["TENANT_ADMIN", "EMPLOYEE", "CLIENT_USER"] as const;
-  for (const role of demoRoles) {
-    const demoSession = validateDemoLogin({
-      identifier: email,
-      password,
-      role,
-    });
-    if (demoSession) {
-      const response = NextResponse.json({
-        redirect: `/${demoSession.workspace}`,
-      });
-      clearSuperAdminSessionCookies(response);
-      response.cookies.set(demoSessionCookie, demoSession.role, {
-        httpOnly: true,
-        sameSite: "lax",
-        secure: process.env.NODE_ENV === "production",
-        maxAge: rememberMe ? 60 * 60 * 24 * 30 : 60 * 60 * 8,
-        path: "/",
-      });
-      return response;
-    }
   }
 
   return NextResponse.json(

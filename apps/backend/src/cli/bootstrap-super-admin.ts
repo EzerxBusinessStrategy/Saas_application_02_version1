@@ -20,13 +20,7 @@ async function main(): Promise<void> {
     throw new Error("BACKEND_SUPABASE_URL and BACKEND_SUPABASE_ADMIN_KEY are required.");
   }
 
-  const fullName = await readRequiredLine("Full name: ");
-  const email = await readRequiredLine("Email: ");
-  const password = await readHiddenLine("Password: ");
-  const passwordConfirmation = await readHiddenLine("Confirm password: ");
-  if (password !== passwordConfirmation) {
-    throw new Error("Password confirmation does not match.");
-  }
+  const input = await readBootstrapInput();
 
   const pool = new Pool({
     connectionString,
@@ -38,7 +32,7 @@ async function main(): Promise<void> {
       new SupabaseAdminAuthClient(config.supabaseUrl, config.supabaseAdminKey),
       new PgSuperAdminBootstrapRepository(pool),
     );
-    const result = await service.bootstrap({ fullName, email, password });
+    const result = await service.bootstrap(input);
     if (result.status === "already_exists") {
       output.write("First Super Admin has already been created. No account was changed.\n");
       output.write(`Masked email: ${maskEmail(result.email)}\n`);
@@ -55,6 +49,40 @@ async function main(): Promise<void> {
   } finally {
     await pool.end();
   }
+}
+
+async function readBootstrapInput(): Promise<{
+  readonly fullName: string;
+  readonly email: string;
+  readonly password: string;
+}> {
+  const envInput = {
+    fullName: process.env.BACKEND_BOOTSTRAP_SUPER_ADMIN_FULL_NAME?.trim(),
+    email: process.env.BACKEND_BOOTSTRAP_SUPER_ADMIN_EMAIL?.trim(),
+    password: process.env.BACKEND_BOOTSTRAP_SUPER_ADMIN_PASSWORD,
+  };
+  const provided = Object.values(envInput).filter((value) => value && value.length > 0).length;
+  if (provided > 0) {
+    if (!envInput.fullName || !envInput.email || !envInput.password) {
+      throw new Error(
+        "BACKEND_BOOTSTRAP_SUPER_ADMIN_FULL_NAME, BACKEND_BOOTSTRAP_SUPER_ADMIN_EMAIL, and BACKEND_BOOTSTRAP_SUPER_ADMIN_PASSWORD must be provided together.",
+      );
+    }
+    return {
+      fullName: envInput.fullName,
+      email: envInput.email,
+      password: envInput.password,
+    };
+  }
+
+  const fullName = await readRequiredLine("Full name: ");
+  const email = await readRequiredLine("Email: ");
+  const password = await readHiddenLine("Password: ");
+  const passwordConfirmation = await readHiddenLine("Confirm password: ");
+  if (password !== passwordConfirmation) {
+    throw new Error("Password confirmation does not match.");
+  }
+  return { fullName, email, password };
 }
 
 async function readRequiredLine(prompt: string): Promise<string> {
