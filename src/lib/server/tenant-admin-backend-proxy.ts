@@ -78,21 +78,51 @@ async function refreshSession(
   return refreshSuperAdminSession(refreshToken).catch(() => null);
 }
 
-function fetchBackend(path: string, accessToken: string, init?: RequestInit): Promise<Response> {
-  return fetch(`${backendApiBaseUrl()}${path}`, {
+async function fetchBackend(path: string, accessToken: string, init?: RequestInit): Promise<Response> {
+  const request = {
     ...init,
     headers: {
       authorization: `Bearer ${accessToken}`,
       "x-portal": "admin",
       ...init?.headers,
     },
-    cache: "no-store",
-  });
+    cache: "no-store" as const,
+  };
+  const canRetry = !init?.method || init.method.toUpperCase() === "GET";
+  let response: Response | undefined;
+
+  for (let attempt = 0; attempt < (canRetry ? 3 : 1); attempt += 1) {
+    try {
+      response = await fetch(`${backendApiBaseUrl()}${path}`, request);
+    } catch (error) {
+      if (!canRetry || attempt === 2) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 250 * (attempt + 1)));
+      continue;
+    }
+    if (!isTemporaryBackendStatus(response.status) || attempt === 2) return response;
+    await new Promise((resolve) => setTimeout(resolve, 250 * (attempt + 1)));
+  }
+
+  return response!;
+}
+
+function isTemporaryBackendStatus(status: number): boolean {
+  return status === 408 || status === 429 || status === 502 || status === 503 || status === 504;
 }
 
 async function toJsonResponse(response: Response): Promise<NextResponse> {
   if (response.status === 204) return new NextResponse(null, { status: 204 });
   const text = await response.text();
-  const body = text ? JSON.parse(text) : { message: "Backend returned an empty response." };
+  let body: unknown = { message: "Backend returned an empty response." };
+  if (text) {
+    try {
+      body = JSON.parse(text);
+    } catch {
+      return NextResponse.json(
+        { message: "Tenant Admin service returned an invalid response." },
+        { status: 502 },
+      );
+    }
+  }
   return NextResponse.json(body, { status: response.status });
 }

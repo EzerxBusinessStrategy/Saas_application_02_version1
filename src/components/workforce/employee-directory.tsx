@@ -34,6 +34,7 @@ import {
   updateTenantAdminEmployeeAssignment,
   updateTenantAdminEmployeeCapacity,
 } from "@/features/operations/api/operations-api";
+import { readFormDraft } from "@/lib/client/form-draft-store";
 import type { Employee, EmployeeDirectoryFilters } from "@/types/workforce";
 
 const labelFor = (value: string) =>
@@ -163,6 +164,11 @@ export function EmployeeDirectory() {
     queryKey: ["tenant-admin-employees"],
     queryFn: listTenantAdminEmployeeDirectory,
   });
+  useEffect(() => {
+    if (readFormDraft(`${pathname}:tenant-employee-create`)) {
+      setCreateOpen(true);
+    }
+  }, [pathname]);
   const filters = useMemo<EmployeeDirectoryFilters>(
     () => ({
       query: searchParams.get("query") ?? undefined,
@@ -282,20 +288,19 @@ export function EmployeeDirectory() {
       accessorKey: "department",
       header: "Department",
       cell: ({ row }) => (
-        <span>
+        <div className="min-w-32">
           {row.original.department}
           <span className="mt-1 block text-xs text-muted-foreground">
             {row.original.categories.join(", ")}
           </span>
-          <Button className="mt-2 h-7 px-2 text-xs" variant="outline" size="sm" onClick={() => setAssignmentEmployee(row.original)}>Edit</Button>
-        </span>
+        </div>
       ),
     },
     {
       id: "skills",
       header: "Skills & level",
       cell: ({ row }) => (
-        <span>
+        <div className="min-w-36">
           {row.original.skills.length ? (
             row.original.skills.join(", ")
           ) : (
@@ -306,25 +311,23 @@ export function EmployeeDirectory() {
               {labelFor(row.original.experienceLevel)}
             </span>
           ) : null}
-          <Button className="mt-2 h-7 px-2 text-xs" variant="outline" size="sm" onClick={() => setAssignmentEmployee(row.original)}>Edit</Button>
-        </span>
+        </div>
       ),
     },
     {
       id: "manager",
       header: "Manager",
       cell: ({ row }) => (
-        <span>
+        <div className="min-w-32">
           {row.original.manager?.name ?? <span className="text-muted-foreground">Unassigned</span>}
-          <Button className="mt-2 block h-7 px-2 text-xs" variant="outline" size="sm" onClick={() => setAssignmentEmployee(row.original)}>Edit</Button>
-        </span>
+        </div>
       ),
     },
     {
       id: "workload",
       header: "Capacity & utilisation",
       cell: ({ row }) => (
-        <span>
+        <div className="min-w-40">
           <span className="block">
             {row.original.workload.allocatedHours}/
             {row.original.workload.capacityHours} hours
@@ -333,10 +336,7 @@ export function EmployeeDirectory() {
             {row.original.utilisationPercent}% utilised ·{" "}
             {row.original.activeTasks} active tasks
           </span>
-          <Button className="mt-2 h-7 px-2 text-xs" variant="outline" size="sm" onClick={() => setCapacityEmployee(row.original)}>
-            Edit
-          </Button>
-        </span>
+        </div>
       ),
     },
     {
@@ -353,7 +353,7 @@ export function EmployeeDirectory() {
       id: "actions",
       header: "Actions",
       cell: ({ row }) => (
-        <div className="flex items-center gap-3">
+        <div className="flex min-w-52 items-center gap-2">
           <label className="flex items-center gap-2 text-sm">
             <input
               type="checkbox"
@@ -370,6 +370,20 @@ export function EmployeeDirectory() {
             />
             Manager
           </label>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setAssignmentEmployee(row.original)}
+          >
+            Edit details
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setCapacityEmployee(row.original)}
+          >
+            Edit capacity
+          </Button>
           <Button
             variant="outline"
             size="sm"
@@ -655,22 +669,30 @@ function CreateEmployeeDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent title="Create employee" description="Add an active employee to this tenant." className="max-w-md">
-        <div className="grid gap-4 pr-8">
-          <label className="text-sm font-medium">Name<Input required data-field-label="Name" className="mt-1" value={name} onChange={(event) => setName(event.target.value)} /></label>
-          <label className="text-sm font-medium">Email<Input required data-field-label="Email" className="mt-1" type="email" value={email} onChange={(event) => setEmail(event.target.value)} /></label>
+        <form
+          data-draft-key="tenant-employee-create"
+          className="grid gap-4 pr-8"
+          noValidate
+          onSubmit={(event) => {
+            event.preventDefault();
+            void save();
+          }}
+        >
+          <label className="text-sm font-medium">Name<Input required data-field-label="Name" name="name" className="mt-1" value={name} onChange={(event) => setName(event.target.value)} /></label>
+          <label className="text-sm font-medium">Email<Input required data-field-label="Email" name="email" className="mt-1" type="email" value={email} onChange={(event) => setEmail(event.target.value)} /></label>
           {emailUnavailable ? <p className="-mt-3 text-sm text-danger">Email already exists.</p> : null}
           {emailCheckFailed ? <p className="-mt-3 text-sm text-danger">Email availability could not be checked.</p> : null}
-          <label className="text-sm font-medium">Password<Input required data-field-label="Password" className="mt-1" type="password" minLength={8} value={password} onChange={(event) => setPassword(event.target.value)} /></label>
-          <label className="text-sm font-medium">Employee code<Input className="mt-1" placeholder="Auto-generated if empty" value={employeeCode} onChange={(event) => setEmployeeCode(event.target.value)} /></label>
-          <label className="text-sm font-medium">Skills (optional)<Input className="mt-1" placeholder="GST, Payroll, Compliance" value={skills} onChange={(event) => setSkills(event.target.value)} /></label>
-          <label className="text-sm font-medium">Level (optional)<Select className="mt-1" value={experienceLevel} onChange={(event) => setExperienceLevel(event.target.value)}><option value="">Not set</option><option value="junior">Junior</option><option value="mid">Mid</option><option value="senior">Senior</option><option value="lead">Lead</option></Select></label>
-          <label className="text-sm font-medium">Weekly capacity hours<Input required data-field-label="Weekly capacity hours" className="mt-1" type="number" min="1" max="168" value={weeklyCapacityHours} onChange={(event) => setWeeklyCapacityHours(event.target.value)} /></label>
-          <label className="flex items-center gap-2 text-sm font-medium"><input type="checkbox" checked={isManager} onChange={(event) => setIsManager(event.target.checked)} />Make this employee a manager</label>
+          <label className="text-sm font-medium">Password<Input required data-field-label="Password" name="password" className="mt-1" type="password" minLength={8} value={password} onChange={(event) => setPassword(event.target.value)} /></label>
+          <label className="text-sm font-medium">Employee code<Input name="employeeCode" className="mt-1" placeholder="Auto-generated if empty" value={employeeCode} onChange={(event) => setEmployeeCode(event.target.value)} /></label>
+          <label className="text-sm font-medium">Skills (optional)<Input name="skills" className="mt-1" placeholder="GST, Payroll, Compliance" value={skills} onChange={(event) => setSkills(event.target.value)} /></label>
+          <label className="text-sm font-medium">Level (optional)<Select name="experienceLevel" className="mt-1" value={experienceLevel} onChange={(event) => setExperienceLevel(event.target.value)}><option value="">Not set</option><option value="junior">Junior</option><option value="mid">Mid</option><option value="senior">Senior</option><option value="lead">Lead</option></Select></label>
+          <label className="text-sm font-medium">Weekly capacity hours<Input required data-field-label="Weekly capacity hours" name="weeklyCapacityHours" className="mt-1" type="number" min="1" max="168" value={weeklyCapacityHours} onChange={(event) => setWeeklyCapacityHours(event.target.value)} /></label>
+          <label className="flex items-center gap-2 text-sm font-medium"><input name="isManager" type="checkbox" checked={isManager} onChange={(event) => setIsManager(event.target.checked)} />Make this employee a manager</label>
           <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-            <Button disabled={saving} onClick={() => void save()}>{saving ? "Creating..." : "Create employee"}</Button>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+            <Button type="submit" disabled={createDisabled}>{saving ? "Creating..." : "Create employee"}</Button>
           </div>
-        </div>
+        </form>
       </DialogContent>
     </Dialog>
   );
@@ -694,13 +716,21 @@ function CapacityDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent title="Edit capacity" description="Update weekly capacity hours." className="max-w-sm">
-        <div className="grid gap-4 pr-8">
-          <label className="text-sm font-medium">Weekly capacity hours<Input className="mt-1" type="number" min="1" max="168" value={value} onChange={(event) => setValue(event.target.value)} /></label>
+        <form
+          data-draft-key={`tenant-employee-capacity-${currentEmployeeId ?? "new"}`}
+          className="grid gap-4 pr-8"
+          noValidate
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (currentEmployeeId && Number(value)) void onSaved(Number(value));
+          }}
+        >
+          <label className="text-sm font-medium">Weekly capacity hours<Input name="weeklyCapacityHours" className="mt-1" type="number" min="1" max="168" value={value} onChange={(event) => setValue(event.target.value)} /></label>
           <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => { setValue(""); onOpenChange(false); }}>Cancel</Button>
-            <Button disabled={!currentEmployeeId || !Number(value)} onClick={() => void onSaved(Number(value))}>Save</Button>
+            <Button type="button" variant="outline" onClick={() => { setValue(""); onOpenChange(false); }}>Cancel</Button>
+            <Button type="submit" disabled={!currentEmployeeId || !Number(value)}>Save</Button>
           </div>
-        </div>
+        </form>
       </DialogContent>
     </Dialog>
   );
@@ -758,16 +788,24 @@ function AssignmentDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent title="Edit employee details" description="Update department, skills, level, and reporting manager." className="max-w-md">
-        <div className="grid gap-4 pr-8">
-          <label className="text-sm font-medium">Department<Select className="mt-1" value={departmentId} onChange={(event) => setDepartmentId(event.target.value)}><option value="">Unassigned</option>{departments.map((department) => <option key={department.id} value={department.id}>{department.name}</option>)}</Select></label>
-          <label className="text-sm font-medium">Skills<Input className="mt-1" value={skills} placeholder="GST, Payroll, Compliance" onChange={(event) => setSkills(event.target.value)} /></label>
-          <label className="text-sm font-medium">Level<Select className="mt-1" value={experienceLevel} onChange={(event) => setExperienceLevel(event.target.value)}><option value="">Not set</option><option value="junior">Junior</option><option value="mid">Mid</option><option value="senior">Senior</option><option value="lead">Lead</option></Select></label>
-          <label className="text-sm font-medium">Manager<Select className="mt-1" value={managerId} onChange={(event) => setManagerId(event.target.value)}><option value="">Unassigned</option>{managers.filter((manager) => manager.id !== employee?.id).map((manager) => <option key={manager.id} value={manager.id}>{manager.name}</option>)}</Select></label>
+        <form
+          data-draft-key={`tenant-employee-assignment-${employee?.id ?? "new"}`}
+          className="grid gap-4 pr-8"
+          noValidate
+          onSubmit={(event) => {
+            event.preventDefault();
+            void save();
+          }}
+        >
+          <label className="text-sm font-medium">Department<Select name="departmentId" className="mt-1" value={departmentId} onChange={(event) => setDepartmentId(event.target.value)}><option value="">Unassigned</option>{departments.map((department) => <option key={department.id} value={department.id}>{department.name}</option>)}</Select></label>
+          <label className="text-sm font-medium">Skills<Input name="skills" className="mt-1" value={skills} placeholder="GST, Payroll, Compliance" onChange={(event) => setSkills(event.target.value)} /></label>
+          <label className="text-sm font-medium">Level<Select name="experienceLevel" className="mt-1" value={experienceLevel} onChange={(event) => setExperienceLevel(event.target.value)}><option value="">Not set</option><option value="junior">Junior</option><option value="mid">Mid</option><option value="senior">Senior</option><option value="lead">Lead</option></Select></label>
+          <label className="text-sm font-medium">Manager<Select name="managerId" className="mt-1" value={managerId} onChange={(event) => setManagerId(event.target.value)}><option value="">Unassigned</option>{managers.filter((manager) => manager.id !== employee?.id).map((manager) => <option key={manager.id} value={manager.id}>{manager.name}</option>)}</Select></label>
           <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-            <Button disabled={saving} onClick={() => void save()}>{saving ? "Saving..." : "Save changes"}</Button>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+            <Button type="submit" disabled={saving}>{saving ? "Saving..." : "Save changes"}</Button>
           </div>
-        </div>
+        </form>
       </DialogContent>
     </Dialog>
   );

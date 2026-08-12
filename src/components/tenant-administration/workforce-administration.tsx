@@ -5,7 +5,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useEffect, useState, type CSSProperties } from "react";
 import { useForm } from "react-hook-form";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { ImagePlus, MoreHorizontal, Plus, X } from "lucide-react";
 import { toast } from "sonner";
 import { DataTable } from "@/components/operations/data-table";
@@ -43,6 +43,7 @@ import {
   type TenantAdminEmployeeOption,
 } from "@/features/operations/api/operations-api";
 import { saveTenantBrandingSession, tenantBrandingFontFamily } from "@/lib/tenant-branding-session";
+import { readFormDraft } from "@/lib/client/form-draft-store";
 import { organisationStructure } from "@/mocks/administration";
 import { employees } from "@/mocks/workforce";
 import { tenantBrandingDraftSchema, type TenantBrandingDraft } from "@/types/administration";
@@ -259,11 +260,15 @@ export function ManagerDirectory() {
   const [addOpen, setAddOpen] = useState(false);
   const queryClient = useQueryClient();
   const router = useRouter();
+  const pathname = usePathname();
   const employeesQuery = useQuery({
     queryKey: ["tenant-admin-employees"],
     queryFn: listTenantAdminEmployees,
   });
   const employees = employeesQuery.data ?? [];
+  useEffect(() => {
+    if (readFormDraft(`${pathname}:tenant-add-manager`)) setAddOpen(true);
+  }, [pathname]);
   const managers = employees.filter((employee) => employee.isManager);
   const refresh = () => queryClient.invalidateQueries({ queryKey: ["tenant-admin-employees"] });
   const removeManager = async (employee: TenantAdminEmployeeOption) => {
@@ -402,13 +407,21 @@ function AddManagerDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent title="Enable manager access" description="Select an active employee to grant manager access." className="max-w-md">
-        <div className="grid gap-4 pr-8">
-          <label className="text-sm font-medium">Employee<Select className="mt-1" value={employeeId} onChange={(event) => setEmployeeId(event.target.value)}><option value="">Select employee</option>{employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.name}</option>)}</Select></label>
+        <form
+          data-draft-key="tenant-add-manager"
+          className="grid gap-4 pr-8"
+          noValidate
+          onSubmit={(event) => {
+            event.preventDefault();
+            void save();
+          }}
+        >
+          <label className="text-sm font-medium">Employee<Select name="employeeId" className="mt-1" value={employeeId} onChange={(event) => setEmployeeId(event.target.value)}><option value="">Select employee</option>{employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.name}</option>)}</Select></label>
           <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-            <Button disabled={!employeeId || saving} onClick={() => void save()}>{saving ? "Saving..." : "Enable manager"}</Button>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+            <Button type="submit" disabled={!employeeId || saving}>{saving ? "Saving..." : "Enable manager"}</Button>
           </div>
-        </div>
+        </form>
       </DialogContent>
     </Dialog>
   );

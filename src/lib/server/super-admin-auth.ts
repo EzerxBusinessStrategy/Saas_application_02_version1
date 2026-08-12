@@ -10,6 +10,7 @@ type SupabasePasswordSession = {
 };
 
 const supabaseAuthTimeoutMs = 5000;
+const backendReadAttempts = 3;
 
 type SuperAdminMe = {
   user: {
@@ -132,17 +133,8 @@ async function createSessionPolicy(accessToken: string, rememberMe: boolean, por
 }
 
 export async function fetchVerifiedSuperAdminMe(accessToken: string): Promise<SuperAdminMe | null> {
-  const response = await fetch(`${backendApiBaseUrl()}/me`, {
-    headers: {
-      authorization: `Bearer ${accessToken}`,
-      "x-portal": "super-admin",
-    },
-    cache: "no-store",
-  }).catch(() => null);
-  if (!response) return null;
-  if (!response.ok) return null;
-
-  const me = (await response.json()) as SuperAdminMe;
+  const me = await fetchVerifiedMe(accessToken, "super-admin");
+  if (!me) return null;
   if (!me.isPlatformAdmin || !me.roles.includes("SUPER_ADMIN") || me.activeMembership !== null) {
     return null;
   }
@@ -166,15 +158,56 @@ async function fetchVerifiedWorkspaceMe(
   portal: Workspace,
   allowedRoles: readonly Role[],
 ): Promise<SuperAdminMe | null> {
-  const response = await fetch(`${backendApiBaseUrl()}/me`, {
-    headers: { authorization: `Bearer ${accessToken}`, "x-portal": portal },
-    cache: "no-store",
-  }).catch(() => null);
-  if (!response) return null;
-  if (!response.ok) return null;
-  const me = (await response.json()) as SuperAdminMe;
+  const me = await fetchVerifiedMe(accessToken, portal);
+  if (!me) return null;
   if (me.isPlatformAdmin || !allowedRoles.some((role) => me.roles.includes(role)) || !me.activeMembership) return null;
   return me;
+}
+
+async function fetchVerifiedMe(
+  accessToken: string,
+  portal: Workspace | "super-admin",
+): Promise<SuperAdminMe | null> {
+  const response = await fetchBackendReadWithRetry(`${backendApiBaseUrl()}/me`, {
+    headers: { authorization: `Bearer ${accessToken}`, "x-portal": portal },
+    cache: "no-store",
+  });
+  if (!response?.ok) return null;
+
+  const me = await response.json().catch(() => null) as SuperAdminMe | null;
+  return isVerifiedMeShape(me) ? me : null;
+}
+
+function isVerifiedMeShape(value: SuperAdminMe | null): value is SuperAdminMe {
+  return Boolean(
+    value &&
+      Array.isArray(value.roles) &&
+      typeof value.isPlatformAdmin === "boolean" &&
+      value.user &&
+      typeof value.user.email === "string" &&
+      typeof value.user.displayName === "string",
+  );
+}
+
+async function fetchBackendReadWithRetry(
+  input: string,
+  init: RequestInit,
+): Promise<Response | null> {
+  let response: Response | null = null;
+  for (let attempt = 0; attempt < backendReadAttempts; attempt += 1) {
+    response = await fetch(input, init).catch(() => null);
+    if (response && !shouldRetryBackendRead(response.status)) return response;
+    if (attempt < backendReadAttempts - 1) await waitForRetry(attempt);
+  }
+  return response;
+}
+
+function shouldRetryBackendRead(status: number): boolean {
+  return status === 408 || status === 429 || status === 502 || status === 503 || status === 504;
+}
+
+function waitForRetry(attempt: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 250 * (attempt + 1)));
 }
 
 export async function updateVerifiedSuperAdminProfile({

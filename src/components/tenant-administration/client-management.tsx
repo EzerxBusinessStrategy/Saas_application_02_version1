@@ -53,6 +53,7 @@ import {
   type TenantAdminEmployeeOption,
   type TenantAdminWorkGroup,
 } from "@/features/operations/api/operations-api";
+import { readFormDraft } from "@/lib/client/form-draft-store";
 import { clients, managers } from "@/mocks/administration";
 import {
   clientCreateInputSchema,
@@ -630,6 +631,7 @@ function CreateClientForm({
   });
   return (
     <form
+      data-draft-key="tenant-client-create"
       className="grid gap-4"
       noValidate
       onSubmit={form.handleSubmit(async (values) => {
@@ -1477,6 +1479,7 @@ function WorkGroupForm({
     selectedEmployees.size === 0;
   return (
     <form
+      data-draft-key={`tenant-work-group-${workGroup?.id ?? "create"}`}
       className="grid max-h-[70vh] gap-5 overflow-y-auto pr-1 sm:grid-cols-2"
       noValidate
       onSubmit={(event) => {
@@ -1499,12 +1502,12 @@ function WorkGroupForm({
     >
       <label className="text-sm font-medium sm:col-span-2">
         Work-group name
-        <Input required data-field-label="Work-group name" className="mt-1" value={values.name} onChange={(event) => setValues((current) => ({ ...current, name: event.target.value }))} />
+        <Input required data-field-label="Work-group name" name="name" className="mt-1" value={values.name} onChange={(event) => setValues((current) => ({ ...current, name: event.target.value }))} />
       </label>
       {formError ? <p className="text-sm text-danger sm:col-span-2" role="alert">{formError}</p> : null}
       <label className="text-sm font-medium">
         Client
-        <Select className="mt-1" value={values.clientId} onChange={(event) => setValues((current) => ({ ...current, clientId: event.target.value }))}>
+        <Select name="clientId" className="mt-1" value={values.clientId} onChange={(event) => setValues((current) => ({ ...current, clientId: event.target.value }))}>
           <option value="">No client</option>
           {clientOptions.map((client) => (
             <option key={client.id} value={client.id}>
@@ -1519,6 +1522,7 @@ function WorkGroupForm({
           className="mt-1"
           required
           data-field-label="Manager"
+          name="managerEmployeeId"
           value={values.managerEmployeeId}
           onChange={(event) => {
             const managerEmployeeId = event.target.value;
@@ -1546,6 +1550,8 @@ function WorkGroupForm({
               <label key={employee.id} className="flex items-center gap-2 text-sm">
                 <input
                   type="checkbox"
+                  name="employeeIds"
+                  value={employee.id}
                   className="size-4 accent-primary"
                   checked={selectedEmployees.has(employee.id)}
                   onChange={() =>
@@ -1567,7 +1573,7 @@ function WorkGroupForm({
       </fieldset>
       <label className="text-sm font-medium">
         Status
-        <Select className="mt-1" value={values.status} onChange={(event) => setValues((current) => ({ ...current, status: event.target.value as WorkGroupFormValues["status"] }))}>
+        <Select name="status" className="mt-1" value={values.status} onChange={(event) => setValues((current) => ({ ...current, status: event.target.value as WorkGroupFormValues["status"] }))}>
           <option value="active">Active</option>
           <option value="inactive">Inactive</option>
           <option value="archived">Archived</option>
@@ -1587,6 +1593,7 @@ function WorkGroupForm({
 
 export function WorkGroupDirectory() {
   const queryClient = useQueryClient();
+  const pathname = usePathname();
   const groupsQuery = useQuery({
     queryKey: ["work-groups"],
     queryFn: listTenantAdminWorkGroups,
@@ -1602,6 +1609,11 @@ export function WorkGroupDirectory() {
   const [selected, setSelected] = useState<TenantAdminWorkGroup | null>(null);
   const [editing, setEditing] = useState<TenantAdminWorkGroup | "new" | null>(null);
   const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    if (readFormDraft(`${pathname}:tenant-work-group-create`)) {
+      setEditing("new");
+    }
+  }, [pathname]);
   const hasInitialData = Boolean(groupsQuery.data && employeesQuery.data && clientsQuery.data);
   if (!hasInitialData && (groupsQuery.isPending || employeesQuery.isPending || clientsQuery.isPending))
     return <LoadingState label="Loading work groups" rows={4} />;

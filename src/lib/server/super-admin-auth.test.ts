@@ -2,6 +2,7 @@ import { afterEach, expect, test, vi } from "vitest";
 import {
   createEmployeeSessionPolicy,
   fetchVerifiedEmployeeMe,
+  fetchVerifiedTenantAdminMe,
   refreshSuperAdminSession,
   signInSuperAdminWithPassword,
   userFromEmployeeMe,
@@ -142,6 +143,28 @@ test("creates and verifies an employee portal session", async () => {
     name: "abcdef",
     role: "EMPLOYEE",
   });
+});
+
+test("retries a transient Tenant Admin identity response before denying the workspace", async () => {
+  process.env.NEXT_PUBLIC_API_BASE_URL = "http://localhost:4000/api/v1";
+  const fetchMock = vi
+    .fn()
+    .mockResolvedValueOnce(new Response("service warming", { status: 503 }))
+    .mockResolvedValueOnce(
+      jsonResponse({
+        user: { email: "tenant@example.com", displayName: "Tenant Admin" },
+        activeMembership: { tenant: { displayName: "Northstar Advisory" } },
+        roles: ["TENANT_ADMIN"],
+        isPlatformAdmin: false,
+      }),
+    );
+  vi.stubGlobal("fetch", fetchMock);
+
+  await expect(fetchVerifiedTenantAdminMe("tenant-token")).resolves.toMatchObject({
+    user: { email: "tenant@example.com" },
+    roles: ["TENANT_ADMIN"],
+  });
+  expect(fetchMock).toHaveBeenCalledTimes(2);
 });
 
 test("uses the active tenant profile name in the Tenant Admin header", () => {

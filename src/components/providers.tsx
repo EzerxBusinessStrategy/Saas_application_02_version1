@@ -4,6 +4,7 @@ import { ThemeProvider } from "next-themes";
 import { useEffect, useState, type ReactNode } from "react";
 import { Toaster } from "sonner";
 import { FormValidationGuard } from "@/components/shared/form-validation-guard";
+import { FormDraftPersistence } from "@/components/shared/form-draft-persistence";
 
 function ThemeAwareToaster() {
   const [theme, setTheme] = useState<"light" | "dark">("light");
@@ -34,7 +35,8 @@ export function Providers({ children }: { children: ReactNode }) {
             staleTime: 30_000,
             gcTime: 5 * 60_000,
             refetchOnWindowFocus: false,
-            retry: 1,
+            retry: 3,
+            retryDelay: (attempt) => Math.min(250 * 2 ** attempt, 2_000),
           },
         },
       }),
@@ -50,6 +52,7 @@ export function Providers({ children }: { children: ReactNode }) {
       <QueryClientProvider client={client}>
         {children}
         <FormValidationGuard />
+        <FormDraftPersistence />
         <ThemeAwareToaster />
       </QueryClientProvider>
     </ThemeProvider>
