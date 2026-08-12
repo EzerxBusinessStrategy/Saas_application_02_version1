@@ -137,6 +137,12 @@ test("shows Tenant Admin navigation as direct links without dropdown groups", ()
   );
   expect(screen.getByRole("link", { name: "Clients" })).toBeInTheDocument();
   expect(screen.getByRole("link", { name: "Employees" })).toBeInTheDocument();
+  expect(
+    within(screen.getByRole("navigation", { name: "Workspace navigation" }))
+      .getAllByRole("link")
+      .slice(0, 6)
+      .map((link) => link.textContent?.trim()),
+  ).toEqual(["Dashboard", "Employees", "Work groups", "Services", "Clients", "Tasks"]);
   expect(screen.queryByRole("button", { name: "Delivery" })).not.toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "Operations" })).not.toBeInTheDocument();
 });

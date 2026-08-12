@@ -216,13 +216,31 @@ const superAdminNavigation = filterForWorkspace(common, "super-admin").flatMap(
   (item) => item.children ?? [item],
 );
 
+const tenantAdminNavigation = filterForWorkspace(common, "admin").flatMap(
+  (item) => item.children ?? [item],
+);
+const tenantAdminPrimaryOrder = [
+  "Dashboard",
+  "Employees",
+  "Work groups",
+  "Services",
+  "Clients",
+  "Tasks",
+] as const;
+const tenantAdminPrimaryOrderIndex = new Map<string, number>(
+  tenantAdminPrimaryOrder.map((label, index) => [label, index]),
+);
+const orderedTenantAdminNavigation = [...tenantAdminNavigation].sort(
+  (left, right) =>
+    (tenantAdminPrimaryOrderIndex.get(left.label) ?? tenantAdminPrimaryOrder.length) -
+    (tenantAdminPrimaryOrderIndex.get(right.label) ?? tenantAdminPrimaryOrder.length),
+);
+
 export const navigationFor = (workspace: Workspace, isManager = false) =>
   workspace === "super-admin"
     ? superAdminNavigation
     : workspace === "admin"
-      ? filterForWorkspace(common, workspace).flatMap(
-          (item) => item.children ?? [item],
-        )
+      ? orderedTenantAdminNavigation
     : workspace === "employee"
       ? isManager
         ? [...employeeNavigation, { label: "Manager", labelKey: "Workspace.manager", icon: Users, children: employeeManagerNavigation }]

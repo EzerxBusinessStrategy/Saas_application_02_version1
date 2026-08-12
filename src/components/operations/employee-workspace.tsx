@@ -38,7 +38,7 @@ import {
 } from "@/components/operations/gamification-workflows";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ErrorState } from "@/components/shared/error-state";
-import { GravityWellLoader } from "@/components/shared/gravity-well-loader";
+import { BoxBuildLoader } from "@/components/shared/box-build-loader";
 import { LoadingState } from "@/components/shared/loading-state";
 import { MetricCard } from "@/components/shared/metric-card";
 import { PageHeader } from "@/components/shared/page-header";
@@ -1043,9 +1043,10 @@ function EmployeeInfo({ section }: { section: "notifications" | "profile" }) {
         <Card>
           <CardContent className="pt-[30px]">
             {notifications.isLoading ? (
-              <GravityWellLoader
+              <BoxBuildLoader
                 label="Loading notifications"
-                className="h-64 min-h-64 rounded-[var(--radius-card)] bg-transparent dark:bg-transparent"
+                className="h-64 min-h-64"
+                variant="panel"
               />
             ) : null}
             {notifications.isError ? (

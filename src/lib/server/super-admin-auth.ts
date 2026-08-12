@@ -1,6 +1,7 @@
 import type { Role, User, Workspace } from "@/types/domain";
 import { defaultLocale, timezones, type AppLocale, type AppTimezone } from "@/i18n/config";
 import { rolePermissions } from "@/lib/permissions";
+import { backendApiBaseUrl } from "@/lib/server/backend-api-url";
 
 type SupabasePasswordSession = {
   access_token?: string;
@@ -249,12 +250,6 @@ function userFromMe(me: SuperAdminMe, fallbackRole: Role, preferredRole?: Role):
 
 function preferencesFor(me: SuperAdminMe): { locale: AppLocale; timezone: AppTimezone } {
   return me.preferences ?? { locale: defaultLocale, timezone: timezones[0].timezone };
-}
-
-function backendApiBaseUrl(): string {
-  const configured = process.env.NEXT_PUBLIC_API_BASE_URL;
-  const fallback = "http://localhost:4000/api/v1";
-  return stripTrailingSlash(!configured || configured === "https://api.example.com" ? fallback : configured);
 }
 
 function requiredServerEnv(name: "BACKEND_SUPABASE_URL" | "BACKEND_SUPABASE_ANON_KEY"): string {

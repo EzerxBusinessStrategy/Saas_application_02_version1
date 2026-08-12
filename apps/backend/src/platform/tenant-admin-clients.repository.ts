@@ -432,14 +432,14 @@ export class TenantAdminClientsRepository {
   private async nextClientCode(client: PoolClient, tenantId: string): Promise<string> {
     const result = await client.query<{ next_number: string }>(
       `
-        select coalesce(max(substring(code from '^CL-([0-9]+)$')::int), 100) + 1 as next_number
+        select coalesce(max(substring(code from '^cl-([0-9]+)$')::int), 100) + 1 as next_number
         from public.clients
         where tenant_id = $1
-          and code ~ '^CL-[0-9]+$'
+          and code ~ '^cl-[0-9]+$'
       `,
       [tenantId],
     );
-    return `CL-${String(Number(result.rows[0]?.next_number ?? 101)).padStart(3, "0")}`;
+    return `cl-${String(Number(result.rows[0]?.next_number ?? 101)).padStart(3, "0")}`;
   }
 
   private async getServiceOptions(client: PoolClient, tenantId: string) {

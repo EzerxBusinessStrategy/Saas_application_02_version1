@@ -591,7 +591,6 @@ export class TenantAdminTasksRepository {
       await this.createPendingBillableEntry(
         client,
         context.tenantId,
-        context.membershipId,
         taskId,
         input.clientId,
         pricing,
@@ -1669,7 +1668,6 @@ export class TenantAdminTasksRepository {
   private async createPendingBillableEntry(
     client: PoolClient,
     tenantId: string,
-    membershipId: string,
     taskId: string,
     clientId: string,
     pricing: TaskPricing,
@@ -1714,7 +1712,6 @@ export class TenantAdminTasksRepository {
         discountValue || null,
         discountAmount,
         netAmount,
-        membershipId,
       ],
     );
   }

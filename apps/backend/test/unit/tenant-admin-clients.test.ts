@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { TenantAdminClientsRepository } from "../../src/platform/tenant-admin-clients.repository";
 
 describe("TenantAdminClientsRepository", () => {
-  it("creates a tenant-scoped client with a primary contact and audit event", async () => {
+  it("creates a tenant-scoped client with a lowercase generated code when the client ID is empty", async () => {
     const queries: string[] = [];
     const params: unknown[][] = [];
     const client = {
@@ -74,7 +74,7 @@ describe("TenantAdminClientsRepository", () => {
       {
         displayName: "ABC Pvt Ltd",
         legalName: "",
-        code: "abc pvt",
+        code: "",
         primaryContact: {
           name: "Priya Sen",
           role: "Accounts",
@@ -96,6 +96,6 @@ describe("TenantAdminClientsRepository", () => {
     expect(sql).toContain("insert into public.client_portal_accounts");
     expect(sql).toContain("CLIENT_PORTAL_ACCOUNT_CREATED");
     expect(sql).toContain("CLIENT_CREATED");
-    expect(params).toContainEqual(["tenant-1", "abc-pvt", "ABC Pvt Ltd", "ABC Pvt Ltd"]);
+    expect(params).toContainEqual(["tenant-1", "cl-101", "ABC Pvt Ltd", "ABC Pvt Ltd"]);
   });
 });

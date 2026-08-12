@@ -7,7 +7,7 @@ import {
 } from "@/lib/auth-cookies";
 import { refreshSuperAdminSession } from "@/lib/server/super-admin-auth";
 import { clearSuperAdminSessionCookies, setSuperAdminSessionCookies } from "@/lib/server/super-admin-session-cookies";
-import { backendApiBaseUrl } from "@/lib/server/tenant-admin-backend-proxy";
+import { backendApiBaseUrl } from "@/lib/server/backend-api-url";
 
 type ProxyOptions = {
   readonly path: string;

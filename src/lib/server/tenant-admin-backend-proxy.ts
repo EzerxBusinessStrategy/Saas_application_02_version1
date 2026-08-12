@@ -7,6 +7,7 @@ import {
 } from "@/lib/auth-cookies";
 import { refreshSuperAdminSession } from "@/lib/server/super-admin-auth";
 import { clearSuperAdminSessionCookies, setSuperAdminSessionCookies } from "@/lib/server/super-admin-session-cookies";
+import { backendApiBaseUrl } from "@/lib/server/backend-api-url";
 
 type ProxyOptions = {
   readonly path: string;
@@ -94,10 +95,4 @@ async function toJsonResponse(response: Response): Promise<NextResponse> {
   const text = await response.text();
   const body = text ? JSON.parse(text) : { message: "Backend returned an empty response." };
   return NextResponse.json(body, { status: response.status });
-}
-
-export function backendApiBaseUrl(): string {
-  const configured = process.env.NEXT_PUBLIC_API_BASE_URL;
-  const fallback = "http://localhost:4000/api/v1";
-  return (!configured || configured === "https://api.example.com" ? fallback : configured).replace(/\/+$/, "");
 }

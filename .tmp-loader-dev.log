@@ -1,0 +1,16 @@
+   ▲ Next.js 15.5.20
+   - Local:        http://localhost:3004
+   - Network:      http://172.16.0.2:3004
+   - Environments: .env.local
+
+ ✓ Starting...
+ ✓ Ready in 2.6s
+ ○ Compiling /[workspace] ...
+ ✓ Compiled /[workspace] in 9s (2661 modules)
+ GET /super-admin 307 in 11126ms
+ ○ Compiling /login ...
+ ✓ Compiled /login in 2.7s (2681 modules)
+ GET /login 200 in 3077ms
+ ✓ Compiled in 422ms (1218 modules)
+ ✓ Compiled in 397ms (1218 modules)
+[?25h

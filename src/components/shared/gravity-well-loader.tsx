@@ -1,5 +1,10 @@
 "use client";
 
+/*
+ * Archived gravity-well loader.
+ * Replaced by the shared BoxBuildLoader so all portals use one page-loading experience.
+ * Kept here, commented out, at the user's request for future reference.
+ *
 import { useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
 
@@ -451,3 +456,4 @@ export function GravityWellLoader({
     </div>
   );
 }
+*/

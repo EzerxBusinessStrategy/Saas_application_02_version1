@@ -89,6 +89,8 @@ export function TenantCreatePageForm() {
     queryKey: ["tenant-creation-options", countryCode, incorporationDate],
     queryFn: () => getTenantCreationOptions(countryCode, incorporationDate || undefined),
   });
+  const selectedOptions = options.data?.countryCode === countryCode ? options.data : undefined;
+  const selectedCountry = selectedOptions?.countries.find((country) => country.countryCode === countryCode);
 
   const mutation = useMutation({
     mutationFn: createTenant,
@@ -114,16 +116,7 @@ export function TenantCreatePageForm() {
     const countryChanged = prevCountryRef.current !== countryCode;
     prevCountryRef.current = countryCode;
 
-    if (!options.data) return;
-
-    // Always update currency and timezone from the selected country
-    const country = options.data.countries.find((item) => item.countryCode === countryCode);
-    if (country) {
-      form.setValue("company.reportingCurrencyCode", country.reportingCurrencyCode);
-      form.setValue("company.timezone", country.timezone);
-    }
-
-    // When country changes, reset the financial year fields
+    // Clear the previous country's financial year before the new policy loads.
     if (countryChanged) {
       form.setValue("financialYear.source", "COUNTRY_SUGGESTION_CONFIRMED");
       form.setValue("financialYear.label", "");
@@ -133,14 +126,23 @@ export function TenantCreatePageForm() {
       form.setValue("financialYear.overrideReason", "");
     }
 
-    // Auto-fill suggested financial year when available and source is COUNTRY_SUGGESTION
-    if (options.data.suggestedFinancialYear && fySource === "COUNTRY_SUGGESTION_CONFIRMED") {
-      form.setValue("financialYear.templateId", options.data.suggestedFinancialYear.id);
-      form.setValue("financialYear.label", options.data.suggestedFinancialYear.label);
-      form.setValue("financialYear.startsOn", options.data.suggestedFinancialYear.startsOn);
-      form.setValue("financialYear.endsOn", options.data.suggestedFinancialYear.endsOn);
+    if (!selectedOptions) return;
+
+    // Always update currency and timezone from the selected country
+    const country = selectedOptions.countries.find((item) => item.countryCode === countryCode);
+    if (country) {
+      form.setValue("company.reportingCurrencyCode", country.reportingCurrencyCode);
+      form.setValue("company.timezone", country.timezone);
     }
-  }, [countryCode, incorporationDate, form, fySource, options.data]);
+
+    // Auto-fill suggested financial year when available and source is COUNTRY_SUGGESTION
+    if (selectedOptions.suggestedFinancialYear && fySource === "COUNTRY_SUGGESTION_CONFIRMED") {
+      form.setValue("financialYear.templateId", selectedOptions.suggestedFinancialYear.id);
+      form.setValue("financialYear.label", selectedOptions.suggestedFinancialYear.label);
+      form.setValue("financialYear.startsOn", selectedOptions.suggestedFinancialYear.startsOn);
+      form.setValue("financialYear.endsOn", selectedOptions.suggestedFinancialYear.endsOn);
+    }
+  }, [countryCode, incorporationDate, form, fySource, selectedOptions]);
 
   const displayName = form.watch("company.displayName");
   useEffect(() => {
@@ -257,12 +259,19 @@ export function TenantCreatePageForm() {
         {step === 0 ? (
           <CompanyStep
             form={form}
-            countries={options.data?.countries ?? []}
+            countries={selectedOptions?.countries ?? []}
             isLoadingCountries={options.isLoading}
+            selectedCountryName={selectedCountry?.name}
+            policyMode={selectedOptions?.policyMode}
           />
         ) : null}
         {step === 1 ? (
-          <FinancialStep form={form} options={options.data} isLoading={options.isLoading} />
+          <FinancialStep
+            form={form}
+            options={selectedOptions}
+            isLoading={options.isLoading}
+            countryName={selectedCountry?.name ?? countryCode}
+          />
         ) : null}
         {step === 2 ? <AdminStep form={form} isCheckingEmail={emailCheckPending} /> : null}
         {step === 3 ? <ReviewStep form={form} error={mutation.error?.message} /> : null}
@@ -297,11 +306,22 @@ function CompanyStep({
   form,
   countries,
   isLoadingCountries,
+  selectedCountryName,
+  policyMode,
 }: {
   form: ReturnType<typeof useForm<CreateTenantInput>>;
   countries: NonNullable<Awaited<ReturnType<typeof getTenantCreationOptions>>["countries"]>;
   isLoadingCountries: boolean;
+  selectedCountryName?: string;
+  policyMode?: string;
 }) {
+  const incorporationHint =
+    policyMode === "INCORPORATION_DERIVED"
+      ? `Required to calculate the first financial year for ${selectedCountryName ?? "this country"}`
+      : selectedCountryName
+        ? `Optional for ${selectedCountryName}; the financial year follows its country policy`
+        : "Select a country to load its incorporation requirements";
+
   return (
     <Card>
       <CardHeader>
@@ -350,7 +370,7 @@ function CompanyStep({
         <Field label="Industry">
           <Input {...form.register("company.industry")} placeholder="e.g. Technology" />
         </Field>
-        <Field label="Incorporation date" hint="Required for UK companies">
+        <Field label="Incorporation date" hint={incorporationHint}>
           <Input type="date" {...form.register("company.incorporationDate")} />
         </Field>
         <Field label="Company registration number">
@@ -368,10 +388,12 @@ function FinancialStep({
   form,
   options,
   isLoading,
+  countryName,
 }: {
   form: ReturnType<typeof useForm<CreateTenantInput>>;
   options: Awaited<ReturnType<typeof getTenantCreationOptions>> | undefined;
   isLoading: boolean;
+  countryName: string;
 }) {
   const source = form.watch("financialYear.source");
   const suggested = options?.suggestedFinancialYear;
@@ -398,9 +420,9 @@ function FinancialStep({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Financial setup</CardTitle>
+        <CardTitle>Financial setup for {countryName}</CardTitle>
         <CardDescription>
-          Confirm the authoritative financial year saved for this tenant.
+          Confirm the authoritative financial year saved for this {countryName} tenant.
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-5">
@@ -416,7 +438,7 @@ function FinancialStep({
         {/* INCORPORATION_DERIVED — warn the user they need an incorporation date */}
         {isIncorporationDerived && !suggested ? (
           <p className="rounded-md border border-yellow-300 bg-yellow-50 px-4 py-3 text-sm text-yellow-800 dark:border-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-300">
-            Enter the incorporation date on the Company details step to generate the suggested financial year end.
+            Enter the {countryName} incorporation date on the Company details step to generate the suggested financial year end.
           </p>
         ) : null}
 
@@ -430,7 +452,7 @@ function FinancialStep({
                 {...form.register("financialYear.source")}
               />
               <span>
-                <span className="block font-medium">Use suggested financial year</span>
+                <span className="block font-medium">Use suggested {countryName} financial year</span>
                 <span className="mt-1 block text-sm text-muted-foreground">
                   {`${suggested.label}: ${suggested.startsOn} to ${suggested.endsOn}`}
                 </span>

@@ -194,9 +194,11 @@ describe("TenantAdminTasksRepository", () => {
 
   it("keeps a new task charge pending until final Tenant Admin approval", async () => {
     const queries: string[] = [];
+    const parameterCounts: number[] = [];
     const client = {
-      query: vi.fn(async (sqlText: string) => {
+      query: vi.fn(async (sqlText: string, values: readonly unknown[]) => {
         queries.push(sqlText);
+        parameterCounts.push(values.length);
         return { rows: [] };
       }),
     };
@@ -206,7 +208,6 @@ describe("TenantAdminTasksRepository", () => {
         createPendingBillableEntry(
           transactionClient: typeof client,
           tenantId: string,
-          membershipId: string,
           taskId: string,
           clientId: string,
           pricing: { rateCardItemId: string; quantity: number; unitRate: number; currencyCode: string },
@@ -217,13 +218,13 @@ describe("TenantAdminTasksRepository", () => {
     await createPendingBillableEntry(
       client,
       "tenant-1",
-      "member-1",
       "task-1",
       "client-1",
       { rateCardItemId: "rate-1", quantity: 1, unitRate: 1500, currencyCode: "INR" },
     );
 
     expect(queries.join("\n")).toContain("'pending_review', null, null");
+    expect(parameterCounts).toEqual([12]);
   });
 
   it("promotes only a tenant-scoped pending charge when final approval succeeds", async () => {

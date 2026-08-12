@@ -34,7 +34,7 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { ConfirmationDialog } from "@/components/shared/confirmation-dialog";
 import { ErrorState } from "@/components/shared/error-state";
 import { FilterToolbar } from "@/components/shared/filter-toolbar";
-import { GravityWellLoader } from "@/components/shared/gravity-well-loader";
+import { BoxBuildLoader } from "@/components/shared/box-build-loader";
 import { LoadingState } from "@/components/shared/loading-state";
 import { MobileEntityCard } from "@/components/shared/mobile-entity-card";
 import { PageHeader } from "@/components/shared/page-header";
@@ -831,10 +831,10 @@ function TenantAdminCreateTaskAction({
         <div className="pr-8">
           <h2 className="text-lg font-semibold">Create task</h2>
           {isLoadingOptions ? (
-            <GravityWellLoader
+            <BoxBuildLoader
               label="Loading task options"
-              particleCount={65}
-              className="mt-5 h-64 min-h-64 rounded-[var(--radius-card)] bg-transparent dark:bg-transparent"
+              className="mt-5 h-64 min-h-64"
+              variant="panel"
             />
           ) : (
             <>

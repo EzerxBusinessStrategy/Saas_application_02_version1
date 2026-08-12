@@ -24,7 +24,7 @@ import { NotificationMenu } from "@/components/app-shell/notification-menu";
 import { PendingActionIndicator } from "@/components/app-shell/pending-action-indicator";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { UserMenu } from "@/components/app-shell/user-menu";
-import { GravityWellLoader } from "@/components/shared/gravity-well-loader";
+import { BoxBuildLoader } from "@/components/shared/box-build-loader";
 import { getClientPortalProfile } from "@/features/client-portal/api/client-portal-profile-api";
 import { getPlatformConfiguration } from "@/features/platform/api/super-admin-platform-configuration-api";
 import { navigationFor } from "@/lib/nav";
@@ -450,8 +450,8 @@ export function WorkspaceShell({
     >
       <PendingActionIndicator suppressed={pathname.endsWith("/tenant-password")} />
       {isRefreshing ? (
-        <div className="fixed inset-0 z-[70] grid place-items-center bg-background/85 backdrop-blur-sm" role="status" aria-label="Updating workspace">
-          <GravityWellLoader className="h-72 min-h-[280px] w-72" label="Updating workspace..." particleCount={90} />
+        <div className="fixed inset-0 z-[70] bg-background/85 backdrop-blur-sm">
+          <BoxBuildLoader className="min-h-dvh" label="Updating workspace..." />
         </div>
       ) : null}
       <a href="#main-content" className="skip-link">
