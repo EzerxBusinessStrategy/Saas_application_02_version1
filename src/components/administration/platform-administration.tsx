@@ -530,6 +530,8 @@ export function PlatformConfiguration() {
               Platform name
               <Input
                 className="mt-1"
+                required
+                data-field-label="Platform name"
                 {...form.register("platformName", { required: true })}
               />
             </label>
@@ -538,6 +540,8 @@ export function PlatformConfiguration() {
               <span className="mt-1 flex gap-2">
                 <Input
                   className="min-w-0"
+                  required
+                  data-field-label="Default brand colour"
                   aria-label="Default brand colour hexadecimal value"
                   aria-invalid={Boolean(form.formState.errors.defaultBrand)}
                   {...form.register("defaultBrand", {
@@ -585,6 +589,8 @@ export function PlatformConfiguration() {
               Email sender name
               <Input
                 className="mt-1"
+                required
+                data-field-label="Email sender name"
                 {...form.register("senderName", { required: true })}
               />
             </label>

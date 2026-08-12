@@ -616,6 +616,13 @@ function CreateEmployeeDialog({
     emailCheckPending ||
     emailCheckFailed;
   const save = async () => {
+    if (!name.trim()) { toast.error("Enter Name."); return; }
+    if (!email.trim()) { toast.error("Enter Email."); return; }
+    if (password.length < 8) { toast.error("Password must contain at least 8 characters."); return; }
+    if (!Number(weeklyCapacityHours)) { toast.error("Enter Weekly capacity hours."); return; }
+    if (emailUnavailable) { toast.error("Enter a unique Email."); return; }
+    if (emailCheckPending) { toast.error("Email availability is still being checked."); return; }
+    if (emailCheckFailed) { toast.error("Email availability could not be checked. Try again."); return; }
     if (createDisabled) return;
     setSaving(true);
     try {
@@ -649,19 +656,19 @@ function CreateEmployeeDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent title="Create employee" description="Add an active employee to this tenant." className="max-w-md">
         <div className="grid gap-4 pr-8">
-          <label className="text-sm font-medium">Name<Input className="mt-1" value={name} onChange={(event) => setName(event.target.value)} /></label>
-          <label className="text-sm font-medium">Email<Input className="mt-1" type="email" value={email} onChange={(event) => setEmail(event.target.value)} /></label>
+          <label className="text-sm font-medium">Name<Input required data-field-label="Name" className="mt-1" value={name} onChange={(event) => setName(event.target.value)} /></label>
+          <label className="text-sm font-medium">Email<Input required data-field-label="Email" className="mt-1" type="email" value={email} onChange={(event) => setEmail(event.target.value)} /></label>
           {emailUnavailable ? <p className="-mt-3 text-sm text-danger">Email already exists.</p> : null}
           {emailCheckFailed ? <p className="-mt-3 text-sm text-danger">Email availability could not be checked.</p> : null}
-          <label className="text-sm font-medium">Password<Input className="mt-1" type="password" minLength={8} value={password} onChange={(event) => setPassword(event.target.value)} /></label>
+          <label className="text-sm font-medium">Password<Input required data-field-label="Password" className="mt-1" type="password" minLength={8} value={password} onChange={(event) => setPassword(event.target.value)} /></label>
           <label className="text-sm font-medium">Employee code<Input className="mt-1" placeholder="Auto-generated if empty" value={employeeCode} onChange={(event) => setEmployeeCode(event.target.value)} /></label>
           <label className="text-sm font-medium">Skills (optional)<Input className="mt-1" placeholder="GST, Payroll, Compliance" value={skills} onChange={(event) => setSkills(event.target.value)} /></label>
           <label className="text-sm font-medium">Level (optional)<Select className="mt-1" value={experienceLevel} onChange={(event) => setExperienceLevel(event.target.value)}><option value="">Not set</option><option value="junior">Junior</option><option value="mid">Mid</option><option value="senior">Senior</option><option value="lead">Lead</option></Select></label>
-          <label className="text-sm font-medium">Weekly capacity hours<Input className="mt-1" type="number" min="1" max="168" value={weeklyCapacityHours} onChange={(event) => setWeeklyCapacityHours(event.target.value)} /></label>
+          <label className="text-sm font-medium">Weekly capacity hours<Input required data-field-label="Weekly capacity hours" className="mt-1" type="number" min="1" max="168" value={weeklyCapacityHours} onChange={(event) => setWeeklyCapacityHours(event.target.value)} /></label>
           <label className="flex items-center gap-2 text-sm font-medium"><input type="checkbox" checked={isManager} onChange={(event) => setIsManager(event.target.checked)} />Make this employee a manager</label>
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-            <Button disabled={createDisabled} onClick={() => void save()}>{saving ? "Creating..." : "Create employee"}</Button>
+            <Button disabled={saving} onClick={() => void save()}>{saving ? "Creating..." : "Create employee"}</Button>
           </div>
         </div>
       </DialogContent>

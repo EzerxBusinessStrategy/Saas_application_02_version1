@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "next-themes";
 import { useEffect, useState, type ReactNode } from "react";
 import { Toaster } from "sonner";
+import { FormValidationGuard } from "@/components/shared/form-validation-guard";
 
 function ThemeAwareToaster() {
   const [theme, setTheme] = useState<"light" | "dark">("light");
@@ -48,6 +49,7 @@ export function Providers({ children }: { children: ReactNode }) {
     >
       <QueryClientProvider client={client}>
         {children}
+        <FormValidationGuard />
         <ThemeAwareToaster />
       </QueryClientProvider>
     </ThemeProvider>

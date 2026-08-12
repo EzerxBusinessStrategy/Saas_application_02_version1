@@ -36,7 +36,6 @@ export function TenantPasswordPage() {
     return <ErrorState title="Tenant passwords could not load" description="Check the backend connection and try again." onRetry={() => void tenantsQuery.refetch()} />;
   }
 
-  const canSubmit = tenantId && password.length >= 8 && password === confirmation && !resetMutation.isPending;
   return (
     <div className="super-admin-portal flex justify-center">
       <div className="w-full max-w-3xl">
@@ -50,7 +49,16 @@ export function TenantPasswordPage() {
             <Input value={tenantSearch} onChange={(event) => setTenantSearch(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); setSubmittedSearch(tenantSearch.trim()); } }} placeholder="Search tenant name or code" aria-label="Search tenant" />
             <Button type="button" variant="outline" onClick={() => setSubmittedSearch(tenantSearch.trim())}>Search</Button>
           </div>
-          <form className="flex flex-col gap-5" onSubmit={(event) => { event.preventDefault(); setMessage(null); if (canSubmit) resetMutation.mutate(); }}>
+          <form className="flex flex-col gap-5" noValidate onSubmit={(event) => {
+            event.preventDefault();
+            setMessage(null);
+            if (!tenantId) { setMessage("Choose Tenant."); return; }
+            if (!password) { setMessage("Enter New password."); return; }
+            if (password.length < 8) { setMessage("New password must contain at least 8 characters."); return; }
+            if (!confirmation) { setMessage("Enter Confirm new password."); return; }
+            if (password !== confirmation) { setMessage("Passwords do not match."); return; }
+            resetMutation.mutate();
+          }}>
             <label className="text-sm font-medium">Tenant
               <Select className="mt-1" value={tenantId} onChange={(event) => setTenantId(event.target.value)} required>
                 <option value="">Select tenant</option>
@@ -65,8 +73,8 @@ export function TenantPasswordPage() {
             </label>
             {confirmation && password !== confirmation ? <p className="text-sm text-danger">Passwords do not match.</p> : null}
             {resetMutation.error ? <p className="text-sm text-danger">{resetMutation.error.message}</p> : null}
-            {message ? <p className="text-sm text-success">{message}</p> : null}
-            <div className="flex items-center gap-2"><TenantPasswordLoader visible={resetMutation.isPending} /><Button type="submit" disabled={!canSubmit}>Update password</Button></div>
+            {message ? <p className={`text-sm ${message.startsWith("Password updated") ? "text-success" : "text-danger"}`} role="status">{message}</p> : null}
+            <div className="flex items-center gap-2"><TenantPasswordLoader visible={resetMutation.isPending} /><Button type="submit" disabled={resetMutation.isPending}>Update password</Button></div>
           </form>
         </CardContent>
       </Card>

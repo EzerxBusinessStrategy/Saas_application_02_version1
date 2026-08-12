@@ -800,6 +800,8 @@ export function TenantCreateForm() {
               Organisation name
               <Input
                 className={inputClass}
+                required
+                data-field-label="Organisation name"
                 autoComplete="organization"
                 aria-invalid={Boolean(form.formState.errors.name)}
                 {...form.register("name")}
@@ -814,6 +816,8 @@ export function TenantCreateForm() {
               Tenant code
               <Input
                 className={inputClass}
+                required
+                data-field-label="Tenant code"
                 aria-describedby="tenant-code-help"
                 aria-invalid={Boolean(form.formState.errors.code)}
                 {...form.register("code", {
@@ -846,13 +850,13 @@ export function TenantCreateForm() {
             </label>
             <label className="text-sm font-medium">
               Country
-              <Select className={inputClass} {...form.register("country")}>
+              <Select required data-field-label="Country" className={inputClass} {...form.register("country")}>
                 <option value="India">India</option><option value="United Kingdom">United Kingdom</option><option value="United States">United States</option>
               </Select>
             </label>
             <label className="text-sm font-medium">
               Default currency
-              <Select className={inputClass} {...form.register("currency")}>
+              <Select required data-field-label="Default currency" className={inputClass} {...form.register("currency")}>
                 <option value="INR">INR</option><option value="USD">USD</option><option value="GBP">GBP</option>
               </Select>
             </label>
@@ -860,6 +864,8 @@ export function TenantCreateForm() {
               Tenant owner
               <Input
                 className={inputClass}
+                required
+                data-field-label="Tenant owner"
                 autoComplete="name"
                 aria-invalid={Boolean(form.formState.errors.ownerName)}
                 {...form.register("ownerName")}
@@ -875,6 +881,8 @@ export function TenantCreateForm() {
               <Input
                 className={inputClass}
                 type="email"
+                required
+                data-field-label="Owner email"
                 autoComplete="email"
                 aria-invalid={Boolean(form.formState.errors.ownerEmail)}
                 {...form.register("ownerEmail")}
@@ -918,6 +926,8 @@ export function TenantCreateForm() {
               Primary brand colour
               <Input
                 className={inputClass}
+                required
+                data-field-label="Primary brand colour"
                 aria-invalid={Boolean(form.formState.errors.primaryColour)}
                 {...form.register("primaryColour")}
               />
@@ -931,7 +941,7 @@ export function TenantCreateForm() {
             <label className="text-sm font-medium">Default theme<Select className={inputClass} {...form.register("defaultTheme")}><option value="light">Light</option><option value="dark">Dark</option><option value="system">Follow system</option></Select></label>
             <label className="text-sm font-medium">
               Tenant time zone
-              <Select className={inputClass} {...form.register("timeZone")}>
+              <Select required data-field-label="Tenant time zone" className={inputClass} {...form.register("timeZone")}>
                 <option value="Asia/Kolkata">Asia/Kolkata</option>
                 <option value="Europe/London">Europe/London</option>
                 <option value="America/New_York">America/New York</option>
@@ -987,6 +997,8 @@ export function TenantCreateForm() {
               <input
                 className="mt-1 size-4 accent-primary"
                 type="checkbox"
+                required
+                data-field-label="tenant details"
                 aria-invalid={Boolean(form.formState.errors.confirm)}
                 {...form.register("confirm")}
               />

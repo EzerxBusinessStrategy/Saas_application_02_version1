@@ -213,7 +213,15 @@ export function SupportTicketWorkspace({
 
   const createTicket = async () => {
     if (!valid) {
-      setFormError("Complete all required fields before submitting your request.");
+      setFormError(
+        !ticketInput.subject.trim()
+          ? "Enter Brief summary."
+          : !ticketInput.description.trim()
+            ? "Enter Describe the issue."
+            : duplicate
+              ? "A similar active request already exists. Review it before submitting another request."
+              : "Enter Affected users.",
+      );
       return;
     }
     setFormError("");
@@ -361,6 +369,7 @@ export function SupportTicketWorkspace({
                   <form
                     aria-label="Create support request"
                     className="mx-auto max-h-[80vh] w-full max-w-[640px] overflow-y-auto px-1 scrollbar-none"
+                    noValidate
                     onSubmit={(event) => {
                       event.preventDefault();
                       void createTicket();
@@ -391,12 +400,12 @@ export function SupportTicketWorkspace({
                         <option value="high">High — Important work is blocked</option>
                         <option value="critical">Critical — Service outage or major disruption</option>
                       </FieldSelect>
-                      <label htmlFor="support-affected-users" className="text-sm font-medium">Affected users <span aria-hidden="true">*</span><Input id="support-affected-users" className="mt-1" min="1" type="number" value={ticketInput.affectedUsers} onChange={(event) => setTicketInput((current) => ({ ...current, affectedUsers: Math.max(1, Number(event.target.value) || 1) }))} /></label>
+                      <label htmlFor="support-affected-users" className="text-sm font-medium">Affected users <span data-required-marker aria-hidden="true">*</span><Input required data-field-label="Affected users" id="support-affected-users" className="mt-1" min="1" type="number" value={ticketInput.affectedUsers} onChange={(event) => setTicketInput((current) => ({ ...current, affectedUsers: Math.max(1, Number(event.target.value) || 1) }))} /></label>
                     </div>
                     {ticketInput.businessImpact === "critical" ? <p className="mt-4 flex gap-2 rounded-[var(--radius-card)] border border-danger/30 bg-[var(--chip-danger-bg)] p-3 text-sm text-danger"><ShieldAlert className="mt-0.5 size-4 shrink-0" />Select Critical only when the service is unavailable, a serious security incident has occurred, or business operations are completely blocked.</p> : null}
-                    <label htmlFor="support-subject" className="mt-4 block text-sm font-medium">Brief summary <span aria-hidden="true">*</span><Input id="support-subject" className="mt-1" value={ticketInput.subject} maxLength={120} placeholder="Example: Unable to download the GST filing report" onChange={(event) => setTicketInput((current) => ({ ...current, subject: event.target.value }))} /><span className="mt-1 block text-right text-xs font-normal text-muted-foreground">{ticketInput.subject.length}/120</span></label>
+                    <label htmlFor="support-subject" className="mt-4 block text-sm font-medium">Brief summary <span data-required-marker aria-hidden="true">*</span><Input required data-field-label="Brief summary" id="support-subject" className="mt-1" value={ticketInput.subject} maxLength={120} placeholder="Example: Unable to download the GST filing report" onChange={(event) => setTicketInput((current) => ({ ...current, subject: event.target.value }))} /><span className="mt-1 block text-right text-xs font-normal text-muted-foreground">{ticketInput.subject.length}/120</span></label>
                     {duplicate ? <p className="mt-2 text-sm text-warning" role="alert">A similar active request already exists: {duplicate.id}. Review that request before creating another one.</p> : null}
-                    <label htmlFor="support-description" className="mt-4 block text-sm font-medium">Describe the issue <span aria-hidden="true">*</span><textarea aria-label="Describe the issue" id="support-description" className="mt-1 min-h-36 w-full rounded-[var(--radius-control)] border bg-input p-3 text-sm outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring" value={ticketInput.description} maxLength={2000} placeholder="Please explain what you were trying to do, what happened, what you expected, and any error message you received. Mention when the issue started and whether other users are affected." onChange={(event) => setTicketInput((current) => ({ ...current, description: event.target.value }))} /><span className="mt-1 block text-right text-xs font-normal text-muted-foreground">{ticketInput.description.length}/2000</span></label>
+                    <label htmlFor="support-description" className="mt-4 block text-sm font-medium">Describe the issue <span data-required-marker aria-hidden="true">*</span><textarea required data-field-label="Describe the issue" aria-label="Describe the issue" id="support-description" className="mt-1 min-h-36 w-full rounded-[var(--radius-control)] border bg-input p-3 text-sm outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring" value={ticketInput.description} maxLength={2000} placeholder="Please explain what you were trying to do, what happened, what you expected, and any error message you received. Mention when the issue started and whether other users are affected." onChange={(event) => setTicketInput((current) => ({ ...current, description: event.target.value }))} /><span className="mt-1 block text-right text-xs font-normal text-muted-foreground">{ticketInput.description.length}/2000</span></label>
                     <div className="mt-2 rounded-[var(--radius-card)] border bg-muted/40 p-3 text-sm text-muted-foreground"><p className="font-medium text-foreground">Helpful information to include:</p><ul className="mt-1 list-disc space-y-1 pl-5"><li>Steps you followed</li><li>Error message</li><li>Date and time of the issue</li><li>Number of affected users</li><li>Supporting screenshots</li></ul></div>
                     <label htmlFor="support-affected-url" className="mt-4 block text-sm font-medium">Affected page, feature or URL<Input id="support-affected-url" className="mt-1" type="url" value={ticketInput.affectedUrl ?? ""} placeholder="https://clientportal.example/gst/filing" onChange={(event) => setTicketInput((current) => ({ ...current, affectedUrl: event.target.value }))} /></label>
                     <AttachmentDropzone inputRef={inputRef} attachments={ticketInput.attachments} progress={attachmentProgress} onFiles={addAttachments} onRemove={(name) => setTicketInput((current) => ({ ...current, attachments: current.attachments.filter((attachment) => attachment.name !== name) }))} />
@@ -405,7 +414,7 @@ export function SupportTicketWorkspace({
                     <section className="mt-5 rounded-[var(--radius-card)] border p-4 text-sm"><p className="font-medium">Suggested help articles</p><ul className="mt-2 space-y-2">{serviceArticles[ticketInput.service as keyof typeof serviceArticles].map((article) => <li key={article}><Link className="text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" href="/client/documents">{article}</Link></li>)}</ul></section>
                     {formError ? <p className="mt-4 text-sm text-danger" role="alert">{formError}</p> : null}
                     <p className="mt-5 text-xs text-muted-foreground">By submitting this request, you confirm that the information provided is accurate and does not contain passwords or confidential authentication credentials.</p>
-                    <div className="mt-6 flex justify-end gap-2"><Button type="button" variant="outline" onClick={() => setCreateOpen(false)} disabled={working}>Cancel</Button><Button type="submit" disabled={!valid || working}>{working ? "Submitting…" : "Submit request"}</Button></div>
+                    <div className="mt-6 flex justify-end gap-2"><Button type="button" variant="outline" onClick={() => setCreateOpen(false)} disabled={working}>Cancel</Button><Button type="submit" disabled={working}>{working ? "Submitting…" : "Submit request"}</Button></div>
                   </form>
                 )}
               </DialogContent>
@@ -445,7 +454,7 @@ function ManagerActions({ workspace, selected, assigneeId, working, reply, resol
 
 function FieldSelect({ label, required, value, onChange, children }: { label: string; required?: boolean; value: string; onChange: (value: string) => void; children: React.ReactNode }) {
   const id = `support-${label.toLowerCase().replaceAll(/[^a-z0-9]+/g, "-")}`;
-  return <label htmlFor={id} className="text-sm font-medium">{label} {required ? <span aria-hidden="true">*</span> : null}<Select aria-label={label} id={id} className="mt-1" value={value} onChange={(event) => onChange(event.target.value)}>{children}</Select></label>;
+  return <label htmlFor={id} className="text-sm font-medium">{label} {required ? <span data-required-marker aria-hidden="true">*</span> : null}<Select required={required} data-field-label={label} aria-label={label} id={id} className="mt-1" value={value} onChange={(event) => onChange(event.target.value)}>{children}</Select></label>;
 }
 
 function RadioField({ name, value, checked, onChange, label }: { name: string; value: string; checked: boolean; onChange: () => void; label: string }) {

@@ -27,8 +27,12 @@ export function AccountPreferences({ user }: { user: User }) {
 
   const saveName = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setSavingName(true);
     setNameMessage(null);
+    if (!name.trim()) {
+      setNameMessage("Enter Display name.");
+      return;
+    }
+    setSavingName(true);
     try {
       const response = await fetch("/api/super-admin/profile", {
         method: "PATCH",
@@ -64,7 +68,7 @@ export function AccountPreferences({ user }: { user: User }) {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form className="grid gap-5 sm:grid-cols-2" onSubmit={saveName}>
+          <form className="grid gap-5 sm:grid-cols-2" noValidate onSubmit={saveName}>
             <label className="text-sm font-medium">
               Display name
               <Input

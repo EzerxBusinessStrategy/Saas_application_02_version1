@@ -1,5 +1,19 @@
 @import "tailwindcss";
 
+/* Required controls use native semantics; this keeps their visual cue consistent across portals. */
+label:has(:is(input, select, textarea)[required]):not(:has([data-required-marker])) {
+  position: relative;
+}
+
+label:has(:is(input, select, textarea)[required]):not(:has([data-required-marker]))::after {
+  color: var(--danger);
+  content: "*";
+  font-size: 0.875rem;
+  font-weight: 700;
+  line-height: 1;
+  margin-left: 0.25rem;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);

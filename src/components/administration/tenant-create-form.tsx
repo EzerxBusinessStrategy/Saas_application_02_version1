@@ -329,20 +329,22 @@ function CompanyStep({
       </CardHeader>
       <CardContent className="grid gap-5 md:grid-cols-2">
         <Field label="Company display name" error={form.formState.errors.company?.displayName?.message}>
-          <Input {...form.register("company.displayName")} />
+          <Input required data-field-label="Company display name" {...form.register("company.displayName")} />
         </Field>
         <Field label="Legal company name" error={form.formState.errors.company?.legalName?.message}>
-          <Input {...form.register("company.legalName")} />
+          <Input required data-field-label="Legal company name" {...form.register("company.legalName")} />
         </Field>
         <Field label="Tenant code" error={form.formState.errors.company?.tenantCode?.message}>
-          <Input {...form.register("company.tenantCode")} />
+          <Input required data-field-label="Tenant code" {...form.register("company.tenantCode")} />
         </Field>
         <Field label="URL slug" error={form.formState.errors.company?.slug?.message}>
-          <Input {...form.register("company.slug")} />
+          <Input required data-field-label="URL slug" {...form.register("company.slug")} />
         </Field>
         <Field label="Country" error={form.formState.errors.company?.countryCode?.message}>
           <Select 
             {...form.register("company.countryCode")} 
+            required
+            data-field-label="Country"
             value={form.watch("company.countryCode")}
             disabled={isLoadingCountries}
           >
@@ -496,6 +498,8 @@ function FinancialStep({
           >
             <Input
               readOnly={source === "COUNTRY_SUGGESTION_CONFIRMED"}
+              required={source === "CUSTOM_CONFIRMED"}
+              data-field-label="Financial-year label"
               placeholder="e.g. FY 2026-27"
               {...form.register("financialYear.label")}
             />
@@ -507,6 +511,8 @@ function FinancialStep({
             <Input
               type="date"
               readOnly={source === "COUNTRY_SUGGESTION_CONFIRMED"}
+              required={source === "CUSTOM_CONFIRMED"}
+              data-field-label="Start date"
               {...form.register("financialYear.startsOn")}
             />
           </Field>
@@ -517,6 +523,8 @@ function FinancialStep({
             <Input
               type="date"
               readOnly={source === "COUNTRY_SUGGESTION_CONFIRMED"}
+              required={source === "CUSTOM_CONFIRMED"}
+              data-field-label="End date"
               {...form.register("financialYear.endsOn")}
             />
           </Field>
@@ -529,6 +537,8 @@ function FinancialStep({
           >
             <Input
               {...form.register("financialYear.overrideReason")}
+              required
+              data-field-label="Reason for custom period"
               placeholder="Briefly explain why a custom period is needed"
             />
           </Field>
@@ -558,23 +568,23 @@ function AdminStep({
           label="Full name"
           error={form.formState.errors.tenantAdministrator?.fullName?.message}
         >
-          <Input {...form.register("tenantAdministrator.fullName")} />
+          <Input required data-field-label="Full name" {...form.register("tenantAdministrator.fullName")} />
         </Field>
         <Field
           label="Work email"
           hint={isCheckingEmail ? "Checking availability" : undefined}
           error={form.formState.errors.tenantAdministrator?.email?.message}
         >
-          <Input type="email" {...form.register("tenantAdministrator.email")} />
+          <Input required data-field-label="Work email" type="email" {...form.register("tenantAdministrator.email")} />
         </Field>
         <Field
           label="Initial password"
           error={form.formState.errors.tenantAdministrator?.password?.message}
         >
-          <PasswordInput {...form.register("tenantAdministrator.password")} />
+          <PasswordInput required data-field-label="Initial password" {...form.register("tenantAdministrator.password")} />
         </Field>
         <Field label="Phone number" error={form.formState.errors.tenantAdministrator?.phone?.message}>
-          <Input type="tel" autoComplete="tel" {...form.register("tenantAdministrator.phone")} />
+          <Input required data-field-label="Phone number" type="tel" autoComplete="tel" {...form.register("tenantAdministrator.phone")} />
         </Field>
         <Field label="Role">
           <Input readOnly value="Tenant Administrator" />
@@ -617,13 +627,13 @@ function ReviewStep({
           label="Tenant Administrator email"
           error={form.formState.errors.tenantAdministrator?.email?.message}
         >
-          <Input type="email" {...form.register("tenantAdministrator.email")} />
+          <Input required data-field-label="Tenant Administrator email" type="email" {...form.register("tenantAdministrator.email")} />
         </Field>
         <Field label="Temporary password" error={form.formState.errors.tenantAdministrator?.password?.message}>
-          <PasswordInput {...form.register("tenantAdministrator.password")} />
+          <PasswordInput required data-field-label="Temporary password" {...form.register("tenantAdministrator.password")} />
         </Field>
         <label className="flex items-start gap-3 text-sm">
-          <input type="checkbox" className="mt-1" {...form.register("confirm")} />
+          <input required data-field-label="tenant details" type="checkbox" className="mt-1" {...form.register("confirm")} />
           <span>
             I confirm these company, financial-year and Tenant Administrator details are correct.
           </span>

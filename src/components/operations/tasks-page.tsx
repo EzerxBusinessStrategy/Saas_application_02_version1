@@ -777,6 +777,12 @@ function TenantAdminCreateTaskAction({
     }));
   };
   const submit = async () => {
+    if (!clientId) { toast.error("Choose Client."); return; }
+    if (!input.serviceId) { toast.error("Choose Service."); return; }
+    if (!input.countryCode) { toast.error("Choose Country calendar."); return; }
+    if (input.title.trim().length < 3) { toast.error("Enter Task title."); return; }
+    if (input.employeeIds.length === 0) { toast.error("Choose at least one employee."); return; }
+    if (!selectedRate) { toast.error("Choose a Service with an active billing rate."); return; }
     setIsSaving(true);
     try {
       await createTenantAdminTask({
@@ -851,6 +857,8 @@ function TenantAdminCreateTaskAction({
               Client
               <Select
                 className="mt-1"
+                required
+                data-field-label="Client"
                 disabled={isLoadingOptions || optionsQuery.isError}
                 value={clientId}
                 onChange={(event) => {
@@ -868,7 +876,7 @@ function TenantAdminCreateTaskAction({
             </label>
             <div className="text-sm font-medium">
               <div className="flex items-center justify-between gap-2">
-                <span>Service</span>
+                <span>Service <span data-required-marker aria-hidden="true">*</span></span>
                 <NewServiceDialog
                   triggerLabel="Custom service"
                   triggerSize="sm"
@@ -880,6 +888,8 @@ function TenantAdminCreateTaskAction({
               </div>
               <Select
                 className="mt-1"
+                required
+                data-field-label="Service"
                 disabled={isLoadingOptions || optionsQuery.isError}
                 value={input.serviceId}
                 onChange={(event) => selectServiceRate(event.target.value)}
@@ -896,6 +906,8 @@ function TenantAdminCreateTaskAction({
               Priority
               <Select
                 className="mt-1"
+                required
+                data-field-label="Country calendar"
                 value={input.priority}
                 onChange={(event) =>
                   setInput((current) => ({
@@ -935,6 +947,8 @@ function TenantAdminCreateTaskAction({
               Task title
               <Input
                 className="mt-1"
+                required
+                data-field-label="Task title"
                 value={input.title}
                 maxLength={200}
                 onChange={(event) => setInput((current) => ({ ...current, title: event.target.value }))}
@@ -982,7 +996,7 @@ function TenantAdminCreateTaskAction({
           </div>
           <fieldset className="mt-5">
             <div className="flex items-center justify-between gap-2">
-              <span className="text-sm font-medium">Assign employees</span>
+              <span className="text-sm font-medium">Assign employees <span data-required-marker aria-hidden="true">*</span></span>
               <NewEmployeeDialog onCreated={handleEmployeeCreated} />
             </div>
             <div className="mt-2 grid max-h-48 gap-2 overflow-y-auto rounded-[var(--radius-control)] border p-3 sm:grid-cols-2">
@@ -1056,17 +1070,7 @@ function TenantAdminCreateTaskAction({
               Cancel
             </Button>
             <Button
-              disabled={
-                isSaving ||
-                isLoadingOptions ||
-                optionsQuery.isError ||
-                !clientId ||
-                !input.serviceId ||
-                !input.countryCode ||
-                input.title.trim().length < 3 ||
-                !selectedRate ||
-                input.employeeIds.length === 0
-              }
+              disabled={isSaving || isLoadingOptions || optionsQuery.isError}
               onClick={() => void submit()}
             >
               {isSaving ? "Creating..." : "Create task"}
@@ -1112,6 +1116,13 @@ function NewEmployeeDialog({ onCreated }: { onCreated: (employee: TenantAdminEmp
     emailCheckFailed;
 
   const submit = async () => {
+    if (name.trim().length < 2) { toast.error("Enter Name."); return; }
+    if (!email.trim()) { toast.error("Enter Email."); return; }
+    if (password.length < 8) { toast.error("Password must contain at least 8 characters."); return; }
+    if (!Number(weeklyCapacityHours)) { toast.error("Enter Weekly capacity hours."); return; }
+    if (emailUnavailable) { toast.error("Enter a unique Email."); return; }
+    if (emailCheckPending) { toast.error("Email availability is still being checked."); return; }
+    if (emailCheckFailed) { toast.error("Email availability could not be checked. Try again."); return; }
     if (createDisabled) return;
     setSaving(true);
     try {
@@ -1155,17 +1166,17 @@ function NewEmployeeDialog({ onCreated }: { onCreated: (employee: TenantAdminEmp
         <div className="grid gap-4 pr-8">
           <label className="text-sm font-medium">
             Name
-            <Input className="mt-1" value={name} onChange={(event) => setName(event.target.value)} />
+            <Input required data-field-label="Name" className="mt-1" value={name} onChange={(event) => setName(event.target.value)} />
           </label>
           <label className="text-sm font-medium">
             Email
-            <Input className="mt-1" type="email" value={email} onChange={(event) => setEmail(event.target.value)} />
+            <Input required data-field-label="Email" className="mt-1" type="email" value={email} onChange={(event) => setEmail(event.target.value)} />
           </label>
           {emailUnavailable ? <p className="-mt-3 text-sm text-danger">Email already exists.</p> : null}
           {emailCheckFailed ? <p className="-mt-3 text-sm text-danger">Email availability could not be checked.</p> : null}
           <label className="text-sm font-medium">
             Password
-            <Input className="mt-1" type="password" value={password} minLength={8} onChange={(event) => setPassword(event.target.value)} />
+            <Input required data-field-label="Password" className="mt-1" type="password" value={password} minLength={8} onChange={(event) => setPassword(event.target.value)} />
           </label>
           <label className="text-sm font-medium">
             Employee code
@@ -1187,7 +1198,7 @@ function NewEmployeeDialog({ onCreated }: { onCreated: (employee: TenantAdminEmp
           </label>
           <label className="text-sm font-medium">
             Weekly capacity hours
-            <Input className="mt-1" type="number" min="1" max="168" value={weeklyCapacityHours} onChange={(event) => setWeeklyCapacityHours(event.target.value)} />
+            <Input required data-field-label="Weekly capacity hours" className="mt-1" type="number" min="1" max="168" value={weeklyCapacityHours} onChange={(event) => setWeeklyCapacityHours(event.target.value)} />
           </label>
           <label className="flex items-center gap-2 text-sm font-medium">
             <input type="checkbox" checked={isManager} onChange={(event) => setIsManager(event.target.checked)} />
@@ -1197,7 +1208,7 @@ function NewEmployeeDialog({ onCreated }: { onCreated: (employee: TenantAdminEmp
             <Button variant="outline" onClick={() => setOpen(false)}>
               Cancel
             </Button>
-            <Button disabled={createDisabled} onClick={() => void submit()}>
+            <Button disabled={saving} onClick={() => void submit()}>
               {saving ? "Creating..." : "Create employee"}
             </Button>
           </div>
@@ -1340,6 +1351,8 @@ function CreateTaskAction({ onCreate }: { onCreate: (title: string) => void }) {
             Task title
             <Input
               className="mt-1"
+              required
+              data-field-label="Task title"
               value={title}
               onChange={(event) => setTitle(event.target.value)}
             />
@@ -1349,8 +1362,11 @@ function CreateTaskAction({ onCreate }: { onCreate: (title: string) => void }) {
               Cancel
             </Button>
             <Button
-              disabled={title.trim().length < 3}
               onClick={() => {
+                if (title.trim().length < 3) {
+                  toast.error("Enter Task title.");
+                  return;
+                }
                 onCreate(title.trim());
                 toast.success("Task created for this mock session.");
                 setOpen(false);

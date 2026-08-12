@@ -645,6 +645,8 @@ function CreateClientForm({
           Client name
           <Input
             className="mt-1"
+            required
+            data-field-label="Client name"
             aria-invalid={Boolean(form.formState.errors.displayName)}
             {...form.register("displayName")}
           />
@@ -668,6 +670,8 @@ function CreateClientForm({
             Name
             <Input
               className="mt-1"
+              required
+              data-field-label="Primary contact name"
               aria-invalid={Boolean(form.formState.errors.primaryContact?.name)}
               {...form.register("primaryContact.name")}
             />
@@ -684,6 +688,8 @@ function CreateClientForm({
             <Input
               className="mt-1"
               type="email"
+              required
+              data-field-label="Primary contact email"
               aria-invalid={Boolean(form.formState.errors.primaryContact?.email)}
               {...form.register("primaryContact.email")}
             />
@@ -705,6 +711,8 @@ function CreateClientForm({
             <Input
               className="mt-1"
               type="email"
+              required
+              data-field-label="Login email"
               aria-invalid={Boolean(form.formState.errors.portalAccess?.email)}
               {...form.register("portalAccess.email")}
             />
@@ -721,6 +729,8 @@ function CreateClientForm({
             <Input
               className="mt-1"
               type="password"
+              required
+              data-field-label="Temporary password"
               autoComplete="new-password"
               aria-invalid={Boolean(form.formState.errors.portalAccess?.password)}
               {...form.register("portalAccess.password")}
@@ -786,6 +796,8 @@ function ContactForm({
           Name
           <Input
             className="mt-1"
+            required
+            data-field-label="Contact name"
             aria-invalid={Boolean(form.formState.errors.name)}
             {...form.register("name")}
           />
@@ -804,6 +816,8 @@ function ContactForm({
           <Input
             className="mt-1"
             type="email"
+            required
+            data-field-label="Contact email"
             aria-invalid={Boolean(form.formState.errors.email)}
             {...form.register("email")}
           />
@@ -1455,6 +1469,7 @@ function WorkGroupForm({
     employeeIds: workGroup?.members.map((member) => member.id) ?? [],
     status: (workGroup?.status as WorkGroupFormValues["status"]) ?? "active",
   });
+  const [formError, setFormError] = useState<string | null>(null);
   const selectedEmployees = new Set(values.employeeIds);
   const submitDisabled =
     values.name.trim().length < 2 ||
@@ -1463,15 +1478,30 @@ function WorkGroupForm({
   return (
     <form
       className="grid max-h-[70vh] gap-5 overflow-y-auto pr-1 sm:grid-cols-2"
+      noValidate
       onSubmit={(event) => {
         event.preventDefault();
-        if (!submitDisabled) onSubmit({ ...values, employeeIds: [...selectedEmployees] });
+        if (values.name.trim().length < 2) {
+          setFormError("Enter Work-group name.");
+          return;
+        }
+        if (!values.managerEmployeeId) {
+          setFormError("Choose Manager.");
+          return;
+        }
+        if (selectedEmployees.size === 0) {
+          setFormError("Choose at least one employee.");
+          return;
+        }
+        setFormError(null);
+        onSubmit({ ...values, employeeIds: [...selectedEmployees] });
       }}
     >
       <label className="text-sm font-medium sm:col-span-2">
         Work-group name
-        <Input className="mt-1" value={values.name} onChange={(event) => setValues((current) => ({ ...current, name: event.target.value }))} />
+        <Input required data-field-label="Work-group name" className="mt-1" value={values.name} onChange={(event) => setValues((current) => ({ ...current, name: event.target.value }))} />
       </label>
+      {formError ? <p className="text-sm text-danger sm:col-span-2" role="alert">{formError}</p> : null}
       <label className="text-sm font-medium">
         Client
         <Select className="mt-1" value={values.clientId} onChange={(event) => setValues((current) => ({ ...current, clientId: event.target.value }))}>
@@ -1487,6 +1517,8 @@ function WorkGroupForm({
         Manager
         <Select
           className="mt-1"
+          required
+          data-field-label="Manager"
           value={values.managerEmployeeId}
           onChange={(event) => {
             const managerEmployeeId = event.target.value;
@@ -1545,7 +1577,7 @@ function WorkGroupForm({
         <Button type="button" variant="outline" onClick={onClose}>
           Cancel
         </Button>
-        <Button type="submit" disabled={submitDisabled}>
+        <Button type="submit">
           {workGroup ? "Save work group" : "Create work group"}
         </Button>
       </div>

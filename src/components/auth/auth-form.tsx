@@ -236,6 +236,8 @@ function LoginForm() {
               Work email
               <Input
                 type="email"
+                required
+                data-field-label="Work email"
                 placeholder="name@company.com"
                 autoComplete="email"
                 autoFocus
@@ -318,11 +320,13 @@ function LoginForm() {
           noValidate
         >
           <div className="flex flex-col gap-2 text-sm font-semibold">
-            <label htmlFor="auth-password">Password</label>
+            <label htmlFor="auth-password">Password <span data-required-marker aria-hidden="true">*</span></label>
             <span className="relative">
               <Input
                 id="auth-password"
                 type={showPassword ? "text" : "password"}
+                required
+                data-field-label="Password"
                 autoComplete="current-password"
                 autoFocus
                 className="h-12 rounded-lg px-3.5 pr-11 lg:h-11"
@@ -489,6 +493,8 @@ function NonLoginForm({ mode }: { mode: Exclude<Mode, "login"> }) {
           Email
           <Input
             type="email"
+            required
+            data-field-label="Email"
             placeholder="name@company.com"
             autoComplete="email"
             aria-invalid={Boolean(errors.identifier)}
@@ -507,11 +513,13 @@ function NonLoginForm({ mode }: { mode: Exclude<Mode, "login"> }) {
       {isPasswordMode ? (
         <>
           <div className="flex flex-col gap-2 text-sm font-semibold">
-            <label htmlFor="auth-password">Password</label>
+            <label htmlFor="auth-password">Password <span data-required-marker aria-hidden="true">*</span></label>
             <span className="relative">
               <Input
                 id="auth-password"
                 type={showPassword ? "text" : "password"}
+                required
+                data-field-label="Password"
                 autoComplete="new-password"
                 className="h-12 rounded-lg px-3.5 pr-11 lg:h-11"
                 aria-invalid={Boolean(errors.password)}
@@ -535,9 +543,11 @@ function NonLoginForm({ mode }: { mode: Exclude<Mode, "login"> }) {
           </div>
 
           <label className="flex flex-col gap-2 text-sm font-semibold">
-            Confirm password
+            Confirm password <span data-required-marker aria-hidden="true">*</span>
             <Input
               type={showPassword ? "text" : "password"}
+              required
+              data-field-label="Confirm password"
               autoComplete="new-password"
               className="h-12 rounded-lg px-3.5 lg:h-11"
               aria-invalid={Boolean(errors.confirmPassword)}

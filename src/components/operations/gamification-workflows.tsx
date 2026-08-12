@@ -551,23 +551,24 @@ export function ManagerRecognition() {
         >
           <form
             className="flex flex-col gap-4 pr-8"
+            noValidate
             onSubmit={form.handleSubmit((value) => mutation.mutate(value))}
           >
             <h2 className="font-semibold">Create recognition</h2>
             <label className="text-sm font-medium">
               Recipient
-              <Input className="mt-1" {...form.register("recipient")} />
+              <Input required data-field-label="Recipient" className="mt-1" {...form.register("recipient")} />
             </label>
             <label className="text-sm font-medium">
               Recipient type
-              <Select className="mt-1" {...form.register("recipientType")}>
+              <Select required data-field-label="Recipient type" className="mt-1" {...form.register("recipientType")}>
                 <option value="employee">Employee</option>
                 <option value="work-group">Work group</option>
               </Select>
             </label>
             <label className="text-sm font-medium">
               Category
-              <Select className="mt-1" {...form.register("category")}>
+              <Select required data-field-label="Category" className="mt-1" {...form.register("category")}>
                 <option value="quality-work">Quality work</option>
                 <option value="timely-delivery">Timely delivery</option>
                 <option value="collaboration">Collaboration</option>
@@ -583,6 +584,8 @@ export function ManagerRecognition() {
               Reason
               <textarea
                 className="mt-1 min-h-24 w-full rounded-[var(--radius-control)] border bg-background p-3 text-sm"
+                required
+                data-field-label="Reason"
                 aria-invalid={Boolean(form.formState.errors.message)}
                 {...form.register("message")}
               />
@@ -605,7 +608,7 @@ export function ManagerRecognition() {
             </label>
             <label className="text-sm font-medium">
               Visibility
-              <Select className="mt-1" {...form.register("visibility")}>
+              <Select required data-field-label="Visibility" className="mt-1" {...form.register("visibility")}>
                 <option value="private">Private to recipient</option>
                 <option value="manager-recipient">Manager and recipient</option>
                 <option value="team">Team</option>

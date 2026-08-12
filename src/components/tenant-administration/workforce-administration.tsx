@@ -427,19 +427,20 @@ function OrganisationEntryForm({
     defaultValues: initial ?? { id: "new", name: "", description: "" },
   });
   return (
-    <form className="grid gap-4" onSubmit={form.handleSubmit(onSave)}>
+    <form className="grid gap-4" noValidate onSubmit={form.handleSubmit(onSave)}>
       <h2 className="font-semibold">
         {initial ? `Edit ${initial.name}` : "Create organisation entry"}
       </h2>
       <label className="text-sm font-medium">
         Name
-        <Input className="mt-1" required {...form.register("name")} />
+        <Input className="mt-1" required data-field-label="Name" {...form.register("name")} />
       </label>
       <label className="text-sm font-medium">
         Description
         <textarea
           className="mt-1 min-h-20 w-full rounded-[var(--radius-control)] border bg-background p-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
           required
+          data-field-label="Description"
           {...form.register("description")}
         />
       </label>
@@ -708,12 +709,15 @@ export function TenantSettings() {
         <CardContent>
           <form
             className="flex flex-col gap-5"
+            noValidate
             onSubmit={form.handleSubmit(saveProfile)}
           >
             <label className="text-sm font-medium">
               Profile name
               <Input
                 className="mt-1"
+                required
+                data-field-label="Profile name"
                 {...form.register("profileName", { required: true })}
               />
             </label>
