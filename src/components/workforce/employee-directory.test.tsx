@@ -1,8 +1,8 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { EmployeeDirectory } from "@/components/workforce/employee-directory";
-import { listTenantAdminEmployeeDirectory } from "@/features/operations/api/operations-api";
+import { listTenantAdminEmployeeDirectory, listTenantAdminWorkGroups } from "@/features/operations/api/operations-api";
 
 const replace = vi.fn();
 
@@ -15,6 +15,7 @@ vi.mock("next/navigation", () => ({
 vi.mock("@/features/operations/api/operations-api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/features/operations/api/operations-api")>()),
   listTenantAdminEmployeeDirectory: vi.fn(),
+  listTenantAdminWorkGroups: vi.fn(),
 }));
 
 beforeEach(() => {
@@ -42,6 +43,19 @@ beforeEach(() => {
     ],
     departments: [{ id: "department-1", name: "Taxation" }],
   });
+  vi.mocked(listTenantAdminWorkGroups).mockResolvedValue([
+    {
+      id: "work-group-1",
+      name: "GST filing",
+      clientId: null,
+      clientName: null,
+      managerEmployeeId: "manager-1",
+      managerName: "Manager One",
+      memberCount: 1,
+      members: [],
+      status: "active",
+    },
+  ]);
 });
 afterEach(cleanup);
 
@@ -70,4 +84,13 @@ test("stores filter changes in the URL", async () => {
   expect(replace).toHaveBeenCalledWith("/admin/employees?department=Taxation", {
     scroll: false,
   });
+});
+
+test("replaces the assignment department selector with work group membership", async () => {
+  renderWithQuery(<EmployeeDirectory />);
+  fireEvent.click(await screen.findByRole("button", { name: "Edit details" }));
+
+  expect(await screen.findByRole("group", { name: "Work groups" })).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByText("GST filing")).toBeInTheDocument());
+  expect(screen.queryByLabelText("Department")).not.toBeInTheDocument();
 });

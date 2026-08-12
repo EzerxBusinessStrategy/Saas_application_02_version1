@@ -37,6 +37,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   getTenantProfile,
+  listTenantAdminEmployeeDirectory,
   listTenantAdminEmployees,
   setTenantAdminEmployeeManager,
   updateTenantProfile,
@@ -89,11 +90,11 @@ export function EmployeeProfile({ employeeId }: { employeeId: string }) {
     );
   const employeesQuery = useQuery({
     queryKey: ["tenant-admin-employees"],
-    queryFn: listTenantAdminEmployees,
+    queryFn: listTenantAdminEmployeeDirectory,
     enabled: usesDatabaseEmployeeId,
   });
   const employeeRecord = usesDatabaseEmployeeId
-    ? (employeesQuery.data ?? []).find((item) => item.id === employeeId)
+    ? (employeesQuery.data?.employees ?? []).find((item) => item.id === employeeId)
     : employees.find((item) => item.id === employeeId);
   if (usesDatabaseEmployeeId && employeesQuery.isPending) {
     return <LoadingState label="Loading employee profile" rows={3} />;

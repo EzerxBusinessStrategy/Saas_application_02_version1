@@ -1464,23 +1464,30 @@ function WorkGroupForm({
   onSubmit: (values: WorkGroupFormValues) => void;
 }) {
   const managers = employees.filter((employee) => employee.isManager);
+  const initialManagerEmployeeId = workGroup?.managerEmployeeId ?? managers[0]?.id ?? "";
   const [values, setValues] = useState<WorkGroupFormValues>({
     name: workGroup?.name ?? "",
     clientId: workGroup?.clientId ?? "",
-    managerEmployeeId: workGroup?.managerEmployeeId ?? managers[0]?.id ?? "",
-    employeeIds: workGroup?.members.map((member) => member.id) ?? [],
+    managerEmployeeId: initialManagerEmployeeId,
+    employeeIds: [
+      ...new Set([
+        ...(workGroup?.members.map((member) => member.id) ?? []),
+        ...(initialManagerEmployeeId ? [initialManagerEmployeeId] : []),
+      ]),
+    ],
     status: (workGroup?.status as WorkGroupFormValues["status"]) ?? "active",
   });
   const [formError, setFormError] = useState<string | null>(null);
   const selectedEmployees = new Set(values.employeeIds);
+  const selectedEmployeeCount = selectedEmployees.size;
   const submitDisabled =
     values.name.trim().length < 2 ||
     !values.managerEmployeeId ||
-    selectedEmployees.size === 0;
+    selectedEmployeeCount === 0;
   return (
     <form
       data-draft-key={`tenant-work-group-${workGroup?.id ?? "create"}`}
-      className="grid max-h-[70vh] gap-5 overflow-y-auto pr-1 sm:grid-cols-2"
+      className="flex max-h-[min(74vh,40rem)] flex-col overflow-hidden"
       noValidate
       onSubmit={(event) => {
         event.preventDefault();
@@ -1500,90 +1507,132 @@ function WorkGroupForm({
         onSubmit({ ...values, employeeIds: [...selectedEmployees] });
       }}
     >
-      <label className="text-sm font-medium sm:col-span-2">
-        Work-group name
-        <Input required data-field-label="Work-group name" name="name" className="mt-1" value={values.name} onChange={(event) => setValues((current) => ({ ...current, name: event.target.value }))} />
-      </label>
-      {formError ? <p className="text-sm text-danger sm:col-span-2" role="alert">{formError}</p> : null}
-      <label className="text-sm font-medium">
-        Client
-        <Select name="clientId" className="mt-1" value={values.clientId} onChange={(event) => setValues((current) => ({ ...current, clientId: event.target.value }))}>
-          <option value="">No client</option>
-          {clientOptions.map((client) => (
-            <option key={client.id} value={client.id}>
-              {client.name}
-            </option>
-          ))}
-        </Select>
-      </label>
-      <label className="text-sm font-medium">
-        Manager
-        <Select
-          className="mt-1"
-          required
-          data-field-label="Manager"
-          name="managerEmployeeId"
-          value={values.managerEmployeeId}
-          onChange={(event) => {
-            const managerEmployeeId = event.target.value;
-            setValues((current) => ({
-              ...current,
-              managerEmployeeId,
-              employeeIds: managerEmployeeId ? [...new Set([...current.employeeIds, managerEmployeeId])] : current.employeeIds,
-            }));
-          }}
-        >
-          <option value="">Select manager</option>
-          {managers.map((employee) => (
-            <option key={employee.id} value={employee.id}>
-              {employee.name}
-            </option>
-          ))}
-        </Select>
-        {!managers.length ? <span className="mt-1 block text-xs text-muted-foreground">Mark an employee as a manager before creating this work group.</span> : null}
-      </label>
-      <fieldset className="sm:col-span-2">
-        <legend className="text-sm font-medium">Employees</legend>
-        <div className="mt-2 grid max-h-44 gap-2 overflow-y-auto rounded-[var(--radius-control)] border p-3 sm:grid-cols-2">
-          {employees.length ? (
-            employees.map((employee) => (
-              <label key={employee.id} className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  name="employeeIds"
-                  value={employee.id}
-                  className="size-4 accent-primary"
-                  checked={selectedEmployees.has(employee.id)}
-                  onChange={() =>
-                    setValues((current) => ({
-                      ...current,
-                      employeeIds: selectedEmployees.has(employee.id)
-                        ? current.employeeIds.filter((id) => id !== employee.id)
-                        : [...current.employeeIds, employee.id],
-                    }))
-                  }
-                />
-                <span>{employee.name}</span>
-              </label>
-            ))
-          ) : (
-            <p className="text-sm text-muted-foreground">Create an employee before creating a work group.</p>
-          )}
-        </div>
-      </fieldset>
-      <label className="text-sm font-medium">
-        Status
-        <Select name="status" className="mt-1" value={values.status} onChange={(event) => setValues((current) => ({ ...current, status: event.target.value as WorkGroupFormValues["status"] }))}>
-          <option value="active">Active</option>
-          <option value="inactive">Inactive</option>
-          <option value="archived">Archived</option>
-        </Select>
-      </label>
-      <div className="flex justify-end gap-2 pt-1 sm:col-span-2">
+      <div className="border-b px-6 py-5 pr-12">
+        <h2 className="text-lg font-semibold text-foreground">
+          {workGroup ? "Edit work group" : "Create work group"}
+        </h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Set the accountable manager, delivery team, and operating status.
+        </p>
+      </div>
+      <div className="grid gap-5 overflow-y-auto px-6 py-5 sm:grid-cols-2">
+        {formError ? (
+          <p className="rounded-[var(--radius-control)] border border-danger/25 bg-danger/10 px-3 py-2 text-sm text-danger sm:col-span-2" role="alert">
+            {formError}
+          </p>
+        ) : null}
+        <label className="text-sm font-medium sm:col-span-2">
+          <span>
+            Work-group name <span data-required-marker="true" className="text-danger" aria-hidden="true">*</span>
+          </span>
+          <Input
+            required
+            aria-label="Work-group name"
+            data-field-label="Work-group name"
+            name="name"
+            className="mt-1.5"
+            placeholder="For example, GST filing team"
+            value={values.name}
+            onChange={(event) => setValues((current) => ({ ...current, name: event.target.value }))}
+          />
+        </label>
+        <label className="text-sm font-medium">
+          Client
+          <Select name="clientId" className="mt-1.5" value={values.clientId} onChange={(event) => setValues((current) => ({ ...current, clientId: event.target.value }))}>
+            <option value="">No client</option>
+            {clientOptions.map((client) => (
+              <option key={client.id} value={client.id}>
+                {client.name}
+              </option>
+            ))}
+          </Select>
+        </label>
+        <label className="text-sm font-medium">
+          <span>
+            Manager <span data-required-marker="true" className="text-danger" aria-hidden="true">*</span>
+          </span>
+          <Select
+            className="mt-1.5"
+            required
+            aria-label="Manager"
+            data-field-label="Manager"
+            name="managerEmployeeId"
+            value={values.managerEmployeeId}
+            onChange={(event) => {
+              const managerEmployeeId = event.target.value;
+              setValues((current) => ({
+                ...current,
+                managerEmployeeId,
+                employeeIds: managerEmployeeId
+                  ? [...new Set([...current.employeeIds, managerEmployeeId])]
+                  : current.employeeIds,
+              }));
+            }}
+          >
+            <option value="">Select manager</option>
+            {managers.map((employee) => (
+              <option key={employee.id} value={employee.id}>
+                {employee.name}
+              </option>
+            ))}
+          </Select>
+          {!managers.length ? <span className="mt-1.5 block text-xs font-normal text-muted-foreground">Mark an employee as a manager before creating this work group.</span> : null}
+        </label>
+        <fieldset className="sm:col-span-2" aria-required="true">
+          <legend className="text-sm font-medium">
+            Employees <span className="text-danger" aria-hidden="true">*</span>
+          </legend>
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-xs text-muted-foreground">
+              {selectedEmployeeCount} selected
+            </span>
+          </div>
+          <div className="mt-2 grid max-h-44 gap-2 overflow-y-auto rounded-[var(--radius-control)] border bg-muted/20 p-2 sm:grid-cols-2">
+            {employees.length ? (
+              employees.map((employee) => {
+                const isManager = employee.id === values.managerEmployeeId;
+                return (
+                  <label key={employee.id} className="flex min-h-10 items-center gap-2 rounded-[var(--radius-control)] px-2 text-sm transition-colors has-[:checked]:bg-primary/10 hover:bg-muted">
+                    <input
+                      type="checkbox"
+                      name="employeeIds"
+                      value={employee.id}
+                      className="size-4 accent-primary"
+                      checked={selectedEmployees.has(employee.id)}
+                      disabled={isManager}
+                      onChange={() =>
+                        setValues((current) => ({
+                          ...current,
+                          employeeIds: selectedEmployees.has(employee.id)
+                            ? current.employeeIds.filter((id) => id !== employee.id)
+                            : [...current.employeeIds, employee.id],
+                        }))
+                      }
+                    />
+                    <span className="min-w-0 flex-1 truncate">{employee.name}</span>
+                    {isManager ? <span className="text-xs text-muted-foreground">Manager</span> : null}
+                  </label>
+                );
+              })
+            ) : (
+              <p className="px-2 py-1 text-sm text-muted-foreground">Create an employee before creating a work group.</p>
+            )}
+          </div>
+        </fieldset>
+        <label className="text-sm font-medium sm:max-w-xs">
+          Status
+          <Select name="status" className="mt-1.5" value={values.status} onChange={(event) => setValues((current) => ({ ...current, status: event.target.value as WorkGroupFormValues["status"] }))}>
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+            <option value="archived">Archived</option>
+          </Select>
+        </label>
+      </div>
+      <div className="flex flex-col-reverse gap-2 border-t bg-muted/15 px-6 py-4 sm:flex-row sm:justify-end">
         <Button type="button" variant="outline" onClick={onClose}>
           Cancel
         </Button>
-        <Button type="submit">
+        <Button type="submit" disabled={submitDisabled}>
           {workGroup ? "Save work group" : "Create work group"}
         </Button>
       </div>
@@ -1815,9 +1864,10 @@ export function WorkGroupDirectory() {
         <DialogContent
           title={editing === "new" ? "Create work group" : "Edit work group"}
           description="Choose a manager and employees for this group."
+          className="max-w-xl p-0"
         >
           {editing ? (
-            <div className="pt-1">
+            <div>
               <WorkGroupForm
                 workGroup={editing === "new" ? undefined : editing}
                 employees={employees}

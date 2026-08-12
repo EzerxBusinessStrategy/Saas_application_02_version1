@@ -1,11 +1,23 @@
 import { describe, expect, it, vi } from "vitest";
 import { RequestContext } from "../../src/auth/request-context";
 import { AppConfig } from "../../src/config/app-config";
-import { createTenantAdminTaskSchema } from "../../src/platform/tenant-admin-tasks.dto";
+import {
+  createTenantAdminTaskSchema,
+  updateTenantAdminEmployeeAssignmentSchema,
+} from "../../src/platform/tenant-admin-tasks.dto";
 import { TenantAdminTasksRepository } from "../../src/platform/tenant-admin-tasks.repository";
 import { TenantAdminTasksService } from "../../src/platform/tenant-admin-tasks.service";
 
 describe("TenantAdminTasksService", () => {
+  it("accepts only UUID work group IDs in employee assignment requests", () => {
+    expect(
+      updateTenantAdminEmployeeAssignmentSchema.parse({
+        workGroupIds: ["11111111-1111-4111-8111-111111111111"],
+      }),
+    ).toMatchObject({ workGroupIds: ["11111111-1111-4111-8111-111111111111"] });
+    expect(() => updateTenantAdminEmployeeAssignmentSchema.parse({ workGroupIds: ["not-a-uuid"] })).toThrow();
+  });
+
   it("requires at least one employee when creating a tenant admin task", () => {
     expect(() =>
       createTenantAdminTaskSchema.parse({
@@ -79,6 +91,41 @@ describe("TenantAdminTasksService", () => {
 });
 
 describe("TenantAdminTasksRepository", () => {
+  it("does not remove an employee from a work group they manage", async () => {
+    type QueryClient = {
+      query(sqlText: string): Promise<{ rows: Array<Record<string, unknown>> }>;
+    };
+    const client: QueryClient = {
+      query: vi.fn(async (sqlText: string) => {
+        if (sqlText.includes("from public.work_group_memberships")) {
+          return { rows: [{ work_group_id: "11111111-1111-4111-8111-111111111111" }] };
+        }
+        return { rows: [] };
+      }),
+    };
+    const repository = new TenantAdminTasksRepository(null);
+    const replaceEmployeeWorkGroupMemberships = (
+      repository as unknown as {
+        replaceEmployeeWorkGroupMemberships(
+          client: QueryClient,
+          context: { tenantId: string; membershipId: string },
+          employeeId: string,
+          workGroupIds: readonly string[],
+        ): Promise<void>;
+      }
+    ).replaceEmployeeWorkGroupMemberships.bind(repository);
+
+    await expect(
+      replaceEmployeeWorkGroupMemberships(
+        client,
+        { tenantId: "tenant-1", membershipId: "membership-1" },
+        "employee-1",
+        [],
+      ),
+    ).rejects.toMatchObject({ response: expect.objectContaining({ code: "WORK_GROUP_MANAGER_REQUIRED" }) });
+    expect(client.query).toHaveBeenCalledTimes(1);
+  });
+
   it("lists tasks through tenant-scoped joins only", async () => {
     type QueryClient = {
       query(sqlText: string, params: readonly unknown[]): Promise<{ rows: Array<Record<string, unknown>> }>;

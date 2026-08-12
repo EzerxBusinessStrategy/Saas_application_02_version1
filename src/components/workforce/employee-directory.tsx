@@ -30,6 +30,7 @@ import {
   createTenantAdminEmployee,
   getTenantAdminEmployeeEmailAvailability,
   listTenantAdminEmployeeDirectory,
+  listTenantAdminWorkGroups,
   setTenantAdminEmployeeManager,
   updateTenantAdminEmployeeAssignment,
   updateTenantAdminEmployeeCapacity,
@@ -163,6 +164,11 @@ export function EmployeeDirectory() {
   const employeesQuery = useQuery({
     queryKey: ["tenant-admin-employees"],
     queryFn: listTenantAdminEmployeeDirectory,
+  });
+  const workGroupsQuery = useQuery({
+    queryKey: ["tenant-admin-work-groups"],
+    queryFn: listTenantAdminWorkGroups,
+    enabled: Boolean(assignmentEmployee),
   });
   useEffect(() => {
     if (readFormDraft(`${pathname}:tenant-employee-create`)) {
@@ -577,8 +583,8 @@ export function EmployeeDirectory() {
       />
       <AssignmentDialog
         employee={assignmentEmployee}
-        departments={employeesQuery.data?.departments ?? []}
         managers={options.managers}
+        workGroups={workGroupsQuery.data ?? []}
         onOpenChange={(open) => !open && setAssignmentEmployee(null)}
         onSaved={async (input) => {
           if (!assignmentEmployee) return;
@@ -738,45 +744,57 @@ function CapacityDialog({
 
 function AssignmentDialog({
   employee,
-  departments,
   managers,
+  workGroups,
   onOpenChange,
   onSaved,
 }: {
   employee: Employee | null;
-  departments: readonly { id: string; name: string }[];
   managers: readonly Employee[];
+  workGroups: readonly { id: string; name: string; managerEmployeeId: string; status: "active" | "inactive" | "archived" }[];
   onOpenChange: (open: boolean) => void;
   onSaved: (input: {
-    departmentId: string | null;
     skills: string[];
     experienceLevel: "junior" | "mid" | "senior" | "lead" | null;
     managerId: string | null;
+    workGroupIds: string[];
   }) => Promise<void>;
 }) {
-  const [departmentId, setDepartmentId] = useState("");
   const [skills, setSkills] = useState("");
   const [experienceLevel, setExperienceLevel] = useState("");
   const [managerId, setManagerId] = useState("");
+  const [workGroupIds, setWorkGroupIds] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const open = Boolean(employee);
 
   useEffect(() => {
-    setDepartmentId(employee?.departmentId ?? "");
     setSkills(employee?.skills.join(", ") ?? "");
     setExperienceLevel(employee?.experienceLevel ?? "");
     setManagerId(employee?.manager?.id ?? "");
+    setWorkGroupIds(employee?.workGroups.map((workGroup) => workGroup.id) ?? []);
   }, [employee]);
+
+  const managerWorkGroupIds = workGroups
+    .filter((workGroup) => workGroup.managerEmployeeId === employee?.id)
+    .map((workGroup) => workGroup.id);
+  const toggleWorkGroup = (workGroupId: string, checked: boolean) => {
+    if (managerWorkGroupIds.includes(workGroupId)) return;
+    setWorkGroupIds((current) =>
+      checked
+        ? [...new Set([...current, workGroupId])]
+        : current.filter((currentId) => currentId !== workGroupId),
+    );
+  };
 
   const save = async () => {
     if (!employee) return;
     setSaving(true);
     try {
       await onSaved({
-        departmentId: departmentId || null,
         skills: skills.split(",").map((value) => value.trim()).filter(Boolean),
         experienceLevel: experienceLevel ? (experienceLevel as "junior" | "mid" | "senior" | "lead") : null,
         managerId: managerId || null,
+        workGroupIds,
       });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Employee details could not be updated.");
@@ -787,7 +805,7 @@ function AssignmentDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent title="Edit employee details" description="Update department, skills, level, and reporting manager." className="max-w-md">
+      <DialogContent title="Edit employee details" description="Update work groups, skills, level, and reporting manager." className="max-w-md">
         <form
           data-draft-key={`tenant-employee-assignment-${employee?.id ?? "new"}`}
           className="grid gap-4 pr-8"
@@ -797,7 +815,19 @@ function AssignmentDialog({
             void save();
           }}
         >
-          <label className="text-sm font-medium">Department<Select name="departmentId" className="mt-1" value={departmentId} onChange={(event) => setDepartmentId(event.target.value)}><option value="">Unassigned</option>{departments.map((department) => <option key={department.id} value={department.id}>{department.name}</option>)}</Select></label>
+          <fieldset className="grid gap-2">
+            <legend className="text-sm font-medium">Work groups</legend>
+            <div className="max-h-40 space-y-1 overflow-y-auto rounded-[var(--radius-control)] border border-input bg-muted/20 p-2">
+              {workGroups.filter((workGroup) => workGroup.status === "active").length ? workGroups.filter((workGroup) => workGroup.status === "active").map((workGroup) => {
+                const managedByEmployee = managerWorkGroupIds.includes(workGroup.id);
+                return <label key={workGroup.id} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-muted">
+                  <input type="checkbox" name="workGroupIds" value={workGroup.id} checked={workGroupIds.includes(workGroup.id) || managedByEmployee} disabled={managedByEmployee} onChange={(event) => toggleWorkGroup(workGroup.id, event.target.checked)} />
+                  <span className="min-w-0 flex-1 truncate">{workGroup.name}</span>
+                  {managedByEmployee ? <span className="text-xs text-muted-foreground">Manager</span> : null}
+                </label>;
+              }) : <p className="px-2 py-1 text-sm text-muted-foreground">No active work groups are available.</p>}
+            </div>
+          </fieldset>
           <label className="text-sm font-medium">Skills<Input name="skills" className="mt-1" value={skills} placeholder="GST, Payroll, Compliance" onChange={(event) => setSkills(event.target.value)} /></label>
           <label className="text-sm font-medium">Level<Select name="experienceLevel" className="mt-1" value={experienceLevel} onChange={(event) => setExperienceLevel(event.target.value)}><option value="">Not set</option><option value="junior">Junior</option><option value="mid">Mid</option><option value="senior">Senior</option><option value="lead">Lead</option></Select></label>
           <label className="text-sm font-medium">Manager<Select name="managerId" className="mt-1" value={managerId} onChange={(event) => setManagerId(event.target.value)}><option value="">Unassigned</option>{managers.filter((manager) => manager.id !== employee?.id).map((manager) => <option key={manager.id} value={manager.id}>{manager.name}</option>)}</Select></label>

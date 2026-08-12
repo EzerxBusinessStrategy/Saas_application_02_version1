@@ -359,6 +359,7 @@ export type UpdateTenantAdminEmployeeAssignmentInput = {
   skills?: string[];
   experienceLevel?: "junior" | "mid" | "senior" | "lead" | null;
   managerId?: string | null;
+  workGroupIds?: string[];
 };
 export type TenantAdminWorkGroup = z.infer<typeof tenantAdminWorkGroupSchema>;
 export type TenantAdminTask = z.infer<typeof tenantAdminTaskSchema>;
@@ -1023,8 +1024,15 @@ export async function listTenantAdminEmployees(): Promise<TenantAdminEmployeeOpt
 }
 
 export async function listTenantAdminEmployeeDirectory() {
-  const response = await fetch("/api/tenant-admin/tasks/employees", { cache: "no-store" });
-  return tenantAdminEmployeesResponseSchema.parse(await parseJsonResponse(response));
+  // A recently awakened API can transiently return an empty directory before its
+  // tenant context is ready. Confirm that state before rendering an empty roster.
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const response = await fetch("/api/tenant-admin/tasks/employees", { cache: "no-store" });
+    const directory = tenantAdminEmployeesResponseSchema.parse(await parseJsonResponse(response));
+    if (directory.employees.length || attempt === 2) return directory;
+    await new Promise((resolve) => setTimeout(resolve, 250 * (attempt + 1)));
+  }
+  throw new Error("Employee directory could not be loaded.");
 }
 
 export async function setTenantAdminEmployeeManager(employeeId: string, isManager: boolean): Promise<TenantAdminEmployeeOption> {

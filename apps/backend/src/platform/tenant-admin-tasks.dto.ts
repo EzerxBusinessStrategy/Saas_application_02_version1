@@ -106,6 +106,7 @@ export const updateTenantAdminEmployeeAssignmentSchema = z.object({
   skills: z.array(z.string().trim().min(1).max(120)).max(20).optional(),
   experienceLevel: z.enum(["junior", "mid", "senior", "lead"]).nullable().optional(),
   managerId: z.string().uuid().nullable().optional(),
+  workGroupIds: z.array(z.string().uuid()).max(50).optional(),
 });
 export type UpdateTenantAdminEmployeeAssignmentRequest = z.infer<typeof updateTenantAdminEmployeeAssignmentSchema>;
 

@@ -1,4 +1,4 @@
-import { expect, test } from "vitest";
+import { afterEach, expect, test, vi } from "vitest";
 import {
   assignSupportTicket,
   createSupportTicket,
@@ -7,8 +7,57 @@ import {
   listOperationalTasks,
   progressPercent,
   resolveSupportTicket,
+  listTenantAdminEmployeeDirectory,
   validateWorkLog,
 } from "@/features/operations/api/operations-api";
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.useRealTimers();
+});
+
+test("reads a populated Tenant Admin employee directory without serving a stale empty roster", async () => {
+  const fetchMock = vi.fn().mockResolvedValue(
+    new Response(
+      JSON.stringify({
+        employees: [{ id: "employee-1", name: "Aarav Mehta", employeeCode: "EMP-001", email: "aarav@example.test", isManager: false }],
+        departments: [],
+      }),
+      { status: 200, headers: { "content-type": "application/json" } },
+    ),
+  );
+  vi.stubGlobal("fetch", fetchMock);
+
+  await expect(listTenantAdminEmployeeDirectory()).resolves.toMatchObject({
+    employees: [{ id: "employee-1", name: "Aarav Mehta" }],
+  });
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+});
+
+test("confirms an initially empty employee directory before displaying it", async () => {
+  vi.useFakeTimers();
+  const fetchMock = vi
+    .fn()
+    .mockResolvedValueOnce(
+      new Response(JSON.stringify({ employees: [], departments: [] }), { status: 200 }),
+    )
+    .mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          employees: [{ id: "employee-1", name: "Aarav Mehta", employeeCode: "EMP-001", email: "aarav@example.test", isManager: false }],
+          departments: [],
+        }),
+        { status: 200 },
+      ),
+    );
+  vi.stubGlobal("fetch", fetchMock);
+
+  const directory = listTenantAdminEmployeeDirectory();
+  await vi.advanceTimersByTimeAsync(250);
+
+  await expect(directory).resolves.toMatchObject({ employees: [{ id: "employee-1" }] });
+  expect(fetchMock).toHaveBeenCalledTimes(2);
+});
 
 test("limits manager, employee, and client task results to their assigned scope", async () => {
   await expect(listOperationalTasks("manager")).resolves.toHaveLength(3);

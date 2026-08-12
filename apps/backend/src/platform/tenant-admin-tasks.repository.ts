@@ -431,6 +431,10 @@ export class TenantAdminTasksRepository {
         }
       }
 
+      if (input.workGroupIds !== undefined) {
+        await this.replaceEmployeeWorkGroupMemberships(client, context, employeeId, input.workGroupIds);
+      }
+
       await client.query(
         "select audit.write_audit_event('EMPLOYEE_ASSIGNMENT_UPDATED', 'employee', $1::uuid, 'succeeded', null, $2::jsonb)",
         [employeeId, JSON.stringify(input)],
@@ -2202,6 +2206,97 @@ export class TenantAdminTasksRepository {
             updated_at = now()
       `,
       [context.tenantId, workGroupId, managerEmployeeId, context.membershipId, employeeIds],
+    );
+  }
+
+  private async replaceEmployeeWorkGroupMemberships(
+    client: PoolClient,
+    context: TenantAdminRequestContext,
+    employeeId: string,
+    requestedWorkGroupIds: readonly string[],
+  ): Promise<void> {
+    const workGroupIds = [...new Set(requestedWorkGroupIds)];
+    if (workGroupIds.length) {
+      const available = await client.query<{ id: string }>(
+        `
+          select id::text
+          from public.work_groups
+          where tenant_id = $1
+            and status = 'active'
+            and id = any($2::uuid[])
+        `,
+        [context.tenantId, workGroupIds],
+      );
+      if (available.rows.length !== workGroupIds.length) {
+        throw new BadRequestException({
+          code: "WORK_GROUP_NOT_AVAILABLE",
+          message: "One or more selected work groups are not active in this tenant.",
+        });
+      }
+    }
+
+    const managed = await client.query<{ work_group_id: string }>(
+      `
+        select work_group_id::text
+        from public.work_group_memberships
+        where tenant_id = $1
+          and employee_id = $2
+          and group_role = 'manager'
+          and status = 'active'
+      `,
+      [context.tenantId, employeeId],
+    );
+    const managedWorkGroupIds = managed.rows.map((row) => row.work_group_id);
+    if (managedWorkGroupIds.some((workGroupId) => !workGroupIds.includes(workGroupId))) {
+      throw new BadRequestException({
+        code: "WORK_GROUP_MANAGER_REQUIRED",
+        message: "A work group manager must remain assigned to that work group. Reassign its manager from the work group first.",
+      });
+    }
+
+    await client.query(
+      `
+        update public.work_group_memberships
+        set status = 'removed',
+            removed_at = now(),
+            removed_by = $3,
+            updated_at = now()
+        where tenant_id = $1
+          and employee_id = $2
+          and group_role = 'member'
+          and status = 'active'
+          and not (work_group_id = any($4::uuid[]))
+      `,
+      [context.tenantId, employeeId, context.membershipId, workGroupIds],
+    );
+
+    if (!workGroupIds.length) return;
+    await client.query(
+      `
+        insert into public.work_group_memberships (
+          tenant_id,
+          work_group_id,
+          employee_id,
+          group_role,
+          status,
+          added_by
+        )
+        select $1, selected.work_group_id, $2, 'member', 'active', $3
+        from unnest($4::uuid[]) as selected(work_group_id)
+        where not exists (
+          select 1
+          from public.work_group_memberships manager_membership
+          where manager_membership.tenant_id = $1
+            and manager_membership.work_group_id = selected.work_group_id
+            and manager_membership.employee_id = $2
+            and manager_membership.group_role = 'manager'
+            and manager_membership.status = 'active'
+        )
+        on conflict (tenant_id, work_group_id, employee_id) where status = 'active' do update
+        set group_role = 'member',
+            updated_at = now()
+      `,
+      [context.tenantId, employeeId, context.membershipId, workGroupIds],
     );
   }
 

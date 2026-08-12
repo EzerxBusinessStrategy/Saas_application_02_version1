@@ -160,7 +160,7 @@ test("validates and retains a mock work-group creation flow", async () => {
   fireEvent.change(within(dialog).getByLabelText("Client"), {
     target: { value: "cl-101" },
   });
-  fireEvent.click(within(dialog).getByRole("checkbox", { name: "Aarav Mehta" }));
+  expect(within(dialog).getByRole("checkbox", { name: "Aarav Mehta Manager" })).toBeChecked();
   fireEvent.click(
     within(dialog).getByRole("button", { name: "Create work group" }),
   );
