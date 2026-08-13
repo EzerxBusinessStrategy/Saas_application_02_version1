@@ -98,7 +98,7 @@ export function AuthForm({ mode }: { mode: Mode }) {
   const details = content[mode];
 
   if (isLogin) {
-    return <LoginLayout><LoginForm /></LoginLayout>;
+    return <AuthScreenLayout><LoginForm /></AuthScreenLayout>;
   }
 
   return <NonLoginForm mode={mode} />;
@@ -591,7 +591,7 @@ function NonLoginForm({ mode }: { mode: Exclude<Mode, "login"> }) {
 
 /* ─── Login Layout (two-panel) ─── */
 
-function LoginLayout({ children }: { children: React.ReactNode }) {
+export function AuthScreenLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-[100dvh] bg-muted lg:h-[100dvh] lg:overflow-hidden lg:grid lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
       <aside className="login-brand-panel relative hidden overflow-hidden px-10 py-10 text-sidebar-foreground lg:flex lg:h-[100dvh] lg:flex-col xl:px-14">

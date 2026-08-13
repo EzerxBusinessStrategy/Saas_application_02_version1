@@ -1,4 +1,5 @@
-import Link from "next/link";
+import { PortalSignInSelector } from "@/components/auth/portal-login-form";
+
 export default function Login() {
-  return <main className="grid min-h-screen place-items-center bg-muted/40 px-4"><section className="w-full max-w-md"><h1 className="text-2xl font-semibold">Sign in</h1><p className="mt-2 text-sm text-muted-foreground">Choose the portal assigned to your account.</p><nav className="mt-6 grid gap-3" aria-label="Sign-in portals"><Link className="rounded-lg border bg-background px-4 py-3 font-medium hover:bg-muted" href="/super-admin/login">Administrator</Link><Link className="rounded-lg border bg-background px-4 py-3 font-medium hover:bg-muted" href="/admin/login">Tenant</Link><Link className="rounded-lg border bg-background px-4 py-3 font-medium hover:bg-muted" href="/employee/login">Employee</Link><Link className="rounded-lg border bg-background px-4 py-3 font-medium hover:bg-muted" href="/client/login">Client</Link></nav></section></main>;
+  return <PortalSignInSelector />;
 }
