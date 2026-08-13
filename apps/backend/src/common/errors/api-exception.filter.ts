@@ -42,6 +42,8 @@ type NormalizedException = {
 
 function normalizeException(exception: unknown): NormalizedException {
   if (!(exception instanceof HttpException)) {
+    const databaseException = normalizeDatabaseException(exception);
+    if (databaseException) return databaseException;
     return {
       statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
       code: "INTERNAL_SERVER_ERROR",
@@ -57,6 +59,40 @@ function normalizeException(exception: unknown): NormalizedException {
   const details = statusCode === HttpStatus.BAD_REQUEST ? detailsForBody(body) : undefined;
 
   return { statusCode, code, message, details };
+}
+
+function normalizeDatabaseException(exception: unknown): NormalizedException | undefined {
+  const code = databaseErrorCode(exception);
+  switch (code) {
+    case "23505":
+      return { statusCode: HttpStatus.CONFLICT, code: "CONFLICT", message: "A record with one of these values already exists." };
+    case "23502":
+    case "23503":
+    case "23514":
+    case "22P02":
+    case "22007":
+      return { statusCode: HttpStatus.BAD_REQUEST, code: "INVALID_REQUEST", message: "One or more submitted values are invalid." };
+    case "42501":
+      return { statusCode: HttpStatus.FORBIDDEN, code: "FORBIDDEN", message: "Access denied." };
+    case "42P01":
+    case "42703":
+      return { statusCode: HttpStatus.SERVICE_UNAVAILABLE, code: "DATABASE_SCHEMA_UNAVAILABLE", message: "The service is being updated. Please try again shortly." };
+    case "53300":
+    case "57P01":
+    case "08000":
+    case "08001":
+    case "08006":
+      return { statusCode: HttpStatus.SERVICE_UNAVAILABLE, code: "DATABASE_UNAVAILABLE", message: "The service is temporarily unavailable. Please try again shortly." };
+    case "57014":
+      return { statusCode: HttpStatus.GATEWAY_TIMEOUT, code: "DATABASE_TIMEOUT", message: "The request took too long. Please try again." };
+    default:
+      return undefined;
+  }
+}
+
+function databaseErrorCode(exception: unknown): string | undefined {
+  if (!isRecord(exception)) return undefined;
+  return typeof exception.code === "string" ? exception.code : undefined;
 }
 
 function messageForBody(body: Record<string, unknown>, response: string | object, statusCode: number): string {

@@ -72,8 +72,7 @@ export async function getTenantCreationOptions(countryCode?: string, incorporati
 
 export async function createTenant(input: CreateTenantInput) {
   // Build a clean payload matching the backend schema exactly.
-  // Strip frontend-only fields (confirm, incorporationDate) and
-  // normalize empty optional strings to undefined so they are omitted.
+  // Strip the frontend-only confirmation and normalize empty optional values.
   const payload = {
     company: {
       displayName: input.company.displayName,
@@ -84,6 +83,7 @@ export async function createTenant(input: CreateTenantInput) {
       reportingCurrencyCode: input.company.reportingCurrencyCode,
       timezone: input.company.timezone,
       industry: input.company.industry || undefined,
+      incorporationDate: input.company.incorporationDate || undefined,
       registrationNumber: input.company.registrationNumber || undefined,
       taxIdentifier: input.company.taxIdentifier || undefined,
     },

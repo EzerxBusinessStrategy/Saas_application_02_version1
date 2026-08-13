@@ -83,6 +83,14 @@ export class AccessAdminService {
     request: CreateTenantWithOwnerInvitationRequest,
   ): Promise<void> {
     const templates = await this.repository.listTenantCreationTemplates(context);
+    const countryTemplate = templates.find((item) => item.country_code === request.company.countryCode);
+
+    if (countryTemplate?.policy_mode === "INCORPORATION_DERIVED" && !request.company.incorporationDate) {
+      throw new BadRequestException({
+        code: "INCORPORATION_DATE_REQUIRED",
+        message: "Enter the incorporation date for this United Kingdom company.",
+      });
+    }
 
     // Template validation: required when using country suggestion, optional for custom
     let template: (typeof templates)[number] | undefined;

@@ -9,7 +9,7 @@ export function Select({
   return (
     <select
       className={cn(
-        "h-10 w-full rounded-[var(--radius-control)] border bg-input px-3 text-sm shadow-[0_1px_1px_rgb(0_0_0/0.05)] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50",
+        "h-10 w-full rounded-[var(--radius-control)] border bg-input px-3 text-sm shadow-[0_1px_1px_rgb(0_0_0/0.05)] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring aria-[invalid=true]:border-danger aria-[invalid=true]:focus-visible:ring-danger disabled:cursor-not-allowed disabled:opacity-50",
         className,
       )}
       {...props}

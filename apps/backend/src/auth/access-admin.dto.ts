@@ -31,6 +31,7 @@ export const createTenantWithOwnerInvitationSchema = z.object({
     reportingCurrencyCode: z.string().trim().length(3).toUpperCase(),
     timezone: z.string().trim().min(1).max(64),
     industry: nullableText,
+    incorporationDate: isoDate.optional(),
     registrationNumber: nullableText,
     taxIdentifier: nullableText,
   }),
@@ -48,6 +49,14 @@ export const createTenantWithOwnerInvitationSchema = z.object({
     password: z.string().min(8).max(128),
     phone: z.string().trim().min(1).max(30),
   }),
+}).superRefine(({ company }, context) => {
+  if (company.countryCode === "GB" && !company.incorporationDate) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["company", "incorporationDate"],
+      message: "Enter the incorporation date for this United Kingdom company.",
+    });
+  }
 });
 
 export const createInvitationSchema = z.object({
@@ -168,6 +177,9 @@ export class CompanyInfoDto {
 
   @ApiPropertyOptional({ type: String, example: "Technology" })
   industry?: string;
+
+  @ApiPropertyOptional({ type: String, format: "date", example: "2026-04-15" })
+  incorporationDate?: string;
 
   @ApiPropertyOptional({ type: String, example: "U12345WB2026PTC123456" })
   registrationNumber?: string;

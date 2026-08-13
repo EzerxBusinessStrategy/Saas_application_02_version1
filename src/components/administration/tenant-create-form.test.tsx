@@ -72,6 +72,13 @@ test("updates incorporation guidance and financial setup when the country change
   fireEvent.change(screen.getByLabelText("URL slug"), { target: { value: "acme-uk" } });
   fireEvent.click(screen.getAllByRole("button", { name: "Save and continue" })[0]);
 
+  expect(await screen.findByText("Enter the incorporation date for this United Kingdom company.")).toBeInTheDocument();
+  expect(screen.getByLabelText("Incorporation date")).toHaveAttribute("aria-invalid", "true");
+  expect(screen.queryByText("Financial setup for United Kingdom")).not.toBeInTheDocument();
+
+  fireEvent.change(screen.getByLabelText("Incorporation date"), { target: { value: "2026-04-15" } });
+  fireEvent.click(screen.getAllByRole("button", { name: "Save and continue" })[0]);
+
   await waitFor(() => expect(screen.getByText("Financial setup for United Kingdom")).toBeInTheDocument());
   expect(screen.getByText(/Enter the United Kingdom incorporation date/)).toBeInTheDocument();
   expect(screen.getByLabelText("Financial-year label")).toHaveValue("");
@@ -86,6 +93,17 @@ test("updates incorporation guidance and financial setup when the country change
 
   await waitFor(() => expect(screen.getByText("Financial setup for United States")).toBeInTheDocument());
   expect(screen.getByText("Use suggested United States financial year")).toBeInTheDocument();
+});
+
+test("keeps incomplete required company details in the form and highlights the first invalid field", async () => {
+  renderWithQuery(<TenantCreatePageForm />);
+
+  fireEvent.click(screen.getAllByRole("button", { name: "Save and continue" })[0]);
+
+  expect(await screen.findByRole("alert")).toHaveTextContent("Complete the highlighted required fields before continuing.");
+  expect(screen.getByLabelText("Company display name")).toHaveAttribute("aria-invalid", "true");
+  expect(screen.getByLabelText("Legal company name")).toHaveAttribute("aria-invalid", "true");
+  expect(mockAdministrationApi.createTenant).not.toHaveBeenCalled();
 });
 
 test("shows an inline country loader instead of a blank selector while options load", async () => {

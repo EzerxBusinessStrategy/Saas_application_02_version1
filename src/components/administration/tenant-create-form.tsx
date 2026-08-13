@@ -72,6 +72,7 @@ export function TenantCreatePageForm() {
   const router = useRouter();
   const [step, setStep] = useState(0);
   const [continuePending, setContinuePending] = useState(false);
+  const [validationMessage, setValidationMessage] = useState<string | null>(null);
   const form = useForm<CreateTenantInput>({
     resolver: zodResolver(createTenantSchema),
     defaultValues,
@@ -125,6 +126,7 @@ export function TenantCreatePageForm() {
       form.setValue("financialYear.endsOn", "");
       form.setValue("financialYear.templateId", "");
       form.setValue("financialYear.overrideReason", "");
+      if (countryCode !== "GB") form.clearErrors("company.incorporationDate");
     }
 
     if (!selectedOptions) return;
@@ -184,6 +186,7 @@ export function TenantCreatePageForm() {
         "company.countryCode",
         "company.reportingCurrencyCode",
         "company.timezone",
+        "company.incorporationDate",
       ],
       [
         "financialYear.source",
@@ -201,9 +204,17 @@ export function TenantCreatePageForm() {
     if (continuePending) return;
     setContinuePending(true);
     try {
-      const valid = await form.trigger(fieldGroups[step] as Parameters<typeof form.trigger>[0]);
+      const valid = await form.trigger(
+        fieldGroups[step] as Parameters<typeof form.trigger>[0],
+        { shouldFocus: true },
+      );
       if (step === 2 && (emailUnavailable || emailCheckPending)) return;
-      if (valid) setStep((current) => Math.min(current + 1, steps.length - 1));
+      if (!valid) {
+        setValidationMessage("Complete the highlighted required fields before continuing.");
+        return;
+      }
+      setValidationMessage(null);
+      setStep((current) => Math.min(current + 1, steps.length - 1));
     } finally {
       setContinuePending(false);
     }
@@ -253,10 +264,19 @@ export function TenantCreatePageForm() {
       <form
         id="create-tenant-form"
         noValidate
-        onSubmit={form.handleSubmit((values) => {
-          if (!blockCreate) mutation.mutate(values);
-        })}
+        onSubmit={form.handleSubmit(
+          (values) => {
+            setValidationMessage(null);
+            if (!blockCreate) mutation.mutate(values);
+          },
+          () => setValidationMessage("Complete the highlighted required fields before creating the tenant."),
+        )}
       >
+        {validationMessage ? (
+          <p className="mb-4 rounded-md border border-danger/30 bg-danger/10 p-3 text-sm text-danger" role="alert">
+            {validationMessage}
+          </p>
+        ) : null}
         {step === 0 ? (
           <CompanyStep
             form={form}
@@ -264,6 +284,7 @@ export function TenantCreatePageForm() {
             isLoadingCountries={options.isFetching}
             selectedCountryName={selectedCountry?.name}
             policyMode={selectedOptions?.policyMode}
+            incorporationDateRequired={countryCode === "GB"}
           />
         ) : null}
         {step === 1 ? (
@@ -309,12 +330,14 @@ function CompanyStep({
   isLoadingCountries,
   selectedCountryName,
   policyMode,
+  incorporationDateRequired,
 }: {
   form: ReturnType<typeof useForm<CreateTenantInput>>;
   countries: NonNullable<Awaited<ReturnType<typeof getTenantCreationOptions>>["countries"]>;
   isLoadingCountries: boolean;
   selectedCountryName?: string;
   policyMode?: string;
+  incorporationDateRequired: boolean;
 }) {
   const incorporationHint =
     policyMode === "INCORPORATION_DERIVED"
@@ -329,28 +352,30 @@ function CompanyStep({
         <CardTitle>Company details</CardTitle>
       </CardHeader>
       <CardContent className="grid gap-5 md:grid-cols-2">
-        <Field label="Company display name" error={form.formState.errors.company?.displayName?.message}>
-          <Input required data-field-label="Company display name" {...form.register("company.displayName")} />
+        <Field label="Company display name" required error={form.formState.errors.company?.displayName?.message}>
+          <Input required aria-label="Company display name" aria-invalid={Boolean(form.formState.errors.company?.displayName)} data-field-label="Company display name" {...form.register("company.displayName")} />
         </Field>
-        <Field label="Legal company name" error={form.formState.errors.company?.legalName?.message}>
-          <Input required data-field-label="Legal company name" {...form.register("company.legalName")} />
+        <Field label="Legal company name" required error={form.formState.errors.company?.legalName?.message}>
+          <Input required aria-label="Legal company name" aria-invalid={Boolean(form.formState.errors.company?.legalName)} data-field-label="Legal company name" {...form.register("company.legalName")} />
         </Field>
-        <Field label="Tenant code" error={form.formState.errors.company?.tenantCode?.message}>
-          <Input required data-field-label="Tenant code" {...form.register("company.tenantCode")} />
+        <Field label="Tenant code" required error={form.formState.errors.company?.tenantCode?.message}>
+          <Input required aria-label="Tenant code" aria-invalid={Boolean(form.formState.errors.company?.tenantCode)} data-field-label="Tenant code" {...form.register("company.tenantCode")} />
         </Field>
-        <Field label="URL slug" error={form.formState.errors.company?.slug?.message}>
-          <Input required data-field-label="URL slug" {...form.register("company.slug")} />
+        <Field label="URL slug" required error={form.formState.errors.company?.slug?.message}>
+          <Input required aria-label="URL slug" aria-invalid={Boolean(form.formState.errors.company?.slug)} data-field-label="URL slug" {...form.register("company.slug")} />
         </Field>
-        <Field label="Country" error={form.formState.errors.company?.countryCode?.message}>
+        <Field label="Country" required error={form.formState.errors.company?.countryCode?.message}>
           <div className="relative">
             <Select
               {...form.register("company.countryCode")}
               required
+              aria-label="Country"
               data-field-label="Country"
               className="pr-10"
               value={form.watch("company.countryCode")}
               disabled={isLoadingCountries}
               aria-busy={isLoadingCountries}
+              aria-invalid={Boolean(form.formState.errors.company?.countryCode)}
             >
               {!countries.length ? (
                 <option value={form.watch("company.countryCode")}>Loading countries...</option>
@@ -374,23 +399,37 @@ function CompanyStep({
         </Field>
         <Field
           label="Reporting currency"
+          required
           hint="Auto-filled from country"
           error={form.formState.errors.company?.reportingCurrencyCode?.message}
         >
-          <Input readOnly {...form.register("company.reportingCurrencyCode")} />
+          <Input readOnly aria-label="Reporting currency" aria-invalid={Boolean(form.formState.errors.company?.reportingCurrencyCode)} {...form.register("company.reportingCurrencyCode")} />
         </Field>
         <Field
           label="Accounting timezone"
+          required
           hint="Auto-filled from country"
           error={form.formState.errors.company?.timezone?.message}
         >
-          <Input readOnly {...form.register("company.timezone")} />
+          <Input readOnly aria-label="Accounting timezone" aria-invalid={Boolean(form.formState.errors.company?.timezone)} {...form.register("company.timezone")} />
         </Field>
         <Field label="Industry">
           <Input {...form.register("company.industry")} placeholder="e.g. Technology" />
         </Field>
-        <Field label="Incorporation date" hint={incorporationHint}>
-          <Input type="date" {...form.register("company.incorporationDate")} />
+        <Field
+          label="Incorporation date"
+          hint={incorporationHint}
+          required={incorporationDateRequired}
+          error={form.formState.errors.company?.incorporationDate?.message}
+        >
+          <Input
+            type="date"
+            required={incorporationDateRequired}
+            aria-label="Incorporation date"
+            aria-invalid={Boolean(form.formState.errors.company?.incorporationDate)}
+            className={form.formState.errors.company?.incorporationDate ? "border-danger focus-visible:ring-danger" : undefined}
+            {...form.register("company.incorporationDate")}
+          />
         </Field>
         <Field label="Company registration number">
           <Input {...form.register("company.registrationNumber")} />
@@ -510,12 +549,15 @@ function FinancialStep({
 
         <div className="grid gap-5 md:grid-cols-3">
           <Field
-            label="Financial-year label"
+          label="Financial-year label"
+            required
             error={form.formState.errors.financialYear?.label?.message}
           >
             <Input
               readOnly={source === "COUNTRY_SUGGESTION_CONFIRMED"}
               required={source === "CUSTOM_CONFIRMED"}
+              aria-label="Financial-year label"
+              aria-invalid={Boolean(form.formState.errors.financialYear?.label)}
               data-field-label="Financial-year label"
               placeholder="e.g. FY 2026-27"
               {...form.register("financialYear.label")}
@@ -523,24 +565,30 @@ function FinancialStep({
           </Field>
           <Field
             label="Start date"
+            required
             error={form.formState.errors.financialYear?.startsOn?.message}
           >
             <Input
               type="date"
               readOnly={source === "COUNTRY_SUGGESTION_CONFIRMED"}
               required={source === "CUSTOM_CONFIRMED"}
+              aria-label="Start date"
+              aria-invalid={Boolean(form.formState.errors.financialYear?.startsOn)}
               data-field-label="Start date"
               {...form.register("financialYear.startsOn")}
             />
           </Field>
           <Field
             label="End date"
+            required
             error={form.formState.errors.financialYear?.endsOn?.message}
           >
             <Input
               type="date"
               readOnly={source === "COUNTRY_SUGGESTION_CONFIRMED"}
               required={source === "CUSTOM_CONFIRMED"}
+              aria-label="End date"
+              aria-invalid={Boolean(form.formState.errors.financialYear?.endsOn)}
               data-field-label="End date"
               {...form.register("financialYear.endsOn")}
             />
@@ -550,11 +598,14 @@ function FinancialStep({
         {source === "CUSTOM_CONFIRMED" ? (
           <Field
             label="Reason for custom period"
+            required
             error={form.formState.errors.financialYear?.overrideReason?.message}
           >
             <Input
               {...form.register("financialYear.overrideReason")}
               required
+              aria-label="Reason for custom period"
+              aria-invalid={Boolean(form.formState.errors.financialYear?.overrideReason)}
               data-field-label="Reason for custom period"
               placeholder="Briefly explain why a custom period is needed"
             />
@@ -583,25 +634,28 @@ function AdminStep({
       <CardContent className="grid gap-5 md:grid-cols-2">
         <Field
           label="Full name"
+          required
           error={form.formState.errors.tenantAdministrator?.fullName?.message}
         >
-          <Input required data-field-label="Full name" {...form.register("tenantAdministrator.fullName")} />
+          <Input required aria-label="Full name" aria-invalid={Boolean(form.formState.errors.tenantAdministrator?.fullName)} data-field-label="Full name" {...form.register("tenantAdministrator.fullName")} />
         </Field>
         <Field
           label="Work email"
+          required
           hint={isCheckingEmail ? "Checking availability" : undefined}
           error={form.formState.errors.tenantAdministrator?.email?.message}
         >
-          <Input required data-field-label="Work email" type="email" {...form.register("tenantAdministrator.email")} />
+          <Input required aria-label="Work email" aria-invalid={Boolean(form.formState.errors.tenantAdministrator?.email)} data-field-label="Work email" type="email" {...form.register("tenantAdministrator.email")} />
         </Field>
         <Field
           label="Initial password"
+          required
           error={form.formState.errors.tenantAdministrator?.password?.message}
         >
-          <PasswordInput required data-field-label="Initial password" {...form.register("tenantAdministrator.password")} />
+          <PasswordInput required aria-label="Initial password" aria-invalid={Boolean(form.formState.errors.tenantAdministrator?.password)} data-field-label="Initial password" {...form.register("tenantAdministrator.password")} />
         </Field>
-        <Field label="Phone number" error={form.formState.errors.tenantAdministrator?.phone?.message}>
-          <Input required data-field-label="Phone number" type="tel" autoComplete="tel" {...form.register("tenantAdministrator.phone")} />
+        <Field label="Phone number" required error={form.formState.errors.tenantAdministrator?.phone?.message}>
+          <Input required aria-label="Phone number" aria-invalid={Boolean(form.formState.errors.tenantAdministrator?.phone)} data-field-label="Phone number" type="tel" autoComplete="tel" {...form.register("tenantAdministrator.phone")} />
         </Field>
         <Field label="Role">
           <Input readOnly value="Tenant Administrator" />
@@ -642,12 +696,13 @@ function ReviewStep({
         </dl>
         <Field
           label="Tenant Administrator email"
+          required
           error={form.formState.errors.tenantAdministrator?.email?.message}
         >
-          <Input required data-field-label="Tenant Administrator email" type="email" {...form.register("tenantAdministrator.email")} />
+          <Input required aria-label="Tenant Administrator email" aria-invalid={Boolean(form.formState.errors.tenantAdministrator?.email)} data-field-label="Tenant Administrator email" type="email" {...form.register("tenantAdministrator.email")} />
         </Field>
-        <Field label="Temporary password" error={form.formState.errors.tenantAdministrator?.password?.message}>
-          <PasswordInput required data-field-label="Temporary password" {...form.register("tenantAdministrator.password")} />
+        <Field label="Temporary password" required error={form.formState.errors.tenantAdministrator?.password?.message}>
+          <PasswordInput required aria-label="Temporary password" aria-invalid={Boolean(form.formState.errors.tenantAdministrator?.password)} data-field-label="Temporary password" {...form.register("tenantAdministrator.password")} />
         </Field>
         <label className="flex items-start gap-3 text-sm">
           <input required data-field-label="tenant details" type="checkbox" className="mt-1" {...form.register("confirm")} />
@@ -689,17 +744,20 @@ function Field({
   label,
   hint,
   error,
+  required = false,
   children,
 }: {
   label: string;
   hint?: string;
   error?: string;
+  required?: boolean;
   children: React.ReactNode;
 }) {
   return (
     <label className="flex flex-col gap-1 text-sm font-medium">
       <span>
         {label}
+        {required ? <span className="ml-1 text-danger" aria-hidden="true">*</span> : null}
         {hint ? <span className="ml-1 text-xs font-normal text-muted-foreground">({hint})</span> : null}
       </span>
       {children}

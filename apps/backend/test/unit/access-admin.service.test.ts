@@ -109,4 +109,32 @@ describe("AccessAdminService", () => {
     expect(repository.userEmailExists).toHaveBeenCalledWith(context, "admin@abc.com");
     expect(repository.createTenantWithDirectTenantAdministrator).not.toHaveBeenCalled();
   });
+
+  test("requires an incorporation date for an incorporation-derived country", async () => {
+    const repository = {
+      listTenantCreationTemplates: vi.fn().mockResolvedValue([{
+        id: "11111111-1111-4111-8111-111111111111",
+        country_code: "GB",
+        policy_mode: "INCORPORATION_DERIVED",
+      }]),
+      userEmailExists: vi.fn(),
+      createTenantWithDirectTenantAdministrator: vi.fn(),
+    };
+    const service = new AccessAdminService(repository as unknown as AccessAdminRepository, new PasswordService());
+
+    await expect(service.createTenantWithOwnerInvitation(context, {
+      company: {
+        displayName: "ABC", legalName: "ABC Limited", tenantCode: "ABC001", slug: "abc",
+        countryCode: "GB", reportingCurrencyCode: "GBP", timezone: "Europe/London",
+      },
+      financialYear: {
+        source: "CUSTOM_CONFIRMED", label: "FY 2026", startsOn: "2026-04-01", endsOn: "2027-03-31", overrideReason: "Company policy",
+      },
+      tenantAdministrator: {
+        fullName: "Tenant Admin", email: "admin@abc.com", password: "temporary-password", phone: "+441234567890",
+      },
+    })).rejects.toMatchObject({ response: { code: "INCORPORATION_DATE_REQUIRED" } });
+
+    expect(repository.createTenantWithDirectTenantAdministrator).not.toHaveBeenCalled();
+  });
 });

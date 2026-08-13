@@ -267,6 +267,14 @@ export const createTenantSchema = z.object({
     phone: z.string().trim().min(1, "Enter the Tenant Administrator phone number.").max(30),
   }),
   confirm: z.boolean().refine((value) => value, "Confirm the tenant details before creating."),
+}).superRefine(({ company }, context) => {
+  if (company.countryCode === "GB" && !company.incorporationDate) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["company", "incorporationDate"],
+      message: "Enter the incorporation date for this United Kingdom company.",
+    });
+  }
 });
 export type CreateTenantInput = z.infer<typeof createTenantSchema>;
 
