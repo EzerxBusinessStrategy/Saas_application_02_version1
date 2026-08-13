@@ -219,6 +219,12 @@ body {
   isolation: isolate;
   background-color: var(--sidebar);
 }
+.auth-right-panel {
+  background-color: #f8f9ff;
+  background-image: radial-gradient(circle, rgb(117 139 255 / 0.22) 1px, transparent 1.25px);
+  background-position: top 14px right 12px;
+  background-size: 20px 20px;
+}
 .login-brand-panel::before,
 .login-brand-panel::after {
   position: absolute;
