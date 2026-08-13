@@ -25,7 +25,6 @@ export function LiveWorldClock({ preferences }: { preferences?: ClockPreferences
   const [now, setNow] = useState<Date | null>(null);
   const [saving, setSaving] = useState(false);
   const serverOffsetRef = useRef(0);
-  const timerRef = useRef<number | null>(null);
 
   useEffect(() => {
     setSelected(clockForTimezone(savedTimezone));
@@ -52,20 +51,14 @@ export function LiveWorldClock({ preferences }: { preferences?: ClockPreferences
   }, [syncServerTime]);
 
   useEffect(() => {
-    if (!now) return;
-    let cancelled = false;
-    const scheduleNextTick = () => {
-      if (cancelled) return;
+    const updateClock = () => {
       const correctedNow = Date.now() + serverOffsetRef.current;
       setNow(new Date(correctedNow));
-      timerRef.current = window.setTimeout(scheduleNextTick, 1000 - (correctedNow % 1000));
     };
-    scheduleNextTick();
-    return () => {
-      cancelled = true;
-      if (timerRef.current !== null) window.clearTimeout(timerRef.current);
-    };
-  }, [now === null]);
+    updateClock();
+    const timer = window.setInterval(updateClock, 1000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   const dateFormatter = useMemo(
     () => new Intl.DateTimeFormat(localeForFormatting(locale), { timeZone: selected.timezone, weekday: "short", day: "2-digit", month: "short", year: "numeric" }),

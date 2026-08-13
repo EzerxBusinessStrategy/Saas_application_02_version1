@@ -97,7 +97,7 @@ export class TenantAdminClientsRepository {
     });
   }
 
-  async create(context: TenantAdminRequestContext, input: TenantAdminClientCreateInput, portalAuthUserId: string) {
+  async create(context: TenantAdminRequestContext, input: TenantAdminClientCreateInput, passwordHash: string) {
     return this.withContext(context, async (client) => {
       const code = input.code ? normalizeClientCode(input.code) : await this.nextClientCode(client, context.tenantId);
       const inserted = await client.query<{ id: string }>(
@@ -151,7 +151,7 @@ export class TenantAdminClientsRepository {
         );
       }
 
-      await this.createClientPortalAccess(client, context, clientId, input, portalAuthUserId);
+      await this.createClientPortalAccess(client, context, clientId, input, passwordHash);
 
       await client.query(
         "select audit.write_audit_event('CLIENT_CREATED', 'client', $1::uuid, 'succeeded', null, $2::jsonb)",
@@ -500,24 +500,23 @@ export class TenantAdminClientsRepository {
     context: TenantAdminRequestContext,
     clientId: string,
     input: TenantAdminClientCreateInput,
-    portalAuthUserId: string,
+    passwordHash: string,
   ): Promise<void> {
     const portalEmail = input.portalAccess.email.trim().toLowerCase();
     const displayName = input.primaryContact?.name || input.displayName;
     const userResult = await client.query<{ id: string }>(
       `
         insert into public.users (
-          supabase_auth_user_id,
           email,
           email_normalized,
           display_name,
           phone,
           status
         )
-        values ($1, $2, $2, $3, nullif($4, ''), 'active')
+        values ($1, $1, $2, nullif($3, ''), 'active')
         returning id::text
       `,
-      [portalAuthUserId, portalEmail, displayName, input.portalAccess.phone ?? ""],
+      [portalEmail, displayName, input.portalAccess.phone ?? ""],
     ).catch((error: unknown) => {
       if (isUniqueViolation(error)) {
         throw new ConflictException({
@@ -567,7 +566,7 @@ export class TenantAdminClientsRepository {
       }
     });
 
-    await client.query(
+    const clientAccountId = await client.query<{ id: string }>(
       `
         insert into public.client_portal_accounts (
           tenant_id,
@@ -581,6 +580,7 @@ export class TenantAdminClientsRepository {
           created_by_membership_id
         )
         values ($1, $2, $3, $4, $5, $5, nullif($6, ''), 'active', $7)
+        returning id::text
       `,
       [
         context.tenantId,
@@ -591,6 +591,16 @@ export class TenantAdminClientsRepository {
         input.portalAccess.phone ?? "",
         context.membershipId,
       ],
+    ).then((result) => {
+      const clientAccountId = result.rows[0]?.id;
+      if (!clientAccountId) throw new ConflictException({ code: "CLIENT_PORTAL_CREATE_FAILED", message: "Client portal account could not be created." });
+      return clientAccountId;
+    });
+
+    await client.query(
+      `insert into authn.credentials (portal_type, user_id, tenant_id, client_account_id, email, email_normalized, password_hash, status, password_changed_at)
+       values ('CLIENT', $1::uuid, $2::uuid, $3::uuid, $4, $4, $5, 'ACTIVE', now())`,
+      [userId, context.tenantId, clientAccountId, portalEmail, passwordHash],
     );
 
     await client.query(

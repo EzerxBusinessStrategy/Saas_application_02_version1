@@ -4,8 +4,6 @@ import { AccessAdminController } from "./access-admin.controller";
 import { ActiveRequestContextService } from "./active-request-context.service";
 import { AccessAdminRepository } from "./access-admin.repository";
 import { AccessAdminService } from "./access-admin.service";
-import { AuthIdentifyController } from "./auth-identify.controller";
-import { AuthIdentifyService } from "./auth-identify.service";
 import { AuthContextRepository } from "./auth-context.repository";
 import { ActiveRequestContextGuard } from "./guards/active-request-context.guard";
 import { PermissionGuard } from "./guards/permission.guard";
@@ -13,26 +11,29 @@ import { SupabaseAuthGuard } from "./guards/supabase-auth.guard";
 import { MeController } from "./me.controller";
 import { MeService } from "./me.service";
 import { RequestContextResolver } from "./request-context-resolver.service";
-import { SessionPolicyController } from "./session-policy.controller";
-import { SessionPolicyRepository } from "./session-policy.repository";
-import { SupabaseJwtVerifier } from "./supabase-jwt-verifier.service";
 import { UserPreferencesRepository } from "./user-preferences.repository";
+import { OpaqueSessionTokenService } from "./core/opaque-session-token.service";
+import { PasswordService } from "./core/password.service";
+import { PortalAuthRepository } from "./core/portal-auth.repository";
+import { PortalAuthService } from "./core/portal-auth.service";
+import { PortalAuthController } from "./portal-auth.controller";
 
 @Module({
   imports: [DatabaseModule],
-  controllers: [MeController, AccessAdminController, AuthIdentifyController, SessionPolicyController],
+  controllers: [MeController, AccessAdminController, PortalAuthController],
   providers: [
     AccessAdminRepository,
     AccessAdminService,
-    AuthIdentifyService,
     AuthContextRepository,
+    OpaqueSessionTokenService,
+    PasswordService,
+    PortalAuthRepository,
+    PortalAuthService,
     ActiveRequestContextGuard,
     ActiveRequestContextService,
     PermissionGuard,
     RequestContextResolver,
-    SessionPolicyRepository,
     SupabaseAuthGuard,
-    SupabaseJwtVerifier,
     UserPreferencesRepository,
     MeService,
   ],
@@ -41,9 +42,9 @@ import { UserPreferencesRepository } from "./user-preferences.repository";
     ActiveRequestContextService,
     PermissionGuard,
     RequestContextResolver,
-    SessionPolicyRepository,
+    PasswordService,
+    PortalAuthService,
     SupabaseAuthGuard,
-    SupabaseJwtVerifier,
   ],
 })
 export class AuthModule {}

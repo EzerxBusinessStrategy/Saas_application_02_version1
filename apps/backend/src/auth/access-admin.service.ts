@@ -1,7 +1,4 @@
-import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException, ServiceUnavailableException } from "@nestjs/common";
-import { createClient } from "@supabase/supabase-js";
-import { APP_CONFIG } from "../config/app-config.module";
-import { AppConfig } from "../config/app-config";
+import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import {
   AcceptedInvitationResponseDto,
   ClosedInvitationResponseDto,
@@ -25,6 +22,7 @@ import {
   verifiedInviteEmailRequired,
 } from "./auth-errors";
 import { RequestContext, VerifiedAuthUser } from "./request-context";
+import { PasswordService } from "./core/password.service";
 
 const ownerInviteRoles = [
   "TENANT_ADMIN",
@@ -47,7 +45,7 @@ const adminInviteRoles = [
 export class AccessAdminService {
   constructor(
     @Inject(AccessAdminRepository) private readonly repository: AccessAdminRepository,
-    @Inject(APP_CONFIG) private readonly config: AppConfig,
+    @Inject(PasswordService) private readonly passwords: PasswordService = new PasswordService(),
   ) { }
 
   async createTenantWithOwnerInvitation(
@@ -58,32 +56,14 @@ export class AccessAdminService {
       throw permissionDenied();
     }
     await this.validateTenantCreation(context, request);
-    if (!this.config.supabaseUrl || !this.config.supabaseAdminKey) {
-      throw new ServiceUnavailableException({ code: "AUTH_PROVISIONING_UNAVAILABLE", message: "Tenant Administrator account provisioning is unavailable." });
-    }
     const normalizedEmail = normalizeEmail(request.tenantAdministrator.email);
     if (await this.isTenantAdminEmailTaken(context, normalizedEmail)) throw emailAlreadyExists();
-
-    const client = createClient(this.config.supabaseUrl, this.config.supabaseAdminKey, {
-      auth: { autoRefreshToken: false, persistSession: false },
-    });
-    const { data, error } = await client.auth.admin.createUser({
-      email: normalizedEmail,
-      password: request.tenantAdministrator.password,
-      email_confirm: true,
-      user_metadata: { full_name: request.tenantAdministrator.fullName },
-    });
-    if (error || !data.user) throw emailAlreadyExists();
-    try {
-      const created = await this.createTenantOrThrowConflict(context, {
-        ...request,
-        tenantAdministrator: { ...request.tenantAdministrator, email: normalizedEmail },
-      }, data.user.id);
-      return { tenantId: created.tenant_id, financialYearId: created.financial_year_id, membershipId: created.membership_id, tenantStatus: "active" as const };
-    } catch (provisioningError) {
-      await client.auth.admin.deleteUser(data.user.id).catch(() => undefined);
-      throw provisioningError;
-    }
+    const passwordHash = await this.passwords.hash(request.tenantAdministrator.password);
+    const created = await this.createTenantOrThrowConflict(context, {
+      ...request,
+      tenantAdministrator: { ...request.tenantAdministrator, email: normalizedEmail },
+    }, passwordHash);
+    return { tenantId: created.tenant_id, financialYearId: created.financial_year_id, membershipId: created.membership_id, tenantStatus: "active" as const };
   }
 
   async getEmailAvailability(context: RequestContext, email: string): Promise<EmailAvailabilityResponseDto> {
@@ -165,10 +145,10 @@ export class AccessAdminService {
   private async createTenantOrThrowConflict(
     context: RequestContext,
     request: CreateTenantWithOwnerInvitationRequest,
-    supabaseAuthUserId: string,
+    passwordHash: string,
   ) {
     try {
-      return await this.repository.createTenantWithDirectTenantAdministrator(context, request, supabaseAuthUserId);
+      return await this.repository.createTenantWithDirectTenantAdministrator(context, request, passwordHash);
     } catch (error) {
       if (isTenantAdminEmailConflict(error)) {
         throw emailAlreadyExists();
@@ -421,24 +401,12 @@ export class AccessAdminService {
     if (!context.isPlatformAdmin || !context.permissions.includes("tenant.update")) {
       throw permissionDenied();
     }
-    if (!this.config.supabaseUrl || !this.config.supabaseAdminKey) {
-      throw new ServiceUnavailableException({ code: "AUTH_PROVISIONING_UNAVAILABLE", message: "Tenant Administrator password management is unavailable." });
-    }
     const administrator = await this.repository.getActiveTenantAdministrator(context, tenantId);
     if (!administrator) {
       throw new NotFoundException({ code: "TENANT_ADMIN_NOT_FOUND", message: "No active Tenant Administrator was found for this tenant." });
     }
     await this.repository.auditTenantAdministratorPasswordReset(context, tenantId, administrator.user_id, "requested");
-    const client = createClient(this.config.supabaseUrl, this.config.supabaseAdminKey, {
-      auth: { autoRefreshToken: false, persistSession: false },
-    });
-    const { error } = await client.auth.admin.updateUserById(administrator.supabase_auth_user_id, {
-      password: request.password,
-    });
-    if (error) {
-      await this.repository.auditTenantAdministratorPasswordReset(context, tenantId, administrator.user_id, "failed");
-      throw new ServiceUnavailableException({ code: "TENANT_ADMIN_PASSWORD_RESET_FAILED", message: "The Tenant Administrator password could not be updated." });
-    }
+    await this.repository.updateTenantAdministratorPassword(context, tenantId, administrator.user_id, await this.passwords.hash(request.password));
     await this.repository.auditTenantAdministratorPasswordReset(context, tenantId, administrator.user_id, "succeeded");
     return { tenantId, email: administrator.email, passwordChangedAt: new Date().toISOString() };
   }

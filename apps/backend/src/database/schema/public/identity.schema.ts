@@ -7,7 +7,7 @@ export const users = pgTable(
   "users",
   {
     id: uuid("id").default(sql`gen_random_uuid()`).primaryKey(),
-    supabaseAuthUserId: uuid("supabase_auth_user_id").notNull(),
+    supabaseAuthUserId: uuid("supabase_auth_user_id"),
     email: text("email").notNull(),
     emailNormalized: text("email_normalized").notNull(),
     displayName: text("display_name").notNull(),

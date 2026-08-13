@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { authenticatedWorkspaceCookie } from "@/lib/auth-cookies";
+import { clientSessionCookie, employeeSessionCookie, superAdminSessionCookie, tenantSessionCookie } from "@/lib/auth-cookies";
 import { appLocaleCookie, locales, timezones } from "@/i18n/config";
 import { proxyClientPortalBackend } from "@/lib/server/client-portal-backend-proxy";
 import { proxyEmployeeBackend } from "@/lib/server/employee-backend-proxy";
@@ -19,7 +19,8 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ message: "Choose a supported language and time zone." }, { status: 400 });
   }
 
-  const workspace = (await cookies()).get(authenticatedWorkspaceCookie)?.value;
+  const cookieStore = await cookies();
+  const workspace = cookieStore.get(superAdminSessionCookie)?.value ? "super-admin" : cookieStore.get(tenantSessionCookie)?.value ? "admin" : cookieStore.get(employeeSessionCookie)?.value ? "employee" : cookieStore.get(clientSessionCookie)?.value ? "client" : undefined;
   const init = {
     method: "PATCH",
     headers: { "content-type": "application/json" },

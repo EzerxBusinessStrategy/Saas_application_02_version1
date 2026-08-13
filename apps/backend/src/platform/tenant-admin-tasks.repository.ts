@@ -182,7 +182,7 @@ export class TenantAdminTasksRepository {
   async createEmployee(
     context: TenantAdminRequestContext,
     input: CreateTenantAdminEmployeeRequest,
-    supabaseAuthUserId: string,
+    passwordHash: string,
   ): Promise<TenantAdminEmployeeOption> {
     return this.withContext(context, async (client) => {
       const email = input.email.trim().toLowerCase();
@@ -190,16 +190,15 @@ export class TenantAdminTasksRepository {
       const userResult = await client.query<{ id: string }>(
         `
           insert into public.users (
-            supabase_auth_user_id,
             email,
             email_normalized,
             display_name,
             status
           )
-          values ($3, $1, $1, $2, 'active')
+          values ($1, $1, $2, 'active')
           returning id::text
         `,
-        [email, input.name, supabaseAuthUserId],
+        [email, input.name],
       ).catch((error: unknown) => {
         if (isUniqueViolation(error)) {
           throw new ConflictException({
@@ -274,6 +273,11 @@ export class TenantAdminTasksRepository {
       });
       const employee = employeeResult.rows[0];
       if (!employee) throw new ConflictException({ code: "EMPLOYEE_CREATE_FAILED", message: "Employee could not be created." });
+      await client.query(
+        `insert into authn.credentials (portal_type, user_id, tenant_id, employee_id, email, email_normalized, password_hash, status, password_changed_at)
+         values ('EMPLOYEE', $1::uuid, $2::uuid, $3::uuid, $4, $4, $5, 'ACTIVE', now())`,
+        [userId, context.tenantId, employee.id, email, passwordHash],
+      );
       if (input.skills.length) {
         await this.upsertEmployeeSkills(client, context.tenantId, employee.id, input.skills);
       }

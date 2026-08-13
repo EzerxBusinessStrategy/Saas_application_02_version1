@@ -1,23 +1,11 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { demoSessionCookie, roleFromSession, workspaceForRole } from "@/lib/demo-auth";
-import { authenticatedWorkspaceCookie, superAdminAccessTokenCookie, superAdminRefreshTokenCookie } from "@/lib/auth-cookies";
+import { clientSessionCookie, employeeSessionCookie, superAdminSessionCookie, tenantSessionCookie } from "@/lib/auth-cookies";
 export default async function Home() {
   const cookieStore = await cookies();
-  const authenticatedWorkspace = cookieStore.get(authenticatedWorkspaceCookie)?.value;
-  if (
-    (authenticatedWorkspace === "admin" || authenticatedWorkspace === "client") &&
-    cookieStore.get(superAdminAccessTokenCookie)?.value
-  ) {
-    redirect(`/${authenticatedWorkspace}`);
-  }
-  if (cookieStore.get(superAdminAccessTokenCookie)?.value) {
-    redirect("/super-admin");
-  }
-  if (cookieStore.get(superAdminRefreshTokenCookie)?.value) {
-    redirect("/api/demo-auth/refresh?next=/super-admin");
-  }
-  const role = roleFromSession(cookieStore.get(demoSessionCookie)?.value);
-  const workspace = role ? workspaceForRole(role) : null;
-  redirect(workspace ? `/${workspace}` : "/login");
+  if (cookieStore.get(superAdminSessionCookie)?.value) redirect("/super-admin");
+  if (cookieStore.get(tenantSessionCookie)?.value) redirect("/admin");
+  if (cookieStore.get(employeeSessionCookie)?.value) redirect("/employee");
+  if (cookieStore.get(clientSessionCookie)?.value) redirect("/client");
+  redirect("/login");
 }

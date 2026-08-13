@@ -14,7 +14,7 @@ export class MeService {
   ) {}
 
   async getMe(context: RequestContext): Promise<MeResponseDto> {
-    const rows = await this.repository.findBySupabaseAuthUserId(context.authUserId);
+    const rows = await this.repository.findByApplicationUserId(context.userId);
     const userRow = rows[0];
     if (!userRow) {
       throw new Error("Resolved request context no longer matches user data.");

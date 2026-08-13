@@ -33,7 +33,8 @@ export function UserMenu({
   open?: boolean;
 }) {
   const signOut = async () => {
-    await fetch("/api/demo-auth/logout", { method: "POST" });
+    const portal = workspace === "super-admin" ? "super-admin" : workspace === "admin" ? "tenant" : workspace === "client" ? "client" : "employee";
+    await fetch(`/api/auth/${portal}/logout`, { method: "POST" });
     window.location.assign("/login");
   };
 

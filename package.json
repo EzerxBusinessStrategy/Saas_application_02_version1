@@ -17,6 +17,7 @@
     "backend:start": "corepack pnpm --filter @saas-app/backend start",
     "backend:start:production": "corepack pnpm --filter @saas-app/backend start:production",
     "backend:bootstrap-super-admin": "corepack pnpm --filter @saas-app/backend bootstrap-super-admin",
+    "backend:bootstrap-portal-super-admin": "corepack pnpm --filter @saas-app/backend bootstrap-portal-super-admin",
     "backend:lint": "corepack pnpm --filter @saas-app/backend lint",
     "backend:typecheck": "corepack pnpm --filter @saas-app/backend typecheck",
     "backend:test": "corepack pnpm --filter @saas-app/backend test",

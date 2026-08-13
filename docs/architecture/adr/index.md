@@ -12,6 +12,7 @@
 - [0010: Work-group task notification outbox](0010-work-group-task-notification-outbox.md) (Accepted)
 - [0011: User-owned localization and time-zone preferences](0011-user-localization-preferences.md) (Proposed)
 - [0012: Parallel Manager and Tenant Admin final task review](0012-parallel-manager-tenant-task-review.md) (Accepted)
+- [0013: Portal-Specific Authentication](0013-portal-specific-authentication.md) (Accepted)
 
 Supporting proposed architecture documents:
 

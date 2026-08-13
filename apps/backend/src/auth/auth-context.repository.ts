@@ -26,6 +26,27 @@ export type AuthContextRow = {
 export class AuthContextRepository {
   constructor(@Inject(DATABASE_POOL) private readonly pool: Pool | null) { }
 
+  async findByApplicationUserId(userId: string): Promise<readonly AuthContextRow[]> {
+    if (!this.pool) throw databaseNotConfigured();
+    const client = await this.pool.connect();
+    try {
+      await client.query("begin");
+      await setTrustedDatabaseContext(client, { userId });
+      const result = await client.query<AuthContextRow>(
+        "select * from private.resolve_auth_context_by_user_id($1::uuid)",
+        [userId],
+      );
+      await client.query("commit");
+      return result.rows;
+    } catch (error) {
+      await client.query("rollback");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  /** Compatibility seam for historical test fixtures; portal sessions do not call this method. */
   async findBySupabaseAuthUserId(authUserId: string): Promise<readonly AuthContextRow[]> {
     if (!this.pool) throw databaseNotConfigured();
     const client = await this.pool.connect();

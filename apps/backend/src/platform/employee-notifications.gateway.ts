@@ -2,9 +2,9 @@ import { Inject, Logger } from "@nestjs/common";
 import { OnGatewayConnection, OnGatewayDisconnect, WebSocketGateway, WebSocketServer } from "@nestjs/websockets";
 import { randomUUID } from "node:crypto";
 import { Server, Socket } from "socket.io";
-import { superAdminAccessTokenCookie } from "../auth/auth-cookie-names";
+import { employeeSessionCookie } from "../auth/auth-cookie-names";
 import { ActiveRequestContextService } from "../auth/active-request-context.service";
-import { SupabaseJwtVerifier } from "../auth/supabase-jwt-verifier.service";
+import { PortalAuthService } from "../auth/core/portal-auth.service";
 import { requireEmployeeContext } from "./employee-context";
 import { NotificationItemDto } from "./super-admin-notifications.dto";
 
@@ -18,23 +18,24 @@ export class EmployeeNotificationsGateway implements OnGatewayConnection, OnGate
   private server?: Server;
 
   constructor(
-    @Inject(SupabaseJwtVerifier) private readonly verifier: SupabaseJwtVerifier,
+    @Inject(PortalAuthService) private readonly auth: PortalAuthService,
     @Inject(ActiveRequestContextService) private readonly activeContext: ActiveRequestContextService,
   ) {}
 
   async handleConnection(client: Socket): Promise<void> {
     try {
-      const token = tokenFromSocket(client);
+      const token = cookieValue(client.handshake.headers.cookie, employeeSessionCookie);
       if (!token) {
         client.disconnect(true);
         return;
       }
-      const verified = await this.verifier.verifyBearerToken(token);
+      const session = await this.auth.resolveSession("EMPLOYEE", token);
+      const verified = portalVerifiedUser(session);
       const resolved = await this.activeContext.resolve(verified, { portal: "employee" }, randomUUID());
       const employeeContext = requireEmployeeContext(resolved.context);
       client.join(employeeRoom(employeeContext.tenantId, employeeContext.userId));
       client.emit("notification:ready", { userId: employeeContext.userId, tenantId: employeeContext.tenantId });
-      disconnectAtTokenExpiry(client, verified.expiresAt);
+      disconnectAtTokenExpiry(client, session.idle_expires_at ?? session.expires_at);
       this.logger.log(`[Socket.IO] Employee notification connection is ready. Socket: ${client.id}.`);
     } catch {
       this.logger.warn("[Socket.IO] Employee notification connection was rejected because the active employee session could not be verified.");
@@ -63,16 +64,14 @@ function disconnectAtTokenExpiry(client: Socket, expiresAt: Date): void {
   client.on("disconnect", () => clearTimeout(timeout));
 }
 
-function tokenFromSocket(client: Socket): string | undefined {
-  const authToken = client.handshake.auth?.token;
-  if (typeof authToken === "string" && authToken.trim()) return authToken.trim();
-  const authorization = client.handshake.headers.authorization;
-  if (authorization?.startsWith("Bearer ")) return authorization.slice("Bearer ".length).trim();
-  const cookie = client.handshake.headers.cookie;
-  if (!cookie) return undefined;
-  for (const pair of cookie.split(";")) {
+function cookieValue(cookie: string | undefined, name: string): string | undefined {
+  for (const pair of cookie?.split(";") ?? []) {
     const [key, ...value] = pair.trim().split("=");
-    if (key === superAdminAccessTokenCookie) return decodeURIComponent(value.join("="));
+    if (key === name && value.length) return decodeURIComponent(value.join("="));
   }
   return undefined;
+}
+
+function portalVerifiedUser(session: Awaited<ReturnType<PortalAuthService["resolveSession"]>>) {
+  return { authUserId: session.user_id, sessionId: session.id, issuer: "portal-session", audience: ["portal-session"], expiresAt: session.expires_at, portalType: session.portal_type } as const;
 }

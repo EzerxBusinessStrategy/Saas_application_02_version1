@@ -7,8 +7,8 @@ import {
 import { randomUUID } from "node:crypto";
 import { Server, Socket } from "socket.io";
 import { ActiveRequestContextService } from "../auth/active-request-context.service";
-import { SupabaseJwtVerifier } from "../auth/supabase-jwt-verifier.service";
-import { superAdminAccessTokenCookie } from "../auth/auth-cookie-names";
+import { superAdminSessionCookie } from "../auth/auth-cookie-names";
+import { PortalAuthService } from "../auth/core/portal-auth.service";
 import { NotificationItemDto } from "./super-admin-notifications.dto";
 import { SuperAdminNotificationsRepository } from "./super-admin-notifications.repository";
 
@@ -21,8 +21,8 @@ export class SuperAdminNotificationsGateway implements OnGatewayConnection {
   private server?: Server;
 
   constructor(
-    @Inject(SupabaseJwtVerifier)
-    private readonly verifier: SupabaseJwtVerifier,
+    @Inject(PortalAuthService)
+    private readonly auth: PortalAuthService,
     @Inject(ActiveRequestContextService)
     private readonly activeContext: ActiveRequestContextService,
     @Inject(SuperAdminNotificationsRepository)
@@ -31,12 +31,13 @@ export class SuperAdminNotificationsGateway implements OnGatewayConnection {
 
   async handleConnection(client: Socket): Promise<void> {
     try {
-      const token = tokenFromSocket(client);
+      const token = cookieValue(client.handshake.headers.cookie, superAdminSessionCookie);
       if (!token) {
         client.disconnect(true);
         return;
       }
-      const verified = await this.verifier.verifyBearerToken(token);
+      const session = await this.auth.resolveSession("SUPER_ADMIN", token);
+      const verified = portalVerifiedUser(session);
       const resolved = await this.activeContext.resolve(
         verified,
         { portal: "super-admin" },
@@ -49,7 +50,7 @@ export class SuperAdminNotificationsGateway implements OnGatewayConnection {
       client.data.userId = resolved.context.userId;
       client.join(userRoom(resolved.context.userId));
       client.emit("notification:ready", { userId: resolved.context.userId });
-      disconnectAtTokenExpiry(client, verified.expiresAt);
+      disconnectAtTokenExpiry(client, session.idle_expires_at ?? session.expires_at);
     } catch {
       client.disconnect(true);
     }
@@ -66,14 +67,6 @@ function disconnectAtTokenExpiry(client: Socket, expiresAt: Date): void {
   client.on("disconnect", () => clearTimeout(timeout));
 }
 
-function tokenFromSocket(client: Socket): string | undefined {
-  const authToken = client.handshake.auth?.token;
-  if (typeof authToken === "string" && authToken.trim()) return authToken.trim();
-  const authorization = client.handshake.headers.authorization;
-  if (authorization?.startsWith("Bearer ")) return authorization.slice("Bearer ".length).trim();
-  return cookieValue(client.handshake.headers.cookie, superAdminAccessTokenCookie);
-}
-
 function cookieValue(header: string | undefined, name: string): string | undefined {
   if (!header) return undefined;
   for (const pair of header.split(";")) {
@@ -81,6 +74,10 @@ function cookieValue(header: string | undefined, name: string): string | undefin
     if (rawKey === name) return decodeURIComponent(rawValue.join("="));
   }
   return undefined;
+}
+
+function portalVerifiedUser(session: Awaited<ReturnType<PortalAuthService["resolveSession"]>>) {
+  return { authUserId: session.user_id, sessionId: session.id, issuer: "portal-session", audience: ["portal-session"], expiresAt: session.expires_at, portalType: session.portal_type } as const;
 }
 
 function userRoom(userId: string): string {

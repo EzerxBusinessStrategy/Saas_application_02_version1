@@ -47,7 +47,10 @@ export type TenantInvitationCreatedRow = {
   readonly invitation_id: string;
 };
 
-export type DirectTenantAdminCreatedRow = TenantInvitationCreatedRow & {
+export type DirectTenantAdminCreatedRow = {
+  readonly tenant_id: string;
+  readonly financial_year_id: string;
+  readonly user_id: string;
   readonly membership_id: string;
 };
 
@@ -138,7 +141,6 @@ export type TenantStatusRow = {
 
 export type TenantAdministratorAuthRow = {
   readonly user_id: string;
-  readonly supabase_auth_user_id: string;
   readonly email: string;
 };
 
@@ -156,46 +158,6 @@ type TenantAdministratorAccessRow = {
 @Injectable()
 export class AccessAdminRepository {
   constructor(@Inject(DATABASE_POOL) private readonly pool: Pool | null) { }
-
-  async createTenantWithOwnerInvitation(
-    context: RequestContext,
-    input: CreateTenantWithOwnerInvitationInput,
-  ): Promise<TenantInvitationCreatedRow> {
-    return this.withContext(context, async (client) => {
-      const result = await client.query<TenantInvitationCreatedRow>(
-        `select *
-         from private.create_super_admin_tenant(
-           $1::text, $2::text, $3::text, $4::text, $5::text,
-           $6::text, $7::text, $8::text, $9::text, $10::text,
-           $11::text, $12::text, $13::date, $14::date, $15::uuid,
-           $16::text, $17::text, $18::text, $19::text, $20::timestamptz
-         )`,
-        [
-          input.company.displayName,
-          input.company.legalName,
-          input.company.tenantCode,
-          input.company.slug,
-          input.company.countryCode,
-          input.company.reportingCurrencyCode,
-          input.company.timezone,
-          input.company.industry ?? null,
-          input.company.registrationNumber ?? null,
-          input.company.taxIdentifier ?? null,
-          input.financialYear.source,
-          input.financialYear.label,
-          input.financialYear.startsOn,
-          input.financialYear.endsOn,
-          input.financialYear.templateId ?? null,
-          input.financialYear.overrideReason ?? null,
-          input.tenantAdministrator.fullName,
-          input.tenantAdministrator.email,
-          input.tenantAdministrator.phone ?? null,
-          null,
-        ],
-      );
-      return singleRow(result.rows);
-    });
-  }
 
   async listTenantCreationTemplates(context: RequestContext): Promise<TenantCreationTemplateRow[]> {
     return this.withContext(context, async (client) => {
@@ -294,16 +256,16 @@ export class AccessAdminRepository {
   async createTenantWithDirectTenantAdministrator(
     context: RequestContext,
     input: CreateTenantWithOwnerInvitationInput,
-    supabaseAuthUserId: string,
+    passwordHash: string,
   ): Promise<DirectTenantAdminCreatedRow> {
     return this.withContext(context, async (client) => {
-      const created = await client.query<TenantInvitationCreatedRow>(
+      const created = await client.query<DirectTenantAdminCreatedRow>(
         `select *
-         from private.create_super_admin_tenant(
+         from private.provision_portal_tenant(
            $1::text, $2::text, $3::text, $4::text, $5::text,
            $6::text, $7::text, $8::text, $9::text, $10::text,
            $11::text, $12::text, $13::date, $14::date, $15::uuid,
-           $16::text, $17::text, $18::text, $19::text, $20::timestamptz
+           $16::text, $17::text, $18::text, $19::text
          )`,
         [
           input.company.displayName,
@@ -325,32 +287,37 @@ export class AccessAdminRepository {
           input.tenantAdministrator.fullName,
           input.tenantAdministrator.email,
           input.tenantAdministrator.phone ?? null,
-          null,
         ],
       );
       const tenant = singleRow(created.rows);
-      const accepted = await client.query<AcceptedInvitationRow>(
-        "select * from private.accept_invitation($1::uuid, $2::uuid, $3::text, $4::text)",
-        [tenant.invitation_id, supabaseAuthUserId, input.tenantAdministrator.email, input.tenantAdministrator.fullName],
+      await client.query(
+        `insert into authn.credentials (portal_type, user_id, tenant_id, email, email_normalized, password_hash, status, password_changed_at)
+         values ('TENANT', $1::uuid, $2::uuid, $3, lower($3), $4, 'ACTIVE', now())`,
+        [tenant.user_id, tenant.tenant_id, input.tenantAdministrator.email, passwordHash],
       );
-      const membership = singleRow(accepted.rows);
-      await client.query("select private.set_direct_tenant_administrator_phone($1::uuid, $2::uuid, $3::text)", [
-        tenant.tenant_id,
-        membership.user_id,
-        input.tenantAdministrator.phone,
-      ]);
-      await client.query("select private.activate_direct_tenant_admin_tenant($1::uuid)", [tenant.tenant_id]);
-      return { ...tenant, membership_id: membership.membership_id };
+      return tenant;
     });
   }
 
   async userEmailExists(context: RequestContext, normalizedEmail: string): Promise<boolean> {
     return this.withContext(context, async (client) => {
       const result = await client.query<{ exists: boolean }>(
-        "select private.user_email_exists($1::text) as exists",
+        `select private.user_email_exists($1::text) as exists
+         union all select exists(select 1 from authn.credentials where email_normalized = $1::text) as exists`,
         [normalizedEmail],
       );
-      return result.rows[0]?.exists ?? false;
+      return result.rows.some((row) => row.exists);
+    });
+  }
+
+  async updateTenantAdministratorPassword(context: RequestContext, tenantId: string, userId: string, passwordHash: string): Promise<void> {
+    await this.withContext(context, async (client) => {
+      const result = await client.query(
+        `update authn.credentials set password_hash = $3, password_changed_at = now(), failed_login_attempts = 0, locked_until = null
+         where portal_type = 'TENANT' and tenant_id = $1::uuid and user_id = $2::uuid and status = 'ACTIVE'`,
+        [tenantId, userId, passwordHash],
+      );
+      if (result.rowCount !== 1) throw new Error("Active tenant credential was not found.");
     });
   }
 
@@ -422,30 +389,13 @@ export class AccessAdminRepository {
     });
   }
 
-  async activateDirectTenantAdminTenant(context: RequestContext, tenantId: string): Promise<void> {
-    await this.withContext(context, async (client) => {
-      await client.query("select private.activate_direct_tenant_admin_tenant($1::uuid)", [tenantId]);
-    });
-  }
-
-  async setDirectTenantAdministratorPhone(
-    context: RequestContext,
-    tenantId: string,
-    userId: string,
-    phone: string,
-  ): Promise<void> {
-    await this.withContext(context, async (client) => {
-      await client.query("select private.set_direct_tenant_administrator_phone($1::uuid, $2::uuid, $3::text)", [tenantId, userId, phone]);
-    });
-  }
-
   async getActiveTenantAdministrator(
     context: RequestContext,
     tenantId: string,
   ): Promise<TenantAdministratorAuthRow | null> {
     return this.withContext(context, async (client) => {
       const result = await client.query<TenantAdministratorAuthRow>(
-        `select u.id as user_id, u.supabase_auth_user_id, u.email
+        `select u.id as user_id, u.email
          from public.tenant_memberships tm
          join public.users u on u.id = tm.user_id
          join public.membership_roles mr

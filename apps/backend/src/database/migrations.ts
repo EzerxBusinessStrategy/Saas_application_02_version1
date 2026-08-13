@@ -64,6 +64,9 @@ export const migrationNames = [
   "0054_task_notification_outbox.sql",
   "0055_user_localization_preferences.sql",
   "0056_audit_event_detail_context.sql",
+  "0057_portal_authentication.sql",
+  "0058_portal_auth_provisioning_and_session_policy.sql",
+  "0059_portal_tenant_provisioning.sql",
 ] as const;
 
 export async function runMigrations(

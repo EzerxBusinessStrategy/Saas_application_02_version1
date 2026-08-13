@@ -60,7 +60,7 @@ export class RequestContextResolver {
       : (expectedAuthContextVersion ?? 1);
     const rows = cacheIsValid
       ? cached.rows
-      : await this.loadRows(cacheKey, verifiedUser.authUserId, authContextVersion);
+      : await this.loadRows(cacheKey, verifiedUser.authUserId, verifiedUser.portalType, authContextVersion);
     if (rows.length === 0) throw applicationUserNotFound();
     const first = rows[0];
     if (first.user_status !== "active") throw userSuspended();
@@ -129,9 +129,10 @@ export class RequestContextResolver {
   private async loadRows(
     cacheKey: string,
     authUserId: string,
+    _portalType: VerifiedAuthUser["portalType"],
     authContextVersion: number | undefined,
   ): Promise<readonly AuthContextRow[]> {
-    const rows = await this.repository.findBySupabaseAuthUserId(authUserId);
+    const rows = await this.repository.findByApplicationUserId(authUserId);
     if (this.cache.size >= AUTH_CONTEXT_CACHE_MAX_ENTRIES) {
       const oldestKey = this.cache.keys().next().value;
       if (oldestKey) this.cache.delete(oldestKey);

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
+import { PasswordService } from "../../src/auth/core/password.service";
 import { RequestContext } from "../../src/auth/request-context";
-import { AppConfig } from "../../src/config/app-config";
 import {
   createTenantAdminTaskSchema,
   decideTenantAdminTaskApprovalSchema,
@@ -54,11 +54,7 @@ describe("TenantAdminTasksService", () => {
       createTask: vi.fn(),
       decideTaskApproval: vi.fn(),
     } as unknown as TenantAdminTasksRepository;
-    const config = {
-      supabaseUrl: undefined,
-      supabaseAdminKey: undefined,
-    } as AppConfig;
-    const service = new TenantAdminTasksService(repository, config);
+    const service = new TenantAdminTasksService(repository, new PasswordService());
 
     const deniedContexts: RequestContext[] = [
       {
@@ -100,6 +96,31 @@ describe("TenantAdminTasksService", () => {
       service.decideTaskApproval(deniedContexts[0]!, "11111111-1111-4111-8111-111111111111", { decision: "approve", remarks: "" }),
     ).rejects.toThrow("Selected portal is not available for this membership.");
     expect(repository.decideTaskApproval).not.toHaveBeenCalled();
+  });
+
+  it("provisions an employee with an Argon2 hash through the portal credential repository path", async () => {
+    const repository = {
+      userEmailExists: vi.fn().mockResolvedValue(false),
+      createEmployee: vi.fn().mockResolvedValue({ id: "employee-1", name: "Employee One" }),
+    } as unknown as TenantAdminTasksRepository;
+    const passwords = { hash: vi.fn().mockResolvedValue("$argon2id$employee-hash") } as unknown as PasswordService;
+    const service = new TenantAdminTasksService(repository, passwords);
+    const context: RequestContext = {
+      requestId: "req-1", authUserId: "user-1", userId: "user-1", tenantId: "tenant-1", membershipId: "membership-1",
+      roles: ["TENANT_ADMIN"], permissions: ["employee.create"], isPlatformAdmin: false,
+    };
+
+    await service.createEmployee(context, {
+      name: "Employee One", email: " Employee@Example.com ", password: "employee-password", employeeCode: "EMP001",
+      isManager: false, skills: [], weeklyCapacityHours: 40,
+    });
+
+    expect(passwords.hash).toHaveBeenCalledWith("employee-password");
+    expect(repository.createEmployee).toHaveBeenCalledWith(
+      expect.objectContaining({ tenantId: "tenant-1", membershipId: "membership-1" }),
+      expect.objectContaining({ email: "employee@example.com" }),
+      "$argon2id$employee-hash",
+    );
   });
 });
 

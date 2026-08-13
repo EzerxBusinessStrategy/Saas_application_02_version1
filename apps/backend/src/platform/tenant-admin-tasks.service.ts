@@ -1,8 +1,6 @@
-import { BadRequestException, ConflictException, Inject, Injectable, ServiceUnavailableException } from "@nestjs/common";
-import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import { BadRequestException, ConflictException, Inject, Injectable } from "@nestjs/common";
 import { RequestContext } from "../auth/request-context";
-import { APP_CONFIG } from "../config/app-config.module";
-import { AppConfig } from "../config/app-config";
+import { PasswordService } from "../auth/core/password.service";
 import { requireTenantAdminContext } from "./tenant-admin-context";
 import {
   CreateTenantAdminTaskRequest,
@@ -26,7 +24,7 @@ export class TenantAdminTasksService {
   constructor(
     @Inject(TenantAdminTasksRepository)
     private readonly repository: TenantAdminTasksRepository,
-    @Inject(APP_CONFIG) private readonly config: AppConfig,
+    @Inject(PasswordService) private readonly passwords: PasswordService,
   ) {}
 
   async getOptions(context: RequestContext): Promise<TenantAdminTaskOptionsResponseDto> {
@@ -62,12 +60,6 @@ export class TenantAdminTasksService {
     input: CreateTenantAdminEmployeeRequest,
   ): Promise<TenantAdminEmployeeOptionDto> {
     const tenantContext = requireTenantAdminContext(context);
-    if (!this.config.supabaseUrl || !this.config.supabaseAdminKey) {
-      throw new ServiceUnavailableException({
-        code: "AUTH_PROVISIONING_UNAVAILABLE",
-        message: "Employee account provisioning is unavailable.",
-      });
-    }
     const email = input.email.trim().toLowerCase();
     if (await this.repository.userEmailExists(tenantContext, email)) {
       throw new ConflictException({
@@ -75,30 +67,7 @@ export class TenantAdminTasksService {
         message: "This email is already associated with an existing account.",
       });
     }
-    const client = createSupabaseClient(this.config.supabaseUrl, this.config.supabaseAdminKey, {
-      auth: { autoRefreshToken: false, persistSession: false },
-    });
-    const { data, error } = await client.auth.admin.createUser({
-      email,
-      password: input.password,
-      email_confirm: true,
-      user_metadata: {
-        full_name: input.name,
-        portal: "employee",
-      },
-    });
-    if (error || !data.user) {
-      throw new ConflictException({
-        code: "EMPLOYEE_EMAIL_EXISTS",
-        message: "This email is already associated with an existing account.",
-      });
-    }
-    try {
-      return await this.repository.createEmployee(tenantContext, { ...input, email }, data.user.id);
-    } catch (provisioningError) {
-      await client.auth.admin.deleteUser(data.user.id).catch(() => undefined);
-      throw provisioningError;
-    }
+    return this.repository.createEmployee(tenantContext, { ...input, email }, await this.passwords.hash(input.password));
   }
 
   async getEmployeeEmailAvailability(context: RequestContext, email: string) {

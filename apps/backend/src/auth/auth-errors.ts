@@ -69,6 +69,13 @@ export function invalidTenantSelection(): ForbiddenException {
   });
 }
 
+export function invalidCredentials(): UnauthorizedException {
+  return new UnauthorizedException({
+    code: "INVALID_CREDENTIALS",
+    message: "Invalid email or password.",
+  });
+}
+
 export function ambiguousTenantMembership(): ForbiddenException {
   return new ForbiddenException({
     code: "AMBIGUOUS_TENANT_MEMBERSHIP",
