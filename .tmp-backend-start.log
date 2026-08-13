@@ -362,3 +362,18 @@
 [32m[Nest] 3808  - [39m08/12/2026, 6:11:53 PM [32m    LOG[39m [38;5;3m[TaskNotificationOutboxWorker] [39m[32m[Notifications] Worker finished 1 event(s): 0 saved recipient notification(s), 0 active Socket.IO connection(s) reached.[39m
 [32m[Nest] 3808  - [39m08/12/2026, 6:12:01 PM [32m    LOG[39m [38;5;3m[TaskNotificationOutboxWorker] [39m[32m[Notifications] Worker claimed 1 notification event(s) for delivery.[39m
 [32m[Nest] 3808  - [39m08/12/2026, 6:12:02 PM [32m    LOG[39m [38;5;3m[TaskNotificationOutboxWorker] [39m[32m[Notifications] Worker finished 1 event(s): 0 saved recipient notification(s), 0 active Socket.IO connection(s) reached.[39m
+[32m[Nest] 3808  - [39m08/12/2026, 6:12:51 PM [32m    LOG[39m [38;5;3m[TaskNotificationOutboxWorker] [39m[32m[Notifications] Worker claimed 1 notification event(s) for delivery.[39m
+[32m[Nest] 3808  - [39m08/12/2026, 6:12:51 PM [32m    LOG[39m [38;5;3m[TaskNotificationOutboxWorker] [39m[32m[Notifications] Worker finished 1 event(s): 0 saved recipient notification(s), 0 active Socket.IO connection(s) reached.[39m
+[32m[Nest] 3808  - [39m08/12/2026, 6:12:54 PM [32m    LOG[39m [38;5;3m[TaskNotificationOutboxWorker] [39m[32m[Notifications] Worker claimed 1 notification event(s) for delivery.[39m
+[32m[Nest] 3808  - [39m08/12/2026, 6:12:54 PM [32m    LOG[39m [38;5;3m[TaskNotificationOutboxWorker] [39m[32m[Notifications] Worker finished 1 event(s): 0 saved recipient notification(s), 0 active Socket.IO connection(s) reached.[39m
+[32m[Nest] 3808  - [39m08/12/2026, 6:13:02 PM [32m    LOG[39m [38;5;3m[TaskNotificationOutboxWorker] [39m[32m[Notifications] Worker claimed 1 notification event(s) for delivery.[39m
+[32m[Nest] 3808  - [39m08/12/2026, 6:13:02 PM [32m    LOG[39m [38;5;3m[TaskNotificationOutboxWorker] [39m[32m[Notifications] Worker finished 1 event(s): 0 saved recipient notification(s), 0 active Socket.IO connection(s) reached.[39m
+[32m[Nest] 3808  - [39m08/12/2026, 6:13:52 PM [32m    LOG[39m [38;5;3m[TaskNotificationOutboxWorker] [39m[32m[Notifications] Worker claimed 1 notification event(s) for delivery.[39m
+[32m[Nest] 3808  - [39m08/12/2026, 6:13:53 PM [32m    LOG[39m [38;5;3m[TaskNotificationOutboxWorker] [39m[32m[Notifications] Worker finished 1 event(s): 0 saved recipient notification(s), 0 active Socket.IO connection(s) reached.[39m
+[32m[Nest] 3808  - [39m08/12/2026, 6:13:54 PM [32m    LOG[39m [38;5;3m[TaskNotificationOutboxWorker] [39m[32m[Notifications] Worker claimed 1 notification event(s) for delivery.[39m
+[32m[Nest] 3808  - [39m08/12/2026, 6:13:55 PM [32m    LOG[39m [38;5;3m[TaskNotificationOutboxWorker] [39m[32m[Notifications] Worker finished 1 event(s): 0 saved recipient notification(s), 0 active Socket.IO connection(s) reached.[39m
+[32m[Nest] 3808  - [39m08/12/2026, 6:14:03 PM [32m    LOG[39m [38;5;3m[TaskNotificationOutboxWorker] [39m[32m[Notifications] Worker claimed 1 notification event(s) for delivery.[39m
+[32m[Nest] 3808  - [39m08/12/2026, 6:14:03 PM [32m    LOG[39m [38;5;3m[TaskNotificationOutboxWorker] [39m[32m[Notifications] Worker finished 1 event(s): 0 saved recipient notification(s), 0 active Socket.IO connection(s) reached.[39m
+D:\Saas_app_version_2\apps\backend:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @saas-app/backend@0.1.0 start: `tsx src/main.ts`
+Exit status 1
