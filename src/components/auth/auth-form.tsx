@@ -611,7 +611,7 @@ export function AuthScreenLayout({ children }: { children: React.ReactNode }) {
         <div className="relative z-10 flex flex-wrap gap-2 text-xs font-medium text-sidebar-muted"><TrustLabel icon={ShieldCheck} label="SSO Ready" /><TrustLabel icon={BadgeCheck} label="MFA Supported" /><TrustLabel icon={LockKeyhole} label="Role-Based Access" /></div>
       </aside>
 
-      <main className="flex min-h-[100dvh] flex-col bg-muted px-4 py-6 sm:px-8 lg:h-[100dvh] lg:min-h-0 lg:overflow-hidden lg:bg-background lg:px-10 lg:py-4 xl:px-16">
+      <main className="flex min-h-[100dvh] flex-col bg-muted px-4 py-6 sm:px-8 lg:h-[100dvh] lg:min-h-0 lg:overflow-hidden lg:bg-[#F8F8FF] lg:px-10 lg:py-4 xl:px-16">
         <div className="mx-auto flex w-full max-w-[480px] items-center gap-2 lg:hidden"><Image src="/branding/default-mark.svg" alt="SaaS App" width={28} height={28} priority /><span className="font-bold tracking-tight">SaaS App</span></div>
         <div className="mx-auto flex w-full max-w-[480px] flex-1 items-center py-8 sm:py-12 lg:py-4">
           <Card className="login-form-enter w-full rounded-2xl border-border/80 shadow-[var(--shadow-card)]">
