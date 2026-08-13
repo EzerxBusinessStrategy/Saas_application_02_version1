@@ -2,7 +2,7 @@ import { Controller, Get, HttpCode, Inject, Param, ParseUUIDPipe, Patch, Query, 
 import { ApiBearerAuth, ApiNoContentResponse, ApiOkResponse, ApiOperation, ApiQuery, ApiTags } from "@nestjs/swagger";
 import { ActiveRequestContextGuard } from "../auth/guards/active-request-context.guard";
 import { PermissionGuard } from "../auth/guards/permission.guard";
-import { SupabaseAuthGuard } from "../auth/guards/supabase-auth.guard";
+import { PortalSessionGuard } from "../auth/guards/portal-session.guard";
 import { RequirePermissions } from "../auth/permissions.decorator";
 import { CurrentRequestContext } from "../auth/request-context.decorator";
 import { RequestContext } from "../auth/request-context";
@@ -19,7 +19,7 @@ import { EmployeeNotificationsService } from "./employee-notifications.service";
 @ApiTags("Employee")
 @ApiBearerAuth()
 @Controller("employee/notifications")
-@UseGuards(SupabaseAuthGuard, ActiveRequestContextGuard, PermissionGuard)
+@UseGuards(PortalSessionGuard, ActiveRequestContextGuard, PermissionGuard)
 @RequirePermissions("task.read.assigned")
 export class EmployeeNotificationsController {
   constructor(@Inject(EmployeeNotificationsService) private readonly service: EmployeeNotificationsService) {}

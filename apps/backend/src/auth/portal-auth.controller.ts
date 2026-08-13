@@ -6,7 +6,7 @@ import { PortalAuthService } from "./core/portal-auth.service";
 import { portalLoginSchema, PortalLoginRequest } from "./core/portal-auth.dto";
 import { PortalType } from "./core/portal-auth.types";
 import { portalSessionCookieName } from "./auth-cookie-names";
-import { SupabaseAuthGuard } from "./guards/supabase-auth.guard";
+import { PortalSessionGuard } from "./guards/portal-session.guard";
 import { AuthenticatedRequest } from "./request-context";
 
 @ApiTags("portal-auth")
@@ -35,39 +35,39 @@ export class PortalAuthController {
   }
 
   @Get("super-admin/session")
-  @UseGuards(SupabaseAuthGuard)
+  @UseGuards(PortalSessionGuard)
   superAdminSession(@Req() request: FastifyRequest & AuthenticatedRequest) { return sessionResponse("SUPER_ADMIN", request); }
 
   @Get("tenant/session")
-  @UseGuards(SupabaseAuthGuard)
+  @UseGuards(PortalSessionGuard)
   tenantSession(@Req() request: FastifyRequest & AuthenticatedRequest) { return sessionResponse("TENANT", request); }
 
   @Get("employee/session")
-  @UseGuards(SupabaseAuthGuard)
+  @UseGuards(PortalSessionGuard)
   employeeSession(@Req() request: FastifyRequest & AuthenticatedRequest) { return sessionResponse("EMPLOYEE", request); }
 
   @Get("client/session")
-  @UseGuards(SupabaseAuthGuard)
+  @UseGuards(PortalSessionGuard)
   clientSession(@Req() request: FastifyRequest & AuthenticatedRequest) { return sessionResponse("CLIENT", request); }
 
   @Post("super-admin/logout")
   @HttpCode(204)
-  @UseGuards(SupabaseAuthGuard)
+  @UseGuards(PortalSessionGuard)
   logoutSuperAdmin(@Req() request: FastifyRequest) { return this.logout("SUPER_ADMIN", request); }
 
   @Post("tenant/logout")
   @HttpCode(204)
-  @UseGuards(SupabaseAuthGuard)
+  @UseGuards(PortalSessionGuard)
   logoutTenant(@Req() request: FastifyRequest) { return this.logout("TENANT", request); }
 
   @Post("employee/logout")
   @HttpCode(204)
-  @UseGuards(SupabaseAuthGuard)
+  @UseGuards(PortalSessionGuard)
   logoutEmployee(@Req() request: FastifyRequest) { return this.logout("EMPLOYEE", request); }
 
   @Post("client/logout")
   @HttpCode(204)
-  @UseGuards(SupabaseAuthGuard)
+  @UseGuards(PortalSessionGuard)
   logoutClient(@Req() request: FastifyRequest) { return this.logout("CLIENT", request); }
 
   private login(portalType: PortalType, request: FastifyRequest, body: PortalLoginRequest) {

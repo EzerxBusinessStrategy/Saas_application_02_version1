@@ -44,7 +44,7 @@ import {
 import { AccessAdminService } from "./access-admin.service";
 import { ActiveRequestContextGuard } from "./guards/active-request-context.guard";
 import { PermissionGuard } from "./guards/permission.guard";
-import { SupabaseAuthGuard } from "./guards/supabase-auth.guard";
+import { PortalSessionGuard } from "./guards/portal-session.guard";
 import { RequirePermissions } from "./permissions.decorator";
 import { CurrentRequestContext } from "./request-context.decorator";
 import { AuthenticatedRequest, RequestContext } from "./request-context";
@@ -56,7 +56,7 @@ export class AccessAdminController {
   constructor(@Inject(AccessAdminService) private readonly service: AccessAdminService) {}
 
   @Get("super-admin/tenant-creation-options")
-  @UseGuards(SupabaseAuthGuard, ActiveRequestContextGuard, PermissionGuard)
+  @UseGuards(PortalSessionGuard, ActiveRequestContextGuard, PermissionGuard)
   @RequirePermissions("tenant.create")
   @ApiOperation({ summary: "Return supported tenant creation country and financial-year options." })
   @ApiOkResponse({ type: TenantCreationOptionsResponseDto })
@@ -69,7 +69,7 @@ export class AccessAdminController {
   }
 
   @Get("super-admin/tenants")
-  @UseGuards(SupabaseAuthGuard, ActiveRequestContextGuard, PermissionGuard)
+  @UseGuards(PortalSessionGuard, ActiveRequestContextGuard, PermissionGuard)
   @RequirePermissions("tenant.read")
   @ApiOperation({ summary: "List platform tenants for the Super Admin tenant directory." })
   @ApiOkResponse()
@@ -97,7 +97,7 @@ export class AccessAdminController {
   }
 
   @Get("super-admin/users/email-availability")
-  @UseGuards(SupabaseAuthGuard, ActiveRequestContextGuard, PermissionGuard)
+  @UseGuards(PortalSessionGuard, ActiveRequestContextGuard, PermissionGuard)
   @RequirePermissions("tenant.create")
   @ApiOperation({ summary: "Check whether a Tenant Administrator email is available." })
   @ApiOkResponse({ type: EmailAvailabilityResponseDto })
@@ -109,7 +109,7 @@ export class AccessAdminController {
   }
 
   @Get("super-admin/tenant-list-filters")
-  @UseGuards(SupabaseAuthGuard, ActiveRequestContextGuard, PermissionGuard)
+  @UseGuards(PortalSessionGuard, ActiveRequestContextGuard, PermissionGuard)
   @RequirePermissions("tenant.read")
   @ApiOperation({ summary: "List database-backed country and financial-year filters for the tenant directory." })
   @ApiOkResponse()
@@ -118,7 +118,7 @@ export class AccessAdminController {
   }
 
   @Get("super-admin/tenants/:tenantId")
-  @UseGuards(SupabaseAuthGuard, ActiveRequestContextGuard, PermissionGuard)
+  @UseGuards(PortalSessionGuard, ActiveRequestContextGuard, PermissionGuard)
   @RequirePermissions("tenant.read")
   @ApiOperation({ summary: "Get one platform tenant record." })
   @ApiOkResponse()
@@ -131,7 +131,7 @@ export class AccessAdminController {
 
   @Patch("super-admin/tenants/:tenantId/status")
   @HttpCode(200)
-  @UseGuards(SupabaseAuthGuard, ActiveRequestContextGuard, PermissionGuard)
+  @UseGuards(PortalSessionGuard, ActiveRequestContextGuard, PermissionGuard)
   @RequirePermissions("tenant.read")
   @ApiOperation({ summary: "Suspend, reactivate, or permanently revoke a tenant workspace without deleting its data." })
   @ApiBody({ type: UpdateTenantStatusDto })
@@ -149,7 +149,7 @@ export class AccessAdminController {
 
   @Post("super-admin/tenants/:tenantId/password")
   @HttpCode(200)
-  @UseGuards(SupabaseAuthGuard, ActiveRequestContextGuard, PermissionGuard)
+  @UseGuards(PortalSessionGuard, ActiveRequestContextGuard, PermissionGuard)
   @RequirePermissions("tenant.update")
   @ApiOperation({ summary: "Set a new password for the active Tenant Administrator." })
   @ApiBody({ type: ResetTenantAdministratorPasswordDto })
@@ -166,12 +166,12 @@ export class AccessAdminController {
   }
 
   @Post("super-admin/tenants")
-  @UseGuards(SupabaseAuthGuard, ActiveRequestContextGuard, PermissionGuard)
+  @UseGuards(PortalSessionGuard, ActiveRequestContextGuard, PermissionGuard)
   @RequirePermissions("tenant.create")
   @ApiOperation({
     summary: "Create an active tenant, financial year and Tenant Administrator account.",
     description:
-      "Only a Super Admin can create a tenant. The administrator password is sent only to Supabase Auth and no invitation email is created.",
+      "Only a Super Admin can create a tenant. The administrator password is stored as an Argon2id hash in the tenant credential namespace; no invitation email is created.",
   })
   @ApiBody({ type: CreateTenantWithOwnerInvitationDto })
   @ApiCreatedResponse({ type: CreateTenantWithOwnerInvitationResponseDto })
@@ -187,7 +187,7 @@ export class AccessAdminController {
   }
 
   @Post("invitations")
-  @UseGuards(SupabaseAuthGuard, ActiveRequestContextGuard, PermissionGuard)
+  @UseGuards(PortalSessionGuard, ActiveRequestContextGuard, PermissionGuard)
   @RequirePermissions("invitation.create")
   @ApiOperation({
     summary: "Create a tenant-scoped invitation for a predefined role.",
@@ -208,7 +208,7 @@ export class AccessAdminController {
 
   @Post("invitations/:invitationId/cancel")
   @HttpCode(200)
-  @UseGuards(SupabaseAuthGuard, ActiveRequestContextGuard, PermissionGuard)
+  @UseGuards(PortalSessionGuard, ActiveRequestContextGuard, PermissionGuard)
   @RequirePermissions("invitation.cancel")
   @ApiOperation({ summary: "Cancel a pending invitation before it is accepted." })
   @ApiBody({ type: CloseInvitationDto })
@@ -226,7 +226,7 @@ export class AccessAdminController {
 
   @Post("invitations/:invitationId/revoke")
   @HttpCode(200)
-  @UseGuards(SupabaseAuthGuard, ActiveRequestContextGuard, PermissionGuard)
+  @UseGuards(PortalSessionGuard, ActiveRequestContextGuard, PermissionGuard)
   @RequirePermissions("invitation.revoke")
   @ApiOperation({ summary: "Revoke a pending invitation." })
   @ApiBody({ type: CloseInvitationDto })
@@ -244,7 +244,7 @@ export class AccessAdminController {
 
   @Post("invitations/:invitationId/accept")
   @HttpCode(200)
-  @UseGuards(SupabaseAuthGuard)
+  @UseGuards(PortalSessionGuard)
   @ApiOperation({
     summary: "Accept an invitation with the authenticated Supabase identity.",
     description:
@@ -261,14 +261,14 @@ export class AccessAdminController {
     @Body(new ZodValidationPipe(acceptInvitationSchema)) body: AcceptInvitationDto,
   ): Promise<AcceptedInvitationResponseDto> {
     if (!request.verifiedAuthUser) {
-      throw new Error("Verified auth user was not attached by SupabaseAuthGuard.");
+      throw new Error("Verified auth user was not attached by PortalSessionGuard.");
     }
     return this.service.acceptInvitation(request.verifiedAuthUser, invitationId, body.displayName);
   }
 
   @Post("memberships/:membershipId/revoke")
   @HttpCode(200)
-  @UseGuards(SupabaseAuthGuard, ActiveRequestContextGuard, PermissionGuard)
+  @UseGuards(PortalSessionGuard, ActiveRequestContextGuard, PermissionGuard)
   @RequirePermissions("membership.revoke")
   @ApiOperation({
     summary: "Revoke tenant membership access without deleting historical records.",
@@ -288,7 +288,7 @@ export class AccessAdminController {
 
   @Post("memberships/:membershipId/reactivate")
   @HttpCode(200)
-  @UseGuards(SupabaseAuthGuard, ActiveRequestContextGuard, PermissionGuard)
+  @UseGuards(PortalSessionGuard, ActiveRequestContextGuard, PermissionGuard)
   @RequirePermissions("membership.reactivate")
   @ApiOperation({
     summary: "Reactivate a revoked tenant membership with one reviewed role.",

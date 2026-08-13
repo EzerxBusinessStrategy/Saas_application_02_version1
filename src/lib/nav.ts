@@ -2,7 +2,6 @@ import {
   BarChart3,
   Award,
   Building2,
-  CalendarDays,
   CheckSquare,
   ClipboardList,
   FileText,
@@ -89,22 +88,10 @@ const common: NavigationItem[] = [
         permissions: ["audit_log.read"],
       },
       {
-        label: "Branding", labelKey: "Navigation.branding",
-        href: "/branding",
-        icon: Settings,
-        permissions: ["branding.manage"],
-      },
-      {
         label: "Managers", labelKey: "Navigation.managers",
         href: "/managers",
         icon: Users,
         permissions: ["employee.read"],
-      },
-      {
-        label: "Settings", labelKey: "Navigation.settings",
-        href: "/settings",
-        icon: Settings,
-        permissions: ["client.update"],
       },
     ],
   },
@@ -164,7 +151,6 @@ const platformOnlyItems = new Set([
 const employeeNavigation: NavigationItem[] = [
   { label: "Dashboard", labelKey: "Navigation.dashboard", href: "", icon: LayoutDashboard },
   { label: "My tasks", labelKey: "Navigation.myTasks", href: "/tasks", icon: CheckSquare },
-  { label: "Calendar", labelKey: "Navigation.calendar", href: "/calendar", icon: CalendarDays },
   { label: "Documents", labelKey: "Navigation.documents", href: "/documents", icon: FileText },
   { label: "Profile", labelKey: "Navigation.profile", href: "/profile", icon: Users },
 ];
@@ -181,8 +167,6 @@ const clientNavigation: NavigationItem[] = [
   { label: "Deliverables", labelKey: "Navigation.deliverables", href: "/deliverables", icon: FileText },
   { label: "Requests", labelKey: "Navigation.requests", href: "/requests", icon: ClipboardList },
   { label: "Invoices", labelKey: "Navigation.invoices", href: "/invoices", icon: ReceiptText },
-  { label: "Payments", labelKey: "Navigation.payments", href: "/payments", icon: ReceiptText },
-  { label: "Agreements", labelKey: "Navigation.agreements", href: "/agreements", icon: FileText },
   { label: "Profile", labelKey: "Navigation.profile", href: "/profile", icon: Users },
 ];
 
@@ -242,13 +226,13 @@ const tenantAdminNavigation = [
     "Work groups",
     "Employee Performance",
   ]),
-  tenantAdminGroup("Operations", ClipboardList, [
-    "Tasks",
-    "Services",
-  ]),
   tenantAdminGroup("Clients", Building2, [
     "Clients",
     "Agreements",
+  ]),
+  tenantAdminGroup("Operations", ClipboardList, [
+    "Tasks",
+    "Services",
   ]),
   tenantAdminGroup(
     "Finance & Documents",

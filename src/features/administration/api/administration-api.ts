@@ -1,8 +1,4 @@
 import { z } from "zod";
-import {
-  managers,
-  workGroups,
-} from "@/mocks/administration";
 import { redirectToLoginOnUnauthorized } from "@/lib/client/silent-auth-redirect";
 import {
   auditRecordSchema,
@@ -12,12 +8,10 @@ import {
   clientSchema,
   createTenantResponseSchema,
   emailAvailabilitySchema,
-  managerSchema,
   paginationSchema,
   tenantSchema,
   tenantCreationOptionsSchema,
   tenantListFiltersSchema,
-  workGroupSchema,
   type AuditListRequest,
   type ClientContactInput,
   type ClientCreateInput,
@@ -49,7 +43,6 @@ export async function listTenants(request: TenantListRequest) {
     })
     .parse(await response.json());
 }
-
 export async function getTenant(tenantId: string) {
   const response = await fetch(`/api/super-admin/tenants/${tenantId}`, { cache: "no-store" });
   await redirectToLoginOnUnauthorized(response);
@@ -290,12 +283,4 @@ export async function updateClientContact(clientId: string, contactId: string, i
   await redirectToLoginOnUnauthorized(response);
   if (!response.ok) throw new Error("Client contact could not be updated.");
   return clientContactSchema.parse(await response.json());
-}
-
-export async function listWorkGroups() {
-  return z.array(workGroupSchema).parse(workGroups);
-}
-
-export async function listManagers() {
-  return z.array(managerSchema).parse(managers);
 }

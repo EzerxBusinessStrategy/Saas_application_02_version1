@@ -9,8 +9,12 @@ test("generates permission-aware route metadata breadcrumbs", () => {
       role: "TENANT_ADMIN",
     }),
   ).toEqual([
-    { label: "Tenant administration", href: "/admin" },
-    { label: "Employees", current: true },
+    {
+      label: "Tenant administration",
+      href: "/admin",
+      labelKey: "Workspace.tenantAdministration",
+    },
+    { label: "Employees", current: true, labelKey: "Navigation.employees" },
   ]);
   expect(
     breadcrumbsFor({
@@ -18,5 +22,11 @@ test("generates permission-aware route metadata breadcrumbs", () => {
       workspace: "employee",
       role: "EMPLOYEE",
     }),
-  ).toEqual([{ label: "Employee", href: "/employee" }]);
+  ).toEqual([
+    {
+      label: "Employee",
+      href: "/employee",
+      labelKey: "Workspace.employee",
+    },
+  ]);
 });

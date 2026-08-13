@@ -2,7 +2,7 @@ import { Body, Controller, Get, Inject, Post, UseGuards } from "@nestjs/common";
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { ActiveRequestContextGuard } from "../auth/guards/active-request-context.guard";
 import { PermissionGuard } from "../auth/guards/permission.guard";
-import { SupabaseAuthGuard } from "../auth/guards/supabase-auth.guard";
+import { PortalSessionGuard } from "../auth/guards/portal-session.guard";
 import { RequirePermissions } from "../auth/permissions.decorator";
 import { CurrentRequestContext } from "../auth/request-context.decorator";
 import { RequestContext } from "../auth/request-context";
@@ -18,7 +18,7 @@ import { ClientPortalRequestsService } from "./client-portal-requests.service";
 @ApiTags("Client Portal")
 @ApiBearerAuth()
 @Controller("client-portal/requests")
-@UseGuards(SupabaseAuthGuard, ActiveRequestContextGuard, PermissionGuard)
+@UseGuards(PortalSessionGuard, ActiveRequestContextGuard, PermissionGuard)
 @RequirePermissions("client.read.assigned")
 export class ClientPortalRequestsController {
   constructor(

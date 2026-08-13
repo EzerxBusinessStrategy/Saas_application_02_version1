@@ -1,4 +1,5 @@
-import { AuthForm } from "@/components/auth/auth-form";
+import { redirect } from "next/navigation";
+
 export default function AcceptInvitation() {
-  return <AuthForm mode="invitation" />;
+  redirect("/login");
 }

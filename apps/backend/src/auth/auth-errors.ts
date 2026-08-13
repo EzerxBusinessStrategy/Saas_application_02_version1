@@ -9,14 +9,14 @@ import {
 export function authenticationRequired(): UnauthorizedException {
   return new UnauthorizedException({
     code: "AUTHENTICATION_REQUIRED",
-    message: "Bearer authentication is required.",
+    message: "An active portal session is required.",
   });
 }
 
 export function invalidAccessToken(): UnauthorizedException {
   return new UnauthorizedException({
     code: "INVALID_ACCESS_TOKEN",
-    message: "Access token is invalid.",
+    message: "Portal session is invalid.",
   });
 }
 

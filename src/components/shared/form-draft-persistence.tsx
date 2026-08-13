@@ -109,7 +109,7 @@ export function FormDraftPersistence() {
 
     const restored = new WeakSet<HTMLFormElement>();
     const restoredKeys = new Set<string>();
-    const timers = new WeakMap<HTMLFormElement, number>();
+    const timers = new Map<HTMLFormElement, number>();
     let disposed = false;
 
     const restoreForm = (form: HTMLFormElement) => {
@@ -138,7 +138,9 @@ export function FormDraftPersistence() {
       window.clearTimeout(timers.get(form));
       timers.set(
         form,
-        window.setTimeout(() => writeFormDraft(formKey(form), fieldsFor(form)), 150),
+        window.setTimeout(() => {
+          if (!disposed) writeFormDraft(formKey(form), fieldsFor(form));
+        }, 150),
       );
     };
 
@@ -169,6 +171,8 @@ export function FormDraftPersistence() {
       document.removeEventListener("input", onInput, true);
       document.removeEventListener("change", onInput, true);
       document.removeEventListener("submit", onSubmit, true);
+      timers.forEach((timer) => window.clearTimeout(timer));
+      timers.clear();
     };
   }, []);
 

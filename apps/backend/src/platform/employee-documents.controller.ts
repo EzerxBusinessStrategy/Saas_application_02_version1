@@ -2,7 +2,7 @@ import { Body, Controller, Get, Inject, Post, UseGuards } from "@nestjs/common";
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { ActiveRequestContextGuard } from "../auth/guards/active-request-context.guard";
 import { PermissionGuard } from "../auth/guards/permission.guard";
-import { SupabaseAuthGuard } from "../auth/guards/supabase-auth.guard";
+import { PortalSessionGuard } from "../auth/guards/portal-session.guard";
 import { RequirePermissions } from "../auth/permissions.decorator";
 import { CurrentRequestContext } from "../auth/request-context.decorator";
 import { RequestContext } from "../auth/request-context";
@@ -19,7 +19,7 @@ import { EmployeeDocumentsService } from "./employee-documents.service";
 @ApiTags("Employee")
 @ApiBearerAuth()
 @Controller("employee/documents")
-@UseGuards(SupabaseAuthGuard, ActiveRequestContextGuard, PermissionGuard)
+@UseGuards(PortalSessionGuard, ActiveRequestContextGuard, PermissionGuard)
 export class EmployeeDocumentsController {
   constructor(@Inject(EmployeeDocumentsService) private readonly service: EmployeeDocumentsService) {}
 

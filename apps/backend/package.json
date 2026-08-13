@@ -9,7 +9,6 @@
     "start": "tsx src/main.ts",
     "start:production": "node dist/main.js",
     "db:migrate": "tsx src/database/migrate.ts",
-    "bootstrap-super-admin": "tsx src/cli/bootstrap-super-admin.ts",
     "bootstrap-portal-super-admin": "tsx src/cli/bootstrap-portal-super-admin.ts",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "typecheck": "tsc -p tsconfig.json --noEmit",

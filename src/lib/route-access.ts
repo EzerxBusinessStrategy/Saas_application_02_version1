@@ -5,7 +5,7 @@ export const sectionAccess: Record<
   { workspaces: Workspace[]; permissions?: Permission[] }
 > = {
   tasks: {
-    workspaces: ["admin", "employee", "client"],
+    workspaces: ["admin", "employee"],
     permissions: ["task.read", "task.read.assigned"],
   },
   employees: { workspaces: ["admin"] },
@@ -34,8 +34,7 @@ export const sectionAccess: Record<
     permissions: ["document.read"],
   },
   invoices: { workspaces: ["admin", "client"] },
-  payments: { workspaces: ["admin", "client"] },
-  agreements: { workspaces: ["admin", "client"] },
+  agreements: { workspaces: ["admin"] },
   reports: {
     workspaces: ["super-admin"],
     permissions: ["report.read"],
@@ -44,7 +43,6 @@ export const sectionAccess: Record<
     workspaces: ["super-admin", "admin"],
     permissions: ["audit_log.read"],
   },
-  branding: { workspaces: ["admin"], permissions: ["branding.manage"] },
   tenants: { workspaces: ["super-admin"], permissions: ["tenant.read"] },
   "platform-settings": {
     workspaces: ["super-admin"],
@@ -58,30 +56,7 @@ export const sectionAccess: Record<
     workspaces: ["super-admin"],
     permissions: ["tenant.update"],
   },
-  account: { workspaces: ["super-admin"] },
   managers: { workspaces: ["admin"], permissions: ["employee.read"] },
-  settings: { workspaces: ["admin"], permissions: ["client.update"] },
-  "work-logs": {
-    workspaces: ["employee"],
-    permissions: ["work_log.create.self"],
-  },
-  timesheet: {
-    workspaces: ["employee"],
-    permissions: ["work_log.create.self"],
-  },
-  calendar: { workspaces: ["employee"], permissions: ["task.read.assigned"] },
-  achievements: {
-    workspaces: ["employee"],
-    permissions: ["task.read.assigned"],
-  },
-  recognition: {
-    workspaces: ["employee"],
-    permissions: ["task.read.assigned"],
-  },
-  preferences: {
-    workspaces: ["employee"],
-    permissions: ["task.read.assigned"],
-  },
   services: {
     workspaces: ["admin", "client"],
     permissions: ["client.read", "client.read.assigned"],

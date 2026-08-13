@@ -13,7 +13,7 @@ describe("TenantAdminClientsRepository", () => {
         if (sqlText.includes("insert into public.users")) return { rows: [{ id: "user-client-1" }], rowCount: 1 };
         if (sqlText.includes("insert into public.tenant_memberships")) return { rows: [{ id: "member-client-1" }], rowCount: 1 };
         if (sqlText.includes("insert into public.membership_roles")) return { rows: [{ id: "role-1" }], rowCount: 1 };
-        if (sqlText.includes("insert into public.client_portal_accounts")) return { rows: [], rowCount: 1 };
+        if (sqlText.includes("insert into public.client_portal_accounts")) return { rows: [{ id: "client-account-1" }], rowCount: 1 };
         if (sqlText.includes("with client_base")) {
           return {
             rows: [{
@@ -94,6 +94,7 @@ describe("TenantAdminClientsRepository", () => {
     expect(sql).toContain("insert into public.clients");
     expect(sql).toContain("insert into public.client_contacts");
     expect(sql).toContain("insert into public.client_portal_accounts");
+    expect(sql).toContain("insert into authn.credentials");
     expect(sql).toContain("CLIENT_PORTAL_ACCOUNT_CREATED");
     expect(sql).toContain("CLIENT_CREATED");
     expect(params).toContainEqual(["tenant-1", "cl-101", "ABC Pvt Ltd", "ABC Pvt Ltd"]);

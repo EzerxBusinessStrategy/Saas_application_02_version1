@@ -1,9 +1,4 @@
 import {
-  authenticatedWorkspaceCookie,
-  demoSessionCookie,
-  superAdminAccessTokenCookie,
-  superAdminRefreshTokenCookie,
-  superAdminRememberMeCookie,
   superAdminSessionCookie,
   tenantSessionCookie,
   employeeSessionCookie,
@@ -11,11 +6,6 @@ import {
 } from "../../apps/backend/src/auth/auth-cookie-names";
 
 export {
-  authenticatedWorkspaceCookie,
-  demoSessionCookie,
-  superAdminAccessTokenCookie,
-  superAdminRefreshTokenCookie,
-  superAdminRememberMeCookie,
   superAdminSessionCookie,
   tenantSessionCookie,
   employeeSessionCookie,

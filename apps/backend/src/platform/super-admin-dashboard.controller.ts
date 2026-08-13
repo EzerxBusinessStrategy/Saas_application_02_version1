@@ -14,7 +14,7 @@ import { ApiErrorResponseDto } from "../common/errors/api-error.dto";
 import { ZodValidationPipe } from "../common/validation/zod-validation.pipe";
 import { ActiveRequestContextGuard } from "../auth/guards/active-request-context.guard";
 import { PermissionGuard } from "../auth/guards/permission.guard";
-import { SupabaseAuthGuard } from "../auth/guards/supabase-auth.guard";
+import { PortalSessionGuard } from "../auth/guards/portal-session.guard";
 import { RequirePermissions } from "../auth/permissions.decorator";
 import { CurrentRequestContext } from "../auth/request-context.decorator";
 import { RequestContext } from "../auth/request-context";
@@ -32,7 +32,7 @@ import { SuperAdminDashboardService } from "./super-admin-dashboard.service";
 @ApiTags("Super Admin")
 @ApiBearerAuth()
 @Controller("super-admin")
-@UseGuards(SupabaseAuthGuard, ActiveRequestContextGuard, PermissionGuard)
+@UseGuards(PortalSessionGuard, ActiveRequestContextGuard, PermissionGuard)
 export class SuperAdminDashboardController {
   constructor(
     @Inject(SuperAdminDashboardService)

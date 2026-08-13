@@ -7,7 +7,7 @@ import { AccessAdminService } from "./access-admin.service";
 import { AuthContextRepository } from "./auth-context.repository";
 import { ActiveRequestContextGuard } from "./guards/active-request-context.guard";
 import { PermissionGuard } from "./guards/permission.guard";
-import { SupabaseAuthGuard } from "./guards/supabase-auth.guard";
+import { PortalSessionGuard } from "./guards/portal-session.guard";
 import { MeController } from "./me.controller";
 import { MeService } from "./me.service";
 import { RequestContextResolver } from "./request-context-resolver.service";
@@ -33,7 +33,7 @@ import { PortalAuthController } from "./portal-auth.controller";
     ActiveRequestContextService,
     PermissionGuard,
     RequestContextResolver,
-    SupabaseAuthGuard,
+    PortalSessionGuard,
     UserPreferencesRepository,
     MeService,
   ],
@@ -44,7 +44,7 @@ import { PortalAuthController } from "./portal-auth.controller";
     RequestContextResolver,
     PasswordService,
     PortalAuthService,
-    SupabaseAuthGuard,
+    PortalSessionGuard,
   ],
 })
 export class AuthModule {}

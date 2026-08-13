@@ -285,12 +285,15 @@ export class SuperAdminDashboardRepository {
         group by tenant_id
       ),
       tenant_administrator_logins as (
-        select tm.tenant_id, max(ae.created_at) as last_login_at
+        select tm.tenant_id, max(c.last_login_at) as last_login_at
         from filtered_tenants ft
         join public.tenant_memberships tm on tm.tenant_id = ft.id and tm.status = 'active'
         join public.membership_roles mr on mr.tenant_id = tm.tenant_id and mr.membership_id = tm.id and mr.status = 'active'
         join public.roles r on r.id = mr.role_id and r.code = 'TENANT_ADMIN'
-        left join audit.audit_events ae on ae.actor_membership_id = tm.id and ae.action = 'TENANT_ADMIN_LOGGED_IN'
+        left join authn.credentials c
+          on c.tenant_id = tm.tenant_id
+         and c.user_id = tm.user_id
+         and c.portal_type = 'TENANT'
         group by tm.tenant_id
       )
       select

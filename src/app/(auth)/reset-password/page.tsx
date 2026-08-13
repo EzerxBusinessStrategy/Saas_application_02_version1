@@ -1,4 +1,5 @@
-import { AuthForm } from "@/components/auth/auth-form";
+import { redirect } from "next/navigation";
+
 export default function ResetPassword() {
-  return <AuthForm mode="reset" />;
+  redirect("/login");
 }

@@ -11,7 +11,7 @@ import {
 } from "@nestjs/swagger";
 import { ActiveRequestContextGuard } from "../auth/guards/active-request-context.guard";
 import { PermissionGuard } from "../auth/guards/permission.guard";
-import { SupabaseAuthGuard } from "../auth/guards/supabase-auth.guard";
+import { PortalSessionGuard } from "../auth/guards/portal-session.guard";
 import { RequirePermissions } from "../auth/permissions.decorator";
 import { CurrentRequestContext } from "../auth/request-context.decorator";
 import { RequestContext } from "../auth/request-context";
@@ -28,7 +28,7 @@ import { SuperAdminSearchService } from "./super-admin-search.service";
 @ApiTags("Super Admin")
 @ApiBearerAuth()
 @Controller("super-admin")
-@UseGuards(SupabaseAuthGuard, ActiveRequestContextGuard, PermissionGuard)
+@UseGuards(PortalSessionGuard, ActiveRequestContextGuard, PermissionGuard)
 export class SuperAdminSearchController {
   constructor(
     @Inject(SuperAdminSearchService)

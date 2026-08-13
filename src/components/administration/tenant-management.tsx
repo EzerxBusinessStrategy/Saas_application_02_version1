@@ -51,7 +51,6 @@ import {
   listTenants,
   updateTenantStatus,
 } from "@/features/administration/api/administration-api";
-import { tenants } from "@/mocks/administration";
 import { formatIndiaDateTime } from "@/lib/india-time";
 import {
   legacyCreateTenantSchema,
@@ -1025,128 +1024,6 @@ export function TenantCreateForm() {
     </div>
   );
 }
-
-/* Removed support-access UI.
-function SupportAccess({ tenantId: fixedTenantId }: { tenantId?: string }) {
-  const [session, setSession] = useState<{
-    tenant: string;
-    reason: string;
-    expiresAt: string;
-  } | null>(null);
-  const form = useForm<SupportAccessFormInput, unknown, SupportAccessRequest>({
-    resolver: zodResolver(supportAccessSchema),
-    defaultValues: {
-      tenantId: fixedTenantId ?? "",
-      reason: "",
-      durationMinutes: 30,
-    },
-  });
-  const submit = (values: SupportAccessRequest) => {
-    const tenant = tenants.find((item) => item.id === values.tenantId);
-    setSession({
-      tenant: tenant?.name ?? "Selected tenant",
-      reason: values.reason,
-      expiresAt: new Date(
-        Date.now() + values.durationMinutes * 60000,
-      ).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-    });
-  };
-  return (
-    <div className="flex flex-col gap-5">
-      {session ? (
-        <Card role="status" aria-live="polite" className="border-warning">
-          <CardContent className="flex flex-col gap-3 p-[30px] sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="font-semibold">
-                Support mode is visible and time-limited
-              </p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {session.tenant} · expires at {session.expiresAt} · reason:{" "}
-                {session.reason}
-              </p>
-            </div>
-            <Button variant="outline" onClick={() => setSession(null)}>
-              Exit support mode
-            </Button>
-          </CardContent>
-        </Card>
-      ) : null}
-      <form
-        className="grid gap-5 md:grid-cols-2"
-        onSubmit={form.handleSubmit(submit)}
-      >
-        <div>
-          <label htmlFor="support-tenant" className="text-sm font-medium">
-            Tenant
-          </label>
-          <Select
-            id="support-tenant"
-            className="mt-1"
-            disabled={Boolean(fixedTenantId)}
-            {...form.register("tenantId")}
-          >
-            <option value="">Choose a tenant</option>
-            {tenants.map((tenant) => (
-              <option key={tenant.id} value={tenant.id}>
-                {tenant.name}
-              </option>
-            ))}
-          </Select>
-          {form.formState.errors.tenantId ? (
-            <span className="mt-1 block text-xs text-danger">
-              {form.formState.errors.tenantId.message}
-            </span>
-          ) : null}
-        </div>
-        <div>
-          <label htmlFor="support-duration" className="text-sm font-medium">
-            Maximum session time
-          </label>
-          <Select
-            id="support-duration"
-            className="mt-1"
-            {...form.register("durationMinutes")}
-          >
-            <option value="15">15 minutes</option>
-            <option value="30">30 minutes</option>
-            <option value="60">60 minutes</option>
-            <option value="120">2 hours</option>
-          </Select>
-        </div>
-        <label
-          htmlFor="support-reason"
-          className="text-sm font-medium md:col-span-2"
-        >
-          Access reason
-          <textarea
-            id="support-reason"
-            className="mt-1 min-h-24 w-full rounded-[var(--radius-control)] border bg-background p-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            aria-invalid={Boolean(form.formState.errors.reason)}
-            {...form.register("reason")}
-          />
-          {form.formState.errors.reason ? (
-            <span className="mt-1 block text-xs text-danger">
-              {form.formState.errors.reason.message}
-            </span>
-          ) : (
-            <span className="mt-1 block text-xs text-muted-foreground">
-              This reason is shown in the support banner and future audit
-              record.
-            </span>
-          )}
-        </label>
-        <div className="md:col-span-2">
-          <Button type="submit">
-            <ShieldCheck data-icon="inline-start" />
-            Start visible support session
-          </Button>
-        </div>
-      </form>
-    </div>
-  );
-}
-
-*/
 
 export function TenantDetail({ tenantId }: { tenantId: string }) {
   const [tab, setTab] = useState("overview");

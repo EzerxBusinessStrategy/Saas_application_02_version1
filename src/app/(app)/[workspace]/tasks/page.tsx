@@ -3,7 +3,7 @@ import { TasksPage } from "@/components/operations/tasks-page";
 import { FeatureBoundary } from "@/components/shared/feature-boundary";
 import { hasPermission } from "@/lib/permissions";
 import { sectionAccess } from "@/lib/route-access";
-import { workspaceConfig } from "@/mocks/workspaces";
+import { getAuthenticatedWorkspaceUser } from "@/lib/server/authenticated-workspace-user";
 import type { Workspace } from "@/types/domain";
 
 export default async function Tasks({
@@ -14,7 +14,7 @@ export default async function Tasks({
   const { workspace } = await params;
   const access = sectionAccess.tasks;
   if (!access.workspaces.includes(workspace)) notFound();
-  const user = workspaceConfig(workspace).user;
+  const user = await getAuthenticatedWorkspaceUser(workspace);
   return (
     <FeatureBoundary role={user.role} permissions={access.permissions ?? []}>
       <TasksPage

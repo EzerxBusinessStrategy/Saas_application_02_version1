@@ -46,27 +46,6 @@ export class AuthContextRepository {
     }
   }
 
-  /** Compatibility seam for historical test fixtures; portal sessions do not call this method. */
-  async findBySupabaseAuthUserId(authUserId: string): Promise<readonly AuthContextRow[]> {
-    if (!this.pool) throw databaseNotConfigured();
-    const client = await this.pool.connect();
-    try {
-      await client.query("begin");
-      await setTrustedDatabaseContext(client, { authUserId });
-      const result = await client.query<AuthContextRow>(
-        "select * from private.resolve_auth_context($1::uuid)",
-        [authUserId],
-      );
-      await client.query("commit");
-      return result.rows;
-    } catch (error) {
-      await client.query("rollback");
-      throw error;
-    } finally {
-      client.release();
-    }
-  }
-
   async updateDisplayName(userId: string, displayName: string): Promise<boolean> {
     if (!this.pool) throw databaseNotConfigured();
     const result = await this.pool.query(

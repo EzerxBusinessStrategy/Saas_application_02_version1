@@ -42,7 +42,7 @@ export function TenantPasswordPage() {
       <Card className="w-full">
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><KeyRound className="size-5" aria-hidden="true" />Set Tenant Administrator password</CardTitle>
-          <CardDescription>The password is sent directly to Supabase Auth and cannot be viewed after saving.</CardDescription>
+          <CardDescription>The password is stored only as an Argon2id hash and cannot be viewed after saving.</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="mb-5 flex gap-2">

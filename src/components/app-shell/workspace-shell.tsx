@@ -26,14 +26,10 @@ import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { UserMenu } from "@/components/app-shell/user-menu";
 import { BoxBuildLoader } from "@/components/shared/box-build-loader";
 import { getClientPortalProfile } from "@/features/client-portal/api/client-portal-profile-api";
+import { getTenantProfile } from "@/features/operations/api/operations-api";
 import { getPlatformConfiguration } from "@/features/platform/api/super-admin-platform-configuration-api";
 import { navigationFor } from "@/lib/nav";
 import { hasAnyPermission } from "@/lib/permissions";
-import {
-  restoreTenantBrandingSession,
-  TENANT_BRANDING_CHANGE_EVENT,
-  tenantBrandingStorageKey,
-} from "@/lib/tenant-branding-session";
 import { cn } from "@/lib/utils";
 import { timezones } from "@/i18n/config";
 import type { User, Workspace } from "@/types/domain";
@@ -370,6 +366,11 @@ export function WorkspaceShell({
     queryFn: getClientPortalProfile,
     enabled: workspace === "client" && user.role === "CLIENT_USER",
   });
+  const tenantProfileQuery = useQuery({
+    queryKey: ["tenant-profile"],
+    queryFn: getTenantProfile,
+    enabled: workspace === "admin",
+  });
   const items = useMemo(
     () => filterNavigation(navigationFor(workspace, user.roles?.includes("MANAGER") ?? false), user.roles ?? [user.role]),
     [user.role, user.roles, workspace],
@@ -415,35 +416,11 @@ export function WorkspaceShell({
       document.documentElement.style.setProperty("--ring", profile?.primaryColour ?? "#3C50E0");
       return;
     }
-    const tenantId = "acme";
-    const restoreCompanyName = () => {
-      const draft = restoreTenantBrandingSession(tenantId);
-      setCompanyName(draft?.companyName ?? "SaaS App");
-    };
-    const updateCompanyName = (
-      event: CustomEvent<{ tenantId: string; draft: { companyName: string } }>,
-    ) => {
-      if (event.detail.tenantId === tenantId) {
-        setCompanyName(event.detail.draft.companyName);
-      }
-    };
-    const updateFromStorage = (event: StorageEvent) => {
-      if (event.key === tenantBrandingStorageKey(tenantId)) restoreCompanyName();
-    };
-    restoreCompanyName();
-    window.addEventListener(
-      TENANT_BRANDING_CHANGE_EVENT,
-      updateCompanyName as EventListener,
-    );
-    window.addEventListener("storage", updateFromStorage);
-    return () => {
-      window.removeEventListener(
-        TENANT_BRANDING_CHANGE_EVENT,
-        updateCompanyName as EventListener,
-      );
-      window.removeEventListener("storage", updateFromStorage);
-    };
-  }, [clientProfileQuery.data, platformConfigurationQuery.data, user.role, workspace]);
+    const profile = tenantProfileQuery.data;
+    setCompanyName(profile?.name ?? "Tenant workspace");
+    document.documentElement.style.setProperty("--primary", "#3C50E0");
+    document.documentElement.style.setProperty("--ring", "#3C50E0");
+  }, [clientProfileQuery.data, platformConfigurationQuery.data, tenantProfileQuery.data, user.role, workspace]);
 
   return (
     <div

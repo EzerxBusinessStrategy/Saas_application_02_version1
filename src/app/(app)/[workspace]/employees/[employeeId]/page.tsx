@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { EmployeeProfile } from "@/components/tenant-administration/workforce-administration";
 import { FeatureBoundary } from "@/components/shared/feature-boundary";
-import { workspaceConfig } from "@/mocks/workspaces";
+import { getAuthenticatedWorkspaceUser } from "@/lib/server/authenticated-workspace-user";
 
 export default async function EmployeeProfilePage({
   params,
@@ -10,7 +10,7 @@ export default async function EmployeeProfilePage({
 }) {
   const { workspace, employeeId } = await params;
   if (workspace !== "admin") notFound();
-  const user = workspaceConfig("admin").user;
+  const user = await getAuthenticatedWorkspaceUser("admin");
   return (
     <FeatureBoundary role={user.role} permissions={["employee.read"]}>
       <EmployeeProfile employeeId={employeeId} />

@@ -2,7 +2,7 @@ import { Body, Controller, Delete, Get, HttpCode, Inject, Param, Patch, Post, Qu
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { ActiveRequestContextGuard } from "../auth/guards/active-request-context.guard";
 import { PermissionGuard } from "../auth/guards/permission.guard";
-import { SupabaseAuthGuard } from "../auth/guards/supabase-auth.guard";
+import { PortalSessionGuard } from "../auth/guards/portal-session.guard";
 import { RequirePermissions } from "../auth/permissions.decorator";
 import { CurrentRequestContext } from "../auth/request-context.decorator";
 import { RequestContext } from "../auth/request-context";
@@ -24,7 +24,7 @@ import { TenantAdminClientsService } from "./tenant-admin-clients.service";
 @ApiTags("Tenant Admin")
 @ApiBearerAuth()
 @Controller("tenant-admin/clients")
-@UseGuards(SupabaseAuthGuard, ActiveRequestContextGuard, PermissionGuard)
+@UseGuards(PortalSessionGuard, ActiveRequestContextGuard, PermissionGuard)
 export class TenantAdminClientsController {
   constructor(@Inject(TenantAdminClientsService) private readonly service: TenantAdminClientsService) {}
 

@@ -11,7 +11,6 @@ import {
   createTenantAdminEmployee,
   createTenantAdminTask,
   getTenantAdminEmployeeEmailAvailability,
-  listOperationalTasks,
   listEmployeeTasks,
   listTenantAdminTaskOptions,
   listTenantAdminTasks,
@@ -116,11 +115,7 @@ export function TasksPage({
       }
       if (workspace === "employee") return listEmployeeTasks();
 
-      return listOperationalTasks(workspace, {
-        query,
-        status: status || undefined,
-        priority: priority || undefined,
-      });
+      return [];
     },
     enabled: true,
     refetchInterval: workspace === "employee" ? 30000 : false,
@@ -129,7 +124,7 @@ export function TasksPage({
   const logsQuery = useQuery({
     queryKey: ["operational-work-logs", workspace, selectedClientId],
     queryFn: () => listWorkLogs(workspace),
-    enabled: workspace !== "admin",
+    enabled: workspace === "employee",
   });
   const tasks = useMemo(() => {
     const items = [

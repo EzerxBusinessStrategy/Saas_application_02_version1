@@ -10,7 +10,7 @@ import {
 } from "@nestjs/swagger";
 import { ActiveRequestContextGuard } from "../auth/guards/active-request-context.guard";
 import { PermissionGuard } from "../auth/guards/permission.guard";
-import { SupabaseAuthGuard } from "../auth/guards/supabase-auth.guard";
+import { PortalSessionGuard } from "../auth/guards/portal-session.guard";
 import { RequirePermissions } from "../auth/permissions.decorator";
 import { CurrentRequestContext } from "../auth/request-context.decorator";
 import { RequestContext } from "../auth/request-context";
@@ -45,7 +45,7 @@ import { TenantAdminTasksService } from "./tenant-admin-tasks.service";
 @ApiTags("Tenant Admin")
 @ApiBearerAuth()
 @Controller("tenant-admin/tasks")
-@UseGuards(SupabaseAuthGuard, ActiveRequestContextGuard, PermissionGuard)
+@UseGuards(PortalSessionGuard, ActiveRequestContextGuard, PermissionGuard)
 export class TenantAdminTasksController {
   constructor(
     @Inject(TenantAdminTasksService)

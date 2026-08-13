@@ -5,7 +5,7 @@ import { FeatureBoundary } from "@/components/shared/feature-boundary";
 import { SectionSkeleton } from "@/components/shared/section-skeleton";
 import { ManagerDirectory } from "@/components/tenant-administration/workforce-administration";
 import { sectionAccess } from "@/lib/route-access";
-import { workspaceConfig } from "@/mocks/workspaces";
+import { getAuthenticatedWorkspaceUser } from "@/lib/server/authenticated-workspace-user";
 import type { Workspace } from "@/types/domain";
 
 const dynamicSection = (load: () => Promise<{ default: ComponentType<any> }>) =>
@@ -41,9 +41,6 @@ const WorkGroupDirectory = dynamicSection(() =>
 const TenantServiceDirectory = dynamicSection(() =>
   import("@/components/tenant-administration/service-management").then((module) => ({ default: module.TenantServiceDirectory })),
 );
-const TenantSettings = dynamicSection(() =>
-  import("@/components/tenant-administration/workforce-administration").then((module) => ({ default: module.TenantSettings })),
-);
 const TenantEmployeePerformancePage = dynamicSection(() =>
   import("@/components/tenant-administration/employee-performance").then((module) => ({ default: module.TenantEmployeePerformancePage })),
 );
@@ -56,12 +53,6 @@ const EmployeeWorkspace = dynamicSection(() =>
 const FinanceDocuments = dynamicSection(() =>
   import("@/components/operations/finance-documents").then((module) => ({ default: module.FinanceDocuments })),
 );
-const TenantGamificationSettings = dynamicSection(() =>
-  import("@/components/operations/gamification-workflows").then((module) => ({ default: module.TenantGamificationSettings })),
-);
-const AccountPreferences = dynamicSection(() =>
-  import("@/components/app-shell/account-preferences").then((module) => ({ default: module.AccountPreferences })),
-);
 
 export default async function Section({
   params,
@@ -71,8 +62,8 @@ export default async function Section({
   const { workspace, section } = await params;
   const access = sectionAccess[section];
   if (access && !access.workspaces.includes(workspace)) notFound();
+  const user = await getAuthenticatedWorkspaceUser(workspace);
   if (section === "employees" && workspace === "admin") {
-    const user = workspaceConfig(workspace).user;
     return (
       <FeatureBoundary role={user.role} permissions={access.permissions ?? []}>
         <EmployeeDirectory />
@@ -80,16 +71,11 @@ export default async function Section({
     );
   }
   if (section === "employee-performance" && workspace === "admin") {
-    const user = workspaceConfig(workspace).user;
     return (
       <FeatureBoundary role={user.role} permissions={["employee.read"]}>
         <TenantEmployeePerformancePage />
       </FeatureBoundary>
     );
-  }
-  const user = workspaceConfig(workspace).user;
-  if (section === "account" && workspace === "super-admin") {
-    return <AccountPreferences user={user} />;
   }
   if (section === "tenants") {
     return (
@@ -167,14 +153,8 @@ export default async function Section({
   if (
     workspace === "employee" &&
     [
-      "work-logs",
-      "timesheet",
-      "calendar",
       "notifications",
       "profile",
-      "achievements",
-      "recognition",
-      "preferences",
     ].includes(section)
   ) {
     return (
@@ -182,14 +162,8 @@ export default async function Section({
         <EmployeeWorkspace
           section={
             section as
-              | "work-logs"
-              | "timesheet"
-              | "calendar"
               | "notifications"
               | "profile"
-              | "achievements"
-              | "recognition"
-              | "preferences"
           }
         />
       </FeatureBoundary>
@@ -212,16 +186,13 @@ export default async function Section({
       </FeatureBoundary>
     );
   }
-  if (["invoices", "payments", "agreements", "documents"].includes(section)) {
+  if (["invoices", "documents"].includes(section) || (section === "agreements" && workspace === "admin")) {
     const financePermission =
-      workspace === "client"
-        ? "client.read.assigned"
-        : section === "documents"
+      section === "documents"
           ? "document.read"
           : "invoice.create";
     if (
       workspace === "admin" ||
-      workspace === "client" ||
       (workspace === "employee" && section === "documents")
     ) {
       return (
@@ -229,7 +200,7 @@ export default async function Section({
           <FinanceDocuments
             workspace={workspace}
             section={
-              section as "invoices" | "payments" | "agreements" | "documents"
+              section as "invoices" | "agreements" | "documents"
             }
           />
         </FeatureBoundary>
@@ -243,24 +214,10 @@ export default async function Section({
       </FeatureBoundary>
     );
   }
-  if (section === "gamification" && workspace === "admin") {
-    return (
-      <FeatureBoundary role={user.role} permissions={["client.update"]}>
-        <TenantGamificationSettings />
-      </FeatureBoundary>
-    );
-  }
   if (section === "managers") {
     return (
       <FeatureBoundary role={user.role} permissions={["employee.read"]}>
         <ManagerDirectory />
-      </FeatureBoundary>
-    );
-  }
-  if (section === "settings" || section === "branding") {
-    return (
-      <FeatureBoundary role={user.role} permissions={["client.update"]}>
-        <TenantSettings />
       </FeatureBoundary>
     );
   }

@@ -16,7 +16,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-test("links employees to the real work-log route", async () => {
+test("links employees to the real task route", async () => {
   vi.stubGlobal(
     "fetch",
     vi.fn(async () =>
@@ -33,7 +33,7 @@ test("links employees to the real work-log route", async () => {
   renderWithQuery(<EmployeeWorkspace />);
 
   expect(
-    await screen.findByRole("link", { name: /add work log/i }),
-  ).toHaveAttribute("href", "/employee/work-logs");
+    await screen.findByRole("link", { name: /open tasks/i }),
+  ).toHaveAttribute("href", "/employee/tasks");
 });
 

@@ -15,13 +15,13 @@ describe("publicRedirectUrl", () => {
   it("uses the configured public origin behind a reverse proxy", () => {
     process.env.BACKEND_PUBLIC_APP_URL = "https://saas.example.com";
     expect(
-      publicRedirectUrl("http://localhost:10000/api/demo-auth/refresh", "/login").href,
+      publicRedirectUrl("http://localhost:10000/api/auth/tenant/login", "/login").href,
     ).toBe("https://saas.example.com/login");
   });
 
   it("uses the request origin for local development", () => {
     delete process.env.BACKEND_PUBLIC_APP_URL;
-    expect(publicRedirectUrl("http://localhost:3000/api/demo-auth/refresh", "/login").href).toBe(
+    expect(publicRedirectUrl("http://localhost:3000/api/auth/tenant/login", "/login").href).toBe(
       "http://localhost:3000/login",
     );
   });

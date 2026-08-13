@@ -2,7 +2,7 @@ import { Body, Controller, Get, Inject, Param, Post, UseGuards } from "@nestjs/c
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { ActiveRequestContextGuard } from "../auth/guards/active-request-context.guard";
 import { PermissionGuard } from "../auth/guards/permission.guard";
-import { SupabaseAuthGuard } from "../auth/guards/supabase-auth.guard";
+import { PortalSessionGuard } from "../auth/guards/portal-session.guard";
 import { RequirePermissions } from "../auth/permissions.decorator";
 import { CurrentRequestContext } from "../auth/request-context.decorator";
 import { RequestContext } from "../auth/request-context";
@@ -19,7 +19,7 @@ import { EmployeeTasksService } from "./employee-tasks.service";
 @ApiTags("Employee")
 @ApiBearerAuth()
 @Controller("employee")
-@UseGuards(SupabaseAuthGuard, ActiveRequestContextGuard, PermissionGuard)
+@UseGuards(PortalSessionGuard, ActiveRequestContextGuard, PermissionGuard)
 export class EmployeeTasksController {
   constructor(@Inject(EmployeeTasksService) private readonly service: EmployeeTasksService) {}
 

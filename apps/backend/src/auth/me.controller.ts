@@ -14,7 +14,7 @@ import { ApiErrorResponseDto } from "../common/errors/api-error.dto";
 import { ZodValidationPipe } from "../common/validation/zod-validation.pipe";
 import { ActiveRequestContextGuard } from "./guards/active-request-context.guard";
 import { PermissionGuard } from "./guards/permission.guard";
-import { SupabaseAuthGuard } from "./guards/supabase-auth.guard";
+import { PortalSessionGuard } from "./guards/portal-session.guard";
 import {
   MeResponseDto,
   UpdateMyPreferencesDto,
@@ -30,7 +30,7 @@ import { RequestContext } from "./request-context";
 @ApiTags("Identity")
 @ApiBearerAuth()
 @Controller("me")
-@UseGuards(SupabaseAuthGuard, ActiveRequestContextGuard, PermissionGuard)
+@UseGuards(PortalSessionGuard, ActiveRequestContextGuard, PermissionGuard)
 export class MeController {
   constructor(@Inject(MeService) private readonly meService: MeService) {}
 
@@ -38,7 +38,7 @@ export class MeController {
   @ApiOperation({
     summary: "Return the verified application user and active tenant membership.",
     description:
-      "The bearer token is verified with Supabase JWT signing keys. Tenant and role headers are selection inputs only and are verified against backend membership data.",
+      "The portal session cookie is verified against the authentication database. Portal, tenant, and role inputs are verified against backend membership data.",
   })
   @ApiOkResponse({ type: MeResponseDto })
   @ApiUnauthorizedResponse({ type: ApiErrorResponseDto, description: "Missing, malformed, expired, or invalid token." })

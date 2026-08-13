@@ -133,4 +133,18 @@ describe("database migrations", () => {
     expect(sql).toContain("raise exception 'Tenant Administrator email already exists.'");
     expect(sql).toContain("where code = 'TENANT_ADMIN'");
   });
+
+  test("uses portal credential and session timestamps for Tenant Administrator access", () => {
+    expect(migrationNames).toContain("0061_super_admin_tenant_login_status.sql");
+
+    const sql = readFileSync(
+      resolve(__dirname, "../../drizzle/migrations/0061_super_admin_tenant_login_status.sql"),
+      "utf8",
+    );
+
+    expect(sql).toContain("from authn.credentials c");
+    expect(sql).toContain("c.portal_type = 'TENANT'");
+    expect(sql).toContain("from authn.sessions s");
+    expect(sql).toContain("max(s.revoked_at) as last_logout_at");
+  });
 });

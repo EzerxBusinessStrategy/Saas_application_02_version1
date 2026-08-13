@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { Layers3 } from "lucide-react";
-import { workspaceOptions } from "@/mocks/app-shell";
+import { workspaceOptions } from "@/lib/workspace-options";
 import {
   DropdownMenu,
   DropdownMenuContent,

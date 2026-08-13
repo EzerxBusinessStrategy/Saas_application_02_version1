@@ -6,7 +6,6 @@ import { QueryClient, type QueryKey, useMutation, useQuery, useQueryClient } fro
 import { Bell, CheckCheck, CircleAlert, Info, Volume2, VolumeX } from "lucide-react";
 import { io } from "socket.io-client";
 import { toast } from "sonner";
-import { notificationFixtures } from "@/mocks/app-shell";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -34,14 +33,11 @@ import {
 import { getClientPortalNotifications } from "@/features/client-portal/api/client-portal-notifications-api";
 import { cn } from "@/lib/utils";
 import { readNotificationCache, writeNotificationCache } from "@/lib/client/notification-cache";
-import type { Notification } from "@/types/app-shell";
 import type { Workspace } from "@/types/domain";
 import type {
   SuperAdminNotification,
   SuperAdminNotificationsResponse,
 } from "@/types/super-admin-notifications";
-
-export type NotificationMenuState = "ready" | "loading" | "error" | "empty";
 
 const clientPortalNotificationsQueryKey = ["client-portal-notifications", "recent"] as const;
 
@@ -54,14 +50,10 @@ function scopedNotificationQueryKey(scope: string, userEmail: string) {
 
 export function NotificationMenu({
   workspace,
-  initialItems = notificationFixtures,
-  state = "ready",
   open,
   userEmail = "",
 }: {
   workspace: Workspace;
-  initialItems?: Notification[];
-  state?: NotificationMenuState;
   open?: boolean;
   userEmail?: string;
 }) {
@@ -77,7 +69,7 @@ export function NotificationMenu({
   if (workspace === "employee") {
     return <EmployeeNotificationMenu open={open} userEmail={userEmail} />;
   }
-  return <MockNotificationMenu workspace={workspace} initialItems={initialItems} state={state} open={open} />;
+  return null;
 }
 
 function SuperAdminNotificationMenu({ open, userEmail }: { open?: boolean; userEmail: string }) {
@@ -516,78 +508,6 @@ function NotificationList({
         );
       })}
     </div>
-  );
-}
-
-function MockNotificationMenu({
-  workspace,
-  initialItems,
-  state,
-  open,
-}: {
-  workspace: Workspace;
-  initialItems: Notification[];
-  state: NotificationMenuState;
-  open?: boolean;
-}) {
-  const [items, setItems] = useState(initialItems);
-  const visibleItems = items.filter((item) => !item.workspaces?.length || item.workspaces.includes(workspace));
-  const unreadCount = useMemo(() => visibleItems.filter((item) => !item.read).length, [visibleItems]);
-  const markAsRead = (id: string) =>
-    setItems((current) => current.map((item) => (item.id === id ? { ...item, read: true } : item)));
-  const markAllAsRead = () => setItems((current) => current.map((item) => ({ ...item, read: true })));
-
-  return (
-    <DropdownMenu open={open}>
-      <DropdownMenuTrigger asChild>
-        <Button
-          variant="ghost"
-          size="sm"
-          aria-label={unreadCount ? `Notifications, ${unreadCount} unread` : "Notifications"}
-          className="relative size-10 p-0"
-        >
-          <Bell className="size-[18px]" aria-hidden="true" />
-          {unreadCount ? (
-            <span className="absolute right-1 top-1 grid size-4 place-items-center rounded-full bg-danger text-[10px] font-semibold text-destructive-foreground" aria-hidden="true">
-              {unreadCount > 9 ? "9+" : unreadCount}
-            </span>
-          ) : null}
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-[min(24rem,calc(100vw-2rem))]">
-        <div className="flex items-center justify-between gap-3 px-3 py-2">
-          <DropdownMenuLabel className="p-0 font-semibold">Notifications</DropdownMenuLabel>
-          {unreadCount && state === "ready" ? (
-            <Button variant="ghost" size="sm" onClick={markAllAsRead}>
-              <CheckCheck className="size-4" aria-hidden="true" />
-              Mark all read
-            </Button>
-          ) : null}
-        </div>
-        <DropdownMenuSeparator className="my-1 h-px bg-border" />
-        {state === "loading" ? <NotificationLoading /> : null}
-        {state === "error" ? <NotificationError /> : null}
-        {state === "empty" || (state === "ready" && !visibleItems.length) ? (
-          <div className="px-3 py-5 text-sm text-muted-foreground">You&apos;re all caught up.</div>
-        ) : null}
-        {state === "ready" && visibleItems.length ? (
-          <div className="max-h-80 overflow-y-auto p-1">
-            {visibleItems.map((item) => (
-              <DropdownMenuItem key={item.id} className="items-start whitespace-normal p-0" onSelect={() => markAsRead(item.id)} asChild>
-                <Link href={item.href ?? `/${workspace}`} className="flex w-full gap-3 px-3 py-3">
-                  <span className={`mt-1.5 size-2 shrink-0 rounded-full ${item.read ? "bg-transparent" : "bg-primary"}`} aria-label={item.read ? "Read" : "Unread"} />
-                  <span className="min-w-0">
-                    <span className="block font-medium">{item.title}</span>
-                    <span className="mt-1 block text-xs text-muted-foreground">{item.description}</span>
-                    <span className="mt-1 block text-xs text-muted-foreground">{item.createdAt}</span>
-                  </span>
-                </Link>
-              </DropdownMenuItem>
-            ))}
-          </div>
-        ) : null}
-      </DropdownMenuContent>
-    </DropdownMenu>
   );
 }
 

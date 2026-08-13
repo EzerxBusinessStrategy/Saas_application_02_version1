@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { ClientDetail } from "@/components/tenant-administration/client-management";
 import { FeatureBoundary } from "@/components/shared/feature-boundary";
-import { workspaceConfig } from "@/mocks/workspaces";
+import { getAuthenticatedWorkspaceUser } from "@/lib/server/authenticated-workspace-user";
 
 export default async function ClientDetailsPage({
   params,
@@ -10,7 +10,7 @@ export default async function ClientDetailsPage({
 }) {
   const { workspace, clientId } = await params;
   if (workspace !== "admin") notFound();
-  const user = workspaceConfig("admin").user;
+  const user = await getAuthenticatedWorkspaceUser("admin");
   return (
     <FeatureBoundary role={user.role} permissions={["client.read"]}>
       <ClientDetail clientId={clientId} />

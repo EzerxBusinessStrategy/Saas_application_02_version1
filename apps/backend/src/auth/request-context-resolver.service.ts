@@ -15,8 +15,8 @@ import { freezeRequestContext, RequestContext, TenantSelectionInput, VerifiedAut
 
 const portalRoles: Readonly<Record<string, readonly string[]>> = {
   "super-admin": ["SUPER_ADMIN"],
-  admin: ["TENANT_OWNER", "TENANT_ADMIN", "FINANCE_USER", "HR_OPERATIONS_USER", "SUPER_ADMIN"],
-  employee: ["EMPLOYEE", "SUPER_ADMIN"],
+  admin: ["TENANT_OWNER", "TENANT_ADMIN", "FINANCE_USER", "HR_OPERATIONS_USER"],
+  employee: ["MANAGER", "EMPLOYEE"],
   client: ["CLIENT_USER"],
 };
 

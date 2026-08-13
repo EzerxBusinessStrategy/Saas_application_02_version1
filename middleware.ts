@@ -1,6 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { demoSessionCookie, isWorkspaceAllowed, roleFromSession } from "@/lib/demo-auth";
-import { authenticatedWorkspaceCookie, superAdminAccessTokenCookie } from "@/lib/auth-cookies";
+import {
+  clientSessionCookie,
+  employeeSessionCookie,
+  superAdminSessionCookie,
+  tenantSessionCookie,
+} from "@/lib/auth-cookies";
 import type { Workspace } from "@/types/domain";
 
 const protectedWorkspaces = new Set<Workspace>([
@@ -15,25 +19,24 @@ export function middleware(request: NextRequest) {
   const workspace = request.nextUrl.pathname.split("/")[1] as Workspace;
   if (!protectedWorkspaces.has(workspace)) return NextResponse.next();
 
-  if (workspace === "super-admin") {
-    return request.cookies.get(superAdminAccessTokenCookie)?.value
-      ? NextResponse.next()
-      : NextResponse.redirect(new URL("/login", request.url));
-  }
+  const sessionCookie = sessionCookieForWorkspace(workspace);
+  if (request.cookies.get(sessionCookie)?.value) return NextResponse.next();
 
-  if (
-    request.cookies.get(superAdminAccessTokenCookie)?.value &&
-    request.cookies.get(authenticatedWorkspaceCookie)?.value === workspace
-  ) {
-    return NextResponse.next();
-  }
+  return NextResponse.redirect(new URL(loginPathForWorkspace(workspace), request.url));
+}
 
-  const role = roleFromSession(request.cookies.get(demoSessionCookie)?.value);
-  if (!role) return NextResponse.redirect(new URL("/login", request.url));
-  if (!isWorkspaceAllowed(role, workspace)) {
-    return NextResponse.redirect(new URL("/no-permission", request.url));
-  }
-  return NextResponse.next();
+function sessionCookieForWorkspace(workspace: Workspace): string {
+  if (workspace === "super-admin") return superAdminSessionCookie;
+  if (workspace === "admin") return tenantSessionCookie;
+  if (workspace === "client") return clientSessionCookie;
+  return employeeSessionCookie;
+}
+
+function loginPathForWorkspace(workspace: Workspace): string {
+  if (workspace === "super-admin") return "/super-admin/login";
+  if (workspace === "admin") return "/admin/login";
+  if (workspace === "client") return "/client/login";
+  return "/employee/login";
 }
 
 export const config = {

@@ -54,7 +54,6 @@ import {
   type TenantAdminWorkGroup,
 } from "@/features/operations/api/operations-api";
 import { readFormDraft } from "@/lib/client/form-draft-store";
-import { clients, managers } from "@/mocks/administration";
 import {
   clientCreateInputSchema,
   clientContactInputSchema,

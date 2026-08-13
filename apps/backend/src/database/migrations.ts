@@ -68,6 +68,7 @@ export const migrationNames = [
   "0058_portal_auth_provisioning_and_session_policy.sql",
   "0059_portal_tenant_provisioning.sql",
   "0060_authn_credentials_ist_view.sql",
+  "0061_super_admin_tenant_login_status.sql",
 ] as const;
 
 export async function runMigrations(
