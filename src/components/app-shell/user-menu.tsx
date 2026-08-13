@@ -11,7 +11,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import type { User, Workspace } from "@/types/domain";
+import type { Workspace } from "@/types/domain";
 
 type PortalKey = "super-admin" | "tenant" | "employee" | "client";
 
@@ -51,15 +51,14 @@ const accountHrefByWorkspace: Record<Workspace, string> = {
 };
 
 export function UserMenu({
-  user,
   workspace,
   open,
 }: {
-  user: User;
   workspace: Workspace;
   open?: boolean;
 }) {
   const [profile, setProfile] = useState<AuthenticatedProfile | null>(null);
+  const [loadingProfile, setLoadingProfile] = useState(true);
   const [signingOut, setSigningOut] = useState(false);
   const portal = portalForWorkspace[workspace];
 
@@ -73,21 +72,24 @@ export function UserMenu({
       .then((response) => {
         if (response) setProfile(response);
       })
-      .catch(() => undefined);
+      .catch(() => undefined)
+      .finally(() => {
+        if (!controller.signal.aborted) setLoadingProfile(false);
+      });
     return () => controller.abort();
   }, [portal]);
 
   const identity = useMemo(() => {
-    const name = profile?.user.displayName || user.name;
-    const roles = profile?.roles ?? user.roles ?? [user.role];
-    const role = roleForPortal(roles, portal, user.role);
+    const name = profile?.user.displayName || "Account";
+    const roles = profile?.roles ?? [];
+    const role = roleForPortal(roles, portal);
     return {
       name,
-      email: profile?.user.email || user.email,
+      email: profile?.user.email || "",
       initials: initialsFor(name),
       role: roleLabels[role] ?? role.replaceAll("_", " "),
     };
-  }, [portal, profile, user.email, user.name, user.role, user.roles]);
+  }, [portal, profile]);
 
   const signOut = async () => {
     if (signingOut) return;
@@ -98,6 +100,10 @@ export function UserMenu({
       window.location.assign("/login");
     }
   };
+
+  if (loadingProfile) {
+    return <UserMenuSkeleton />;
+  }
 
   return (
     <DropdownMenu open={open}>
@@ -143,7 +149,7 @@ export function UserMenu({
               {identity.name}
             </DropdownMenuLabel>
             <p className="text-[11px] font-medium text-slate-500">{identity.role}</p>
-            <p className="mt-0.5 truncate text-[10px] text-slate-400" title={identity.email}>{identity.email}</p>
+            {identity.email ? <p className="mt-0.5 truncate text-[10px] text-slate-400" title={identity.email}>{identity.email}</p> : null}
           </div>
         </div>
         <DropdownMenuSeparator className="my-1 h-px bg-slate-100" />
@@ -171,6 +177,19 @@ export function UserMenu({
   );
 }
 
+function UserMenuSkeleton() {
+  return (
+    <div className="flex h-[58px] min-w-[52px] max-w-[min(18rem,48vw)] items-center gap-3 rounded-[18px] border border-violet-100/80 bg-gradient-to-r from-[#eef2ff] via-[#f8f7ff] to-[#fff2f6] px-2.5 shadow-[0_4px_18px_rgb(30_41_59/0.06)]" aria-label="Loading account profile" role="status">
+      <span className="size-9 shrink-0 animate-pulse rounded-full bg-violet-200/80" />
+      <span className="hidden min-w-0 flex-1 space-y-1.5 sm:block">
+        <span className="block h-3.5 w-24 animate-pulse rounded bg-slate-200" />
+        <span className="block h-2.5 w-16 animate-pulse rounded bg-slate-200" />
+      </span>
+      <span className="size-4 shrink-0" aria-hidden="true" />
+    </div>
+  );
+}
+
 function initialsFor(name: string): string {
   return name
     .split(" ")
@@ -181,12 +200,21 @@ function initialsFor(name: string): string {
     .toUpperCase();
 }
 
-function roleForPortal(roles: readonly string[], portal: PortalKey, fallback: User["role"]): string {
+function roleForPortal(roles: readonly string[], portal: PortalKey): string {
   const preference: Record<PortalKey, readonly string[]> = {
     "super-admin": ["SUPER_ADMIN"],
     tenant: ["TENANT_OWNER", "TENANT_ADMIN", "FINANCE_USER", "HR_OPERATIONS_USER"],
     employee: ["MANAGER", "EMPLOYEE"],
     client: ["CLIENT_USER"],
   };
-  return preference[portal].find((role) => roles.includes(role)) ?? roles[0] ?? fallback;
+  return preference[portal].find((role) => roles.includes(role)) ?? roles[0] ?? defaultRoleForPortal(portal);
+}
+
+function defaultRoleForPortal(portal: PortalKey): string {
+  return {
+    "super-admin": "SUPER_ADMIN",
+    tenant: "TENANT_ADMIN",
+    employee: "EMPLOYEE",
+    client: "CLIENT_USER",
+  }[portal];
 }

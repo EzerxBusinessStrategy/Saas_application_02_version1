@@ -540,7 +540,7 @@ export function WorkspaceShell({
             {workspace !== "client" ? (
               <NotificationMenu workspace={workspace} userEmail={user.email} />
             ) : null}
-            <UserMenu user={user} workspace={workspace} />
+            <UserMenu workspace={workspace} />
           </div>
         </header>
         <main
