@@ -4,9 +4,9 @@ import { RequestContext } from "../auth/request-context";
 import { databaseNotConfigured } from "../auth/auth-errors";
 import { DATABASE_POOL } from "../database/database.tokens";
 import { setTrustedDatabaseContext, withDatabaseTransaction } from "../database/transaction-context";
-import { TenantAdminTasksRepository } from "./tenant-admin-tasks.repository";
+import { TaskReviewDetailRow, TenantAdminTasksRepository } from "./tenant-admin-tasks.repository";
 import { publishTaskWorkflowNotification, resumeReturnedTaskTimer } from "./task-workflow-support";
-import { TenantAdminTaskItemDto } from "./tenant-admin-tasks.dto";
+import { TaskReviewDetailDto, TenantAdminTaskItemDto } from "./tenant-admin-tasks.dto";
 import { requireEmployeeManagerContext } from "./employee-context";
 import {
   EmployeeManagerClientsResponseDto,
@@ -65,13 +65,15 @@ export class EmployeeManagerService {
         submitted_at: Date;
         worked_seconds: string;
         task_comment: string | null;
+        status: "manager_review" | "in_progress" | "completed";
+        submission_status: "submitted" | "returned" | "manager_approved" | "tenant_approved" | "cancelled";
       }>(
         `
           with latest_submissions as (
             select distinct on (tenant_id, task_id)
-              tenant_id, task_id, employee_id, submitted_at, task_comment
+              tenant_id, task_id, employee_id, submitted_at, task_comment, status
             from public.task_submissions
-            where tenant_id = $1 and status = 'submitted'
+            where tenant_id = $1
             order by tenant_id, task_id, submitted_at desc
           ),
           worked as (
@@ -89,13 +91,17 @@ export class EmployeeManagerService {
             ls.submitted_at,
             coalesce(w.worked_seconds, '0') as worked_seconds,
             ls.task_comment
+            ,t.status
+            ,ls.status as submission_status
           from public.tasks t
           join latest_submissions ls on ls.tenant_id = t.tenant_id and ls.task_id = t.id
           join public.clients c on c.tenant_id = t.tenant_id and c.id = t.client_id
           join public.employees e on e.tenant_id = ls.tenant_id and e.id = ls.employee_id
           join public.tenant_memberships tm on tm.tenant_id = e.tenant_id and tm.id = e.membership_id
           left join worked w on w.tenant_id = ls.tenant_id and w.task_id = ls.task_id and w.employee_id = ls.employee_id
-          where t.tenant_id = $1 and t.status = 'manager_review'
+          where t.tenant_id = $1
+            and t.status in ('manager_review', 'in_progress', 'completed')
+            and ls.status in ('submitted', 'returned', 'manager_approved', 'tenant_approved')
             and (
               exists (
                 select 1
@@ -133,9 +139,17 @@ export class EmployeeManagerService {
           submittedAt: row.submitted_at.toISOString(),
           workedSeconds: Number(row.worked_seconds),
           taskComment: row.task_comment,
+          status: row.status,
+          submissionStatus: row.submission_status,
         })),
       };
     });
+  }
+
+  async getReviewDetail(context: RequestContext, taskId: string): Promise<TaskReviewDetailDto> {
+    const managerContext = requireEmployeeManagerContext(context);
+    await this.assertManagerTaskScope(managerContext, taskId);
+    return mapReviewDetail(await this.tasksRepository.getReviewDetail(managerContext, taskId));
   }
 
   async decideReview(context: RequestContext, taskId: string, input: EmployeeManagerReviewRequest): Promise<{ ok: true }> {
@@ -201,7 +215,7 @@ export class EmployeeManagerService {
         `
           update public.billable_task_entries
           set status = $3,
-              approved_by = case when $3 = 'approved_for_invoice' then $4 else null end,
+              approved_by = case when $3 = 'approved_for_invoice' then $4::uuid else null end,
               approved_at = case when $3 = 'approved_for_invoice' then clock_timestamp() else null end,
               updated_at = now()
           where tenant_id = $1
@@ -308,6 +322,23 @@ export class EmployeeManagerService {
     });
   }
 
+  private async assertManagerTaskScope(context: ReturnType<typeof requireEmployeeManagerContext>, taskId: string): Promise<void> {
+    await this.withContext(context, async (client) => {
+      const result = await client.query<{ ok: boolean }>(
+        `select true as ok
+         from public.tasks t
+         join public.task_submissions ts on ts.tenant_id = t.tenant_id and ts.task_id = t.id
+         where t.tenant_id = $1 and t.id = $2
+           and (
+             exists (select 1 from public.work_group_memberships wgm join public.employees manager_employee on manager_employee.tenant_id = wgm.tenant_id and manager_employee.id = wgm.employee_id and manager_employee.membership_id = $3 where wgm.tenant_id = t.tenant_id and wgm.work_group_id = t.work_group_id and wgm.group_role = 'manager' and wgm.status = 'active')
+             or exists (select 1 from public.employee_manager_assignments ema join public.employees manager_employee on manager_employee.tenant_id = ema.tenant_id and manager_employee.id = ema.manager_employee_id and manager_employee.membership_id = $3 where ema.tenant_id = t.tenant_id and ema.employee_id = ts.employee_id)
+           ) limit 1`,
+        [context.tenantId, taskId, context.membershipId],
+      );
+      if (!result.rowCount) throw new ConflictException({ code: "TASK_NOT_AVAILABLE", message: "This task is not available for your review." });
+    });
+  }
+
   private async withContext<T>(context: ReturnType<typeof requireEmployeeManagerContext>, work: (client: PoolClient) => Promise<T>): Promise<T> {
     if (!this.pool) throw databaseNotConfigured();
     return withDatabaseTransaction(this.pool, context, async (_tx, client) => {
@@ -315,4 +346,13 @@ export class EmployeeManagerService {
       return work(client);
     });
   }
+}
+
+function mapReviewDetail(row: TaskReviewDetailRow): TaskReviewDetailDto {
+  return {
+    task: { ...row.task, plannedDueAt: row.task.plannedDueAt?.toISOString() ?? null },
+    comments: row.comments.map((item) => ({ ...item, createdAt: item.createdAt.toISOString() })),
+    workLogs: row.workLogs.map((item) => ({ ...item, startedAt: item.startedAt.toISOString(), endedAt: item.endedAt?.toISOString() ?? null })),
+    attachments: row.attachments.map((item) => ({ ...item, updatedAt: item.updatedAt.toISOString() })),
+  };
 }

@@ -10,12 +10,14 @@ import {
   createEmployeeManagerTask,
   decideEmployeeManagerReview,
   getEmployeeManagerTaskOptions,
+  getEmployeeManagerReviewDetail,
   listEmployeeManagerClients,
   listEmployeeManagerReviews,
 } from "@/features/employee/api/employee-manager-api";
 import { getEmployeeNotifications } from "@/features/employee/api/employee-notifications-api";
 import { getEmployeeProfile } from "@/features/employee/api/employee-profile-api";
 import { TaskBoard } from "@/components/operations/task-board";
+import { TaskDetailsDrawer } from "@/components/operations/task-details-drawer";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ConfirmationDialog } from "@/components/shared/confirmation-dialog";
 import { ErrorState } from "@/components/shared/error-state";
@@ -330,7 +332,13 @@ function EmployeeManagerTaskReviewsPage() {
   const queryClient = useQueryClient();
   const [returnTaskId, setReturnTaskId] = useState<string | null>(null);
   const [returnRemarks, setReturnRemarks] = useState("");
+  const [selectedTask, setSelectedTask] = useState<OperationalTask | null>(null);
   const query = useQuery({ queryKey: ["employee-manager-reviews"], queryFn: listEmployeeManagerReviews });
+  const detailQuery = useQuery({
+    queryKey: ["employee-manager-review-detail", selectedTask?.id],
+    queryFn: () => getEmployeeManagerReviewDetail(selectedTask!.id),
+    enabled: Boolean(selectedTask),
+  });
   const mutation = useMutation({
     mutationFn: ({ taskId, decision, remarks }: { taskId: string; decision: "approve" | "return"; remarks?: string }) => decideEmployeeManagerReview(taskId, decision, remarks),
     onSuccess: async (_result, variables) => {
@@ -339,6 +347,8 @@ function EmployeeManagerTaskReviewsPage() {
       setReturnRemarks("");
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["employee-manager-reviews"] }),
+        queryClient.invalidateQueries({ queryKey: ["employee-manager-review-detail", variables.taskId] }),
+        queryClient.invalidateQueries({ queryKey: ["operational-tasks"] }),
         queryClient.invalidateQueries({ queryKey: ["employee-notifications"] }),
       ]);
     },
@@ -362,16 +372,16 @@ function EmployeeManagerTaskReviewsPage() {
     description: task.taskComment ?? "No submission comment.",
     priority: "medium",
     complexity: "standard",
-    status: "review",
+    status: task.submissionStatus === "returned" ? "rejected" : task.status === "completed" ? "done" : "review",
     sla: "on-track",
     dueDate: `Submitted ${format(parseISO(task.submittedAt), "d MMM, p")}`,
     checklist: [],
     dependencyIds: [],
     attachmentCount: 0,
     commentCount: 0,
-    reviewStatus: "pending",
-    approvalStatus: "pending",
-    blocked: false,
+    reviewStatus: task.submissionStatus === "returned" ? "changes-requested" : task.status === "completed" ? "approved" : "pending",
+    approvalStatus: task.status === "completed" ? "approved" : "pending",
+    blocked: task.submissionStatus === "returned",
   }));
   return (
     <div className="flex flex-col gap-[30px]">
@@ -379,8 +389,8 @@ function EmployeeManagerTaskReviewsPage() {
       {query.data.length ? (
         <TaskBoard
           tasks={boardTasks}
-          onOpen={() => undefined}
-          canDragTask={() => !mutation.isPending}
+          onOpen={setSelectedTask}
+          canDragTask={(task) => !mutation.isPending && task.status === "review"}
           allowedDropStatuses={["rejected", "done"]}
           onStatusChange={(taskId, status) => {
             if (mutation.isPending) return;
@@ -397,6 +407,25 @@ function EmployeeManagerTaskReviewsPage() {
       ) : (
         <Card><CardContent className="pt-[30px]"><EmptyState title="No pending reviews" description="Submitted employee tasks will appear here." /></CardContent></Card>
       )}
+      <TaskDetailsDrawer
+        task={selectedTask}
+        open={Boolean(selectedTask)}
+        onOpenChange={(open) => !open && setSelectedTask(null)}
+        workLogs={[]}
+        canUpdate={false}
+        canChangeStatus={false}
+        canManageAssignment={false}
+        canTenantApprove={Boolean(selectedTask && selectedTask.status === "review")}
+        onTenantApproval={async (task, decision, remarks) => {
+          await mutation.mutateAsync({ taskId: task.id, decision, remarks });
+          setSelectedTask(null);
+          return true;
+        }}
+        onUpdate={() => undefined}
+        reviewDetail={detailQuery.data}
+        isReviewDetailLoading={detailQuery.isLoading}
+        decisionHeading="Manager review decision"
+      />
       <ConfirmationDialog
         open={Boolean(returnTask)}
         onOpenChange={(open) => {

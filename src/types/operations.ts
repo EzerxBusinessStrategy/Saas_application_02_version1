@@ -177,7 +177,8 @@ export const documentUploadInputSchema = sharedDocumentSchema
     recipientTenantAdminIds: true,
     recipientClientIds: true,
     shareReason: true,
-  });
+  })
+  .extend({ taskId: z.string().uuid().optional() });
 export type DocumentUploadInput = z.infer<typeof documentUploadInputSchema>;
 export type DocumentUploadWithFileInput = DocumentUploadInput & { readonly file: File };
 

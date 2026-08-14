@@ -135,9 +135,9 @@ grant execute on function private.provision_portal_tenant(
   text, text, text, text, text, text, text, text, text, text, text, text, date, date, uuid, text, text, text, text
 ) to app_runtime;
 
-drop function private.accept_portal_invitation(uuid, text, text);
-drop function private.create_super_admin_tenant(
+drop function if exists private.accept_portal_invitation(uuid, text, text);
+drop function if exists private.create_super_admin_tenant(
   text, text, text, text, text, text, text, text, text, text, text, text, date, date, uuid, text, text, text, text, timestamptz
 );
-drop function private.activate_direct_tenant_admin_tenant(uuid);
-drop function private.set_direct_tenant_administrator_phone(uuid, uuid, text);
+drop function if exists private.activate_direct_tenant_admin_tenant(uuid);
+drop function if exists private.set_direct_tenant_administrator_phone(uuid, uuid, text);

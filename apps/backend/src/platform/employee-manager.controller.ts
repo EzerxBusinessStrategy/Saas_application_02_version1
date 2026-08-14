@@ -7,7 +7,7 @@ import { RequirePermissions } from "../auth/permissions.decorator";
 import { CurrentRequestContext } from "../auth/request-context.decorator";
 import { RequestContext } from "../auth/request-context";
 import { ZodValidationPipe } from "../common/validation/zod-validation.pipe";
-import { TenantAdminTaskItemDto } from "./tenant-admin-tasks.dto";
+import { TaskReviewDetailDto, TenantAdminTaskItemDto } from "./tenant-admin-tasks.dto";
 import {
   employeeManagerCreateTaskSchema,
   employeeManagerReviewSchema,
@@ -45,6 +45,13 @@ export class EmployeeManagerController {
   @ApiOkResponse({ type: EmployeeManagerReviewsResponseDto })
   listReviews(@CurrentRequestContext() context: RequestContext): Promise<EmployeeManagerReviewsResponseDto> {
     return this.service.listReviews(context);
+  }
+
+  @Get("reviews/:taskId")
+  @RequirePermissions("work_log.review.assigned_group")
+  @ApiOkResponse({ type: TaskReviewDetailDto })
+  getReviewDetail(@CurrentRequestContext() context: RequestContext, @Param("taskId") taskId: string): Promise<TaskReviewDetailDto> {
+    return this.service.getReviewDetail(context, taskId);
   }
 
   @Post("tasks")

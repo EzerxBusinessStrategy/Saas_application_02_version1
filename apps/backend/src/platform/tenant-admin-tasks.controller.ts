@@ -28,6 +28,7 @@ import {
   listTenantAdminTasksQuerySchema,
   ListTenantAdminTasksQuery,
   TenantAdminTaskItemDto,
+  TaskReviewDetailDto,
   TenantAdminEmployeeOptionDto,
   TenantAdminEmployeeEmailAvailabilityDto,
   TenantAdminEmployeesResponseDto,
@@ -79,6 +80,17 @@ export class TenantAdminTasksController {
     @Query(new ZodValidationPipe(listTenantAdminTasksQuerySchema)) query: ListTenantAdminTasksQuery,
   ): Promise<TenantAdminTasksResponseDto> {
     return this.service.listTasks(context, query.clientId);
+  }
+
+  @Get(":taskId/review-detail")
+  @RequirePermissions("task.read")
+  @ApiOperation({ summary: "Return tenant-scoped task submission evidence and review history." })
+  @ApiOkResponse({ type: TaskReviewDetailDto })
+  getReviewDetail(
+    @CurrentRequestContext() context: RequestContext,
+    @Param("taskId") taskId: string,
+  ): Promise<TaskReviewDetailDto> {
+    return this.service.getReviewDetail(context, taskId);
   }
 
   @Post()

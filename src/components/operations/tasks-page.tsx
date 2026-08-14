@@ -11,6 +11,7 @@ import {
   createTenantAdminEmployee,
   createTenantAdminTask,
   getTenantAdminEmployeeEmailAvailability,
+  getTenantAdminTaskReviewDetail,
   listEmployeeTasks,
   listTenantAdminTaskOptions,
   listTenantAdminTasks,
@@ -126,6 +127,11 @@ export function TasksPage({
     queryFn: () => listWorkLogs(workspace),
     enabled: workspace === "employee",
   });
+  const reviewDetailQuery = useQuery({
+    queryKey: ["tenant-task-review-detail", selected?.id],
+    queryFn: () => getTenantAdminTaskReviewDetail(selected!.id),
+    enabled: workspace === "admin" && Boolean(selected),
+  });
   const tasks = useMemo(() => {
     const items = [
       ...(tasksQuery.data ?? []),
@@ -183,6 +189,7 @@ export function TasksPage({
     try {
       syncTask(mapTenantAdminTask(await decideTenantTaskApproval(task.id, decision, remarks)));
       refreshTaskWorkflow();
+      void queryClient.invalidateQueries({ queryKey: ["tenant-task-review-detail", task.id] });
       toast.success(
         decision === "approve"
           ? "Tenant approval recorded. The task is complete."
@@ -560,6 +567,8 @@ export function TasksPage({
         canTenantApprove={workspace === "admin"}
         onTenantApproval={handleTenantApproval}
         onUpdate={updateTask}
+        reviewDetail={reviewDetailQuery.data}
+        isReviewDetailLoading={reviewDetailQuery.isLoading}
       />
       <ConfirmationDialog
         open={Boolean(reviewSubmission)}
@@ -642,7 +651,7 @@ function mapTenantAdminTask(task: TenantAdminTask): OperationalTask {
     description: task.description ?? "No description recorded.",
     priority: mapTaskPriority(task.priority),
     complexity: "standard",
-    status: mapTaskStatus(task.status),
+    status: task.latestSubmissionStatus === "returned" ? "rejected" : mapTaskStatus(task.status),
     sla: task.slaStatus === "near_breach" || task.slaStatus === "breached" ? "at-risk" : "on-track",
     dueDate: task.plannedDueAt ? formatTaskDate(task.plannedDueAt) : "No due date",
     checklist: [],
@@ -650,7 +659,9 @@ function mapTenantAdminTask(task: TenantAdminTask): OperationalTask {
     attachmentCount: 0,
     commentCount: 0,
     reviewStatus:
-      ["submitted", "manager_review"].includes(task.status)
+      task.latestSubmissionStatus === "returned"
+        ? "changes-requested"
+        : ["submitted", "manager_review"].includes(task.status)
         ? "pending"
         : task.status === "tenant_approval"
           ? "approved"
@@ -660,7 +671,8 @@ function mapTenantAdminTask(task: TenantAdminTask): OperationalTask {
             ? "changes-requested"
             : "not-required",
     approvalStatus: ["manager_review", "tenant_approval"].includes(task.status) ? "pending" : "not-required",
-    blocked: task.status === "returned",
+    reviewComment: task.latestReviewRemarks,
+    blocked: task.latestSubmissionStatus === "returned" || task.status === "returned",
   };
 }
 

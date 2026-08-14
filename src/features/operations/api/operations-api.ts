@@ -189,6 +189,7 @@ const employeeDocumentRecipientOptionSchema = z.object({
 });
 const employeeDocumentOptionsSchema = z.object({
   clients: z.array(z.object({ id: z.string(), name: z.string() })),
+  tasks: z.array(z.object({ id: z.string(), clientId: z.string(), title: z.string() })),
   tenantAdmins: z.array(employeeDocumentRecipientOptionSchema),
   managers: z.array(employeeDocumentRecipientOptionSchema),
 });
@@ -261,9 +262,23 @@ const tenantAdminTaskSchema = z.object({
   plannedDueAt: z.string().nullable(),
   assigneeCount: z.number(),
   assignees: z.array(taskOptionSchema),
+  latestSubmissionStatus: z.enum(["submitted", "returned", "manager_approved", "tenant_approved", "cancelled"]).nullable(),
+  latestReviewRemarks: z.string().nullable(),
 });
 const tenantAdminTasksResponseSchema = z.object({
   tasks: z.array(tenantAdminTaskSchema),
+});
+const taskReviewDetailSchema = z.object({
+  task: tenantAdminTaskSchema,
+  comments: z.array(z.object({
+    id: z.string(), author: z.string(), kind: z.enum(["submission", "review"]), message: z.string(), createdAt: z.string(),
+  })),
+  workLogs: z.array(z.object({
+    id: z.string(), employee: z.string(), workedSeconds: z.number(), startedAt: z.string(), endedAt: z.string().nullable(),
+  })),
+  attachments: z.array(z.object({
+    id: z.string(), title: z.string(), fileName: z.string(), fileType: z.string(), sizeBytes: z.number(), uploadedBy: z.string(), updatedAt: z.string(),
+  })),
 });
 const employeeTaskTimerSchema = z.object({
   status: z.enum(["not_started", "active", "paused", "submitted"]),
@@ -321,6 +336,7 @@ export type UpdateTenantAdminEmployeeAssignmentInput = {
 };
 export type TenantAdminWorkGroup = z.infer<typeof tenantAdminWorkGroupSchema>;
 export type TenantAdminTask = z.infer<typeof tenantAdminTaskSchema>;
+export type TaskReviewDetail = z.infer<typeof taskReviewDetailSchema>;
 export type TenantAdminService = z.infer<typeof tenantAdminServiceSchema>;
 type EmployeeTask = z.infer<typeof employeeTaskSchema>;
 export type CreateTenantAdminServiceInput = {
@@ -571,6 +587,7 @@ export async function createSharedDocument(
       headers: { "content-type": "application/json", "idempotency-key": idempotencyKey },
       body: JSON.stringify({
         clientId: value.clientId,
+        taskId: value.taskId,
         title: value.title,
         fileName: value.fileName,
         fileType: value.fileType,
@@ -811,6 +828,11 @@ export async function listTenantAdminTasks(clientId?: string): Promise<TenantAdm
   if (clientId) params.set("clientId", clientId);
   const response = await fetch(`/api/tenant-admin/tasks${params.size ? `?${params}` : ""}`, { cache: "no-store" });
   return tenantAdminTasksResponseSchema.parse(await parseJsonResponse(response)).tasks;
+}
+
+export async function getTenantAdminTaskReviewDetail(taskId: string): Promise<TaskReviewDetail> {
+  const response = await fetch(`/api/tenant-admin/tasks/${encodeURIComponent(taskId)}/review-detail`, { cache: "no-store" });
+  return taskReviewDetailSchema.parse(await parseJsonResponse(response));
 }
 
 export async function listEmployeeTasks(): Promise<OperationalTask[]> {

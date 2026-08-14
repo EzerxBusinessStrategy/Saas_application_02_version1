@@ -113,6 +113,35 @@ export type TenantAdminTaskRow = {
   readonly plannedDueAt: Date | null;
   readonly assigneeCount: number;
   readonly assignees: readonly { readonly id: string; readonly name: string }[];
+  readonly latestSubmissionStatus: "submitted" | "returned" | "manager_approved" | "tenant_approved" | "cancelled" | null;
+  readonly latestReviewRemarks: string | null;
+};
+
+export type TaskReviewDetailRow = {
+  readonly task: TenantAdminTaskRow;
+  readonly comments: readonly {
+    readonly id: string;
+    readonly author: string;
+    readonly kind: "submission" | "review";
+    readonly message: string;
+    readonly createdAt: Date;
+  }[];
+  readonly workLogs: readonly {
+    readonly id: string;
+    readonly employee: string;
+    readonly workedSeconds: number;
+    readonly startedAt: Date;
+    readonly endedAt: Date | null;
+  }[];
+  readonly attachments: readonly {
+    readonly id: string;
+    readonly title: string;
+    readonly fileName: string;
+    readonly fileType: string;
+    readonly sizeBytes: number;
+    readonly uploadedBy: string;
+    readonly updatedAt: Date;
+  }[];
 };
 
 export type TenantAdminTaskOptions = {
@@ -165,6 +194,14 @@ export class TenantAdminTasksRepository {
 
   async listTasks(context: TenantAdminRequestContext, clientId?: string): Promise<readonly TenantAdminTaskRow[]> {
     return this.withContext(context, (client) => this.getTasks(client, context.tenantId, clientId));
+  }
+
+  async getReviewDetail(context: TenantAdminRequestContext, taskId: string): Promise<TaskReviewDetailRow> {
+    return this.withContext(context, async (client) => {
+      const task = (await this.getTasks(client, context.tenantId, undefined, taskId))[0];
+      if (!task) throw new ConflictException({ code: "TASK_NOT_FOUND", message: "Task could not be found." });
+      return this.getReviewDetailForTask(client, context.tenantId, task);
+    });
   }
 
   async listEmployees(context: TenantAdminRequestContext): Promise<{
@@ -770,7 +807,7 @@ export class TenantAdminTasksRepository {
         `
           update public.billable_task_entries
           set status = $3,
-              approved_by = case when $3 = 'approved_for_invoice' then $4 else null end,
+              approved_by = case when $3 = 'approved_for_invoice' then $4::uuid else null end,
               approved_at = case when $3 = 'approved_for_invoice' then clock_timestamp() else null end,
               updated_at = now()
           where tenant_id = $1
@@ -2555,13 +2592,15 @@ export class TenantAdminTasksRepository {
       service_id: string;
       service_name: string;
       work_group_id: string | null;
-      work_group_name: string | null;
+        work_group_name: string | null;
       priority: TenantAdminTaskRow["priority"];
       status: TenantAdminTaskRow["status"];
       sla_status: TenantAdminTaskRow["slaStatus"];
       planned_due_at: Date | null;
       assignee_count: number;
-      assignees: Array<{ id: string; name: string }> | null;
+        assignees: Array<{ id: string; name: string }> | null;
+        latest_submission_status: TenantAdminTaskRow["latestSubmissionStatus"];
+        latest_review_remarks: string | null;
     }>(
       `
         select
@@ -2576,8 +2615,10 @@ export class TenantAdminTasksRepository {
           wg.name as work_group_name,
           t.priority,
           t.status,
-          t.sla_status,
-          t.planned_due_at,
+           t.sla_status,
+           t.planned_due_at,
+           latest_submission.status as latest_submission_status,
+           latest_approval.remarks as latest_review_remarks,
           count(distinct ta.employee_id)::int as assignee_count,
           coalesce(
             jsonb_agg(
@@ -2608,7 +2649,21 @@ export class TenantAdminTasksRepository {
          and e.employment_status = 'active'
         left join public.tenant_memberships tm
           on tm.id = e.membership_id
-         and tm.tenant_id = e.tenant_id
+          and tm.tenant_id = e.tenant_id
+        left join lateral (
+          select ts.status
+          from public.task_submissions ts
+          where ts.tenant_id = t.tenant_id and ts.task_id = t.id
+          order by ts.submitted_at desc, ts.id desc
+          limit 1
+        ) latest_submission on true
+        left join lateral (
+          select a.remarks
+          from public.approvals a
+          where a.tenant_id = t.tenant_id and a.task_id = t.id
+          order by a.decided_at desc, a.id desc
+          limit 1
+        ) latest_approval on true
         where t.tenant_id = $1
           and ($2::uuid is null or t.client_id = $2::uuid)
           and ($3::uuid is null or t.id = $3::uuid)
@@ -2624,9 +2679,11 @@ export class TenantAdminTasksRepository {
           wg.name,
           t.priority,
           t.status,
-          t.sla_status,
-          t.planned_due_at,
-          t.created_at
+           t.sla_status,
+           t.planned_due_at,
+           latest_submission.status,
+           latest_approval.remarks,
+           t.created_at
         order by coalesce(t.planned_due_at, t.created_at) desc
         limit 100
       `,
@@ -2647,9 +2704,70 @@ export class TenantAdminTasksRepository {
       status: row.status,
       slaStatus: row.sla_status,
       plannedDueAt: row.planned_due_at,
-      assigneeCount: Number(row.assignee_count),
-      assignees: row.assignees ?? [],
-    }));
+       assigneeCount: Number(row.assignee_count),
+       assignees: row.assignees ?? [],
+       latestSubmissionStatus: row.latest_submission_status,
+       latestReviewRemarks: row.latest_review_remarks,
+     }));
+  }
+
+  private async getReviewDetailForTask(
+    client: PoolClient,
+    tenantId: string,
+    task: TenantAdminTaskRow,
+  ): Promise<TaskReviewDetailRow> {
+    const [comments, workLogs, attachments] = await Promise.all([
+      client.query<{ id: string; author: string; kind: "submission" | "review"; message: string; created_at: Date }>(
+        `
+          select ts.id::text as id, coalesce(employee_membership.display_name, employee.employee_code) as author,
+                 'submission'::text as kind, ts.task_comment as message, ts.submitted_at as created_at
+          from public.task_submissions ts
+          join public.employees employee on employee.tenant_id = ts.tenant_id and employee.id = ts.employee_id
+          join public.tenant_memberships employee_membership on employee_membership.tenant_id = employee.tenant_id and employee_membership.id = employee.membership_id
+          where ts.tenant_id = $1 and ts.task_id = $2 and nullif(trim(ts.task_comment), '') is not null
+          union all
+          select approval.id::text, coalesce(decider.display_name, 'Authorised reviewer'),
+                 'review'::text, approval.remarks, approval.decided_at
+          from public.approvals approval
+          left join public.tenant_memberships decider on decider.tenant_id = approval.tenant_id and decider.id = approval.decided_by
+          where approval.tenant_id = $1 and approval.task_id = $2 and nullif(trim(approval.remarks), '') is not null
+          order by created_at asc, id asc
+        `,
+        [tenantId, task.id],
+      ),
+      client.query<{ id: string; employee: string; worked_seconds: string; started_at: Date; ended_at: Date | null }>(
+        `
+          select segment.id::text, coalesce(membership.display_name, employee.employee_code) as employee,
+                 extract(epoch from (coalesce(segment.ended_at, clock_timestamp()) - segment.started_at))::bigint::text as worked_seconds,
+                 segment.started_at, segment.ended_at
+          from public.task_work_segments segment
+          join public.employees employee on employee.tenant_id = segment.tenant_id and employee.id = segment.employee_id
+          join public.tenant_memberships membership on membership.tenant_id = employee.tenant_id and membership.id = employee.membership_id
+          where segment.tenant_id = $1 and segment.task_id = $2
+          order by segment.started_at asc, segment.id asc
+          limit 200
+        `,
+        [tenantId, task.id],
+      ),
+      client.query<{ id: string; title: string; file_name: string; file_type: string; size_bytes: number; uploaded_by: string; updated_at: Date }>(
+        `
+          select document.id::text, document.title, document.file_name, document.file_type, document.size_bytes,
+                 coalesce(owner.display_name, 'Authorised user') as uploaded_by, document.updated_at
+          from public.tenant_documents document
+          left join public.tenant_memberships owner on owner.tenant_id = document.tenant_id and owner.id = document.created_by
+          where document.tenant_id = $1 and document.task_id = $2 and document.status = 'active'
+          order by document.updated_at desc, document.id desc
+          limit 100
+        `,
+        [tenantId, task.id],
+      ),
+    ]);
+    return {
+      task,
+      comments: comments.rows.map((row) => ({ id: row.id, author: row.author, kind: row.kind, message: row.message, createdAt: row.created_at })),
+      workLogs: workLogs.rows.map((row) => ({ id: row.id, employee: row.employee, workedSeconds: Number(row.worked_seconds), startedAt: row.started_at, endedAt: row.ended_at })),
+      attachments: attachments.rows.map((row) => ({ id: row.id, title: row.title, fileName: row.file_name, fileType: row.file_type, sizeBytes: Number(row.size_bytes), uploadedBy: row.uploaded_by, updatedAt: row.updated_at })),
+    };
   }
 
   private async withContext<T>(

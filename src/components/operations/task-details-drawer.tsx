@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { StatusBadge } from "@/components/shared/status-badge";
 import type { OperationalTask, WorkLog } from "@/types/operations";
+import type { TaskReviewDetail } from "@/features/operations/api/operations-api";
 
 const statusLabel = {
   "to-do": "To do",
@@ -28,6 +29,9 @@ export function TaskDetailsDrawer({
   canTenantApprove = false,
   onTenantApproval,
   onUpdate,
+  reviewDetail,
+  isReviewDetailLoading = false,
+  decisionHeading = "Tenant approval",
 }: {
   task: OperationalTask | null;
   open: boolean;
@@ -43,6 +47,9 @@ export function TaskDetailsDrawer({
     remarks?: string,
   ) => Promise<boolean | void> | boolean | void;
   onUpdate: (task: OperationalTask) => void;
+  reviewDetail?: TaskReviewDetail;
+  isReviewDetailLoading?: boolean;
+  decisionHeading?: string;
 }) {
   const [showReturnComment, setShowReturnComment] = useState(false);
   const [returnComment, setReturnComment] = useState("");
@@ -173,7 +180,7 @@ export function TaskDetailsDrawer({
               </p>
             </div>
             <div>
-              <h3 className="font-semibold">Tenant approval</h3>
+              <h3 className="font-semibold">{decisionHeading}</h3>
               <p className="mt-2 text-sm text-muted-foreground">
                 An authorised manager or Tenant Admin can record the final delivery decision.
               </p>
@@ -373,25 +380,25 @@ export function TaskDetailsDrawer({
                 <FileText className="size-4" />
                 Attachments
               </h3>
-              <p className="mt-2 text-sm text-muted-foreground">
-                {task.attachmentCount} authorised file
-                {task.attachmentCount === 1 ? "" : "s"} linked to this task.
-              </p>
+              {isReviewDetailLoading ? <p className="mt-2 text-sm text-muted-foreground">Loading task files...</p> : reviewDetail?.attachments.length ? (
+                <ul className="mt-2 space-y-2 text-sm text-muted-foreground">{reviewDetail.attachments.map((file) => <li key={file.id}><span className="font-medium text-foreground">{file.title}</span><br />{file.fileName} · {file.uploadedBy}</li>)}</ul>
+              ) : <p className="mt-2 text-sm text-muted-foreground">No files are linked to this task.</p>}
             </div>
             <div>
               <h3 className="flex items-center gap-2 font-semibold">
                 <MessageSquare className="size-4" />
                 Comments
               </h3>
-              <p className="mt-2 text-sm text-muted-foreground">
-                {task.commentCount} delivery comments are available to
-                authorised users.
-              </p>
+              {isReviewDetailLoading ? <p className="mt-2 text-sm text-muted-foreground">Loading review comments...</p> : reviewDetail?.comments.length ? (
+                <ul className="mt-2 space-y-3 text-sm">{reviewDetail.comments.map((comment) => <li key={comment.id}><p className="font-medium">{comment.author}</p><p className="mt-1 whitespace-pre-wrap text-muted-foreground">{comment.message}</p></li>)}</ul>
+              ) : <p className="mt-2 text-sm text-muted-foreground">No delivery comments have been recorded.</p>}
             </div>
           </section>
           <section className="mt-7">
             <h3 className="font-semibold">Work logs and activity</h3>
-            {taskLogs.length ? (
+            {isReviewDetailLoading ? <p className="mt-2 text-sm text-muted-foreground">Loading work logs...</p> : reviewDetail?.workLogs.length ? (
+              <ul className="mt-3 flex flex-col divide-y">{reviewDetail.workLogs.map((log) => <li key={log.id} className="py-3 first:pt-0"><p className="font-medium text-sm">{log.employee} · {Math.floor(log.workedSeconds / 3600)}h {Math.floor((log.workedSeconds % 3600) / 60)}m</p><p className="mt-1 text-sm text-muted-foreground">{new Date(log.startedAt).toLocaleString()}</p></li>)}</ul>
+            ) : taskLogs.length ? (
               <ul className="mt-3 flex flex-col divide-y">
                 {taskLogs.map((log) => (
                   <li key={log.id} className="py-3 first:pt-0">

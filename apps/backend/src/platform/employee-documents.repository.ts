@@ -9,6 +9,7 @@ import type { StoredDocumentObject } from "./tenant-document-storage.service";
 
 type EmployeeRow = { id: string; name: string };
 export type EmployeeDocumentOptionRow = { id: string; name: string; email: string | null };
+type EmployeeDocumentTaskOptionRow = { id: string; clientId: string; title: string };
 export type EmployeeDocumentRow = {
   id: string;
   client_id: string;
@@ -38,6 +39,7 @@ export class EmployeeDocumentsRepository {
   async options(context: EmployeeRequestContext) {
     return this.withEmployee(context, async (client, employee) => ({
       clients: await this.getAssignedClients(client, context.tenantId, employee.id),
+      tasks: await this.getAssignedTasks(client, context.tenantId, employee.id),
       tenantAdmins: await this.getRecipients(client, context.tenantId, ["TENANT_OWNER", "TENANT_ADMIN"]),
       managers: await this.getRecipients(client, context.tenantId, ["MANAGER"]),
     }));
@@ -70,26 +72,27 @@ export class EmployeeDocumentsRepository {
   async create(context: EmployeeRequestContext, input: CreateEmployeeDocumentRequest, storageBucket: string): Promise<EmployeeDocumentRow> {
     return this.withEmployee(context, async (client, employee) => {
       await this.assertAssignedClient(client, context.tenantId, employee.id, input.clientId);
+      if (input.taskId) await this.assertAssignedTask(client, context.tenantId, employee.id, input.clientId, input.taskId);
       const recipients = await this.assertRecipients(client, context.tenantId, input.recipientTenantAdminIds, input.recipientManagerIds);
       const result = await client.query<{ id: string }>(
         `
           insert into public.tenant_documents (
-            tenant_id, client_id, title, file_name, file_type, size_bytes, category,
+            tenant_id, client_id, task_id, title, file_name, file_type, size_bytes, category,
             storage_bucket, storage_key, content_type, idempotency_key, metadata, created_by
           )
           values (
-            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
+            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12,
             jsonb_build_object(
               'clientDecisionStatus', 'pending',
               'clientVisible', false,
               'employeeUpload', true
             ),
-            $12
+            $13
           )
           on conflict (tenant_id, created_by, idempotency_key) where idempotency_key is not null do nothing
           returning id::text
         `,
-        [context.tenantId, input.clientId, input.title, input.fileName, input.fileType, input.sizeBytes, input.category, storageBucket, input.storageKey, input.contentType, input.idempotencyKey ?? null, context.membershipId],
+        [context.tenantId, input.clientId, input.taskId ?? null, input.title, input.fileName, input.fileType, input.sizeBytes, input.category, storageBucket, input.storageKey, input.contentType, input.idempotencyKey ?? null, context.membershipId],
       );
       const idempotencyKey = input.idempotencyKey;
       let documentId: string | undefined = result.rows[0]?.id;
@@ -159,6 +162,17 @@ export class EmployeeDocumentsRepository {
     return result.rows;
   }
 
+  private async getAssignedTasks(client: PoolClient, tenantId: string, employeeId: string): Promise<readonly EmployeeDocumentTaskOptionRow[]> {
+    const result = await client.query<EmployeeDocumentTaskOptionRow>(
+      `select t.id::text as id, t.client_id::text as "clientId", t.title
+       from public.task_assignments ta join public.tasks t on t.tenant_id = ta.tenant_id and t.id = ta.task_id
+       where ta.tenant_id = $1 and ta.employee_id = $2 and ta.status in ('active', 'submitted') and t.status <> 'cancelled'
+       order by t.updated_at desc, t.id desc`,
+      [tenantId, employeeId],
+    );
+    return result.rows;
+  }
+
   private async assertAssignedClient(client: PoolClient, tenantId: string, employeeId: string, clientId: string): Promise<void> {
     const result = await client.query(
       `
@@ -175,6 +189,15 @@ export class EmployeeDocumentsRepository {
       [tenantId, employeeId, clientId],
     );
     if (!result.rowCount) throw forbiddenPortal();
+  }
+
+  private async assertAssignedTask(client: PoolClient, tenantId: string, employeeId: string, clientId: string, taskId: string): Promise<void> {
+    const result = await client.query(
+      `select 1 from public.task_assignments ta join public.tasks t on t.tenant_id = ta.tenant_id and t.id = ta.task_id
+       where ta.tenant_id = $1 and ta.employee_id = $2 and ta.task_id = $3 and t.client_id = $4 and ta.status in ('active', 'submitted') and t.status <> 'cancelled' limit 1`,
+      [tenantId, employeeId, taskId, clientId],
+    );
+    if (!result.rowCount) throw new ConflictException({ code: "TASK_NOT_ASSIGNED", message: "Select a task assigned to you for this client." });
   }
 
   private async assertRecipients(

@@ -3,6 +3,7 @@ import { z } from "zod";
 
 export const createEmployeeDocumentSchema = z.object({
   clientId: z.string().uuid(),
+  taskId: z.string().uuid().optional(),
   title: z.string().trim().min(2).max(160),
   fileName: z.string().trim().min(1).max(260),
   fileType: z.string().trim().min(1).max(24),
@@ -44,9 +45,17 @@ export class EmployeeDocumentClientOptionDto {
   @ApiProperty({ type: String }) name!: string;
 }
 
+export class EmployeeDocumentTaskOptionDto {
+  @ApiProperty({ type: String }) id!: string;
+  @ApiProperty({ type: String }) clientId!: string;
+  @ApiProperty({ type: String }) title!: string;
+}
+
 export class EmployeeDocumentOptionsDto {
   @ApiProperty({ type: () => EmployeeDocumentClientOptionDto, isArray: true })
   clients!: readonly EmployeeDocumentClientOptionDto[];
+  @ApiProperty({ type: () => EmployeeDocumentTaskOptionDto, isArray: true })
+  tasks!: readonly EmployeeDocumentTaskOptionDto[];
   @ApiProperty({ type: () => EmployeeDocumentRecipientOptionDto, isArray: true })
   tenantAdmins!: readonly EmployeeDocumentRecipientOptionDto[];
   @ApiProperty({ type: () => EmployeeDocumentRecipientOptionDto, isArray: true })

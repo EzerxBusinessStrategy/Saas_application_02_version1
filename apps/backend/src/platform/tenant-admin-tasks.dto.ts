@@ -401,9 +401,48 @@ export class TenantAdminTaskItemDto {
 
   @ApiProperty({ type: () => [TenantAdminTaskAssigneeDto] })
   assignees!: readonly TenantAdminTaskAssigneeDto[];
+
+  @ApiPropertyOptional({ enum: ["submitted", "returned", "manager_approved", "tenant_approved", "cancelled"], nullable: true })
+  latestSubmissionStatus!: string | null;
+
+  @ApiPropertyOptional({ type: String, nullable: true })
+  latestReviewRemarks!: string | null;
 }
 
 export class TenantAdminTasksResponseDto {
   @ApiProperty({ type: () => [TenantAdminTaskItemDto] })
   tasks!: readonly TenantAdminTaskItemDto[];
+}
+
+export class TaskReviewCommentDto {
+  @ApiProperty({ type: String, format: "uuid" }) id!: string;
+  @ApiProperty({ type: String }) author!: string;
+  @ApiProperty({ type: String }) kind!: "submission" | "review";
+  @ApiProperty({ type: String }) message!: string;
+  @ApiProperty({ type: String, format: "date-time" }) createdAt!: string;
+}
+
+export class TaskReviewWorkLogDto {
+  @ApiProperty({ type: String, format: "uuid" }) id!: string;
+  @ApiProperty({ type: String }) employee!: string;
+  @ApiProperty({ type: Number }) workedSeconds!: number;
+  @ApiProperty({ type: String, format: "date-time" }) startedAt!: string;
+  @ApiPropertyOptional({ type: String, format: "date-time", nullable: true }) endedAt!: string | null;
+}
+
+export class TaskReviewAttachmentDto {
+  @ApiProperty({ type: String, format: "uuid" }) id!: string;
+  @ApiProperty({ type: String }) title!: string;
+  @ApiProperty({ type: String }) fileName!: string;
+  @ApiProperty({ type: String }) fileType!: string;
+  @ApiProperty({ type: Number }) sizeBytes!: number;
+  @ApiProperty({ type: String }) uploadedBy!: string;
+  @ApiProperty({ type: String, format: "date-time" }) updatedAt!: string;
+}
+
+export class TaskReviewDetailDto {
+  @ApiProperty({ type: () => TenantAdminTaskItemDto }) task!: TenantAdminTaskItemDto;
+  @ApiProperty({ type: () => [TaskReviewCommentDto] }) comments!: readonly TaskReviewCommentDto[];
+  @ApiProperty({ type: () => [TaskReviewWorkLogDto] }) workLogs!: readonly TaskReviewWorkLogDto[];
+  @ApiProperty({ type: () => [TaskReviewAttachmentDto] }) attachments!: readonly TaskReviewAttachmentDto[];
 }

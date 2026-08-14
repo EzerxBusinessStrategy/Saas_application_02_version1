@@ -9,6 +9,7 @@ import {
   TenantAdminEmployeeOptionDto,
   TenantAdminTaskItemDto,
   TenantAdminTaskApprovalRequest,
+  TaskReviewDetailDto,
   TenantAdminTaskOptionsResponseDto,
   TenantAdminTasksResponseDto,
   TenantAdminEmployeesResponseDto,
@@ -20,7 +21,7 @@ import {
   UpdateTenantAdminEmployeeCapacityRequest,
   UpsertTenantAdminWorkGroupRequest,
 } from "./tenant-admin-tasks.dto";
-import { TenantAdminTaskRow, TenantAdminTasksRepository } from "./tenant-admin-tasks.repository";
+import { TaskReviewDetailRow, TenantAdminTaskRow, TenantAdminTasksRepository } from "./tenant-admin-tasks.repository";
 
 @Injectable()
 export class TenantAdminTasksService {
@@ -88,6 +89,10 @@ export class TenantAdminTasksService {
     return this.repository.listEmployees(tenantContext);
   }
 
+  async getReviewDetail(context: RequestContext, taskId: string): Promise<TaskReviewDetailDto> {
+    return mapReviewDetail(await this.repository.getReviewDetail(requireTenantAdminContext(context), taskId));
+  }
+
   async listDepartments(context: RequestContext): Promise<TenantAdminDepartmentsResponseDto> {
     return this.repository.listDepartments(requireTenantAdminContext(context));
   }
@@ -152,5 +157,34 @@ function mapTask(row: TenantAdminTaskRow): TenantAdminTaskItemDto {
   return {
     ...row,
     plannedDueAt: row.plannedDueAt ? row.plannedDueAt.toISOString() : null,
+  };
+}
+
+function mapReviewDetail(row: TaskReviewDetailRow): TaskReviewDetailDto {
+  return {
+    task: mapTask(row.task),
+    comments: row.comments.map((comment) => ({
+      id: comment.id,
+      author: comment.author,
+      kind: comment.kind,
+      message: comment.message,
+      createdAt: comment.createdAt.toISOString(),
+    })),
+    workLogs: row.workLogs.map((log) => ({
+      id: log.id,
+      employee: log.employee,
+      workedSeconds: log.workedSeconds,
+      startedAt: log.startedAt.toISOString(),
+      endedAt: log.endedAt?.toISOString() ?? null,
+    })),
+    attachments: row.attachments.map((attachment) => ({
+      id: attachment.id,
+      title: attachment.title,
+      fileName: attachment.fileName,
+      fileType: attachment.fileType,
+      sizeBytes: attachment.sizeBytes,
+      uploadedBy: attachment.uploadedBy,
+      updatedAt: attachment.updatedAt.toISOString(),
+    })),
   };
 }

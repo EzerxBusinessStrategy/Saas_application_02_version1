@@ -33,6 +33,10 @@ export class EmployeeManagerReviewTaskDto {
   submittedAt!: string;
   workedSeconds!: number;
   taskComment!: string | null;
+
+  status!: "manager_review" | "in_progress" | "completed";
+
+  submissionStatus!: "submitted" | "returned" | "manager_approved" | "tenant_approved" | "cancelled";
 }
 
 export class EmployeeManagerReviewsResponseDto {
