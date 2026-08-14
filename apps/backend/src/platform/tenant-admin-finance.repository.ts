@@ -486,7 +486,7 @@ export class TenantAdminFinanceRepository {
       `
         with inserted as (
           insert into public.notifications (type, title, message, severity, tenant_id, actor_user_id, entity_type, entity_id, action_url, metadata, idempotency_key)
-          values ('DOCUMENT_SHARED', 'Document shared', 'A document "' || $4 || '" was shared with you.', 'INFO', $1, $2, 'document', $3, '/employee/documents', jsonb_build_object('documentId', $3, 'title', $4), 'document-shared:' || $3)
+          values ('DOCUMENT_SHARED', 'Document shared', 'A document "' || $4 || '" was shared with you.', 'INFO', $1, $2, 'document', $3, '/employee/documents', jsonb_build_object('documentId', $3, 'title', $4), 'document-shared:' || $3::uuid::text)
           on conflict (idempotency_key) where idempotency_key is not null do nothing
           returning id
         ),
@@ -530,7 +530,7 @@ export class TenantAdminFinanceRepository {
     await client.query(
       `with inserted as (
          insert into public.notifications (type, title, message, severity, tenant_id, actor_user_id, entity_type, entity_id, action_url, metadata, idempotency_key)
-         values ('CLIENT_INVOICE_SENT', 'Invoice sent', 'A new invoice ' || $5 || ' is ready to view.', 'INFO', $1, $2, 'invoice', $3, '/client/invoices', jsonb_build_object('clientId', $4), 'client-invoice-sent:' || $3)
+         values ('CLIENT_INVOICE_SENT', 'Invoice sent', 'A new invoice ' || $5 || ' is ready to view.', 'INFO', $1, $2, 'invoice', $3, '/client/invoices', jsonb_build_object('clientId', $4), 'client-invoice-sent:' || $3::uuid::text)
          on conflict (idempotency_key) where idempotency_key is not null do update set id = public.notifications.id
          returning id
        )
@@ -566,7 +566,7 @@ export class TenantAdminFinanceRepository {
            $3,
            '/client/deliverables',
            jsonb_build_object('clientId', $4, 'documentId', $3, 'title', $5),
-           'client-deliverable-shared:' || $3
+           'client-deliverable-shared:' || $3::uuid::text
          )
          on conflict (idempotency_key) where idempotency_key is not null do nothing
          returning id

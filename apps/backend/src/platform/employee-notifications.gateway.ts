@@ -1,7 +1,7 @@
 import { Inject, Logger } from "@nestjs/common";
 import { OnGatewayConnection, OnGatewayDisconnect, WebSocketGateway, WebSocketServer } from "@nestjs/websockets";
 import { randomUUID } from "node:crypto";
-import { Server, Socket } from "socket.io";
+import { Namespace, Socket } from "socket.io";
 import { employeeSessionCookie } from "../auth/auth-cookie-names";
 import { ActiveRequestContextService } from "../auth/active-request-context.service";
 import { PortalAuthService } from "../auth/core/portal-auth.service";
@@ -15,7 +15,7 @@ import { NotificationItemDto } from "./super-admin-notifications.dto";
 export class EmployeeNotificationsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   private readonly logger = new Logger(EmployeeNotificationsGateway.name);
   @WebSocketServer()
-  private server?: Server;
+  private server?: Namespace;
 
   constructor(
     @Inject(PortalAuthService) private readonly auth: PortalAuthService,
@@ -49,7 +49,7 @@ export class EmployeeNotificationsGateway implements OnGatewayConnection, OnGate
 
   emitNewNotification(userId: string, tenantId: string, item: NotificationItemDto): number {
     const room = employeeRoom(tenantId, userId);
-    const connectedSockets = this.server?.sockets.adapter.rooms.get(room)?.size ?? 0;
+    const connectedSockets = this.server?.adapter.rooms.get(room)?.size ?? 0;
     this.server?.to(room).emit("notification:new", item);
     return connectedSockets;
   }

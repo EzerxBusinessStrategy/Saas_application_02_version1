@@ -5,7 +5,7 @@ import {
   WebSocketServer,
 } from "@nestjs/websockets";
 import { randomUUID } from "node:crypto";
-import { Server, Socket } from "socket.io";
+import { Namespace, Socket } from "socket.io";
 import { ActiveRequestContextService } from "../auth/active-request-context.service";
 import { tenantSessionCookie } from "../auth/auth-cookie-names";
 import { PortalAuthService } from "../auth/core/portal-auth.service";
@@ -19,7 +19,7 @@ import { TenantAdminNotificationsRepository } from "./tenant-admin-notifications
 })
 export class TenantAdminNotificationsGateway implements OnGatewayConnection {
   @WebSocketServer()
-  private server?: Server;
+  private server?: Namespace;
 
   constructor(
     @Inject(PortalAuthService)
@@ -58,7 +58,7 @@ export class TenantAdminNotificationsGateway implements OnGatewayConnection {
 
   emitNewNotification(userId: string, tenantId: string, item: NotificationItemDto): number {
     const room = tenantUserRoom(tenantId, userId);
-    const connectedSockets = this.server?.sockets.adapter.rooms.get(room)?.size ?? 0;
+    const connectedSockets = this.server?.adapter.rooms.get(room)?.size ?? 0;
     this.server?.to(room).emit("notification:new", item);
     void this.repository.markDelivered(userId, item.id);
     return connectedSockets;

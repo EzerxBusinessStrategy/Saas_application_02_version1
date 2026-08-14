@@ -171,7 +171,7 @@ export function TenantAdministrationOverview() {
   const { metrics, financialYear, financialDataAvailable, recentActivity: rawRecentActivity, tenant, organisationSetup, upcomingDeadlines } = data;
   const currency = tenant.currencyCode || "INR";
   const recentActivity = rawRecentActivity.map((item) => ({ ...item, action: item.label }));
-  const incompleteSetup = organisationSetup.items.filter((item) => !item.completed);
+  const setupComplete = organisationSetup.completed === organisationSetup.total;
 
   const financialYearText = financialYear
     ? `${financialYear.label} (${formatDate(financialYear.startsOn)} – ${formatDate(financialYear.endsOn)})`
@@ -257,10 +257,10 @@ export function TenantAdministrationOverview() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {incompleteSetup.length === 0 ? (
+            {setupComplete ? (
               <div className="py-6 text-center">
-                <CheckCircle2 className="mx-auto mb-2 size-6 text-primary" aria-hidden="true" />
-                <p className="font-medium">Organisation setup is complete.</p>
+                <CheckCircle2 className="mx-auto mb-2 size-7 text-emerald-600" aria-hidden="true" />
+                <p className="font-medium text-emerald-700 dark:text-emerald-400">Setup completed</p>
               </div>
             ) : (
               <>
@@ -271,7 +271,7 @@ export function TenantAdministrationOverview() {
                   <ProgressBar value={organisationSetup.completionPercent} />
                 </div>
                 <div className="divide-y">
-                  {incompleteSetup.slice(0, 4).map((item) => (
+                  {organisationSetup.items.map((item) => (
                     <SetupItem key={item.key} item={item} />
                   ))}
                 </div>
@@ -361,20 +361,26 @@ function SetupItem({
   item: {
     label: string;
     description: string;
-    destination: string | null;
+    completed: boolean;
   };
 }) {
   return (
-    <div className="flex items-start justify-between gap-3 py-3 text-sm">
+    <div className="flex items-start gap-3 py-3 text-sm">
+      <span
+        className={`mt-1 flex size-3 shrink-0 items-center justify-center rounded-full ${
+          item.completed ? "bg-emerald-500" : "bg-amber-400 animate-pulse"
+        }`}
+        aria-hidden="true"
+      >
+        {item.completed ? <CheckCircle2 className="size-3 text-white" strokeWidth={3} /> : null}
+      </span>
       <div>
         <p className="font-medium">{item.label}</p>
         <p className="text-muted-foreground">{item.description}</p>
       </div>
-      {item.destination ? (
-        <a href={item.destination} className="shrink-0 text-primary hover:underline">
-          Open
-        </a>
-      ) : null}
+      <span className={`ml-auto shrink-0 text-xs font-medium ${item.completed ? "text-emerald-700 dark:text-emerald-400" : "text-amber-700 dark:text-amber-400"}`}>
+        {item.completed ? "Created" : "Pending"}
+      </span>
     </div>
   );
 }

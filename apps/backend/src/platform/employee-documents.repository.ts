@@ -285,7 +285,7 @@ export class EmployeeDocumentsRepository {
             $3,
             '/admin/documents',
             jsonb_build_object('documentId', $3, 'title', $4),
-            'employee-document-shared:' || $3
+            'employee-document-shared:' || $3::uuid::text
           )
           on conflict (idempotency_key) do update set idempotency_key = public.notifications.idempotency_key
           returning id

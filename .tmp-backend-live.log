@@ -318,3 +318,337 @@
 [32m[Nest] 19948  - [39m08/14/2026, 11:13:22 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/super-admin/tenant-analytics, GET} route[39m[38;5;3m +0ms[39m
 [32m[Nest] 19948  - [39m08/14/2026, 11:13:22 AM [32m    LOG[39m [38;5;3m[TaskNotificationOutboxWorker] [39m[32m[Notifications] Task notification worker is running. It checks committed notifications every 500ms.[39m
 [32m[Nest] 19948  - [39m08/14/2026, 11:13:22 AM [32m    LOG[39m [38;5;3m[NestApplication] [39m[32mNest application successfully started[39m[38;5;3m +1ms[39m
+[32m[Nest] 19948  - [39m08/14/2026, 12:53:34 PM [32m    LOG[39m [38;5;3m[TaskNotificationOutboxWorker] [39m[32m[Notifications] Worker claimed 1 notification event(s) for delivery.[39m
+[32m[Nest] 19948  - [39m08/14/2026, 12:53:35 PM [32m    LOG[39m [38;5;3m[TaskNotificationOutboxWorker] [39m[32m[Notifications] Worker finished 1 event(s): 0 saved recipient notification(s), 0 active Socket.IO connection(s) reached.[39m
+[32m[Nest] 19948  - [39m08/14/2026, 12:54:06 PM [32m    LOG[39m [38;5;3m[TaskNotificationOutboxWorker] [39m[32m[Notifications] Worker claimed 1 notification event(s) for delivery.[39m
+[32m[Nest] 19948  - [39m08/14/2026, 12:54:07 PM [32m    LOG[39m [38;5;3m[TaskNotificationOutboxWorker] [39m[32m[Notifications] Worker finished 1 event(s): 0 saved recipient notification(s), 0 active Socket.IO connection(s) reached.[39m
+[32m[Nest] 19948  - [39m08/14/2026, 12:54:38 PM [32m    LOG[39m [38;5;3m[TaskNotificationOutboxWorker] [39m[32m[Notifications] Worker claimed 1 notification event(s) for delivery.[39m
+[32m[Nest] 19948  - [39m08/14/2026, 12:54:38 PM [32m    LOG[39m [38;5;3m[TaskNotificationOutboxWorker] [39m[32m[Notifications] Worker finished 1 event(s): 0 saved recipient notification(s), 0 active Socket.IO connection(s) reached.[39m
+[32m[Nest] 19948  - [39m08/14/2026, 12:55:17 PM [32m    LOG[39m [38;5;3m[TaskNotificationOutboxWorker] [39m[32m[Notifications] Worker claimed 1 notification event(s) for delivery.[39m
+[32m[Nest] 19948  - [39m08/14/2026, 12:55:17 PM [32m    LOG[39m [38;5;3m[TaskNotificationOutboxWorker] [39m[32m[Notifications] Worker finished 1 event(s): 0 saved recipient notification(s), 0 active Socket.IO connection(s) reached.[39m
+12:55:27 PM [tsx] change in ./src\platform\tenant-admin-finance.repository.ts Restarting...
+12:55:27 PM [tsx] change in ./src\platform\employee-documents.repository.ts Restarting...
+{"level":30,"time":1786692338586,"service":"SaaS App Backend","environment":"development","msg":"Server listening at http://127.0.0.1:4000"}
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[NestFactory] [39m[32mStarting Nest application...[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mAppConfigModule dependencies initialized[39m[38;5;3m +3ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mAppConfigModule dependencies initialized[39m[38;5;3m +1ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mCommonModule dependencies initialized[39m[38;5;3m +0ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mAppModule dependencies initialized[39m[38;5;3m +1ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mDatabaseModule dependencies initialized[39m[38;5;3m +0ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mHealthModule dependencies initialized[39m[38;5;3m +1ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mAuthModule dependencies initialized[39m[38;5;3m +1ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mPlatformModule dependencies initialized[39m[38;5;3m +0ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mHealthController {/api/v1/health}:[39m[38;5;3m +1ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/health/live, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/health/ready, GET} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mMeController {/api/v1/me}:[39m[38;5;3m +1ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/me, GET} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/me/profile, PATCH} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/me/preferences, PATCH} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mAccessAdminController {/api/v1}:[39m[38;5;3m +0ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/super-admin/tenant-creation-options, GET} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/super-admin/tenants, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/super-admin/users/email-availability, GET} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/super-admin/tenant-list-filters, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/super-admin/tenants/:tenantId, GET} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/super-admin/tenants/:tenantId/status, PATCH} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/super-admin/tenants/:tenantId/password, POST} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/super-admin/tenants, POST} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/invitations, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/invitations/:invitationId/cancel, POST} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/invitations/:invitationId/revoke, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/invitations/:invitationId/accept, POST} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/memberships/:membershipId/revoke, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/memberships/:membershipId/reactivate, POST} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mPortalAuthController {/api/v1/auth}:[39m[38;5;3m +0ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/auth/super-admin/login, POST} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/auth/tenant/login, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/auth/employee/login, POST} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/auth/client/login, POST} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/auth/super-admin/session, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/auth/tenant/session, GET} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/auth/employee/session, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/auth/client/session, GET} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/auth/super-admin/logout, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/auth/tenant/logout, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/auth/employee/logout, POST} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/auth/client/logout, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mSuperAdminAuditLogController {/api/v1/super-admin/audit-log}:[39m[38;5;3m +0ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/super-admin/audit-log, GET} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mSuperAdminDashboardController {/api/v1/super-admin}:[39m[38;5;3m +0ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/super-admin/dashboard, GET} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/super-admin/alerts/:alertId/view, PATCH} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/super-admin/alerts/:alertId/reviews, POST} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/super-admin/tenant-reviews/:reviewId, PATCH} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mSuperAdminSearchController {/api/v1/super-admin}:[39m[38;5;3m +0ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/super-admin/search, GET} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mSuperAdminNotificationsController {/api/v1/super-admin/notifications}:[39m[38;5;3m +0ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/super-admin/notifications, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/super-admin/notifications/unread-count, GET} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/super-admin/notifications/:notificationId/read, PATCH} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/super-admin/notifications/read-all, PATCH} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mSuperAdminPlatformConfigurationController {/api/v1/super-admin/platform-configuration}:[39m[38;5;3m +0ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/super-admin/platform-configuration, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/super-admin/platform-configuration, PATCH} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mClientPortalDashboardController {/api/v1/client-portal/dashboard}:[39m[38;5;3m +0ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/client-portal/dashboard, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mClientPortalDeliverablesController {/api/v1/client-portal/deliverables}:[39m[38;5;3m +1ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/client-portal/deliverables, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/client-portal/deliverables/:documentId/decision, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/client-portal/deliverables/:documentId/download, GET} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mClientPortalNotificationsController {/api/v1/client-portal/notifications}:[39m[38;5;3m +0ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/client-portal/notifications, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mClientPortalProfileController {/api/v1/client-portal/profile}:[39m[38;5;3m +1ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/client-portal/profile, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/client-portal/profile, PATCH} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mClientPortalRequestsController {/api/v1/client-portal/requests}:[39m[38;5;3m +0ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/client-portal/requests/options, GET} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/client-portal/requests, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mEmployeeDashboardController {/api/v1/employee/dashboard}:[39m[38;5;3m +0ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/employee/dashboard, GET} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mEmployeeDocumentsController {/api/v1/employee/documents}:[39m[38;5;3m +1ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/employee/documents/options, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/employee/documents, GET} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/employee/documents, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/employee/documents/upload-url, POST} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/employee/documents/:documentId/download, GET} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mEmployeeManagerController {/api/v1/employee/manager}:[39m[38;5;3m +1ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/employee/manager/clients, GET} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/employee/manager/task-options, GET} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/employee/manager/reviews, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/employee/manager/tasks, POST} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/employee/manager/reviews/:taskId, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mEmployeeNotificationsController {/api/v1/employee/notifications}:[39m[38;5;3m +0ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/employee/notifications, GET} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/employee/notifications/unread-count, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/employee/notifications/:notificationId/read, PATCH} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/employee/notifications/read-all, PATCH} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mEmployeeProfileController {/api/v1/employee/profile}:[39m[38;5;3m +0ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/employee/profile, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mEmployeeTasksController {/api/v1/employee}:[39m[38;5;3m +0ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/employee/tasks, GET} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/employee/work-logs, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/employee/tasks/:taskId/start, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/employee/tasks/:taskId/pause, POST} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/employee/tasks/:taskId/resume, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/employee/tasks/:taskId/submit, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mTenantAdminDashboardController {/api/v1/tenant-admin/dashboard}:[39m[38;5;3m +1ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/tenant-admin/dashboard, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/tenant-admin/dashboard/profile, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/tenant-admin/dashboard/profile, PATCH} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mTenantAdminClientsController {/api/v1/tenant-admin/clients}:[39m[38;5;3m +0ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/tenant-admin/clients, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/tenant-admin/clients, POST} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/tenant-admin/clients/:clientRef, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/tenant-admin/clients/:clientRef, DELETE} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/tenant-admin/clients/:clientRef/contacts, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/tenant-admin/clients/:clientRef/contacts/:contactId, PATCH} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mTenantAdminEmployeePerformanceController {/api/v1/tenant-admin/employee-performance}:[39m[38;5;3m +0ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/tenant-admin/employee-performance, GET} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/tenant-admin/employee-performance/:employeeId, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mTenantAdminFinanceController {/api/v1/tenant-admin/finance}:[39m[38;5;3m +1ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/tenant-admin/finance/documents, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/tenant-admin/finance/documents, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/tenant-admin/finance/documents/upload-url, POST} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/tenant-admin/finance/documents/:documentId/download, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/tenant-admin/finance/invoices, GET} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/tenant-admin/finance/invoices, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/tenant-admin/finance/billable-tasks, GET} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/tenant-admin/finance/invoices/from-task, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/tenant-admin/finance/invoices/:invoiceId/send, POST} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mTenantAdminNotificationsController {/api/v1/tenant-admin/notifications}:[39m[38;5;3m +0ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/tenant-admin/notifications, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/tenant-admin/notifications/unread-count, GET} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/tenant-admin/notifications/:notificationId/read, PATCH} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/tenant-admin/notifications/read-all, PATCH} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mTenantAdminServicesController {/api/v1/tenant-admin/services}:[39m[38;5;3m +1ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/tenant-admin/services, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/tenant-admin/services, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mTenantAdminTasksController {/api/v1/tenant-admin/tasks}:[39m[38;5;3m +0ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/tenant-admin/tasks/options, GET} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/tenant-admin/tasks, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/tenant-admin/tasks, POST} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/tenant-admin/tasks/:taskId/approval, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/tenant-admin/tasks/employees, POST} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/tenant-admin/tasks/employees/email-availability, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/tenant-admin/tasks/employees, GET} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/tenant-admin/tasks/departments, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/tenant-admin/tasks/departments, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/tenant-admin/tasks/employees/:employeeId/assignment, PATCH} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/tenant-admin/tasks/employees/:employeeId/manager, PATCH} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/tenant-admin/tasks/employees/:employeeId/manager, DELETE} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/tenant-admin/tasks/employees/:employeeId/capacity, PATCH} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/tenant-admin/tasks/work-groups, GET} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/tenant-admin/tasks/work-groups, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/tenant-admin/tasks/work-groups/:workGroupId, PATCH} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mTenantAnalyticsController {/api/v1/super-admin/tenant-analytics}:[39m[38;5;3m +1ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/super-admin/tenant-analytics, GET} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[TaskNotificationOutboxWorker] [39m[32m[Notifications] Task notification worker is running. It checks committed notifications every 500ms.[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:55:38 PM [32m    LOG[39m [38;5;3m[NestApplication] [39m[32mNest application successfully started[39m[38;5;3m +1ms[39m
+{"level":30,"time":1786692338586,"service":"SaaS App Backend","environment":"development","msg":"Server listening at http://172.16.0.2:4000"}
+{"level":30,"time":1786692338586,"service":"SaaS App Backend","environment":"development","msg":"Server listening at http://192.168.1.29:4000"}
+{"level":30,"time":1786692417672,"service":"SaaS App Backend","environment":"development","reqId":"4929542d-52ab-4efb-823b-7cd949ce6c26","req":{"id":"4929542d-52ab-4efb-823b-7cd949ce6c26","method":"GET","url":"/api/v1/me","route":"/api/v1/me"},"msg":"incoming request"}
+{"level":30,"time":1786692417940,"service":"SaaS App Backend","environment":"development","reqId":"4929542d-52ab-4efb-823b-7cd949ce6c26","res":{"statusCode":401},"responseTime":266.68949999999313,"msg":"request completed"}
+[32m[Nest] 25544  - [39m08/14/2026, 12:56:59 PM [32m    LOG[39m [38;5;3m[TaskNotificationOutboxWorker] [39m[32m[Notifications] Worker claimed 1 notification event(s) for delivery.[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:57:00 PM [32m    LOG[39m [38;5;3m[TaskNotificationOutboxWorker] [39m[32m[Notifications] Worker finished 1 event(s): 0 saved recipient notification(s), 0 active Socket.IO connection(s) reached.[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:58:37 PM [32m    LOG[39m [38;5;3m[TaskNotificationOutboxWorker] [39m[32m[Notifications] Worker claimed 1 notification event(s) for delivery.[39m
+[32m[Nest] 25544  - [39m08/14/2026, 12:58:37 PM [32m    LOG[39m [38;5;3m[TaskNotificationOutboxWorker] [39m[32m[Notifications] Worker finished 1 event(s): 0 saved recipient notification(s), 0 active Socket.IO connection(s) reached.[39m
+1:00:32 PM [tsx] change in ./src\platform\task-workflow-support.ts Restarting...
+1:00:32 PM [tsx] change in ./src\platform\employee-notifications.gateway.ts Restarting...
+1:00:33 PM [tsx] change in ./src\platform\tenant-admin-notifications.gateway.ts Restarting...
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[NestFactory] [39m[32mStarting Nest application...[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mAppConfigModule dependencies initialized[39m[38;5;3m +3ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mAppConfigModule dependencies initialized[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mCommonModule dependencies initialized[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mAppModule dependencies initialized[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mDatabaseModule dependencies initialized[39m[38;5;3m +1ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mHealthModule dependencies initialized[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mAuthModule dependencies initialized[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mPlatformModule dependencies initialized[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mHealthController {/api/v1/health}:[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/health/live, GET} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/health/ready, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mMeController {/api/v1/me}:[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/me, GET} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/me/profile, PATCH} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/me/preferences, PATCH} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mAccessAdminController {/api/v1}:[39m[38;5;3m +1ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/super-admin/tenant-creation-options, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/super-admin/tenants, GET} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/super-admin/users/email-availability, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/super-admin/tenant-list-filters, GET} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/super-admin/tenants/:tenantId, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/super-admin/tenants/:tenantId/status, PATCH} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/super-admin/tenants/:tenantId/password, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/super-admin/tenants, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/invitations, POST} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/invitations/:invitationId/cancel, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/invitations/:invitationId/revoke, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/invitations/:invitationId/accept, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/memberships/:membershipId/revoke, POST} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/memberships/:membershipId/reactivate, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mPortalAuthController {/api/v1/auth}:[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/auth/super-admin/login, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/auth/tenant/login, POST} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/auth/employee/login, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/auth/client/login, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/auth/super-admin/session, GET} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/auth/tenant/session, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/auth/employee/session, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/auth/client/session, GET} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/auth/super-admin/logout, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/auth/tenant/logout, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/auth/employee/logout, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/auth/client/logout, POST} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mSuperAdminAuditLogController {/api/v1/super-admin/audit-log}:[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/super-admin/audit-log, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mSuperAdminDashboardController {/api/v1/super-admin}:[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/super-admin/dashboard, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/super-admin/alerts/:alertId/view, PATCH} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/super-admin/alerts/:alertId/reviews, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/super-admin/tenant-reviews/:reviewId, PATCH} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mSuperAdminSearchController {/api/v1/super-admin}:[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/super-admin/search, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mSuperAdminNotificationsController {/api/v1/super-admin/notifications}:[39m[38;5;3m +1ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/super-admin/notifications, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/super-admin/notifications/unread-count, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/super-admin/notifications/:notificationId/read, PATCH} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/super-admin/notifications/read-all, PATCH} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mSuperAdminPlatformConfigurationController {/api/v1/super-admin/platform-configuration}:[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/super-admin/platform-configuration, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/super-admin/platform-configuration, PATCH} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mClientPortalDashboardController {/api/v1/client-portal/dashboard}:[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/client-portal/dashboard, GET} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mClientPortalDeliverablesController {/api/v1/client-portal/deliverables}:[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/client-portal/deliverables, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/client-portal/deliverables/:documentId/decision, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/client-portal/deliverables/:documentId/download, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mClientPortalNotificationsController {/api/v1/client-portal/notifications}:[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/client-portal/notifications, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mClientPortalProfileController {/api/v1/client-portal/profile}:[39m[38;5;3m +1ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/client-portal/profile, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/client-portal/profile, PATCH} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mClientPortalRequestsController {/api/v1/client-portal/requests}:[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/client-portal/requests/options, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/client-portal/requests, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mEmployeeDashboardController {/api/v1/employee/dashboard}:[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/employee/dashboard, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mEmployeeDocumentsController {/api/v1/employee/documents}:[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/employee/documents/options, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/employee/documents, GET} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/employee/documents, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/employee/documents/upload-url, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/employee/documents/:documentId/download, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mEmployeeManagerController {/api/v1/employee/manager}:[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/employee/manager/clients, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/employee/manager/task-options, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/employee/manager/reviews, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/employee/manager/tasks, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/employee/manager/reviews/:taskId, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mEmployeeNotificationsController {/api/v1/employee/notifications}:[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/employee/notifications, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/employee/notifications/unread-count, GET} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/employee/notifications/:notificationId/read, PATCH} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/employee/notifications/read-all, PATCH} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mEmployeeProfileController {/api/v1/employee/profile}:[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/employee/profile, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mEmployeeTasksController {/api/v1/employee}:[39m[38;5;3m +1ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/employee/tasks, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/employee/work-logs, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/employee/tasks/:taskId/start, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/employee/tasks/:taskId/pause, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/employee/tasks/:taskId/resume, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/employee/tasks/:taskId/submit, POST} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mTenantAdminDashboardController {/api/v1/tenant-admin/dashboard}:[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/tenant-admin/dashboard, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/tenant-admin/dashboard/profile, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/tenant-admin/dashboard/profile, PATCH} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mTenantAdminClientsController {/api/v1/tenant-admin/clients}:[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/tenant-admin/clients, GET} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/tenant-admin/clients, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/tenant-admin/clients/:clientRef, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/tenant-admin/clients/:clientRef, DELETE} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/tenant-admin/clients/:clientRef/contacts, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/tenant-admin/clients/:clientRef/contacts/:contactId, PATCH} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mTenantAdminEmployeePerformanceController {/api/v1/tenant-admin/employee-performance}:[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/tenant-admin/employee-performance, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/tenant-admin/employee-performance/:employeeId, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mTenantAdminFinanceController {/api/v1/tenant-admin/finance}:[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/tenant-admin/finance/documents, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/tenant-admin/finance/documents, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/tenant-admin/finance/documents/upload-url, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/tenant-admin/finance/documents/:documentId/download, GET} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/tenant-admin/finance/invoices, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/tenant-admin/finance/invoices, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/tenant-admin/finance/billable-tasks, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/tenant-admin/finance/invoices/from-task, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/tenant-admin/finance/invoices/:invoiceId/send, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mTenantAdminNotificationsController {/api/v1/tenant-admin/notifications}:[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/tenant-admin/notifications, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/tenant-admin/notifications/unread-count, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/tenant-admin/notifications/:notificationId/read, PATCH} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/tenant-admin/notifications/read-all, PATCH} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mTenantAdminServicesController {/api/v1/tenant-admin/services}:[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/tenant-admin/services, GET} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/tenant-admin/services, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mTenantAdminTasksController {/api/v1/tenant-admin/tasks}:[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/tenant-admin/tasks/options, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/tenant-admin/tasks, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/tenant-admin/tasks, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/tenant-admin/tasks/:taskId/approval, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/tenant-admin/tasks/employees, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/tenant-admin/tasks/employees/email-availability, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/tenant-admin/tasks/employees, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/tenant-admin/tasks/departments, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/tenant-admin/tasks/departments, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/tenant-admin/tasks/employees/:employeeId/assignment, PATCH} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/tenant-admin/tasks/employees/:employeeId/manager, PATCH} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/tenant-admin/tasks/employees/:employeeId/manager, DELETE} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/tenant-admin/tasks/employees/:employeeId/capacity, PATCH} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/tenant-admin/tasks/work-groups, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/tenant-admin/tasks/work-groups, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/tenant-admin/tasks/work-groups/:workGroupId, PATCH} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mTenantAnalyticsController {/api/v1/super-admin/tenant-analytics}:[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/super-admin/tenant-analytics, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[TaskNotificationOutboxWorker] [39m[32m[Notifications] Task notification worker is running. It checks committed notifications every 500ms.[39m
+[32m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [32m    LOG[39m [38;5;3m[NestApplication] [39m[32mNest application successfully started[39m[38;5;3m +0ms[39m

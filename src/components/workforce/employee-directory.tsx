@@ -4,7 +4,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus } from "lucide-react";
+import { CheckCircle2, Plus } from "lucide-react";
 import { toast } from "sonner";
 import type { ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@/components/operations/data-table";
@@ -71,6 +71,19 @@ function EmployeeIdentity({ employee }: { employee: Employee }) {
   );
 }
 
+function ManagerIndicator() {
+  return (
+    <span
+      className="inline-flex text-emerald-600 dark:text-emerald-400"
+      role="img"
+      aria-label="This employee is a manager"
+      title="This employee is a manager"
+    >
+      <CheckCircle2 className="size-5" aria-hidden="true" />
+    </span>
+  );
+}
+
 function EmployeeCard({
   employee,
   onView,
@@ -105,7 +118,11 @@ function EmployeeCard({
           <div>
             <dt className="text-muted-foreground">Manager</dt>
             <dd className="mt-0.5 font-medium">
-              {employee.manager?.name ?? "Unassigned"}
+              {employee.isManager ? (
+                <ManagerIndicator />
+              ) : (
+                employee.manager?.name ?? "Unassigned"
+              )}
             </dd>
           </div>
           <div>
@@ -325,7 +342,11 @@ export function EmployeeDirectory() {
       header: "Manager",
       cell: ({ row }) => (
         <div className="min-w-32">
-          {row.original.manager?.name ?? <span className="text-muted-foreground">Unassigned</span>}
+          {row.original.isManager ? (
+            <ManagerIndicator />
+          ) : (
+            row.original.manager?.name ?? <span className="text-muted-foreground">Unassigned</span>
+          )}
         </div>
       ),
     },
@@ -692,7 +713,11 @@ function CreateEmployeeDialog({
   };
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent title="Create employee" description="Add an active employee to this tenant." className="max-w-md">
+      <DialogContent
+        title="Create employee"
+        description="Add an active employee to this tenant."
+        className="max-h-[calc(100dvh-2rem)] max-w-md overflow-y-auto overscroll-contain"
+      >
         <form
           data-draft-key="tenant-employee-create"
           className="grid gap-4 pr-8"

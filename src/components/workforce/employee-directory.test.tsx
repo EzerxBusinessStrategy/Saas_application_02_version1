@@ -29,7 +29,7 @@ beforeEach(() => {
         email: "aarav@example.test",
         departmentId: "department-1",
         departmentName: "Taxation",
-        isManager: false,
+        isManager: true,
         skills: ["GST returns"],
         categories: ["Tax"],
         experienceLevel: "mid",
@@ -73,6 +73,7 @@ test("renders an accessible employee table and mobile card fallback", async () =
   ).toBeInTheDocument();
   expect(screen.getAllByText("Aarav Mehta").length).toBeGreaterThan(0);
   expect(screen.getByLabelText("Filter by department")).toBeInTheDocument();
+  expect(screen.getAllByRole("img", { name: "This employee is a manager" }).length).toBeGreaterThan(0);
 });
 
 test("stores filter changes in the URL", async () => {

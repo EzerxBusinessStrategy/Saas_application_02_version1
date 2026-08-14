@@ -26,4 +26,12 @@ describe("TenantAdminFinanceRepository document delivery", () => {
     expect(source).toContain("findDocumentIdByIdempotencyKey");
     expect(source).toContain("findInvoiceIdByIdempotencyKey");
   });
+
+  test("keeps notification entity identifiers as UUIDs while deriving text idempotency keys", () => {
+    const source = readFileSync(resolve(__dirname, "../../src/platform/tenant-admin-finance.repository.ts"), "utf8");
+
+    expect(source).toContain("'document-shared:' || $3::uuid::text");
+    expect(source).toContain("'client-deliverable-shared:' || $3::uuid::text");
+    expect(source).toContain("'client-invoice-sent:' || $3::uuid::text");
+  });
 });

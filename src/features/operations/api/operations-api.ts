@@ -657,12 +657,10 @@ async function uploadPrivateDocumentFile(
     body: JSON.stringify({ ...metadata, contentType }),
   });
   const upload = z.object({ storageKey: z.string(), signedUrl: z.string().url() }).parse(await parseJsonResponse(response));
-  const uploadBody = new FormData();
-  uploadBody.append("cacheControl", "3600");
-  uploadBody.append("", file);
   const storageResponse = await fetch(upload.signedUrl, {
     method: "PUT",
-    body: uploadBody,
+    headers: { "content-type": contentType },
+    body: file,
   });
   if (!storageResponse.ok) {
     throw new Error("The file could not be uploaded. Please try again.");

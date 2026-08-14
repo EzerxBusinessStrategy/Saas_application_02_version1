@@ -54,7 +54,7 @@ export async function publishTaskWorkflowNotification(
       inserted as (
         insert into public.notifications (
           type, title, message, severity, tenant_id, actor_user_id, entity_type, entity_id, action_url, metadata, idempotency_key
-        ) values ($5, $6, $7, 'INFO', $1, $2, 'task', $3, $8, jsonb_build_object('taskId', $3::uuid), $9)
+        ) values ($5, $6, $7, 'INFO', $1, $2, 'task', $3, $8, jsonb_build_object('taskId', $3::uuid, 'employeeId', $4::uuid), $9)
         on conflict (idempotency_key) where idempotency_key is not null do nothing
         returning id
       ), notification_row as (

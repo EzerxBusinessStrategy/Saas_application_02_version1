@@ -64,6 +64,26 @@ describe("task workflow notification persistence", () => {
     expect(sql).toContain("where e.tenant_id = $1 and e.id = $4");
     expect(sql).not.toContain("from public.employee_manager_assignments ema");
   });
+
+  it("types the employee identifier for tenant-admin fan-out", async () => {
+    const client: FakeClient = { query: vi.fn(async () => queryResult()) };
+
+    await publishTaskWorkflowNotification(client as never, {
+      tenantId: "tenant-1",
+      actorUserId: "employee-user-1",
+      taskId: "task-1",
+      employeeId: "employee-1",
+      audience: "tenant_admins",
+      type: "TASK_SUBMITTED_FOR_TENANT_REVIEW",
+      title: "Task ready for review",
+      message: "Review the task.",
+      actionUrl: "/admin/tasks?task=task-1",
+      eventKey: "task-submitted-tenant-review:task-1",
+    });
+
+    const [sql] = client.query.mock.calls[0] as [string, unknown[]];
+    expect(sql).toContain("'employeeId', $4::uuid");
+  });
 });
 
 describe("returned task timer resumption", () => {
