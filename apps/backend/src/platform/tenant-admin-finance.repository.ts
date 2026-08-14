@@ -486,7 +486,7 @@ export class TenantAdminFinanceRepository {
       `
         with inserted as (
           insert into public.notifications (type, title, message, severity, tenant_id, actor_user_id, entity_type, entity_id, action_url, metadata, idempotency_key)
-          values ('DOCUMENT_SHARED', 'Document shared', 'A document "' || $4 || '" was shared with you.', 'INFO', $1, $2, 'document', $3, '/employee/documents', jsonb_build_object('documentId', $3, 'title', $4), 'document-shared:' || $3::uuid::text)
+          values ('DOCUMENT_SHARED', 'Document shared', 'A document "' || $4::text || '" was shared with you.', 'INFO', $1::uuid, $2::uuid, 'document', $3::uuid, '/employee/documents', jsonb_build_object('documentId', $3::uuid, 'title', $4::text), 'document-shared:' || $3::uuid::text)
           on conflict (idempotency_key) where idempotency_key is not null do nothing
           returning id
         ),
@@ -499,7 +499,7 @@ export class TenantAdminFinanceRepository {
         insert into public.notification_recipients (notification_id, recipient_user_id)
         select notification_row.id, tm.user_id
         from notification_row
-        join public.tenant_memberships tm on tm.tenant_id = $1 and tm.id = any($5::uuid[])
+        join public.tenant_memberships tm on tm.tenant_id = $1::uuid and tm.id = any($5::uuid[])
         on conflict (notification_id, recipient_user_id) do nothing
       `,
       [context.tenantId, context.userId, documentId, title, recipientMembershipIds],
@@ -530,14 +530,14 @@ export class TenantAdminFinanceRepository {
     await client.query(
       `with inserted as (
          insert into public.notifications (type, title, message, severity, tenant_id, actor_user_id, entity_type, entity_id, action_url, metadata, idempotency_key)
-         values ('CLIENT_INVOICE_SENT', 'Invoice sent', 'A new invoice ' || $5 || ' is ready to view.', 'INFO', $1, $2, 'invoice', $3, '/client/invoices', jsonb_build_object('clientId', $4), 'client-invoice-sent:' || $3::uuid::text)
+         values ('CLIENT_INVOICE_SENT', 'Invoice sent', 'A new invoice ' || $5::text || ' is ready to view.', 'INFO', $1::uuid, $2::uuid, 'invoice', $3::uuid, '/client/invoices', jsonb_build_object('clientId', $4::uuid), 'client-invoice-sent:' || $3::uuid::text)
          on conflict (idempotency_key) where idempotency_key is not null do update set id = public.notifications.id
          returning id
        )
        insert into public.notification_recipients (notification_id, recipient_user_id)
        select inserted.id, cpa.user_id
        from inserted
-       join public.client_portal_accounts cpa on cpa.tenant_id = $1 and cpa.client_id = $4 and cpa.status = 'active'
+       join public.client_portal_accounts cpa on cpa.tenant_id = $1::uuid and cpa.client_id = $4::uuid and cpa.status = 'active'
        on conflict (notification_id, recipient_user_id) do nothing`,
       [context.tenantId, context.userId, invoiceId, clientId, invoiceNumber],
     );
@@ -558,14 +558,14 @@ export class TenantAdminFinanceRepository {
          values (
            'CLIENT_DELIVERABLE_SHARED',
            'New deliverable shared',
-           'A new deliverable "' || $5 || '" is ready for your review.',
+           'A new deliverable "' || $5::text || '" is ready for your review.',
            'INFO',
-           $1,
-           $2,
+           $1::uuid,
+           $2::uuid,
            'document',
-           $3,
+           $3::uuid,
            '/client/deliverables',
-           jsonb_build_object('clientId', $4, 'documentId', $3, 'title', $5),
+           jsonb_build_object('clientId', $4::uuid, 'documentId', $3::uuid, 'title', $5::text),
            'client-deliverable-shared:' || $3::uuid::text
          )
          on conflict (idempotency_key) where idempotency_key is not null do nothing
@@ -575,8 +575,8 @@ export class TenantAdminFinanceRepository {
        select inserted.id, cpa.user_id
        from inserted
        join public.client_portal_accounts cpa
-         on cpa.tenant_id = $1
-        and cpa.client_id = $4
+         on cpa.tenant_id = $1::uuid
+        and cpa.client_id = $4::uuid
         and cpa.status = 'active'
        on conflict (notification_id, recipient_user_id) do nothing`,
       [context.tenantId, context.userId, documentId, clientId, title],

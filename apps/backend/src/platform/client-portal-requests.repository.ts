@@ -3,7 +3,7 @@ import { Pool, PoolClient } from "pg";
 import { databaseNotConfigured } from "../auth/auth-errors";
 import { DATABASE_POOL } from "../database/database.tokens";
 import { withDatabaseTransaction } from "../database/transaction-context";
-import { ClientPortalRequestContext } from "./client-portal-context";
+import { ClientPortalRequestContext, ClientPortalScope, resolveClientPortalScope } from "./client-portal-context";
 import { CreateClientPortalRequest } from "./client-portal-requests.dto";
 
 type ServiceOptionRow = {
@@ -27,32 +27,68 @@ export class ClientPortalRequestsRepository {
   constructor(@Inject(DATABASE_POOL) private readonly pool: Pool | null) {}
 
   async listServiceOptions(context: ClientPortalRequestContext): Promise<readonly ServiceOptionRow[]> {
-    return this.withContext(context, async (client) => {
+    return this.withContext(context, async (client, scope) => {
       const result = await client.query<ServiceOptionRow>(
         `
-          select id::text, name
-          from public.services
-          where tenant_id = $1
-            and status = 'active'
-          order by lower(name), id
+          select s.id::text, s.name
+          from public.services s
+          where s.tenant_id = $1
+            and s.status = 'active'
+            and (
+              exists (
+                select 1
+                from public.engagements e
+                where e.tenant_id = s.tenant_id
+                  and e.client_id = $2
+                  and e.service_id = s.id
+                  and e.status = 'active'
+              )
+              or exists (
+                select 1
+                from public.tasks t
+                where t.tenant_id = s.tenant_id
+                  and t.client_id = $2
+                  and t.service_id = s.id
+                  and t.status <> 'cancelled'
+              )
+            )
+          order by lower(s.name), s.id
         `,
-        [context.tenantId],
+        [scope.tenantId, scope.clientId],
       );
       return result.rows;
     });
   }
 
   async create(context: ClientPortalRequestContext, input: CreateClientPortalRequest): Promise<RequestRow> {
-    return this.withContext(context, async (client) => {
+    return this.withContext(context, async (client, scope) => {
       const service = await client.query<ServiceOptionRow>(
         `
-          select id::text, name
-          from public.services
-          where tenant_id = $1
-            and id = $2
-            and status = 'active'
+          select s.id::text, s.name
+          from public.services s
+          where s.tenant_id = $1
+            and s.id = $2
+            and s.status = 'active'
+            and (
+              exists (
+                select 1
+                from public.engagements e
+                where e.tenant_id = s.tenant_id
+                  and e.client_id = $3
+                  and e.service_id = s.id
+                  and e.status = 'active'
+              )
+              or exists (
+                select 1
+                from public.tasks t
+                where t.tenant_id = s.tenant_id
+                  and t.client_id = $3
+                  and t.service_id = s.id
+                  and t.status <> 'cancelled'
+              )
+            )
         `,
-        [context.tenantId, input.serviceId],
+        [scope.tenantId, input.serviceId, scope.clientId],
       );
       const serviceName = service.rows[0]?.name;
       if (!serviceName) {
@@ -77,15 +113,15 @@ export class ClientPortalRequestsRepository {
           returning id::text
         `,
         [
-          context.tenantId,
-          context.clientAccountId,
+          scope.tenantId,
+          scope.clientId,
           input.serviceId,
           input.title,
           input.description,
           input.countryCode,
           input.requestedDueDate ?? null,
           input.priority,
-          context.userId,
+          scope.userId,
         ],
       );
       const requestId = inserted.rows[0]?.id;
@@ -95,14 +131,14 @@ export class ClientPortalRequestsRepository {
 
       await client.query(
         "select audit.write_audit_event('CLIENT_REQUEST_RECEIVED', 'client_task_request', $1::uuid, 'succeeded', null, $2::jsonb)",
-        [requestId, JSON.stringify({ clientId: context.clientAccountId, serviceId: input.serviceId, serviceName, title: input.title })],
+        [requestId, JSON.stringify({ clientId: scope.clientId, serviceId: input.serviceId, serviceName, title: input.title })],
       );
-      await this.notifyTenant(client, context, requestId, input.title, serviceName);
-      return this.getRequestOrThrow(client, context, requestId);
+      await this.notifyTenant(client, scope, requestId, input.title, serviceName);
+      return this.getRequestOrThrow(client, scope, requestId);
     });
   }
 
-  private async getRequestOrThrow(client: PoolClient, context: ClientPortalRequestContext, requestId: string): Promise<RequestRow> {
+  private async getRequestOrThrow(client: PoolClient, context: ClientPortalScope, requestId: string): Promise<RequestRow> {
     const result = await client.query<RequestRow>(
       `
         select
@@ -122,7 +158,7 @@ export class ClientPortalRequestsRepository {
           and ctr.client_id = $2
           and ctr.id = $3
       `,
-      [context.tenantId, context.clientAccountId, requestId],
+      [context.tenantId, context.clientId, requestId],
     );
     const row = result.rows[0];
     if (!row) {
@@ -133,7 +169,7 @@ export class ClientPortalRequestsRepository {
 
   private async notifyTenant(
     client: PoolClient,
-    context: ClientPortalRequestContext,
+    context: ClientPortalScope,
     requestId: string,
     title: string,
     serviceName: string,
@@ -161,7 +197,7 @@ export class ClientPortalRequestsRepository {
             $3::uuid,
             '/admin',
             jsonb_build_object('clientId', $2, 'requestId', $3::uuid, 'title', $4, 'serviceName', $5),
-            'client-request-received:' || $3
+            'client-request-received:' || $3::uuid::text
           from request_client
           on conflict (idempotency_key) do nothing
           returning id
@@ -181,15 +217,18 @@ export class ClientPortalRequestsRepository {
          and r.code = 'TENANT_ADMIN'
         on conflict (notification_id, recipient_user_id) do nothing
       `,
-      [context.tenantId, context.clientAccountId, requestId, title, serviceName, context.userId],
+      [context.tenantId, context.clientId, requestId, title, serviceName, context.userId],
     );
   }
 
   private async withContext<T>(
     context: ClientPortalRequestContext,
-    work: (client: PoolClient) => Promise<T>,
+    work: (client: PoolClient, scope: ClientPortalScope) => Promise<T>,
   ): Promise<T> {
     if (!this.pool) throw databaseNotConfigured();
-    return withDatabaseTransaction(this.pool, context, (_tx, client) => work(client));
+    return withDatabaseTransaction(this.pool, context, async (_tx, client) => {
+      const scope = await resolveClientPortalScope(client, context);
+      return work(client, scope);
+    });
   }
 }

@@ -28,19 +28,21 @@ export class ClientPortalProfileRepository {
           `
             update public.client_portal_accounts
             set
-              portal_name = $3,
-              primary_colour = $4,
-              sidebar_colour = $5,
-              surface_colour = $6,
+              portal_name = $4,
+              primary_colour = $5,
+              sidebar_colour = $6,
+              surface_colour = $7,
               updated_at = now()
             where tenant_id = $1
-              and client_id = $2
+              and id = $2
+              and user_id = $3
               and status = 'active'
             returning portal_name, primary_colour, sidebar_colour, surface_colour
           `,
           [
             context.tenantId,
             context.clientAccountId,
+            context.userId,
             input.portalName,
             input.primaryColour,
             input.sidebarColour,
@@ -65,10 +67,11 @@ export class ClientPortalProfileRepository {
           select portal_name, primary_colour, sidebar_colour, surface_colour
           from public.client_portal_accounts
           where tenant_id = $1
-            and client_id = $2
+            and id = $2
+            and user_id = $3
             and status = 'active'
         `,
-        [context.tenantId, context.clientAccountId],
+        [context.tenantId, context.clientAccountId, context.userId],
       );
       if (!result.rows[0]) throw new NotFoundException("Client profile not found.");
       return result.rows[0];
@@ -80,11 +83,12 @@ export class ClientPortalProfileRepository {
             select 1
             from public.client_portal_accounts
             where tenant_id = $1
-              and client_id = $2
+              and id = $2
+              and user_id = $3
               and status = 'active'
           ) as exists
         `,
-        [context.tenantId, context.clientAccountId],
+        [context.tenantId, context.clientAccountId, context.userId],
       );
       if (!account.rows[0]?.exists) throw new NotFoundException("Client profile not found.");
       return { portal_name: null, primary_colour: null, sidebar_colour: null, surface_colour: null };

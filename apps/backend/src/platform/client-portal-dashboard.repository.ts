@@ -3,7 +3,7 @@ import { Pool, PoolClient } from "pg";
 import { databaseNotConfigured } from "../auth/auth-errors";
 import { DATABASE_POOL } from "../database/database.tokens";
 import { withDatabaseTransaction } from "../database/transaction-context";
-import { ClientPortalRequestContext } from "./client-portal-context";
+import { ClientPortalRequestContext, ClientPortalScope, resolveClientPortalScope } from "./client-portal-context";
 
 type SummaryRow = {
   active_services: string;
@@ -52,15 +52,15 @@ export class ClientPortalDashboardRepository {
   constructor(@Inject(DATABASE_POOL) private readonly pool: Pool | null) {}
 
   async read(context: ClientPortalRequestContext) {
-    return this.withContext(context, async (client) => ({
-      summary: await this.getSummary(client, context),
-      services: await this.getServices(client, context),
-      requests: await this.getRequests(client, context),
-      invoices: await this.getInvoices(client, context),
+    return this.withContext(context, async (client, scope) => ({
+      summary: await this.getSummary(client, scope),
+      services: await this.getServices(client, scope),
+      requests: await this.getRequests(client, scope),
+      invoices: await this.getInvoices(client, scope),
     }));
   }
 
-  private async getSummary(client: PoolClient, context: ClientPortalRequestContext): Promise<SummaryRow> {
+  private async getSummary(client: PoolClient, context: ClientPortalScope): Promise<SummaryRow> {
     const result = await client.query<SummaryRow>(
       `
         with invoice_balances as (
@@ -122,7 +122,7 @@ export class ClientPortalDashboardRepository {
         from public.tenants t
         where t.id = $1
       `,
-      [context.tenantId, context.clientAccountId],
+      [context.tenantId, context.clientId],
     );
     return result.rows[0] ?? {
       active_services: "0",
@@ -132,7 +132,7 @@ export class ClientPortalDashboardRepository {
     };
   }
 
-  private async getServices(client: PoolClient, context: ClientPortalRequestContext): Promise<readonly ServiceRow[]> {
+  private async getServices(client: PoolClient, context: ClientPortalScope): Promise<readonly ServiceRow[]> {
     const result = await client.query<ServiceRow>(
       `
         with service_scope as (
@@ -208,12 +208,12 @@ export class ClientPortalDashboardRepository {
         group by s.id, s.name
         order by lower(coalesce(min(service_scope.engagement_name), s.name)) asc
       `,
-      [context.tenantId, context.clientAccountId],
+      [context.tenantId, context.clientId],
     );
     return result.rows;
   }
 
-  private async getRequests(client: PoolClient, context: ClientPortalRequestContext): Promise<readonly RequestRow[]> {
+  private async getRequests(client: PoolClient, context: ClientPortalScope): Promise<readonly RequestRow[]> {
     const result = await client.query<RequestRow>(
       `
         select
@@ -234,12 +234,12 @@ export class ClientPortalDashboardRepository {
         order by ctr.updated_at desc, ctr.id desc
         limit 8
       `,
-      [context.tenantId, context.clientAccountId],
+      [context.tenantId, context.clientId],
     );
     return result.rows;
   }
 
-  private async getInvoices(client: PoolClient, context: ClientPortalRequestContext): Promise<readonly InvoiceRow[]> {
+  private async getInvoices(client: PoolClient, context: ClientPortalScope): Promise<readonly InvoiceRow[]> {
     const result = await client.query<InvoiceRow>(
       `
         select
@@ -270,16 +270,19 @@ export class ClientPortalDashboardRepository {
         order by i.issued_on desc, i.created_at desc
         limit 8
       `,
-      [context.tenantId, context.clientAccountId],
+      [context.tenantId, context.clientId],
     );
     return result.rows;
   }
 
   private async withContext<T>(
     context: ClientPortalRequestContext,
-    work: (client: PoolClient) => Promise<T>,
+    work: (client: PoolClient, scope: ClientPortalScope) => Promise<T>,
   ): Promise<T> {
     if (!this.pool) throw databaseNotConfigured();
-    return withDatabaseTransaction(this.pool, context, (_tx, client) => work(client));
+    return withDatabaseTransaction(this.pool, context, async (_tx, client) => {
+      const scope = await resolveClientPortalScope(client, context);
+      return work(client, scope);
+    });
   }
 }

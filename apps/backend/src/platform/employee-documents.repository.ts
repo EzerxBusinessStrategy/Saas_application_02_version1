@@ -277,14 +277,14 @@ export class EmployeeDocumentsRepository {
           values (
             'EMPLOYEE_DOCUMENT_SHARED',
             'Document shared',
-            'A document "' || $4 || '" was shared with you.',
+            'A document "' || $4::text || '" was shared with you.',
             'INFO',
-            $1,
-            $2,
+            $1::uuid,
+            $2::uuid,
             'document',
-            $3,
+            $3::uuid,
             '/admin/documents',
-            jsonb_build_object('documentId', $3, 'title', $4),
+            jsonb_build_object('documentId', $3::uuid, 'title', $4::text),
             'employee-document-shared:' || $3::uuid::text
           )
           on conflict (idempotency_key) do update set idempotency_key = public.notifications.idempotency_key
@@ -293,7 +293,7 @@ export class EmployeeDocumentsRepository {
         insert into public.notification_recipients (notification_id, recipient_user_id)
         select inserted.id, tm.user_id
         from inserted
-        join public.tenant_memberships tm on tm.tenant_id = $1 and tm.id = any($5::uuid[])
+        join public.tenant_memberships tm on tm.tenant_id = $1::uuid and tm.id = any($5::uuid[])
         on conflict (notification_id, recipient_user_id) do nothing
       `,
       [context.tenantId, context.userId, documentId, title, recipientMembershipIds],

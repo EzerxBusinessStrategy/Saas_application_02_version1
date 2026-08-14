@@ -300,8 +300,8 @@ const employeeWorkLogsResponseSchema = z.object({
       workedSeconds: z.number().int().nonnegative(),
       segments: z.array(
         z.object({
-          startedAt: z.string().datetime(),
-          endedAt: z.string().datetime().nullable(),
+          startedAt: z.string().datetime({ offset: true }),
+          endedAt: z.string().datetime({ offset: true }).nullable(),
           workedSeconds: z.number().int().nonnegative(),
         }),
       ),

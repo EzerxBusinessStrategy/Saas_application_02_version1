@@ -48,3 +48,15 @@ TypeError: Cannot read properties of undefined (reading 'rooms')
     at async TaskNotificationOutboxWorker.flush (D:\Saas_app_version_2\apps\backend\src\platform\task-notification-outbox.worker.ts:73:24)
 [31m[Nest] 23732  - [39m08/14/2026, 1:00:40 PM [31m  ERROR[39m [38;5;3m[NestApplication] [39m[31mError: listen EADDRINUSE: address already in use 0.0.0.0:4000[39m[38;5;3m +1ms[39m
 Backend startup failed: listen EADDRINUSE: address already in use 0.0.0.0:4000
+[31m[Nest] 26556  - [39m08/14/2026, 1:08:46 PM [31m  ERROR[39m [38;5;3m[NestApplication] [39m[31mError: listen EADDRINUSE: address already in use 0.0.0.0:4000[39m[38;5;3m +0ms[39m
+Backend startup failed: listen EADDRINUSE: address already in use 0.0.0.0:4000
+[31m[Nest] 21688  - [39m08/14/2026, 1:09:18 PM [31m  ERROR[39m [38;5;3m[NestApplication] [39m[31mError: listen EADDRINUSE: address already in use 0.0.0.0:4000[39m[38;5;3m +1ms[39m
+Backend startup failed: listen EADDRINUSE: address already in use 0.0.0.0:4000
+[31m[Nest] 25440  - [39m08/14/2026, 1:09:57 PM [31m  ERROR[39m [38;5;3m[NestApplication] [39m[31mError: listen EADDRINUSE: address already in use 0.0.0.0:4000[39m[38;5;3m +1ms[39m
+Backend startup failed: listen EADDRINUSE: address already in use 0.0.0.0:4000
+[31m[Nest] 452  - [39m08/14/2026, 1:10:15 PM [31m  ERROR[39m [38;5;3m[NestApplication] [39m[31mError: listen EADDRINUSE: address already in use 0.0.0.0:4000[39m[38;5;3m +1ms[39m
+Backend startup failed: listen EADDRINUSE: address already in use 0.0.0.0:4000
+[31m[Nest] 31376  - [39m08/14/2026, 1:10:29 PM [31m  ERROR[39m [38;5;3m[NestApplication] [39m[31mError: listen EADDRINUSE: address already in use 0.0.0.0:4000[39m[38;5;3m +0ms[39m
+Backend startup failed: listen EADDRINUSE: address already in use 0.0.0.0:4000
+[31m[Nest] 3476  - [39m08/14/2026, 1:25:11 PM [31m  ERROR[39m [38;5;3m[NestApplication] [39m[31mError: listen EADDRINUSE: address already in use 0.0.0.0:4000[39m[38;5;3m +0ms[39m
+Backend startup failed: listen EADDRINUSE: address already in use 0.0.0.0:4000

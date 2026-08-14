@@ -1,5 +1,5 @@
 import { afterEach, expect, test, vi } from "vitest";
-import { createSharedDocument } from "@/features/operations/api/operations-api";
+import { createSharedDocument, listWorkLogs } from "@/features/operations/api/operations-api";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -54,4 +54,25 @@ test("uploads the original file bytes to the signed storage URL before creating 
     clientId: "client-1",
     recipientEmployeeIds: ["employee-1"],
   });
+});
+
+test("accepts RFC 3339 work-segment timestamps returned by PostgreSQL JSON", async () => {
+  vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response(JSON.stringify({
+    logs: [{
+      date: "2026-08-14",
+      taskId: "task-1",
+      taskTitle: "Prepare filing",
+      clientName: "Acme Operations",
+      workedSeconds: 120,
+      segments: [{
+        startedAt: "2026-08-14T07:00:00+00:00",
+        endedAt: "2026-08-14T07:02:00+00:00",
+        workedSeconds: 120,
+      }],
+    }],
+  }), { status: 200, headers: { "content-type": "application/json" } }));
+
+  await expect(listWorkLogs("employee")).resolves.toEqual([
+    expect.objectContaining({ taskId: "task-1", durationMinutes: 2 }),
+  ]);
 });

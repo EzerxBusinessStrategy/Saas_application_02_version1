@@ -335,15 +335,15 @@ export function TasksPage({
     },
     { accessorKey: "dueDate", header: "Due" },
   ];
-  if (tasksQuery.isPending || (workspace !== "admin" && logsQuery.isPending))
+  if (tasksQuery.isPending)
     return <LoadingState label="Loading task delivery workflow" rows={5} />;
-  if (tasksQuery.isError || (workspace !== "admin" && logsQuery.isError))
+  if (tasksQuery.isError)
     return (
       <ErrorState
         title="Tasks could not load"
         onRetry={() => {
           void tasksQuery.refetch();
-          if (workspace !== "admin") void logsQuery.refetch();
+          if (workspace === "employee") void logsQuery.refetch();
         }}
       />
     );

@@ -3,7 +3,7 @@ import { Pool, PoolClient } from "pg";
 import { databaseNotConfigured } from "../auth/auth-errors";
 import { DATABASE_POOL } from "../database/database.tokens";
 import { withDatabaseTransaction } from "../database/transaction-context";
-import { ClientPortalRequestContext } from "./client-portal-context";
+import { ClientPortalRequestContext, ClientPortalScope, resolveClientPortalScope } from "./client-portal-context";
 import { TenantNotificationRow } from "./tenant-admin-notifications.repository";
 
 const clientPortalNotificationTypes = [
@@ -21,13 +21,13 @@ export class ClientPortalNotificationsRepository {
     status?: "ALL" | "UNREAD" | "READ",
     limit: number = 20,
   ): Promise<{ readonly unreadCount: number; readonly items: readonly TenantNotificationRow[] }> {
-    return this.withContext(context, async (client) => ({
-      unreadCount: await this.unreadCountForClient(client, context),
-      items: await this.itemsForClient(client, context, status, limit),
+    return this.withContext(context, async (client, scope) => ({
+      unreadCount: await this.unreadCountForClient(client, scope),
+      items: await this.itemsForClient(client, scope, status, limit),
     }));
   }
 
-  private async unreadCountForClient(client: PoolClient, context: ClientPortalRequestContext): Promise<number> {
+  private async unreadCountForClient(client: PoolClient, context: ClientPortalScope): Promise<number> {
     const result = await client.query<{ count: string }>(
       `
         select count(*) as count
@@ -39,18 +39,18 @@ export class ClientPortalNotificationsRepository {
           and n.type = any($3::text[])
           and n.metadata->>'clientId' = $4
       `,
-      [context.userId, context.tenantId, clientPortalNotificationTypes, context.clientAccountId],
+      [context.userId, context.tenantId, clientPortalNotificationTypes, context.clientId],
     );
     return Number(result.rows[0]?.count ?? 0);
   }
 
   private async itemsForClient(
     client: PoolClient,
-    context: ClientPortalRequestContext,
+    context: ClientPortalScope,
     status?: "ALL" | "UNREAD" | "READ",
     limit: number = 20,
   ): Promise<readonly TenantNotificationRow[]> {
-    const params: unknown[] = [context.userId, context.tenantId, clientPortalNotificationTypes, context.clientAccountId, limit];
+    const params: unknown[] = [context.userId, context.tenantId, clientPortalNotificationTypes, context.clientId, limit];
     const statusSql = status === "UNREAD" ? "and nr.read_at is null" : status === "READ" ? "and nr.read_at is not null" : "";
     const result = await client.query<TenantNotificationRow>(
       `
@@ -81,9 +81,12 @@ export class ClientPortalNotificationsRepository {
 
   private async withContext<T>(
     context: ClientPortalRequestContext,
-    work: (client: PoolClient) => Promise<T>,
+    work: (client: PoolClient, scope: ClientPortalScope) => Promise<T>,
   ): Promise<T> {
     if (!this.pool) throw databaseNotConfigured();
-    return withDatabaseTransaction(this.pool, context, (_tx, client) => work(client));
+    return withDatabaseTransaction(this.pool, context, async (_tx, client) => {
+      const scope = await resolveClientPortalScope(client, context);
+      return work(client, scope);
+    });
   }
 }

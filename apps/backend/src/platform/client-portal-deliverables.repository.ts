@@ -3,7 +3,7 @@ import { Pool, PoolClient } from "pg";
 import { databaseNotConfigured } from "../auth/auth-errors";
 import { DATABASE_POOL } from "../database/database.tokens";
 import { withDatabaseTransaction } from "../database/transaction-context";
-import { ClientPortalRequestContext } from "./client-portal-context";
+import { ClientPortalRequestContext, ClientPortalScope, resolveClientPortalScope } from "./client-portal-context";
 import { DecideClientPortalDeliverableRequest } from "./client-portal-deliverables.dto";
 import type { StoredDocumentObject } from "./tenant-document-storage.service";
 
@@ -26,11 +26,11 @@ export class ClientPortalDeliverablesRepository {
   constructor(@Inject(DATABASE_POOL) private readonly pool: Pool | null) {}
 
   async list(context: ClientPortalRequestContext): Promise<readonly ClientPortalDeliverableRow[]> {
-    return this.withContext(context, (client) => this.getDeliverables(client, context));
+    return this.withContext(context, (client, scope) => this.getDeliverables(client, scope));
   }
 
   async getDocumentStorageObject(context: ClientPortalRequestContext, documentId: string): Promise<StoredDocumentObject> {
-    return this.withContext(context, async (client) => {
+    return this.withContext(context, async (client, scope) => {
       const result = await client.query<{ storage_bucket: string | null; storage_key: string | null }>(
         `
           select storage_bucket, storage_key
@@ -38,7 +38,7 @@ export class ClientPortalDeliverablesRepository {
           where tenant_id = $1 and client_id = $2 and id = $3 and status = 'active'
             and coalesce(metadata->>'clientVisible', 'false') = 'true'
         `,
-        [context.tenantId, context.clientAccountId, documentId],
+        [scope.tenantId, scope.clientId, documentId],
       );
       const object = result.rows[0];
       if (!object?.storage_bucket || !object.storage_key) throw new ConflictException({ code: "DELIVERABLE_FILE_NOT_AVAILABLE", message: "The file for this deliverable is not available." });
@@ -51,7 +51,7 @@ export class ClientPortalDeliverablesRepository {
     documentId: string,
     input: DecideClientPortalDeliverableRequest,
   ): Promise<ClientPortalDeliverableRow> {
-    return this.withContext(context, async (client) => {
+    return this.withContext(context, async (client, scope) => {
       const result = await client.query<{ id: string; title: string }>(
         `
           update public.tenant_documents d
@@ -69,11 +69,11 @@ export class ClientPortalDeliverablesRepository {
           returning d.id::text, d.title
         `,
         [
-          context.tenantId,
-          context.clientAccountId,
+          scope.tenantId,
+          scope.clientId,
           documentId,
           input.decision,
-          context.userId,
+          scope.userId,
           input.comment ?? "",
         ],
       );
@@ -90,17 +90,17 @@ export class ClientPortalDeliverablesRepository {
         [
           input.decision === "approved" ? "CLIENT_DELIVERABLE_APPROVED" : "CLIENT_DELIVERABLE_REJECTED",
           documentId,
-          JSON.stringify({ clientId: context.clientAccountId, comment: input.comment?.trim() || null }),
+          JSON.stringify({ clientId: scope.clientId, comment: input.comment?.trim() || null }),
         ],
       );
-      await this.notifyTenantDecision(client, context, documentId, row.title, input);
-      return this.getDeliverableOrThrow(client, context, documentId);
+      await this.notifyTenantDecision(client, scope, documentId, row.title, input);
+      return this.getDeliverableOrThrow(client, scope, documentId);
     });
   }
 
   private async getDeliverables(
     client: PoolClient,
-    context: ClientPortalRequestContext,
+    context: ClientPortalScope,
   ): Promise<readonly ClientPortalDeliverableRow[]> {
     const result = await client.query<ClientPortalDeliverableRow>(
       `
@@ -126,14 +126,14 @@ export class ClientPortalDeliverablesRepository {
           and coalesce(d.metadata->>'clientVisible', 'false') = 'true'
         order by d.updated_at desc, d.id desc
       `,
-      [context.tenantId, context.clientAccountId],
+      [context.tenantId, context.clientId],
     );
     return result.rows;
   }
 
   private async getDeliverableOrThrow(
     client: PoolClient,
-    context: ClientPortalRequestContext,
+    context: ClientPortalScope,
     documentId: string,
   ): Promise<ClientPortalDeliverableRow> {
     const row = (await this.getDeliverables(client, context)).find((item) => item.id === documentId);
@@ -148,7 +148,7 @@ export class ClientPortalDeliverablesRepository {
 
   private async notifyTenantDecision(
     client: PoolClient,
-    context: ClientPortalRequestContext,
+    context: ClientPortalScope,
     documentId: string,
     title: string,
     input: DecideClientPortalDeliverableRequest,
@@ -212,7 +212,7 @@ export class ClientPortalDeliverablesRepository {
       `,
       [
         context.tenantId,
-        context.clientAccountId,
+        context.clientId,
         notificationType,
         title,
         severity,
@@ -226,9 +226,12 @@ export class ClientPortalDeliverablesRepository {
 
   private async withContext<T>(
     context: ClientPortalRequestContext,
-    work: (client: PoolClient) => Promise<T>,
+    work: (client: PoolClient, scope: ClientPortalScope) => Promise<T>,
   ): Promise<T> {
     if (!this.pool) throw databaseNotConfigured();
-    return withDatabaseTransaction(this.pool, context, (_tx, client) => work(client));
+    return withDatabaseTransaction(this.pool, context, async (_tx, client) => {
+      const scope = await resolveClientPortalScope(client, context);
+      return work(client, scope);
+    });
   }
 }

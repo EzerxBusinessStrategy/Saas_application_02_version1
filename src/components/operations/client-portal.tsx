@@ -45,6 +45,8 @@ export function ClientPortal({
   const query = useQuery({
     queryKey: ["client-portal-dashboard"],
     queryFn: getClientPortalDashboard,
+    refetchInterval: 10_000,
+    refetchOnWindowFocus: "always",
   });
 
   if (query.isPending) {
