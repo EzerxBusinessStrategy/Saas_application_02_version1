@@ -13,6 +13,7 @@
 - [0011: User-owned localization and time-zone preferences](0011-user-localization-preferences.md) (Proposed)
 - [0012: Parallel Manager and Tenant Admin final task review](0012-parallel-manager-tenant-task-review.md) (Accepted)
 - [0013: Portal-Specific Authentication](0013-portal-specific-authentication.md) (Accepted)
+- [0014: Portal Private Document Buckets](0014-portal-private-document-buckets.md) (Accepted)
 
 Supporting proposed architecture documents:
 

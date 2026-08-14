@@ -52,7 +52,7 @@ export class PortalAuthService {
     return session;
   }
 
-  async logout(portalType: PortalType, token: string): Promise<void> {
-    await this.repository.revokeSession(portalType, this.tokens.hash(token));
+  async logout(portalType: PortalType, token: string, metadata: RequestMetadata): Promise<void> {
+    await this.repository.revokeSession(portalType, this.tokens.hash(token), metadata);
   }
 }

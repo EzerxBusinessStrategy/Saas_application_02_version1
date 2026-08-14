@@ -711,11 +711,59 @@ function findBestServiceRate(
   rateItems: TenantAdminTaskOptions["rateItems"],
   serviceId: string,
   clientId: string,
+  effectiveOn: string,
 ) {
   return (
-    rateItems.find((rate) => rate.serviceId === serviceId && rate.clientId === clientId) ??
-    rateItems.find((rate) => rate.serviceId === serviceId && !rate.clientId)
+    rateItems.find(
+      (rate) =>
+        rate.serviceId === serviceId &&
+        rate.clientId === clientId &&
+        isRateEffectiveOn(rate, effectiveOn),
+    ) ??
+    rateItems.find(
+      (rate) =>
+        rate.serviceId === serviceId &&
+        !rate.clientId &&
+        isRateEffectiveOn(rate, effectiveOn),
+    )
   );
+}
+
+function isRateEffectiveOn(
+  rate: TenantAdminTaskOptions["rateItems"][number],
+  effectiveOn: string,
+) {
+  return rate.effectiveFrom <= effectiveOn && (!rate.effectiveTo || effectiveOn <= rate.effectiveTo);
+}
+
+function taskRateEffectiveOn(plannedDueAt: string): string {
+  if (plannedDueAt) return plannedDueAt.slice(0, 10);
+  const now = new Date();
+  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60_000);
+  return local.toISOString().slice(0, 10);
+}
+
+export function calculateTaskBillingPreview(
+  grossAmount: number,
+  discountType: "" | "percentage" | "fixed",
+  discountValue: string,
+) {
+  const gross = roundMoney(grossAmount);
+  const value = Number(discountValue);
+  if (!discountType || !Number.isFinite(value) || value <= 0) {
+    return { grossAmount: gross, discountAmount: 0, effectiveAmount: gross };
+  }
+  const rawDiscount = discountType === "percentage" ? gross * (value / 100) : value;
+  const discountAmount = Math.min(gross, roundMoney(rawDiscount));
+  return {
+    grossAmount: gross,
+    discountAmount,
+    effectiveAmount: roundMoney(gross - discountAmount),
+  };
+}
+
+function roundMoney(value: number) {
+  return Math.round(value * 100) / 100;
 }
 
 function TenantAdminCreateTaskAction({
@@ -751,18 +799,25 @@ function TenantAdminCreateTaskAction({
   const workGroups = options.workGroups.filter(
     (group) => !group.clientId || group.clientId === clientId,
   );
+  const rateEffectiveOn = taskRateEffectiveOn(input.plannedDueAt);
   const selectedRate = useMemo(() => {
     const matchingRate = options.rateItems.find(
       (rate) =>
         rate.id === input.rateCardItemId &&
         rate.serviceId === input.serviceId &&
-        (!rate.clientId || rate.clientId === clientId),
+        (!rate.clientId || rate.clientId === clientId) &&
+        isRateEffectiveOn(rate, rateEffectiveOn),
     );
-    return matchingRate ?? findBestServiceRate(options.rateItems, input.serviceId, clientId);
-  }, [clientId, input.rateCardItemId, input.serviceId, options.rateItems]);
+    return matchingRate ?? findBestServiceRate(options.rateItems, input.serviceId, clientId, rateEffectiveOn);
+  }, [clientId, input.rateCardItemId, input.serviceId, options.rateItems, rateEffectiveOn]);
   const quantity = 1;
   const unitRate = selectedRate?.rateAmount ?? 0;
   const estimatedAmount = quantity * unitRate;
+  const billingPreview = calculateTaskBillingPreview(
+    estimatedAmount,
+    input.discountType,
+    input.discountValue,
+  );
   const estimateCurrency = selectedRate?.currencyCode ?? input.currencyCode;
   const safeCurrency = /^[A-Z]{3}$/.test(estimateCurrency) ? estimateCurrency : "INR";
   const hasActiveEmployees = options.employees.length > 0;
@@ -781,7 +836,7 @@ function TenantAdminCreateTaskAction({
     }));
   };
   const selectServiceRate = (serviceId: string) => {
-    const rate = findBestServiceRate(options.rateItems, serviceId, clientId);
+    const rate = findBestServiceRate(options.rateItems, serviceId, clientId, rateEffectiveOn);
     setInput((current) => ({
       ...current,
       serviceId,
@@ -794,7 +849,7 @@ function TenantAdminCreateTaskAction({
   };
   useEffect(() => {
     if (!clientId || !input.serviceId || input.rateCardItemId) return;
-    const rate = findBestServiceRate(options.rateItems, input.serviceId, clientId);
+    const rate = findBestServiceRate(options.rateItems, input.serviceId, clientId, rateEffectiveOn);
     if (!rate) return;
     setInput((current) => ({
       ...current,
@@ -804,48 +859,29 @@ function TenantAdminCreateTaskAction({
       rateAmount: String(rate.rateAmount),
       currencyCode: rate.currencyCode,
     }));
-  }, [clientId, input.rateCardItemId, input.serviceId, options.rateItems]);
+  }, [clientId, input.rateCardItemId, input.serviceId, options.rateItems, rateEffectiveOn]);
   useEffect(() => {
     if (!open || input.countryCode || !options.countries[0]) return;
     setInput((current) => ({ ...current, countryCode: options.countries[0]?.countryCode ?? "" }));
   }, [input.countryCode, open, options.countries]);
-  const handleServiceCreated = (service: TenantAdminService) => {
-    const rate = service.rates[0];
-    queryClient.setQueryData<TenantAdminTaskOptions>(["tenant-admin-task-options"], (current) => ({
-      clients: current?.clients ?? [],
-      employees: current?.employees ?? [],
-      workGroups: current?.workGroups ?? [],
-      countries: current?.countries ?? [],
-      services: [...(current?.services ?? []).filter((item) => item.id !== service.id), { id: service.id, name: service.name }],
-      rateItems: rate
-        ? [
-            ...(current?.rateItems ?? []).filter((item) => item.id !== rate.id),
-            {
-              id: rate.id,
-              clientId: null,
-              serviceId: service.id,
-              label: `${rate.taskType} - ${formatRateMoney(rate.rateAmount, rate.currencyCode)} ${billingUnitLabel(rate.unitType)}`,
-              taskType: rate.taskType,
-              unitType: rate.unitType,
-              rateAmount: rate.rateAmount,
-              currencyCode: rate.currencyCode,
-              taxCode: rate.taxCode,
-            },
-          ]
-        : (current?.rateItems ?? []),
+  const handleServiceCreated = async (service: TenantAdminService) => {
+    await queryClient.invalidateQueries({ queryKey: ["tenant-admin-services"] });
+    const refreshed = await refetchTaskOptions();
+    const refreshedOptions = refreshed.data;
+    const rate = refreshedOptions
+      ? findBestServiceRate(refreshedOptions.rateItems, service.id, clientId, rateEffectiveOn)
+      : undefined;
+    setInput((current) => ({
+      ...current,
+      serviceId: service.id,
+      rateCardItemId: rate?.id ?? "",
+      taskType: rate?.taskType ?? current.taskType,
+      unitType: rate?.unitType ?? current.unitType,
+      rateAmount: rate ? String(rate.rateAmount) : current.rateAmount,
+      currencyCode: rate?.currencyCode ?? current.currencyCode,
     }));
-    if (rate) {
-      setInput((current) => ({
-        ...current,
-        serviceId: service.id,
-        rateCardItemId: rate.id,
-        taskType: rate.taskType,
-        unitType: rate.unitType,
-        rateAmount: String(rate.rateAmount),
-        currencyCode: rate.currencyCode,
-      }));
-    } else {
-      setInput((current) => ({ ...current, serviceId: service.id, rateCardItemId: "" }));
+    if (!rate) {
+      toast.message("Service created. Its rate is not effective for the selected task date yet.");
     }
   };
   const handleEmployeeCreated = (employee: TenantAdminEmployeeOption) => {
@@ -869,6 +905,10 @@ function TenantAdminCreateTaskAction({
     if (input.title.trim().length < 3) { toast.error("Enter Task title."); return; }
     if (input.employeeIds.length === 0) { toast.error("Choose at least one employee."); return; }
     if (!selectedRate) { toast.error("Choose a Service with an active billing rate."); return; }
+    if (input.discountType === "percentage" && Number(input.discountValue) > 100) {
+      toast.error("Percentage discount cannot exceed 100%.");
+      return;
+    }
     setIsSaving(true);
     try {
       await createTenantAdminTask({
@@ -1127,16 +1167,16 @@ function TenantAdminCreateTaskAction({
                 </dl>
               ) : input.serviceId ? (
                 <p className="rounded-[var(--radius-control)] border px-3 py-2 text-sm text-muted-foreground sm:col-span-2">
-                  No active rate exists for this service. Use Custom service to add the service and rate first.
+                  No rate is active for this task date. Choose a service rate effective on or before {rateEffectiveOn}.
                 </p>
               ) : null}
               <div className="text-sm">
                 <p className="text-muted-foreground">Estimated amount</p>
-                <p className="mt-1 text-lg font-semibold">{money.format(estimatedAmount)}</p>
+                <p className="mt-1 text-lg font-semibold">{money.format(billingPreview.grossAmount)}</p>
               </div>
               <label className="text-sm font-medium">
                 Discount
-                <Select className="mt-1" value={input.discountType} onChange={(event) => setInput((current) => ({ ...current, discountType: event.target.value as typeof current.discountType }))}>
+                <Select className="mt-1" value={input.discountType} onChange={(event) => setInput((current) => ({ ...current, discountType: event.target.value as typeof current.discountType, discountValue: event.target.value ? current.discountValue : "" }))}>
                   <option value="">No discount</option>
                   <option value="percentage">Percentage</option>
                   <option value="fixed">Fixed amount</option>
@@ -1144,8 +1184,18 @@ function TenantAdminCreateTaskAction({
               </label>
               <label className="text-sm font-medium">
                 Discount value
-                <Input className="mt-1" type="number" min="0" disabled={!input.discountType} value={input.discountValue} onChange={(event) => setInput((current) => ({ ...current, discountValue: event.target.value }))} />
+                <Input className="mt-1" type="number" min="0" max={input.discountType === "percentage" ? 100 : billingPreview.grossAmount} step="0.01" disabled={!input.discountType} value={input.discountValue} onChange={(event) => setInput((current) => ({ ...current, discountValue: event.target.value }))} />
               </label>
+              <div className="rounded-[var(--radius-control)] border bg-primary/5 p-3 text-sm sm:col-span-2">
+                <div className="flex items-center justify-between gap-4">
+                  <span className="text-muted-foreground">Discount amount</span>
+                  <span className="font-medium">{money.format(billingPreview.discountAmount)}</span>
+                </div>
+                <div className="mt-2 flex items-center justify-between gap-4 border-t pt-2">
+                  <span className="font-semibold">Effective amount</span>
+                  <span className="text-lg font-semibold">{money.format(billingPreview.effectiveAmount)}</span>
+                </div>
+              </div>
             </div>
             <p className="mt-4 text-xs text-muted-foreground">
               The selected financial year is saved with this task. Its charge becomes available in Invoices after final Tenant Admin approval.

@@ -43,4 +43,10 @@ export class ClientPortalDeliverablesController {
   ): Promise<ClientPortalDeliverableDto> {
     return this.service.decide(context, documentId, body);
   }
+
+  @Get(":documentId/download")
+  @ApiOperation({ summary: "Authorize a private client deliverable download." })
+  createDownloadUrl(@CurrentRequestContext() context: RequestContext, @Param("documentId") documentId: string) {
+    return this.service.createDownloadUrl(context, documentId);
+  }
 }

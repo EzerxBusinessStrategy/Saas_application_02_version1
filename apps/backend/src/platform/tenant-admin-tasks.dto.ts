@@ -5,6 +5,10 @@ const optionalUuid = z.preprocess(
   (value) => (value === "" ? undefined : value),
   z.string().uuid().optional(),
 );
+const optionalDepartmentName = z.preprocess(
+  (value) => (typeof value === "string" && value.trim() === "" ? undefined : value),
+  z.string().trim().min(2).max(120).optional(),
+);
 
 export const tenantAdminTaskPriorities = ["low", "normal", "high", "urgent"] as const;
 export const tenantAdminTaskStatuses = [
@@ -80,6 +84,14 @@ export const createTenantAdminTaskSchema = z.object({
       }
     }),
   ]),
+}).superRefine((value, ctx) => {
+  if (value.billing.discountType === "percentage" && value.billing.discountValue > 100) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["billing", "discountValue"],
+      message: "Percentage discount cannot exceed 100.",
+    });
+  }
 });
 export type CreateTenantAdminTaskRequest = z.infer<typeof createTenantAdminTaskSchema>;
 
@@ -106,8 +118,23 @@ export const createTenantAdminEmployeeSchema = z.object({
   skills: z.array(z.string().trim().min(1).max(120)).max(20).optional().default([]),
   experienceLevel: z.enum(["junior", "mid", "senior", "lead"]).optional(),
   weeklyCapacityHours: z.coerce.number().int().min(1).max(168).optional().default(40),
+  departmentId: optionalUuid,
+  newDepartmentName: optionalDepartmentName,
+}).superRefine((value, ctx) => {
+  if (value.departmentId && value.newDepartmentName) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["newDepartmentName"],
+      message: "Choose an existing department or enter a new department, not both.",
+    });
+  }
 });
 export type CreateTenantAdminEmployeeRequest = z.infer<typeof createTenantAdminEmployeeSchema>;
+
+export const createTenantAdminDepartmentSchema = z.object({
+  name: z.string().trim().min(2).max(120),
+});
+export type CreateTenantAdminDepartmentRequest = z.infer<typeof createTenantAdminDepartmentSchema>;
 
 export const updateTenantAdminEmployeeAssignmentSchema = z.object({
   departmentId: z.string().uuid().nullable().optional(),
@@ -250,6 +277,22 @@ export class TenantAdminEmployeesResponseDto {
   departments!: readonly TenantAdminTaskOptionDto[];
 }
 
+export class TenantAdminDepartmentDto extends TenantAdminTaskOptionDto {
+  @ApiProperty({ enum: ["active", "inactive", "archived"] })
+  status!: "active" | "inactive" | "archived";
+
+  @ApiProperty({ type: Number })
+  employeeCount!: number;
+}
+
+export class TenantAdminDepartmentsResponseDto {
+  @ApiProperty({ type: () => [TenantAdminDepartmentDto] })
+  departments!: readonly TenantAdminDepartmentDto[];
+
+  @ApiProperty({ type: () => [TenantAdminEmployeeOptionDto] })
+  employees!: readonly TenantAdminEmployeeOptionDto[];
+}
+
 export class TenantAdminRateCardItemOptionDto {
   @ApiProperty({ type: String, format: "uuid" })
   id!: string;
@@ -277,6 +320,12 @@ export class TenantAdminRateCardItemOptionDto {
 
   @ApiPropertyOptional({ type: String, nullable: true })
   taxCode!: string | null;
+
+  @ApiProperty({ type: String, format: "date" })
+  effectiveFrom!: string;
+
+  @ApiPropertyOptional({ type: String, format: "date", nullable: true })
+  effectiveTo!: string | null;
 }
 
 export class TenantAdminTaskOptionsResponseDto {

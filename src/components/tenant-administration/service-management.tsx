@@ -123,7 +123,7 @@ export function NewServiceDialog({
   triggerSize,
 }: {
   onCreated?: () => void;
-  onCreatedService?: (service: TenantAdminService) => void;
+  onCreatedService?: (service: TenantAdminService) => void | Promise<void>;
   triggerLabel?: string;
   triggerSize?: "default" | "sm" | "lg";
 }) {
@@ -146,7 +146,7 @@ export function NewServiceDialog({
       toast.success("Service created.");
       setInput(serviceInput);
       setOpen(false);
-      onCreatedService?.(service);
+      await onCreatedService?.(service);
       onCreated?.();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Service could not be created.");

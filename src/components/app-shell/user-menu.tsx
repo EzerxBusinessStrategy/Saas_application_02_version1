@@ -60,6 +60,7 @@ export function UserMenu({
   const [profile, setProfile] = useState<AuthenticatedProfile | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [signingOut, setSigningOut] = useState(false);
+  const [signOutError, setSignOutError] = useState<string | null>(null);
   const portal = portalForWorkspace[workspace];
 
   useEffect(() => {
@@ -95,9 +96,19 @@ export function UserMenu({
     if (signingOut) return;
     setSigningOut(true);
     try {
-      await fetch(`/api/auth/${portal}/logout`, { method: "POST" });
-    } finally {
+      const response = await fetch(`/api/auth/${portal}/logout`, { method: "POST" });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null);
+        setSignOutError(
+          typeof payload?.message === "string"
+            ? payload.message
+            : "Sign out could not be completed. Please try again.",
+        );
+        return;
+      }
       window.location.assign("/login");
+    } finally {
+      setSigningOut(false);
     }
   };
 
@@ -172,6 +183,7 @@ export function UserMenu({
             <LogOut className="size-[15px]" aria-hidden="true" />
             <span>{signingOut ? "Signing out..." : "Sign out"}</span>
         </DropdownMenuItem>
+        {signOutError ? <p className="px-2.5 pb-1 text-xs text-red-600">{signOutError}</p> : null}
       </DropdownMenuContent>
     </DropdownMenu>
   );

@@ -9,6 +9,7 @@ import { TenantAdminRequestContext } from "./tenant-admin-context";
 import { publishTaskWorkflowNotification, resumeReturnedTaskTimer } from "./task-workflow-support";
 import {
   CreateTenantAdminEmployeeRequest,
+  CreateTenantAdminDepartmentRequest,
   CreateTenantAdminTaskRequest,
   TenantAdminTaskApprovalRequest,
   UpdateTenantAdminEmployeeAssignmentRequest,
@@ -41,6 +42,11 @@ export type TenantAdminWorkGroupOption = TenantAdminTaskOption & {
   readonly clientId: string | null;
 };
 
+export type TenantAdminDepartmentRow = TenantAdminTaskOption & {
+  readonly status: "active" | "inactive" | "archived";
+  readonly employeeCount: number;
+};
+
 export type TenantAdminWorkGroupRow = TenantAdminWorkGroupOption & {
   readonly clientName: string | null;
   readonly managerEmployeeId: string;
@@ -60,6 +66,8 @@ export type TenantAdminRateCardItemOption = {
   readonly rateAmount: number;
   readonly currencyCode: string;
   readonly taxCode: string | null;
+  readonly effectiveFrom: string;
+  readonly effectiveTo: string | null;
 };
 
 export type TenantAdminTaskCountryOption = {
@@ -169,6 +177,38 @@ export class TenantAdminTasksRepository {
     }));
   }
 
+  async listDepartments(context: TenantAdminRequestContext): Promise<{
+    readonly departments: readonly TenantAdminDepartmentRow[];
+    readonly employees: readonly TenantAdminEmployeeOption[];
+  }> {
+    return this.withContext(context, async (client) => ({
+      departments: await this.getDepartmentDirectory(client, context.tenantId),
+      employees: await this.getEmployeesForCurrentSchema(client, context.tenantId),
+    }));
+  }
+
+  async createDepartment(
+    context: TenantAdminRequestContext,
+    input: CreateTenantAdminDepartmentRequest,
+  ): Promise<TenantAdminDepartmentRow> {
+    return this.withContext(context, async (client) => {
+      await this.lockDepartmentName(client, context.tenantId, input.name);
+      const existing = await this.findDepartmentByName(client, context.tenantId, input.name);
+      if (existing) {
+        throw new ConflictException({
+          code: "DEPARTMENT_NAME_EXISTS",
+          message: "A department with this name already exists in this tenant.",
+        });
+      }
+      const department = await this.createDepartmentRecord(client, context.tenantId, input.name);
+      await client.query(
+        "select audit.write_audit_event('DEPARTMENT_CREATED', 'department', $1::uuid, 'succeeded', null, $2::jsonb)",
+        [department.id, JSON.stringify({ name: department.name })],
+      );
+      return this.getDepartmentRowOrThrow(client, context.tenantId, department.id);
+    });
+  }
+
   async userEmailExists(context: TenantAdminRequestContext, normalizedEmail: string): Promise<boolean> {
     return this.withContext(context, async (client) => {
       const result = await client.query<{ exists: boolean }>(
@@ -187,6 +227,7 @@ export class TenantAdminTasksRepository {
     return this.withContext(context, async (client) => {
       const email = input.email.trim().toLowerCase();
       const code = input.employeeCode?.trim().toLowerCase() || `emp-${randomUUID().slice(0, 8)}`;
+      const department = await this.resolveDepartment(client, context.tenantId, input.departmentId, input.newDepartmentName);
       const userResult = await client.query<{ id: string }>(
         `
           insert into public.users (
@@ -254,14 +295,15 @@ export class TenantAdminTasksRepository {
             tenant_id,
             membership_id,
             employee_code,
+            department_id,
             experience_level,
             employment_status,
             default_capacity_minutes_per_week
           )
-          values ($1, $2, $3, $4, 'active', $5)
+          values ($1, $2, $3, $4, $5, 'active', $6)
           returning id::text, employee_code
         `,
-        [context.tenantId, membershipId, code, input.experienceLevel ?? null, input.weeklyCapacityHours * 60],
+        [context.tenantId, membershipId, code, department?.id ?? null, input.experienceLevel ?? null, input.weeklyCapacityHours * 60],
       ).catch((error: unknown) => {
         if (isUniqueViolation(error)) {
           throw new ConflictException({
@@ -293,7 +335,7 @@ export class TenantAdminTasksRepository {
 
       await client.query(
         "select audit.write_audit_event('EMPLOYEE_CREATED', 'employee', $1::uuid, 'succeeded', null, $2::jsonb)",
-        [employee.id, JSON.stringify({ employeeCode: employee.employee_code, email, isManager: input.isManager, skills: input.skills, experienceLevel: input.experienceLevel ?? null })],
+        [employee.id, JSON.stringify({ employeeCode: employee.employee_code, email, isManager: input.isManager, skills: input.skills, experienceLevel: input.experienceLevel ?? null, departmentId: department?.id ?? null, departmentName: department?.name ?? null })],
       );
       return this.getEmployeeOptionOrThrow(client, context.tenantId, employee.id);
     });
@@ -880,6 +922,165 @@ export class TenantAdminTasksRepository {
     return result.rows;
   }
 
+  private async getDepartmentDirectory(
+    client: PoolClient,
+    tenantId: string,
+  ): Promise<readonly TenantAdminDepartmentRow[]> {
+    const result = await client.query<TenantAdminDepartmentRow>(
+      `
+        select
+          d.id::text,
+          d.name,
+          d.status,
+          count(e.id) filter (where e.employment_status = 'active')::int as "employeeCount"
+        from public.departments d
+        left join public.employees e
+          on e.tenant_id = d.tenant_id
+         and e.department_id = d.id
+        where d.tenant_id = $1
+          and d.status <> 'archived'
+        group by d.id, d.name, d.status
+        order by d.name asc
+      `,
+      [tenantId],
+    );
+    return result.rows;
+  }
+
+  private async getDepartmentRowOrThrow(
+    client: PoolClient,
+    tenantId: string,
+    departmentId: string,
+  ): Promise<TenantAdminDepartmentRow> {
+    const result = await client.query<TenantAdminDepartmentRow>(
+      `
+        select
+          d.id::text,
+          d.name,
+          d.status,
+          count(e.id) filter (where e.employment_status = 'active')::int as "employeeCount"
+        from public.departments d
+        left join public.employees e
+          on e.tenant_id = d.tenant_id
+         and e.department_id = d.id
+        where d.tenant_id = $1
+          and d.id = $2
+        group by d.id, d.name, d.status
+      `,
+      [tenantId, departmentId],
+    );
+    const department = result.rows[0];
+    if (!department) {
+      throw new ConflictException({
+        code: "DEPARTMENT_NOT_FOUND",
+        message: "Department could not be found in this tenant.",
+      });
+    }
+    return department;
+  }
+
+  private async findDepartmentByName(
+    client: PoolClient,
+    tenantId: string,
+    name: string,
+  ): Promise<{ readonly id: string; readonly name: string; readonly status: string } | null> {
+    const normalizedName = name.trim().replace(/\s+/g, " ");
+    const result = await client.query<{ id: string; name: string; status: string }>(
+      `
+        select id::text, name, status
+        from public.departments
+        where tenant_id = $1
+          and lower(btrim(name)) = lower($2)
+        limit 1
+      `,
+      [tenantId, normalizedName],
+    );
+    return result.rows[0] ?? null;
+  }
+
+  private async createDepartmentRecord(
+    client: PoolClient,
+    tenantId: string,
+    name: string,
+  ): Promise<{ readonly id: string; readonly name: string }> {
+    const normalizedName = name.trim().replace(/\s+/g, " ");
+    const result = await client.query<{ id: string; name: string }>(
+      `
+        insert into public.departments (tenant_id, code, name, status)
+        values ($1, $2, $3, 'active')
+        returning id::text, name
+      `,
+      [tenantId, `dept-${randomUUID().replaceAll("-", "")}`, normalizedName],
+    );
+    const department = result.rows[0];
+    if (!department) {
+      throw new ConflictException({
+        code: "DEPARTMENT_CREATE_FAILED",
+        message: "Department could not be created.",
+      });
+    }
+    return department;
+  }
+
+  private async lockDepartmentName(
+    client: PoolClient,
+    tenantId: string,
+    name: string,
+  ): Promise<void> {
+    const normalizedName = name.trim().replace(/\s+/g, " ").toLocaleLowerCase("en-US");
+    await client.query("select pg_advisory_xact_lock(hashtextextended($1, 0))", [
+      `department:${tenantId}:${normalizedName}`,
+    ]);
+  }
+
+  private async resolveDepartment(
+    client: PoolClient,
+    tenantId: string,
+    departmentId?: string,
+    newDepartmentName?: string,
+  ): Promise<{ readonly id: string; readonly name: string } | null> {
+    if (departmentId) {
+      const department = await client.query<{ id: string; name: string }>(
+        `
+          select id::text, name
+          from public.departments
+          where tenant_id = $1
+            and id = $2
+            and status = 'active'
+        `,
+        [tenantId, departmentId],
+      );
+      const selected = department.rows[0];
+      if (!selected) {
+        throw new BadRequestException({
+          code: "DEPARTMENT_NOT_FOUND",
+          message: "Select an active department in this tenant.",
+        });
+      }
+      return selected;
+    }
+    if (!newDepartmentName) return null;
+
+    const normalizedName = newDepartmentName.trim().replace(/\s+/g, " ");
+    await this.lockDepartmentName(client, tenantId, normalizedName);
+    const existing = await this.findDepartmentByName(client, tenantId, normalizedName);
+    if (existing) {
+      if (existing.status !== "active") {
+        throw new ConflictException({
+          code: "DEPARTMENT_NOT_ACTIVE",
+          message: "A department with this name exists but is not active.",
+        });
+      }
+      return { id: existing.id, name: existing.name };
+    }
+    const created = await this.createDepartmentRecord(client, tenantId, normalizedName);
+    await client.query(
+      "select audit.write_audit_event('DEPARTMENT_CREATED', 'department', $1::uuid, 'succeeded', null, $2::jsonb)",
+      [created.id, JSON.stringify({ name: created.name, source: "employee_create" })],
+    );
+    return created;
+  }
+
   private async getEmployeesForCurrentSchema(
     client: PoolClient,
     tenantId: string,
@@ -1403,6 +1604,8 @@ export class TenantAdminTasksRepository {
       rate_amount: string;
       currency_code: string;
       tax_code: string | null;
+      effective_from: string;
+      effective_to: string | null;
     }>(
       `
         select
@@ -1413,7 +1616,9 @@ export class TenantAdminTasksRepository {
           rci.unit_type,
           rci.rate_amount,
           rc.currency_code,
-          rci.tax_code
+          rci.tax_code,
+          rc.effective_from::text,
+          rc.effective_to::text
         from public.rate_card_items rci
         join public.rate_cards rc
           on rc.id = rci.rate_card_id
@@ -1421,7 +1626,6 @@ export class TenantAdminTasksRepository {
         where rci.tenant_id = $1
           and rci.status = 'active'
           and rc.status = 'active'
-          and current_date between rc.effective_from and coalesce(rc.effective_to, 'infinity'::date)
         order by rc.client_id nulls first, rci.task_type asc, rci.rate_amount asc
       `,
       [tenantId],
@@ -1435,6 +1639,8 @@ export class TenantAdminTasksRepository {
       rateAmount: Number(row.rate_amount),
       currencyCode: row.currency_code,
       taxCode: row.tax_code,
+      effectiveFrom: row.effective_from,
+      effectiveTo: row.effective_to,
       label: `${row.task_type} - ${formatCurrency(Number(row.rate_amount), row.currency_code)} ${unitLabel(row.unit_type)}`,
     }));
   }
@@ -1623,15 +1829,24 @@ export class TenantAdminTasksRepository {
             and rci.service_id = $3
             and rci.status = 'active'
             and rc.status = 'active'
-            and current_date between rc.effective_from and coalesce(rc.effective_to, 'infinity'::date)
+            and coalesce($5::date, current_date) between rc.effective_from and coalesce(rc.effective_to, 'infinity'::date)
             and (rc.client_id = $4 or rc.client_id is null)
           order by rc.client_id nulls first
           limit 1
         `,
-        [context.tenantId, input.billing.rateCardItemId, input.serviceId, input.clientId],
+        [
+          context.tenantId,
+          input.billing.rateCardItemId,
+          input.serviceId,
+          input.clientId,
+          input.plannedDueAt?.slice(0, 10) ?? null,
+        ],
       );
       if (!result.rows[0]) {
-        throw new BadRequestException({ code: "RATE_NOT_AVAILABLE", message: "Select an active rate for this client and service." });
+        throw new BadRequestException({
+          code: "RATE_NOT_AVAILABLE",
+          message: "Select a rate that is active for this task's due date.",
+        });
       }
       return {
         rateCardItemId: result.rows[0].id,
@@ -1973,10 +2188,11 @@ export class TenantAdminTasksRepository {
           and client_id = $2
           and currency_code = $3
           and status = 'active'
+          and $4::date between effective_from and coalesce(effective_to, 'infinity'::date)
         order by effective_from desc
         limit 1
       `,
-      [context.tenantId, clientId, currencyCode],
+      [context.tenantId, clientId, currencyCode, effectiveFrom],
     );
     if (existing.rows[0]) return existing.rows[0].id;
 

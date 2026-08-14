@@ -64,9 +64,10 @@ describe("TenantAdminServicesRepository", () => {
     const sql = queries.join("\n");
     expect(sql).toContain("insert into public.services");
     expect(sql).toContain("insert into public.rate_card_items");
+    expect(sql).toContain("$3::date between effective_from and coalesce(effective_to, 'infinity'::date)");
     expect(sql).toContain("SERVICE_CREATED");
     expect(params).toContainEqual(["tenant-1", "gst-filing"]);
     expect(params).toContainEqual(["tenant-1", "gst-filing", "GST Filing", "GST Return", "fixed"]);
+    expect(params).toContainEqual(["tenant-1", "INR", "2026-08-07"]);
   });
 });
-

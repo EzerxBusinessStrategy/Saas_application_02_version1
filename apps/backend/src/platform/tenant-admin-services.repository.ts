@@ -133,10 +133,11 @@ export class TenantAdminServicesRepository {
           and client_id is null
           and currency_code = $2
           and status = 'active'
+          and $3::date between effective_from and coalesce(effective_to, 'infinity'::date)
         order by effective_from desc
         limit 1
       `,
-      [context.tenantId, currencyCode],
+      [context.tenantId, currencyCode, effectiveFrom],
     );
     if (existing.rows[0]) return existing.rows[0].id;
 

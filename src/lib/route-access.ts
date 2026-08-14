@@ -8,7 +8,12 @@ export const sectionAccess: Record<
     workspaces: ["admin", "employee"],
     permissions: ["task.read", "task.read.assigned"],
   },
+  "task-calendar": {
+    workspaces: ["admin"],
+    permissions: ["task.read"],
+  },
   employees: { workspaces: ["admin"] },
+  departments: { workspaces: ["admin"], permissions: ["employee.read"] },
   "employee-performance": {
     workspaces: ["admin"],
     permissions: ["employee.read"],

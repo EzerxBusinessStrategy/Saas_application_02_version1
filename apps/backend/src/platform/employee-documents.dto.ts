@@ -8,6 +8,9 @@ export const createEmployeeDocumentSchema = z.object({
   fileType: z.string().trim().min(1).max(24),
   sizeBytes: z.coerce.number().int().nonnegative().default(0),
   category: z.string().trim().min(1).max(80).default("supporting"),
+  storageKey: z.string().trim().min(1).max(1000),
+  contentType: z.string().trim().min(1).max(160),
+  idempotencyKey: z.string().uuid().optional(),
   recipientTenantAdminIds: z.array(z.string().uuid()).default([]),
   recipientManagerIds: z.array(z.string().uuid()).default([]),
 }).superRefine((value, ctx) => {
@@ -20,6 +23,15 @@ export const createEmployeeDocumentSchema = z.object({
   }
 });
 export type CreateEmployeeDocumentRequest = z.infer<typeof createEmployeeDocumentSchema>;
+
+export const createEmployeeDocumentUploadUrlSchema = z.object({
+  clientId: z.string().uuid(),
+  fileName: z.string().trim().min(1).max(260),
+  contentType: z.string().trim().min(1).max(160),
+  sizeBytes: z.coerce.number().int().positive().max(20 * 1024 * 1024),
+  idempotencyKey: z.string().uuid().optional(),
+});
+export type CreateEmployeeDocumentUploadUrlRequest = z.infer<typeof createEmployeeDocumentUploadUrlSchema>;
 
 export class EmployeeDocumentRecipientOptionDto {
   @ApiProperty({ type: String }) id!: string;

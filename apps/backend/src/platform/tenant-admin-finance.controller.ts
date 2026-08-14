@@ -9,7 +9,9 @@ import { RequestContext } from "../auth/request-context";
 import { ZodValidationPipe } from "../common/validation/zod-validation.pipe";
 import {
   createTenantDocumentSchema,
+  createTenantDocumentUploadUrlSchema,
   createTenantInvoiceSchema,
+  CreateTenantDocumentUploadUrlRequest,
   createTaskInvoiceSchema,
   CreateTenantDocumentRequest,
   CreateTenantInvoiceRequest,
@@ -21,6 +23,8 @@ import {
   TenantDocumentsResponseDto,
   TenantInvoiceDto,
   TenantInvoicesResponseDto,
+  DocumentDownloadUrlDto,
+  DocumentUploadUrlDto,
 } from "./tenant-admin-finance.dto";
 import { TenantAdminFinanceService } from "./tenant-admin-finance.service";
 
@@ -51,6 +55,28 @@ export class TenantAdminFinanceController {
     @Body(new ZodValidationPipe(createTenantDocumentSchema)) body: CreateTenantDocumentRequest,
   ): Promise<TenantDocumentDto> {
     return this.service.createDocument(context, body);
+  }
+
+  @Post("documents/upload-url")
+  @RequirePermissions("document.publish")
+  @ApiOperation({ summary: "Authorize a private document upload for one tenant client." })
+  @ApiOkResponse({ type: DocumentUploadUrlDto })
+  createDocumentUploadUrl(
+    @CurrentRequestContext() context: RequestContext,
+    @Body(new ZodValidationPipe(createTenantDocumentUploadUrlSchema)) body: CreateTenantDocumentUploadUrlRequest,
+  ): Promise<DocumentUploadUrlDto> {
+    return this.service.createDocumentUploadUrl(context, body);
+  }
+
+  @Get("documents/:documentId/download")
+  @RequirePermissions("document.read")
+  @ApiOperation({ summary: "Authorize a private document download." })
+  @ApiOkResponse({ type: DocumentDownloadUrlDto })
+  createDocumentDownloadUrl(
+    @CurrentRequestContext() context: RequestContext,
+    @Param("documentId") documentId: string,
+  ): Promise<DocumentDownloadUrlDto> {
+    return this.service.createDocumentDownloadUrl(context, documentId);
   }
 
   @Get("invoices")

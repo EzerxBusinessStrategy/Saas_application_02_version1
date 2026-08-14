@@ -78,6 +78,7 @@ import { TenantAnalyticsController } from "./tenant-analytics.controller";
 import { TenantAnalyticsRepository } from "./tenant-analytics.repository";
 import { TenantAnalyticsService } from "./tenant-analytics.service";
 import { TenantSuspensionMaintenanceService } from "./tenant-suspension-maintenance.service";
+import { TenantDocumentStorageService } from "./tenant-document-storage.service";
 import { TaskNotificationOutboxWorker } from "./task-notification-outbox.worker";
 
 @Module({
@@ -151,6 +152,7 @@ import { TaskNotificationOutboxWorker } from "./task-notification-outbox.worker"
     TenantAdminEmployeePerformanceService,
     TenantAdminFinanceRepository,
     TenantAdminFinanceService,
+    TenantDocumentStorageService,
     TenantAdminNotificationsRepository,
     TenantAdminNotificationsService,
     TenantAdminNotificationsGateway,

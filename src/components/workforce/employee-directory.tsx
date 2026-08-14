@@ -565,9 +565,13 @@ export function EmployeeDirectory() {
       <CreateEmployeeDialog
         open={createOpen}
         onOpenChange={setCreateOpen}
+        departments={employeesQuery.data?.departments ?? []}
         onCreated={async () => {
           setCreateOpen(false);
-          await queryClient.invalidateQueries({ queryKey: ["tenant-admin-employees"] });
+          await Promise.all([
+            queryClient.invalidateQueries({ queryKey: ["tenant-admin-employees"] }),
+            queryClient.invalidateQueries({ queryKey: ["tenant-admin-departments"] }),
+          ]);
         }}
       />
       <CapacityDialog
@@ -584,12 +588,16 @@ export function EmployeeDirectory() {
       <AssignmentDialog
         employee={assignmentEmployee}
         managers={options.managers}
+        departments={employeesQuery.data?.departments ?? []}
         workGroups={workGroupsQuery.data ?? []}
         onOpenChange={(open) => !open && setAssignmentEmployee(null)}
         onSaved={async (input) => {
           if (!assignmentEmployee) return;
           await updateTenantAdminEmployeeAssignment(assignmentEmployee.id, input);
-          await queryClient.invalidateQueries({ queryKey: ["tenant-admin-employees"] });
+          await Promise.all([
+            queryClient.invalidateQueries({ queryKey: ["tenant-admin-employees"] }),
+            queryClient.invalidateQueries({ queryKey: ["tenant-admin-departments"] }),
+          ]);
           setAssignmentEmployee(null);
           toast.success("Employee details updated.");
         }}
@@ -602,10 +610,12 @@ function CreateEmployeeDialog({
   open,
   onOpenChange,
   onCreated,
+  departments,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onCreated: () => Promise<void>;
+  departments: readonly { id: string; name: string }[];
 }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -615,6 +625,8 @@ function CreateEmployeeDialog({
   const [experienceLevel, setExperienceLevel] = useState("");
   const [isManager, setIsManager] = useState(false);
   const [weeklyCapacityHours, setWeeklyCapacityHours] = useState("40");
+  const [departmentChoice, setDepartmentChoice] = useState("");
+  const [newDepartmentName, setNewDepartmentName] = useState("");
   const [saving, setSaving] = useState(false);
   const normalizedEmail = email.trim().toLowerCase();
   const canCheckEmail = isValidEmail(normalizedEmail);
@@ -632,6 +644,7 @@ function CreateEmployeeDialog({
     !email.trim() ||
     password.length < 8 ||
     !Number(weeklyCapacityHours) ||
+    (departmentChoice === "new" && newDepartmentName.trim().length < 2) ||
     emailUnavailable ||
     emailCheckPending ||
     emailCheckFailed;
@@ -640,6 +653,7 @@ function CreateEmployeeDialog({
     if (!email.trim()) { toast.error("Enter Email."); return; }
     if (password.length < 8) { toast.error("Password must contain at least 8 characters."); return; }
     if (!Number(weeklyCapacityHours)) { toast.error("Enter Weekly capacity hours."); return; }
+    if (departmentChoice === "new" && newDepartmentName.trim().length < 2) { toast.error("Enter a department name with at least 2 characters."); return; }
     if (emailUnavailable) { toast.error("Enter a unique Email."); return; }
     if (emailCheckPending) { toast.error("Email availability is still being checked."); return; }
     if (emailCheckFailed) { toast.error("Email availability could not be checked. Try again."); return; }
@@ -655,6 +669,8 @@ function CreateEmployeeDialog({
         skills: skills.split(",").map((value) => value.trim()).filter(Boolean),
         experienceLevel: experienceLevel ? (experienceLevel as "junior" | "mid" | "senior" | "lead") : undefined,
         weeklyCapacityHours: Number(weeklyCapacityHours) || 40,
+        departmentId: departmentChoice && departmentChoice !== "new" ? departmentChoice : undefined,
+        newDepartmentName: departmentChoice === "new" ? newDepartmentName : undefined,
       });
       toast.success("Employee created.");
       setName("");
@@ -665,6 +681,8 @@ function CreateEmployeeDialog({
       setExperienceLevel("");
       setIsManager(false);
       setWeeklyCapacityHours("40");
+      setDepartmentChoice("");
+      setNewDepartmentName("");
       await onCreated();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Employee could not be created.");
@@ -690,6 +708,28 @@ function CreateEmployeeDialog({
           {emailCheckFailed ? <p className="-mt-3 text-sm text-danger">Email availability could not be checked.</p> : null}
           <label className="text-sm font-medium">Password<Input required data-field-label="Password" name="password" className="mt-1" type="password" minLength={8} value={password} onChange={(event) => setPassword(event.target.value)} /></label>
           <label className="text-sm font-medium">Employee code<Input name="employeeCode" className="mt-1" placeholder="Auto-generated if empty" value={employeeCode} onChange={(event) => setEmployeeCode(event.target.value)} /></label>
+          <label className="text-sm font-medium">
+            Department (optional)
+            <Select
+              name="departmentId"
+              className="mt-1"
+              value={departmentChoice}
+              onChange={(event) => {
+                setDepartmentChoice(event.target.value);
+                if (event.target.value !== "new") setNewDepartmentName("");
+              }}
+            >
+              <option value="">Unassigned</option>
+              {departments.map((department) => <option key={department.id} value={department.id}>{department.name}</option>)}
+              <option value="new">Create a new department</option>
+            </Select>
+          </label>
+          {departmentChoice === "new" ? (
+            <label className="text-sm font-medium">
+              New department name
+              <Input required data-field-label="New department name" name="newDepartmentName" className="mt-1" value={newDepartmentName} onChange={(event) => setNewDepartmentName(event.target.value)} placeholder="For example, Taxation" />
+            </label>
+          ) : null}
           <label className="text-sm font-medium">Skills (optional)<Input name="skills" className="mt-1" placeholder="GST, Payroll, Compliance" value={skills} onChange={(event) => setSkills(event.target.value)} /></label>
           <label className="text-sm font-medium">Level (optional)<Select name="experienceLevel" className="mt-1" value={experienceLevel} onChange={(event) => setExperienceLevel(event.target.value)}><option value="">Not set</option><option value="junior">Junior</option><option value="mid">Mid</option><option value="senior">Senior</option><option value="lead">Lead</option></Select></label>
           <label className="text-sm font-medium">Weekly capacity hours<Input required data-field-label="Weekly capacity hours" name="weeklyCapacityHours" className="mt-1" type="number" min="1" max="168" value={weeklyCapacityHours} onChange={(event) => setWeeklyCapacityHours(event.target.value)} /></label>
@@ -745,22 +785,26 @@ function CapacityDialog({
 function AssignmentDialog({
   employee,
   managers,
+  departments,
   workGroups,
   onOpenChange,
   onSaved,
 }: {
   employee: Employee | null;
   managers: readonly Employee[];
+  departments: readonly { id: string; name: string }[];
   workGroups: readonly { id: string; name: string; managerEmployeeId: string; status: "active" | "inactive" | "archived" }[];
   onOpenChange: (open: boolean) => void;
   onSaved: (input: {
     skills: string[];
+    departmentId: string | null;
     experienceLevel: "junior" | "mid" | "senior" | "lead" | null;
     managerId: string | null;
     workGroupIds: string[];
   }) => Promise<void>;
 }) {
   const [skills, setSkills] = useState("");
+  const [departmentId, setDepartmentId] = useState("");
   const [experienceLevel, setExperienceLevel] = useState("");
   const [managerId, setManagerId] = useState("");
   const [workGroupIds, setWorkGroupIds] = useState<string[]>([]);
@@ -769,6 +813,7 @@ function AssignmentDialog({
 
   useEffect(() => {
     setSkills(employee?.skills.join(", ") ?? "");
+    setDepartmentId(employee?.departmentId ?? "");
     setExperienceLevel(employee?.experienceLevel ?? "");
     setManagerId(employee?.manager?.id ?? "");
     setWorkGroupIds(employee?.workGroups.map((workGroup) => workGroup.id) ?? []);
@@ -792,6 +837,7 @@ function AssignmentDialog({
     try {
       await onSaved({
         skills: skills.split(",").map((value) => value.trim()).filter(Boolean),
+        departmentId: departmentId || null,
         experienceLevel: experienceLevel ? (experienceLevel as "junior" | "mid" | "senior" | "lead") : null,
         managerId: managerId || null,
         workGroupIds,
@@ -805,7 +851,7 @@ function AssignmentDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent title="Edit employee details" description="Update work groups, skills, level, and reporting manager." className="max-w-md">
+      <DialogContent title="Edit employee details" description="Update department, work groups, skills, level, and reporting manager." className="max-w-md">
         <form
           data-draft-key={`tenant-employee-assignment-${employee?.id ?? "new"}`}
           className="grid gap-4 pr-8"
@@ -828,6 +874,7 @@ function AssignmentDialog({
               }) : <p className="px-2 py-1 text-sm text-muted-foreground">No active work groups are available.</p>}
             </div>
           </fieldset>
+          <label className="text-sm font-medium">Department<Select name="departmentId" className="mt-1" value={departmentId} onChange={(event) => setDepartmentId(event.target.value)}><option value="">Unassigned</option>{departments.map((department) => <option key={department.id} value={department.id}>{department.name}</option>)}</Select></label>
           <label className="text-sm font-medium">Skills<Input name="skills" className="mt-1" value={skills} placeholder="GST, Payroll, Compliance" onChange={(event) => setSkills(event.target.value)} /></label>
           <label className="text-sm font-medium">Level<Select name="experienceLevel" className="mt-1" value={experienceLevel} onChange={(event) => setExperienceLevel(event.target.value)}><option value="">Not set</option><option value="junior">Junior</option><option value="mid">Mid</option><option value="senior">Senior</option><option value="lead">Lead</option></Select></label>
           <label className="text-sm font-medium">Manager<Select name="managerId" className="mt-1" value={managerId} onChange={(event) => setManagerId(event.target.value)}><option value="">Unassigned</option>{managers.filter((manager) => manager.id !== employee?.id).map((manager) => <option key={manager.id} value={manager.id}>{manager.name}</option>)}</Select></label>

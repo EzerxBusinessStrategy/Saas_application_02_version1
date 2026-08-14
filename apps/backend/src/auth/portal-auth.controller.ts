@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Post, Req, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, Inject, Post, Req, UseGuards } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
 import { FastifyRequest } from "fastify";
 import { ZodValidationPipe } from "../common/validation/zod-validation.pipe";
@@ -12,7 +12,7 @@ import { AuthenticatedRequest } from "./request-context";
 @ApiTags("portal-auth")
 @Controller("auth")
 export class PortalAuthController {
-  constructor(private readonly auth: PortalAuthService) {}
+  constructor(@Inject(PortalAuthService) private readonly auth: PortalAuthService) {}
 
   @Post("super-admin/login")
   loginSuperAdmin(@Req() request: FastifyRequest, @Body(new ZodValidationPipe(portalLoginSchema)) body: PortalLoginRequest) {
@@ -71,13 +71,25 @@ export class PortalAuthController {
   logoutClient(@Req() request: FastifyRequest) { return this.logout("CLIENT", request); }
 
   private login(portalType: PortalType, request: FastifyRequest, body: PortalLoginRequest) {
-    return this.auth.login(portalType, body, { ipAddress: request.ip, userAgent: request.headers["user-agent"] });
+    return this.auth.login(portalType, body, requestMetadata(request));
   }
 
   private async logout(portalType: PortalType, request: FastifyRequest): Promise<void> {
     const token = portalCookie(request.headers.cookie, portalType);
-    if (token) await this.auth.logout(portalType, token);
+    if (token) await this.auth.logout(portalType, token, requestMetadata(request));
   }
+}
+
+function requestMetadata(request: FastifyRequest) {
+  return {
+    ipAddress: request.ip,
+    userAgent: headerValue(request.headers["user-agent"]),
+    requestId: request.id,
+  };
+}
+
+function headerValue(value: string | string[] | undefined): string | undefined {
+  return Array.isArray(value) ? value[0] : value;
 }
 
 function sessionResponse(portalType: PortalType, request: FastifyRequest & AuthenticatedRequest) {

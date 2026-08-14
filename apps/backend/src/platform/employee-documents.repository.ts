@@ -5,6 +5,7 @@ import { DATABASE_POOL } from "../database/database.tokens";
 import { setTrustedDatabaseContext, withDatabaseTransaction } from "../database/transaction-context";
 import { EmployeeRequestContext } from "./employee-context";
 import { CreateEmployeeDocumentRequest } from "./employee-documents.dto";
+import type { StoredDocumentObject } from "./tenant-document-storage.service";
 
 type EmployeeRow = { id: string; name: string };
 export type EmployeeDocumentOptionRow = { id: string; name: string; email: string | null };
@@ -46,30 +47,58 @@ export class EmployeeDocumentsRepository {
     return this.withEmployee(context, (client) => this.getDocuments(client, context.tenantId, context.membershipId));
   }
 
-  async create(context: EmployeeRequestContext, input: CreateEmployeeDocumentRequest): Promise<EmployeeDocumentRow> {
+  async getDocumentStorageObject(context: EmployeeRequestContext, documentId: string): Promise<StoredDocumentObject> {
+    return this.withEmployee(context, async (client) => {
+      const result = await client.query<{ storage_bucket: string | null; storage_key: string | null }>(
+        `
+          select d.storage_bucket, d.storage_key
+          from public.tenant_documents d
+          where d.tenant_id = $1 and d.id = $2 and d.status = 'active'
+            and (d.created_by = $3 or exists (
+              select 1 from public.tenant_document_recipients recipient
+              where recipient.tenant_id = d.tenant_id and recipient.document_id = d.id and recipient.recipient_membership_id = $3
+            ))
+        `,
+        [context.tenantId, documentId, context.membershipId],
+      );
+      const object = result.rows[0];
+      if (!object?.storage_bucket || !object.storage_key) throw new ConflictException({ code: "DOCUMENT_FILE_NOT_AVAILABLE", message: "The file for this document is not available." });
+      return { storageBucket: object.storage_bucket, storageKey: object.storage_key };
+    });
+  }
+
+  async create(context: EmployeeRequestContext, input: CreateEmployeeDocumentRequest, storageBucket: string): Promise<EmployeeDocumentRow> {
     return this.withEmployee(context, async (client, employee) => {
       await this.assertAssignedClient(client, context.tenantId, employee.id, input.clientId);
       const recipients = await this.assertRecipients(client, context.tenantId, input.recipientTenantAdminIds, input.recipientManagerIds);
       const result = await client.query<{ id: string }>(
         `
           insert into public.tenant_documents (
-            tenant_id, client_id, title, file_name, file_type, size_bytes, category, metadata, created_by
+            tenant_id, client_id, title, file_name, file_type, size_bytes, category,
+            storage_bucket, storage_key, content_type, idempotency_key, metadata, created_by
           )
           values (
-            $1, $2, $3, $4, $5, $6, $7,
+            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
             jsonb_build_object(
               'clientDecisionStatus', 'pending',
               'clientVisible', false,
               'employeeUpload', true
             ),
-            $8
+            $12
           )
+          on conflict (tenant_id, created_by, idempotency_key) where idempotency_key is not null do nothing
           returning id::text
         `,
-        [context.tenantId, input.clientId, input.title, input.fileName, input.fileType, input.sizeBytes, input.category, context.membershipId],
+        [context.tenantId, input.clientId, input.title, input.fileName, input.fileType, input.sizeBytes, input.category, storageBucket, input.storageKey, input.contentType, input.idempotencyKey ?? null, context.membershipId],
       );
-      const documentId = result.rows[0]?.id;
+      const idempotencyKey = input.idempotencyKey;
+      let documentId: string | undefined = result.rows[0]?.id;
+      const created = Boolean(documentId);
+      if (!documentId && idempotencyKey) {
+        documentId = await this.findDocumentIdByIdempotencyKey(client, context.tenantId, context.membershipId, idempotencyKey);
+      }
       if (!documentId) throw new ConflictException({ code: "DOCUMENT_CREATE_FAILED", message: "Document could not be created." });
+      if (!created) return this.getDocumentOrThrow(client, context.tenantId, context.membershipId, documentId);
 
       if (recipients.length) {
         await client.query(
@@ -221,6 +250,14 @@ export class EmployeeDocumentsRepository {
     const document = (await this.getDocuments(client, tenantId, membershipId)).find((row) => row.id === documentId);
     if (!document) throw new ConflictException({ code: "DOCUMENT_CREATE_FAILED", message: "Document could not be loaded." });
     return document;
+  }
+
+  private async findDocumentIdByIdempotencyKey(client: PoolClient, tenantId: string, membershipId: string, idempotencyKey: string): Promise<string | undefined> {
+    const result = await client.query<{ id: string }>(
+      `select id::text from public.tenant_documents where tenant_id = $1 and created_by = $2 and idempotency_key = $3`,
+      [tenantId, membershipId, idempotencyKey],
+    );
+    return result.rows[0]?.id;
   }
 
   private async notifyRecipients(

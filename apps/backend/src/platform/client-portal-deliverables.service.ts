@@ -7,12 +7,14 @@ import {
   DecideClientPortalDeliverableRequest,
 } from "./client-portal-deliverables.dto";
 import { ClientPortalDeliverablesRepository } from "./client-portal-deliverables.repository";
+import { TenantDocumentStorageService } from "./tenant-document-storage.service";
 
 @Injectable()
 export class ClientPortalDeliverablesService {
   constructor(
     @Inject(ClientPortalDeliverablesRepository)
     private readonly repository: ClientPortalDeliverablesRepository,
+    @Inject(TenantDocumentStorageService) private readonly storage: TenantDocumentStorageService,
   ) {}
 
   async list(context: RequestContext): Promise<ClientPortalDeliverablesResponseDto> {
@@ -27,6 +29,11 @@ export class ClientPortalDeliverablesService {
   ): Promise<ClientPortalDeliverableDto> {
     const scoped = requireClientPortalContext(context);
     return mapDeliverable(await this.repository.decide(scoped, documentId, input));
+  }
+
+  async createDownloadUrl(context: RequestContext, documentId: string): Promise<{ url: string }> {
+    const scoped = requireClientPortalContext(context);
+    return { url: await this.storage.createSignedDownloadUrl(await this.repository.getDocumentStorageObject(scoped, documentId)) };
   }
 }
 

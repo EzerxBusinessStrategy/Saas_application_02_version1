@@ -86,11 +86,11 @@ test("stores filter changes in the URL", async () => {
   });
 });
 
-test("replaces the assignment department selector with work group membership", async () => {
+test("allows department assignment alongside work group membership", async () => {
   renderWithQuery(<EmployeeDirectory />);
   fireEvent.click(await screen.findByRole("button", { name: "Edit details" }));
 
   expect(await screen.findByRole("group", { name: "Work groups" })).toBeInTheDocument();
   await waitFor(() => expect(screen.getByText("GST filing")).toBeInTheDocument());
-  expect(screen.queryByLabelText("Department")).not.toBeInTheDocument();
+  expect(screen.getByLabelText("Department")).toBeInTheDocument();
 });

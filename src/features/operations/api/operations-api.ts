@@ -7,7 +7,9 @@ import {
   sharedInvoiceSchema,
   taskSchema,
   type DocumentUploadInput,
+  type DocumentUploadWithFileInput,
   type InvoiceUploadInput,
+  type InvoiceUploadWithFileInput,
   type OperationalTask,
   type WorkLog,
   type SharedDocument,
@@ -20,7 +22,7 @@ import { listClientPortalDeliverables } from "@/features/client-portal/api/clien
 async function parseJsonResponse(response: Response) {
   const body = await response.json().catch(() => null);
   if (!response.ok) {
-    throw new Error(body?.message ?? "Request failed.");
+    throw new Error(body?.message ?? body?.error?.message ?? "Request failed.");
   }
   return body;
 }
@@ -60,6 +62,8 @@ const tenantAdminRateItemSchema = z.object({
   rateAmount: z.number(),
   currencyCode: z.string(),
   taxCode: z.string().nullable(),
+  effectiveFrom: z.string(),
+  effectiveTo: z.string().nullable(),
 });
 const tenantAdminServiceRateSchema = z.object({
   id: z.string(),
@@ -140,6 +144,14 @@ const tenantAdminWorkGroupsResponseSchema = z.object({
 const tenantAdminEmployeesResponseSchema = z.object({
   employees: z.array(tenantAdminEmployeeOptionSchema),
   departments: z.array(taskOptionSchema).default([]),
+});
+const tenantAdminDepartmentSchema = taskOptionSchema.extend({
+  status: z.enum(["active", "inactive", "archived"]),
+  employeeCount: z.number().int().nonnegative(),
+});
+const tenantAdminDepartmentsResponseSchema = z.object({
+  departments: z.array(tenantAdminDepartmentSchema),
+  employees: z.array(tenantAdminEmployeeOptionSchema),
 });
 const tenantProfileSchema = z.object({
   id: z.string(),
@@ -298,6 +310,7 @@ const employeeWorkLogsResponseSchema = z.object({
 });
 export type TenantAdminTaskOptions = z.infer<typeof tenantAdminTaskOptionsSchema>;
 export type TenantAdminEmployeeOption = z.infer<typeof tenantAdminEmployeeOptionSchema>;
+export type TenantAdminDepartment = z.infer<typeof tenantAdminDepartmentSchema>;
 export type TenantProfile = z.infer<typeof tenantProfileSchema>;
 export type UpdateTenantAdminEmployeeAssignmentInput = {
   departmentId?: string | null;
@@ -328,7 +341,10 @@ export type CreateTenantAdminEmployeeInput = {
   skills?: string[];
   experienceLevel?: "junior" | "mid" | "senior" | "lead";
   weeklyCapacityHours?: number;
+  departmentId?: string;
+  newDepartmentName?: string;
 };
+export type CreateTenantAdminDepartmentInput = { name: string };
 export type UpsertTenantAdminWorkGroupInput = {
   name: string;
   clientId?: string;
@@ -505,13 +521,19 @@ export async function listSharedInvoices(workspace: Workspace) {
 
 export async function createSharedDocument(
   workspace: "admin" | "employee",
-  input: DocumentUploadInput,
+  input: DocumentUploadWithFileInput,
 ): Promise<SharedDocument> {
   const value = documentUploadInputSchema.parse(input);
+  const idempotencyKey = crypto.randomUUID();
+  const uploaded = await uploadPrivateDocumentFile(
+    workspace === "admin" ? "/api/tenant-admin/finance/documents" : "/api/employee/documents",
+    input.file,
+    { clientId: value.clientId, fileName: value.fileName, sizeBytes: value.sizeBytes, idempotencyKey },
+  );
   if (workspace === "admin") {
     const response = await fetch("/api/tenant-admin/finance/documents", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", "idempotency-key": idempotencyKey },
       body: JSON.stringify({
         clientId: value.clientId,
         title: value.title,
@@ -519,6 +541,9 @@ export async function createSharedDocument(
         fileType: value.fileType,
         sizeBytes: value.sizeBytes,
         category: value.category,
+        storageKey: uploaded.storageKey,
+        contentType: uploaded.contentType,
+        idempotencyKey,
         recipientEmployeeIds: value.recipientEmployeeIds ?? [],
         shareReason: value.shareReason ?? "",
       }),
@@ -543,7 +568,7 @@ export async function createSharedDocument(
   if (workspace === "employee") {
     const response = await fetch("/api/employee/documents", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", "idempotency-key": idempotencyKey },
       body: JSON.stringify({
         clientId: value.clientId,
         title: value.title,
@@ -551,6 +576,9 @@ export async function createSharedDocument(
         fileType: value.fileType,
         sizeBytes: value.sizeBytes,
         category: value.category,
+        storageKey: uploaded.storageKey,
+        contentType: uploaded.contentType,
+        idempotencyKey,
         recipientTenantAdminIds: value.recipientTenantAdminIds ?? [],
         recipientManagerIds: value.recipientManagerIds ?? [],
       }),
@@ -563,12 +591,18 @@ export async function createSharedDocument(
 
 export async function createSharedInvoice(
   workspace: "admin",
-  input: InvoiceUploadInput,
+  input: InvoiceUploadWithFileInput,
 ): Promise<SharedInvoice> {
   const value = invoiceUploadInputSchema.parse(input);
+  const idempotencyKey = crypto.randomUUID();
+  const uploaded = await uploadPrivateDocumentFile(
+    "/api/tenant-admin/finance/documents",
+    input.file,
+    { clientId: value.clientId, fileName: value.fileName, sizeBytes: value.sizeBytes, idempotencyKey },
+  );
   const response = await fetch("/api/tenant-admin/finance/invoices", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", "idempotency-key": idempotencyKey },
       body: JSON.stringify({
         clientId: value.clientId,
         invoiceNumber: value.invoiceNumber,
@@ -577,6 +611,12 @@ export async function createSharedInvoice(
         amount: value.amount,
         currencyCode: "INR",
         visibility: value.visibility ?? "client",
+        fileName: value.fileName,
+        fileType: value.fileType,
+        sizeBytes: value.sizeBytes,
+        storageKey: uploaded.storageKey,
+        contentType: uploaded.contentType,
+        idempotencyKey,
       }),
     });
   const invoice = tenantFinanceInvoiceSchema.parse(await parseJsonResponse(response));
@@ -595,6 +635,44 @@ export async function createSharedInvoice(
       managerId: "",
       activity: [{ id: `${invoice.id}-created`, action: "Created", actor: invoice.uploadedBy, at: invoice.updatedOn }],
   };
+}
+
+export async function getPrivateDocumentDownloadUrl(workspace: "admin" | "employee", documentId: string): Promise<string> {
+  const endpoint = workspace === "admin"
+    ? `/api/tenant-admin/finance/documents/${encodeURIComponent(documentId)}/download`
+    : `/api/employee/documents/${encodeURIComponent(documentId)}/download`;
+  const response = await fetch(endpoint, { cache: "no-store" });
+  return z.object({ url: z.string().url() }).parse(await parseJsonResponse(response)).url;
+}
+
+async function uploadPrivateDocumentFile(
+  endpoint: string,
+  file: File,
+  metadata: { clientId: string; fileName: string; sizeBytes: number; idempotencyKey: string },
+): Promise<{ storageKey: string; contentType: string }> {
+  const contentType = file.type || inferContentType(file.name);
+  const response = await fetch(`${endpoint}/upload-url`, {
+    method: "POST",
+    headers: { "content-type": "application/json", "idempotency-key": metadata.idempotencyKey },
+    body: JSON.stringify({ ...metadata, contentType }),
+  });
+  const upload = z.object({ storageKey: z.string(), signedUrl: z.string().url() }).parse(await parseJsonResponse(response));
+  const uploadBody = new FormData();
+  uploadBody.append("cacheControl", "3600");
+  uploadBody.append("", file);
+  const storageResponse = await fetch(upload.signedUrl, {
+    method: "PUT",
+    body: uploadBody,
+  });
+  if (!storageResponse.ok) {
+    throw new Error("The file could not be uploaded. Please try again.");
+  }
+  return { storageKey: upload.storageKey, contentType };
+}
+
+function inferContentType(fileName: string): string {
+  const extension = fileName.toLowerCase().split(".").pop();
+  return ({ pdf: "application/pdf", doc: "application/msword", docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", xls: "application/vnd.ms-excel", xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", csv: "text/csv", txt: "text/plain", png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", webp: "image/webp", zip: "application/zip" } as Record<string, string>)[extension ?? ""] ?? "application/octet-stream";
 }
 
 export async function listTenantAdminTaskOptions(): Promise<TenantAdminTaskOptions> {
@@ -637,6 +715,22 @@ export async function createTenantAdminEmployee(input: CreateTenantAdminEmployee
     body: JSON.stringify(input),
   });
   return tenantAdminEmployeeOptionSchema.parse(await parseJsonResponse(response));
+}
+
+export async function listTenantAdminDepartments() {
+  const response = await fetch("/api/tenant-admin/tasks/departments", { cache: "no-store" });
+  return tenantAdminDepartmentsResponseSchema.parse(await parseJsonResponse(response));
+}
+
+export async function createTenantAdminDepartment(
+  input: CreateTenantAdminDepartmentInput,
+): Promise<TenantAdminDepartment> {
+  const response = await fetch("/api/tenant-admin/tasks/departments", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  return tenantAdminDepartmentSchema.parse(await parseJsonResponse(response));
 }
 
 export async function getTenantAdminEmployeeEmailAvailability(email: string) {

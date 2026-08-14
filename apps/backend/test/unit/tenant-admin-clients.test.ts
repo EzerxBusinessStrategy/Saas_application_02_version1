@@ -2,6 +2,33 @@ import { describe, expect, it, vi } from "vitest";
 import { TenantAdminClientsRepository } from "../../src/platform/tenant-admin-clients.repository";
 
 describe("TenantAdminClientsRepository", () => {
+  it("loads client work groups from the live tenant and client relationship", async () => {
+    const queries: string[] = [];
+    type QueryClient = {
+      query(sqlText: string, values: readonly unknown[]): Promise<{ rows: Array<Record<string, unknown>> }>;
+    };
+    const client: QueryClient = {
+      query: vi.fn(async (sqlText: string, values: readonly unknown[]) => {
+        queries.push(sqlText);
+        expect(values).toEqual(["tenant-1", "client-1"]);
+        return { rows: [{ id: "group-1", name: "Tax Team" }] };
+      }),
+    };
+    const repository = new TenantAdminClientsRepository(null);
+    const getWorkGroups = (
+      repository as unknown as {
+        getWorkGroups(client: QueryClient, tenantId: string, clientId: string): Promise<unknown[]>;
+      }
+    ).getWorkGroups.bind(repository);
+
+    await expect(getWorkGroups(client, "tenant-1", "client-1")).resolves.toEqual([
+      { id: "group-1", name: "Tax Team" },
+    ]);
+    const sql = queries.join("\n");
+    expect(sql).toContain("where wg.tenant_id = $1 and wg.client_id = $2");
+    expect(sql).toContain("e.tenant_id = wg.tenant_id");
+  });
+
   it("creates a tenant-scoped client with a lowercase generated code when the client ID is empty", async () => {
     const queries: string[] = [];
     const params: unknown[][] = [];

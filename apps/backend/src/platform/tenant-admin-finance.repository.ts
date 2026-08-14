@@ -5,6 +5,7 @@ import { DATABASE_POOL } from "../database/database.tokens";
 import { withDatabaseTransaction } from "../database/transaction-context";
 import { TenantAdminRequestContext } from "./tenant-admin-context";
 import { CreateTaskInvoiceRequest, CreateTenantDocumentRequest, CreateTenantInvoiceRequest } from "./tenant-admin-finance.dto";
+import type { StoredDocumentObject } from "./tenant-document-storage.service";
 
 export type TenantDocumentRow = {
   readonly id: string;
@@ -23,6 +24,7 @@ export type TenantDocumentRow = {
   readonly clientDecisionBy: string | null;
   readonly clientDecisionComment: string | null;
   readonly shareReason: string | null;
+  readonly storageKey: string | null;
 };
 
 export type TenantInvoiceRow = {
@@ -61,7 +63,19 @@ export class TenantAdminFinanceRepository {
     return this.withContext(context, (client) => this.getDocuments(client, context.tenantId, clientId, context.membershipId));
   }
 
-  async createDocument(context: TenantAdminRequestContext, input: CreateTenantDocumentRequest): Promise<TenantDocumentRow> {
+  async getDocumentStorageObject(context: TenantAdminRequestContext, documentId: string): Promise<StoredDocumentObject> {
+    return this.withContext(context, async (client) => {
+      const result = await client.query<{ storage_bucket: string | null; storage_key: string | null }>(
+        `select storage_bucket, storage_key from public.tenant_documents where tenant_id = $1 and id = $2 and status = 'active'`,
+        [context.tenantId, documentId],
+      );
+      const object = result.rows[0];
+      if (!object?.storage_bucket || !object.storage_key) throw new ConflictException({ code: "DOCUMENT_FILE_NOT_AVAILABLE", message: "The file for this document is not available." });
+      return { storageBucket: object.storage_bucket, storageKey: object.storage_key };
+    });
+  }
+
+  async createDocument(context: TenantAdminRequestContext, input: CreateTenantDocumentRequest, storageBucket: string): Promise<TenantDocumentRow> {
     return this.withContext(context, async (client) => {
       await this.assertClient(client, context.tenantId, input.clientId);
       const result = await client.query<{ id: string }>(
@@ -74,6 +88,10 @@ export class TenantAdminFinanceRepository {
             file_type,
             size_bytes,
             category,
+            storage_bucket,
+            storage_key,
+            content_type,
+            idempotency_key,
             metadata,
             created_by
           )
@@ -85,16 +103,21 @@ export class TenantAdminFinanceRepository {
             $5,
             $6,
             $7,
+            $8,
+            $9,
+            $10,
+            $11,
             jsonb_build_object(
               'clientDecisionStatus', 'pending',
               'clientVisible', true,
-              'shareReason', $9::text
+              'shareReason', $13::text
             ),
-            $8
+            $12
           )
+          on conflict (tenant_id, created_by, idempotency_key) where idempotency_key is not null do nothing
           returning id::text
         `,
-        [context.tenantId, input.clientId, input.title, input.fileName, input.fileType, input.sizeBytes, input.category, context.membershipId, input.shareReason ?? ""],
+        [context.tenantId, input.clientId, input.title, input.fileName, input.fileType, input.sizeBytes, input.category, storageBucket, input.storageKey, input.contentType, input.idempotencyKey ?? null, context.membershipId, input.shareReason ?? ""],
       ).catch((error: unknown) => {
         if (isUndefinedTable(error)) {
           throw new ConflictException({
@@ -104,8 +127,14 @@ export class TenantAdminFinanceRepository {
         }
         throw error;
       });
-      const id = result.rows[0]?.id;
+      const idempotencyKey = input.idempotencyKey;
+      let id: string | undefined = result.rows[0]?.id;
+      const created = Boolean(id);
+      if (!id && idempotencyKey) {
+        id = await this.findDocumentIdByIdempotencyKey(client, context.tenantId, context.membershipId, idempotencyKey);
+      }
       if (!id) throw new ConflictException({ code: "DOCUMENT_CREATE_FAILED", message: "Document could not be created." });
+      if (!created) return this.getDocumentOrThrow(client, context.tenantId, id, context.membershipId);
       const employeeRecipientMembershipIds = await this.getEmployeeRecipientMembershipIds(client, context.tenantId, input.recipientEmployeeIds ?? []);
       if (employeeRecipientMembershipIds.length) {
         await client.query(
@@ -133,7 +162,7 @@ export class TenantAdminFinanceRepository {
     return this.withContext(context, (client) => this.getInvoices(client, context.tenantId, clientId));
   }
 
-  async createInvoice(context: TenantAdminRequestContext, input: CreateTenantInvoiceRequest): Promise<TenantInvoiceRow> {
+  async createInvoice(context: TenantAdminRequestContext, input: CreateTenantInvoiceRequest, storageBucket: string): Promise<TenantInvoiceRow> {
     return this.withContext(context, async (client) => {
       await this.assertClient(client, context.tenantId, input.clientId);
       const financialYearId = await this.getCurrentFinancialYearId(client, context.tenantId);
@@ -151,9 +180,11 @@ export class TenantAdminFinanceRepository {
             currency_code,
             status,
             finalized_at,
-            created_by
+            created_by,
+            idempotency_key
           )
-          values ($1, $2, $3, $4, $5, $6, $7, $7, $8, 'finalized', now(), $9)
+          values ($1, $2, $3, $4, $5, $6, $7, $7, $8, 'finalized', now(), $9, $10)
+          on conflict (tenant_id, created_by, idempotency_key) where idempotency_key is not null do nothing
           returning id::text
         `,
         [
@@ -166,6 +197,7 @@ export class TenantAdminFinanceRepository {
           input.amount,
           input.currencyCode,
           context.membershipId,
+          input.idempotencyKey ?? null,
         ],
       ).catch((error: unknown) => {
         if (isUniqueViolation(error)) {
@@ -173,13 +205,40 @@ export class TenantAdminFinanceRepository {
         }
         throw error;
       });
-      const id = result.rows[0]?.id;
+      const idempotencyKey = input.idempotencyKey;
+      let id: string | undefined = result.rows[0]?.id;
+      if (!id && idempotencyKey) {
+        id = await this.findInvoiceIdByIdempotencyKey(client, context.tenantId, context.membershipId, idempotencyKey);
+      }
       if (!id) throw new ConflictException({ code: "INVOICE_CREATE_FAILED", message: "Invoice could not be created." });
+      if (!result.rows[0]?.id) return this.getInvoiceOrThrow(client, context.tenantId, id);
+      await client.query(
+        `
+          insert into public.tenant_documents (
+            tenant_id, client_id, title, file_name, file_type, size_bytes, category,
+            storage_bucket, storage_key, content_type, metadata, created_by
+          )
+          values (
+            $1, $2, 'Invoice ' || $3, $4, $5, $6, 'invoice',
+            $7, $8, $9,
+            jsonb_build_object(
+               'invoiceId', $10::uuid,
+              'documentKind', 'invoice_upload',
+               'clientVisible', $11::boolean,
+               'shareReason', case when $11::boolean then 'Invoice sent to client.' else 'Internal finance document.' end
+            ),
+            $12
+          )
+        `,
+        [context.tenantId, input.clientId, input.invoiceNumber, input.fileName, input.fileType, input.sizeBytes, storageBucket, input.storageKey, input.contentType, id, input.visibility === "client", context.membershipId],
+      );
       await client.query(
         "select audit.write_audit_event('INVOICE_CREATED', 'invoice', $1::uuid, 'succeeded', null, $2::jsonb)",
         [id, JSON.stringify({ clientId: input.clientId, invoiceNumber: input.invoiceNumber, amount: input.amount })],
       );
-      await this.notifyClientInvoiceSent(client, context, id, input.clientId, input.invoiceNumber);
+      if (input.visibility === "client") {
+        await this.notifyClientInvoiceSent(client, context, id, input.clientId, input.invoiceNumber);
+      }
       return this.getInvoiceOrThrow(client, context.tenantId, id);
     });
   }
@@ -317,10 +376,10 @@ export class TenantAdminFinanceRepository {
 
   private async getDocuments(client: PoolClient, tenantId: string, clientId?: string, membershipId?: string): Promise<readonly TenantDocumentRow[]> {
     const result = await client.query<{
-      id: string; client_id: string; client: string; title: string; file_name: string; file_type: string; size_bytes: number; category: string; uploaded_by: string; updated_on: string; status: "active" | "archived"; client_decision_status: "pending" | "approved" | "rejected"; client_decision_at: string | null; client_decision_by: string | null; client_decision_comment: string | null; share_reason: string | null;
+      id: string; client_id: string; client: string; title: string; file_name: string; file_type: string; size_bytes: number; category: string; storage_key: string | null; uploaded_by: string; updated_on: string; status: "active" | "archived"; client_decision_status: "pending" | "approved" | "rejected"; client_decision_at: string | null; client_decision_by: string | null; client_decision_comment: string | null; share_reason: string | null;
     }>(
       `
-        select d.id::text, d.client_id::text, c.display_name as client, d.title, d.file_name, d.file_type,
+        select d.id::text, d.client_id::text, c.display_name as client, d.title, d.file_name, d.file_type, d.storage_key,
                d.size_bytes, d.category, coalesce(tm.display_name, 'System') as uploaded_by,
                d.updated_at::text as updated_on, d.status,
                coalesce(d.metadata->>'clientDecisionStatus', 'pending') as client_decision_status,
@@ -362,6 +421,7 @@ export class TenantAdminFinanceRepository {
       clientDecisionBy: row.client_decision_by,
       clientDecisionComment: row.client_decision_comment,
       shareReason: row.share_reason,
+      storageKey: row.storage_key,
     }));
   }
 
@@ -508,7 +568,7 @@ export class TenantAdminFinanceRepository {
            jsonb_build_object('clientId', $4, 'documentId', $3, 'title', $5),
            'client-deliverable-shared:' || $3
          )
-         on conflict (idempotency_key) do update set idempotency_key = public.notifications.idempotency_key
+         on conflict (idempotency_key) where idempotency_key is not null do nothing
          returning id
        )
        insert into public.notification_recipients (notification_id, recipient_user_id)
@@ -527,6 +587,22 @@ export class TenantAdminFinanceRepository {
     const row = (await this.getDocuments(client, tenantId, undefined, membershipId)).find((document) => document.id === id);
     if (!row) throw new ConflictException({ code: "DOCUMENT_LOAD_FAILED", message: "Document could not be loaded." });
     return row;
+  }
+
+  private async findDocumentIdByIdempotencyKey(client: PoolClient, tenantId: string, membershipId: string, idempotencyKey: string): Promise<string | undefined> {
+    const result = await client.query<{ id: string }>(
+      `select id::text from public.tenant_documents where tenant_id = $1 and created_by = $2 and idempotency_key = $3`,
+      [tenantId, membershipId, idempotencyKey],
+    );
+    return result.rows[0]?.id;
+  }
+
+  private async findInvoiceIdByIdempotencyKey(client: PoolClient, tenantId: string, membershipId: string, idempotencyKey: string): Promise<string | undefined> {
+    const result = await client.query<{ id: string }>(
+      `select id::text from public.invoices where tenant_id = $1 and created_by = $2 and idempotency_key = $3`,
+      [tenantId, membershipId, idempotencyKey],
+    );
+    return result.rows[0]?.id;
   }
 
   private async getInvoiceOrThrow(client: PoolClient, tenantId: string, id: string): Promise<TenantInvoiceRow> {

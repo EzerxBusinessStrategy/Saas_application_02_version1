@@ -40,6 +40,12 @@ export async function decideClientPortalDeliverable(
   return clientPortalDeliverableSchema.parse(await parseBody(response));
 }
 
+export async function getClientPortalDeliverableDownloadUrl(documentId: string): Promise<string> {
+  const response = await fetch(`/api/client-portal/deliverables/${encodeURIComponent(documentId)}/download`, { cache: "no-store" });
+  await redirectToLoginOnUnauthorized(response);
+  return z.object({ url: z.string().url() }).parse(await parseBody(response)).url;
+}
+
 async function parseBody(response: Response) {
   const body = await response.json().catch(() => null);
   if (!response.ok) {

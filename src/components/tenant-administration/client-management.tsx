@@ -1691,8 +1691,17 @@ export function WorkGroupDirectory() {
       };
       if (editing && editing !== "new") await updateTenantAdminWorkGroup(editing.id, input);
       else await createTenantAdminWorkGroup(input);
-      await queryClient.invalidateQueries({ queryKey: ["work-groups"] });
-      await queryClient.invalidateQueries({ queryKey: ["tenant-admin-task-options"] });
+      const affectedClientIds = [
+        values.clientId,
+        editing && editing !== "new" ? editing.clientId ?? "" : "",
+      ].filter(Boolean);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["work-groups"] }),
+        queryClient.invalidateQueries({ queryKey: ["tenant-admin-task-options"] }),
+        ...affectedClientIds.map((clientId) =>
+          queryClient.invalidateQueries({ queryKey: ["client", clientId] }),
+        ),
+      ]);
       setEditing(null);
       toast.success(editing && editing !== "new" ? "Work group updated." : "Work group created.");
     } catch (error) {

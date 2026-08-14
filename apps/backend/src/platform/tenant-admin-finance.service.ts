@@ -12,17 +12,33 @@ import {
   TenantInvoiceDto,
 } from "./tenant-admin-finance.dto";
 import { TenantAdminFinanceRepository } from "./tenant-admin-finance.repository";
+import { TenantDocumentStorageService } from "./tenant-document-storage.service";
 
 @Injectable()
 export class TenantAdminFinanceService {
-  constructor(@Inject(TenantAdminFinanceRepository) private readonly repository: TenantAdminFinanceRepository) {}
+  constructor(
+    @Inject(TenantAdminFinanceRepository) private readonly repository: TenantAdminFinanceRepository,
+    @Inject(TenantDocumentStorageService) private readonly storage: TenantDocumentStorageService,
+  ) {}
 
   async listDocuments(context: RequestContext, clientId?: string): Promise<TenantDocumentsResponseDto> {
     return { documents: await this.repository.listDocuments(requireTenantAdminContext(context), clientId) };
   }
 
   async createDocument(context: RequestContext, input: CreateTenantDocumentRequest): Promise<TenantDocumentDto> {
-    return this.repository.createDocument(requireTenantAdminContext(context), input);
+    const scoped = requireTenantAdminContext(context);
+    const object = await this.storage.verifyUploadedFile({ tenantId: scoped.tenantId, clientId: input.clientId, portal: "TENANT", storageKey: input.storageKey, fileName: input.fileName, contentType: input.contentType, sizeBytes: input.sizeBytes });
+    return this.repository.createDocument(scoped, input, object.storageBucket);
+  }
+
+  async createDocumentUploadUrl(context: RequestContext, input: { clientId: string; fileName: string; contentType: string; sizeBytes: number; idempotencyKey?: string }) {
+    const scoped = requireTenantAdminContext(context);
+    return this.storage.createSignedUploadUrl({ tenantId: scoped.tenantId, portal: "TENANT", ...input, operationId: input.idempotencyKey });
+  }
+
+  async createDocumentDownloadUrl(context: RequestContext, documentId: string): Promise<{ url: string }> {
+    const scoped = requireTenantAdminContext(context);
+    return { url: await this.storage.createSignedDownloadUrl(await this.repository.getDocumentStorageObject(scoped, documentId)) };
   }
 
   async listInvoices(context: RequestContext, clientId?: string): Promise<TenantInvoicesResponseDto> {
@@ -30,7 +46,9 @@ export class TenantAdminFinanceService {
   }
 
   async createInvoice(context: RequestContext, input: CreateTenantInvoiceRequest): Promise<TenantInvoiceDto> {
-    return this.repository.createInvoice(requireTenantAdminContext(context), input);
+    const scoped = requireTenantAdminContext(context);
+    const object = await this.storage.verifyUploadedFile({ tenantId: scoped.tenantId, clientId: input.clientId, portal: "TENANT", storageKey: input.storageKey, fileName: input.fileName, contentType: input.contentType, sizeBytes: input.sizeBytes });
+    return this.repository.createInvoice(scoped, input, object.storageBucket);
   }
 
   async listBillableTaskEntries(context: RequestContext): Promise<TenantBillableTaskEntriesResponseDto> {

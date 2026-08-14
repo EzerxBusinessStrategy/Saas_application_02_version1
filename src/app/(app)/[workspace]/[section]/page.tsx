@@ -14,6 +14,9 @@ const dynamicSection = (load: () => Promise<{ default: ComponentType<any> }>) =>
 const EmployeeDirectory = dynamicSection(() =>
   import("@/components/workforce/employee-directory").then((module) => ({ default: module.EmployeeDirectory })),
 );
+const DepartmentDirectory = dynamicSection(() =>
+  import("@/components/workforce/department-directory").then((module) => ({ default: module.DepartmentDirectory })),
+);
 const TenantDirectory = dynamicSection(() =>
   import("@/components/administration/tenant-management").then((module) => ({ default: module.TenantDirectory })),
 );
@@ -67,6 +70,13 @@ export default async function Section({
     return (
       <FeatureBoundary role={user.role} permissions={access.permissions ?? []}>
         <EmployeeDirectory />
+      </FeatureBoundary>
+    );
+  }
+  if (section === "departments" && workspace === "admin") {
+    return (
+      <FeatureBoundary role={user.role} permissions={["employee.read"]}>
+        <DepartmentDirectory />
       </FeatureBoundary>
     );
   }

@@ -20,6 +20,8 @@ import {
   createTenantAdminTaskSchema,
   decideTenantAdminTaskApprovalSchema,
   createTenantAdminEmployeeSchema,
+  createTenantAdminDepartmentSchema,
+  CreateTenantAdminDepartmentRequest,
   CreateTenantAdminEmployeeRequest,
   CreateTenantAdminTaskRequest,
   TenantAdminTaskApprovalRequest,
@@ -29,6 +31,8 @@ import {
   TenantAdminEmployeeOptionDto,
   TenantAdminEmployeeEmailAvailabilityDto,
   TenantAdminEmployeesResponseDto,
+  TenantAdminDepartmentDto,
+  TenantAdminDepartmentsResponseDto,
   TenantAdminTaskOptionsResponseDto,
   TenantAdminTasksResponseDto,
   updateTenantAdminEmployeeCapacitySchema,
@@ -137,6 +141,25 @@ export class TenantAdminTasksController {
   @ApiOkResponse({ type: TenantAdminEmployeesResponseDto })
   listEmployees(@CurrentRequestContext() context: RequestContext): Promise<TenantAdminEmployeesResponseDto> {
     return this.service.listEmployees(context);
+  }
+
+  @Get("departments")
+  @RequirePermissions("employee.read")
+  @ApiOperation({ summary: "Return tenant-scoped departments and their current employees." })
+  @ApiOkResponse({ type: TenantAdminDepartmentsResponseDto })
+  listDepartments(@CurrentRequestContext() context: RequestContext): Promise<TenantAdminDepartmentsResponseDto> {
+    return this.service.listDepartments(context);
+  }
+
+  @Post("departments")
+  @RequirePermissions("employee.read")
+  @ApiOperation({ summary: "Create an active department in the authenticated tenant." })
+  @ApiOkResponse({ type: TenantAdminDepartmentDto })
+  createDepartment(
+    @CurrentRequestContext() context: RequestContext,
+    @Body(new ZodValidationPipe(createTenantAdminDepartmentSchema)) body: CreateTenantAdminDepartmentRequest,
+  ): Promise<TenantAdminDepartmentDto> {
+    return this.service.createDepartment(context, body);
   }
 
   @Patch("employees/:employeeId/assignment")

@@ -103,6 +103,13 @@ const rawEnvSchema = z
         message: "is required for staging and production",
       });
     }
+    if (productionLike && value.BACKEND_TRUST_PROXY !== "true") {
+      context.addIssue({
+        code: "custom",
+        path: ["BACKEND_TRUST_PROXY"],
+        message: "must be true behind the managed reverse proxy so audit IP addresses are accurate",
+      });
+    }
     if (value.BACKEND_CORS_ORIGINS?.split(",").some((origin) => origin.trim() === "*")) {
       context.addIssue({
         code: "custom",

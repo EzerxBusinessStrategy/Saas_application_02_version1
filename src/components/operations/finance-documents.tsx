@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import {
   createSharedDocument,
   createSharedInvoice,
+  getPrivateDocumentDownloadUrl,
   createInvoiceFromTask,
   listEmployeeDocumentOptions,
   listTenantBillableTaskEntries,
@@ -84,6 +85,10 @@ function DocumentsWorkspace({ workspace, fixedCategory }: { workspace: Extract<W
     (!search || [document.title, document.fileName, document.client, document.category, document.uploadedBy].join(" ").toLowerCase().includes(search.toLowerCase())) &&
     (fixedCategory ? document.category === fixedCategory : !category || document.category === category),
   );
+  const downloadDocument = async (documentId: string) => {
+    try { window.open(await getPrivateDocumentDownloadUrl(workspace, documentId), "_blank", "noopener,noreferrer"); }
+    catch (error) { toast.error(error instanceof Error ? error.message : "Document download could not be started."); }
+  };
   const columns: ColumnDef<SharedDocument, unknown>[] = [
     { accessorKey: "title", header: "Document", cell: ({ row }) => <button className="text-left font-medium hover:text-primary" onClick={() => setSelected(row.original)}>{row.original.title}<span className="mt-1 block text-xs text-muted-foreground">{row.original.fileType} · {row.original.id}</span></button> },
     { accessorKey: "category", header: "Category" },
@@ -92,7 +97,7 @@ function DocumentsWorkspace({ workspace, fixedCategory }: { workspace: Extract<W
       { id: "clientDecision", header: "Client decision", cell: ({ row }) => <StatusBadge status={row.original.clientDecisionStatus === "approved" ? "complete" : row.original.clientDecisionStatus === "rejected" ? "at-risk" : "pending"} /> },
       { id: "shared", header: "Shared with", cell: ({ row }) => <RecipientSummary document={row.original} /> },
     { accessorKey: "updatedOn", header: "Updated" },
-    { id: "actions", header: "Actions", cell: ({ row }) => <Button size="sm" variant="outline" onClick={() => setSelected(row.original)}>View details</Button> },
+    { id: "actions", header: "Actions", cell: ({ row }) => <div className="flex gap-2"><Button size="sm" variant="outline" onClick={() => setSelected(row.original)}>View details</Button><Button size="sm" variant="outline" onClick={() => void downloadDocument(row.original.id)}><Download data-icon="inline-start" />Download</Button></div> },
   ];
   const canUpload = workspace === "admin" || workspace === "employee";
   return <div className="flex flex-col gap-[30px]">
@@ -234,6 +239,7 @@ function EmployeeDocumentUploadDialog({ clients, options, fixedCategory, open, o
     try {
       onCreated(await createSharedDocument("employee", {
         clientId,
+        file,
         title: title.trim(),
         fileName: file.name,
         fileType: file.name.split(".").pop()?.toUpperCase() ?? "FILE",
@@ -273,6 +279,7 @@ function DocumentUploadDialog({ workspace, clients, adminOptions, fixedCategory,
     try {
       onCreated(await createSharedDocument(workspace, {
         clientId,
+        file,
         title: title.trim(),
         fileName: file.name,
         fileType: file.name.split(".").pop()?.toUpperCase() ?? "FILE",
@@ -293,6 +300,6 @@ function DocumentUploadDialog({ workspace, clients, adminOptions, fixedCategory,
 
 function InvoiceUploadDialog({ workspace, clients, open, onOpenChange, onCreated }: { workspace: "admin"; clients: Array<{ id: string; name: string }>; open: boolean; onOpenChange: (open: boolean) => void; onCreated: (invoice: SharedInvoice) => void }) {
   const [file, setFile] = useState<File | null>(null); const [number, setNumber] = useState(""); const [clientId, setClientId] = useState(""); const [issuedOn, setIssuedOn] = useState(() => new Date().toISOString().slice(0, 10)); const [dueOn, setDueOn] = useState(""); const [amount, setAmount] = useState(""); const [visibility, setVisibility] = useState<"client" | "internal">("client"); const [submitting, setSubmitting] = useState(false); const eligibleClients = clients;
-  const submit = async () => { if (!file || !number || !clientId || !amount) return; setSubmitting(true); try { onCreated(await createSharedInvoice(workspace, { clientId, invoiceNumber: number, issuedOn, dueOn, amount: Number(amount), visibility, fileName: file.name, fileType: file.name.split(".").pop()?.toUpperCase() ?? "FILE", sizeBytes: file.size })); } catch (error) { toast.error(error instanceof Error ? error.message : "Invoice could not be prepared."); } finally { setSubmitting(false); } };
+  const submit = async () => { if (!file || !number || !clientId || !amount) return; setSubmitting(true); try { onCreated(await createSharedInvoice(workspace, { clientId, file, invoiceNumber: number, issuedOn, dueOn, amount: Number(amount), visibility, fileName: file.name, fileType: file.name.split(".").pop()?.toUpperCase() ?? "FILE", sizeBytes: file.size })); } catch (error) { toast.error(error instanceof Error ? error.message : "Invoice could not be prepared."); } finally { setSubmitting(false); } };
   return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent title="Upload invoice" description="Choose invoice metadata and authorised visibility." className="max-h-[calc(100vh-2rem)] max-w-2xl overflow-y-auto"><div className="pr-8"><h2 className="text-xl font-semibold">Upload invoice</h2><div className="mt-6 grid gap-4 sm:grid-cols-2"><FileField file={file} onFile={setFile} /><label className="flex flex-col gap-1 text-sm font-medium">Invoice number<Input value={number} onChange={(event) => setNumber(event.target.value)} /></label><label className="flex flex-col gap-1 text-sm font-medium">Related client<Select value={clientId} onChange={(event) => setClientId(event.target.value)}><option value="">Select client</option>{eligibleClients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}</Select></label><label className="flex flex-col gap-1 text-sm font-medium">Amount (INR)<Input type="number" min="0" value={amount} onChange={(event) => setAmount(event.target.value)} /></label><label className="flex flex-col gap-1 text-sm font-medium">Invoice date<Input type="date" value={issuedOn} onChange={(event) => setIssuedOn(event.target.value)} /></label><label className="flex flex-col gap-1 text-sm font-medium">Due date<Input type="date" value={dueOn} onChange={(event) => setDueOn(event.target.value)} /></label><label className="flex flex-col gap-1 text-sm font-medium">Visibility<Select value={visibility} onChange={(event) => setVisibility(event.target.value as typeof visibility)}><option value="client">Client-visible invoice</option><option value="internal">Internal finance document</option></Select></label></div><div className="mt-7 flex justify-end gap-2"><Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button><Button disabled={!file || !number || !clientId || !amount || submitting} onClick={() => void submit()}>{submitting ? "Preparing…" : "Upload invoice"}</Button></div></div></DialogContent></Dialog>;
 }

@@ -71,4 +71,16 @@ describe("loadAppConfig", () => {
       }),
     ).toThrow(ConfigValidationError);
   });
+
+  test("requires trusted proxy configuration for production audit IP addresses", () => {
+    expect(() =>
+      loadAppConfig({
+        NODE_ENV: "production",
+        BACKEND_CORS_ORIGINS: "https://app.example.com",
+        BACKEND_PUBLIC_APP_URL: "https://app.example.com",
+        BACKEND_DATABASE_URL: "postgresql://runtime:password@db.example.com:5432/app",
+        BACKEND_TRUST_PROXY: "false",
+      }),
+    ).toThrow(ConfigValidationError);
+  });
 });

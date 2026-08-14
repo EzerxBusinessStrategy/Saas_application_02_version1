@@ -10,10 +10,22 @@ export const createTenantDocumentSchema = z.object({
   fileType: z.string().trim().min(1).max(24),
   sizeBytes: z.coerce.number().int().nonnegative().default(0),
   category: z.string().trim().min(1).max(80).default("supporting"),
+  storageKey: z.string().trim().min(1).max(1000),
+  contentType: z.string().trim().min(1).max(160),
+  idempotencyKey: z.string().uuid().optional(),
   recipientEmployeeIds: z.array(z.string().uuid()).default([]),
   shareReason: z.string().trim().max(1000).optional().default(""),
 });
 export type CreateTenantDocumentRequest = z.infer<typeof createTenantDocumentSchema>;
+
+export const createTenantDocumentUploadUrlSchema = z.object({
+  clientId: z.string().uuid(),
+  fileName: z.string().trim().min(1).max(260),
+  contentType: z.string().trim().min(1).max(160),
+  sizeBytes: z.coerce.number().int().positive().max(20 * 1024 * 1024),
+  idempotencyKey: z.string().uuid().optional(),
+});
+export type CreateTenantDocumentUploadUrlRequest = z.infer<typeof createTenantDocumentUploadUrlSchema>;
 
 export const createTenantInvoiceSchema = z.object({
   clientId: z.string().uuid(),
@@ -23,8 +35,24 @@ export const createTenantInvoiceSchema = z.object({
   amount: z.coerce.number().nonnegative(),
   currencyCode: z.string().trim().length(3).transform((value) => value.toUpperCase()).default("INR"),
   visibility: z.enum(["client", "internal"]).default("client"),
+  fileName: z.string().trim().min(1).max(260),
+  fileType: z.string().trim().min(1).max(24),
+  sizeBytes: z.coerce.number().int().positive().max(20 * 1024 * 1024),
+  storageKey: z.string().trim().min(1).max(1000),
+  contentType: z.string().trim().min(1).max(160),
+  idempotencyKey: z.string().uuid().optional(),
 });
 export type CreateTenantInvoiceRequest = z.infer<typeof createTenantInvoiceSchema>;
+
+export class DocumentUploadUrlDto {
+  @ApiProperty({ type: String }) storageBucket!: string;
+  @ApiProperty({ type: String }) storageKey!: string;
+  @ApiProperty({ type: String }) signedUrl!: string;
+}
+
+export class DocumentDownloadUrlDto {
+  @ApiProperty({ type: String }) url!: string;
+}
 
 const invoiceDiscountSchema = z.object({
   discountType: z.enum(["percentage", "fixed"]).optional(),

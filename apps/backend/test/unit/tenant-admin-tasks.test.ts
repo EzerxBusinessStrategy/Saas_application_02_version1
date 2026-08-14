@@ -3,6 +3,7 @@ import { PasswordService } from "../../src/auth/core/password.service";
 import { RequestContext } from "../../src/auth/request-context";
 import {
   createTenantAdminTaskSchema,
+  createTenantAdminEmployeeSchema,
   decideTenantAdminTaskApprovalSchema,
   updateTenantAdminEmployeeAssignmentSchema,
 } from "../../src/platform/tenant-admin-tasks.dto";
@@ -29,6 +30,26 @@ describe("TenantAdminTasksService", () => {
       }),
     ).toMatchObject({ workGroupIds: ["11111111-1111-4111-8111-111111111111"] });
     expect(() => updateTenantAdminEmployeeAssignmentSchema.parse({ workGroupIds: ["not-a-uuid"] })).toThrow();
+  });
+
+  it("accepts one department source when creating an employee", () => {
+    expect(
+      createTenantAdminEmployeeSchema.parse({
+        name: "Employee One",
+        email: "employee@example.com",
+        password: "employee-password",
+        newDepartmentName: "Taxation",
+      }),
+    ).toMatchObject({ newDepartmentName: "Taxation" });
+    expect(() =>
+      createTenantAdminEmployeeSchema.parse({
+        name: "Employee One",
+        email: "employee@example.com",
+        password: "employee-password",
+        departmentId: "11111111-1111-4111-8111-111111111111",
+        newDepartmentName: "Taxation",
+      }),
+    ).toThrow("Choose an existing department or enter a new department, not both.");
   });
 
   it("requires at least one employee when creating a tenant admin task", () => {
@@ -125,6 +146,87 @@ describe("TenantAdminTasksService", () => {
 });
 
 describe("TenantAdminTasksRepository", () => {
+  it("reuses a client rate card only when it is effective for the requested date", async () => {
+    const queries: string[] = [];
+    type QueryClient = {
+      query(sqlText: string, values?: readonly unknown[]): Promise<{ rows: Array<Record<string, unknown>> }>;
+    };
+    const client: QueryClient = {
+      query: vi.fn(async (sqlText: string, values: readonly unknown[] = []) => {
+        queries.push(sqlText);
+        expect(values).toEqual(["tenant-1", "client-1", "INR", "2026-08-13"]);
+        return { rows: [{ id: "rate-card-1" }] };
+      }),
+    };
+    const repository = new TenantAdminTasksRepository(null);
+    const getOrCreateRateCard = (
+      repository as unknown as {
+        getOrCreateRateCard(
+          client: QueryClient,
+          context: { tenantId: string; membershipId: string },
+          clientId: string,
+          currencyCode: string,
+          effectiveFrom: string,
+        ): Promise<string>;
+      }
+    ).getOrCreateRateCard.bind(repository);
+
+    await expect(
+      getOrCreateRateCard(client, { tenantId: "tenant-1", membershipId: "member-1" }, "client-1", "INR", "2026-08-13"),
+    ).resolves.toBe("rate-card-1");
+    expect(queries.join("\n")).toContain("$4::date between effective_from and coalesce(effective_to, 'infinity'::date)");
+  });
+
+  it("lists departments and employee counts within the current tenant", async () => {
+    const queries: string[] = [];
+    type QueryClient = {
+      query(sqlText: string, values?: readonly unknown[]): Promise<{ rows: Array<Record<string, unknown>> }>;
+    };
+    const client: QueryClient = {
+      query: vi.fn(async (sqlText: string, values: readonly unknown[] = []) => {
+        queries.push(sqlText);
+        if (sqlText.includes("from public.departments d")) {
+          expect(values).toEqual(["tenant-1"]);
+          return { rows: [{ id: "department-1", name: "Taxation", status: "active", employeeCount: 2 }] };
+        }
+        return { rows: [] };
+      }),
+    };
+    const repository = new TenantAdminTasksRepository(null);
+    const getDepartmentDirectory = (
+      repository as unknown as {
+        getDepartmentDirectory(client: QueryClient, tenantId: string): Promise<unknown[]>;
+      }
+    ).getDepartmentDirectory.bind(repository);
+
+    await expect(getDepartmentDirectory(client, "tenant-1")).resolves.toEqual([
+      { id: "department-1", name: "Taxation", status: "active", employeeCount: 2 },
+    ]);
+    const sql = queries.join("\n");
+    expect(sql).toContain("d.tenant_id = $1");
+    expect(sql).toContain("e.tenant_id = d.tenant_id");
+    expect(sql).toContain("e.department_id = d.id");
+  });
+
+  it("rejects percentage discounts above 100 percent", () => {
+    expect(() =>
+      createTenantAdminTaskSchema.parse({
+        clientId: "11111111-1111-4111-8111-111111111111",
+        serviceId: "22222222-2222-4222-8222-222222222222",
+        countryCode: "IN",
+        title: "GST return filing",
+        employeeIds: ["44444444-4444-4444-8444-444444444444"],
+        billing: {
+          rateSource: "existing",
+          rateCardItemId: "33333333-3333-4333-8333-333333333333",
+          quantity: 1,
+          discountType: "percentage",
+          discountValue: 101,
+        },
+      }),
+    ).toThrow("Percentage discount cannot exceed 100.");
+  });
+
   it("does not remove an employee from a work group they manage", async () => {
     type QueryClient = {
       query(sqlText: string): Promise<{ rows: Array<Record<string, unknown>> }>;
@@ -252,6 +354,7 @@ describe("TenantAdminTasksRepository", () => {
       {
         clientId: "client-1",
         serviceId: "service-1",
+        plannedDueAt: "2026-08-14T06:51:00.000Z",
         billing: { rateSource: "existing", rateCardItemId: "rate-1", quantity: 1 },
       },
       "INR",
@@ -269,8 +372,8 @@ describe("TenantAdminTasksRepository", () => {
     expect(sql).toContain("(rc.client_id = $4 or rc.client_id is null)");
     expect(sql).toContain("rci.status = 'active'");
     expect(sql).toContain("rc.status = 'active'");
-    expect(sql).toContain("current_date between rc.effective_from");
-    expect(params[0]).toEqual(["tenant-1", "rate-1", "service-1", "client-1"]);
+    expect(sql).toContain("coalesce($5::date, current_date) between rc.effective_from");
+    expect(params[0]).toEqual(["tenant-1", "rate-1", "service-1", "client-1", "2026-08-14"]);
   });
 
   it("keeps a new task charge pending until final Tenant Admin approval", async () => {

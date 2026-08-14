@@ -5,6 +5,7 @@ import { DATABASE_POOL } from "../database/database.tokens";
 import { withDatabaseTransaction } from "../database/transaction-context";
 import { ClientPortalRequestContext } from "./client-portal-context";
 import { DecideClientPortalDeliverableRequest } from "./client-portal-deliverables.dto";
+import type { StoredDocumentObject } from "./tenant-document-storage.service";
 
 type ClientPortalDeliverableRow = {
   readonly id: string;
@@ -26,6 +27,23 @@ export class ClientPortalDeliverablesRepository {
 
   async list(context: ClientPortalRequestContext): Promise<readonly ClientPortalDeliverableRow[]> {
     return this.withContext(context, (client) => this.getDeliverables(client, context));
+  }
+
+  async getDocumentStorageObject(context: ClientPortalRequestContext, documentId: string): Promise<StoredDocumentObject> {
+    return this.withContext(context, async (client) => {
+      const result = await client.query<{ storage_bucket: string | null; storage_key: string | null }>(
+        `
+          select storage_bucket, storage_key
+          from public.tenant_documents
+          where tenant_id = $1 and client_id = $2 and id = $3 and status = 'active'
+            and coalesce(metadata->>'clientVisible', 'false') = 'true'
+        `,
+        [context.tenantId, context.clientAccountId, documentId],
+      );
+      const object = result.rows[0];
+      if (!object?.storage_bucket || !object.storage_key) throw new ConflictException({ code: "DELIVERABLE_FILE_NOT_AVAILABLE", message: "The file for this deliverable is not available." });
+      return { storageBucket: object.storage_bucket, storageKey: object.storage_key };
+    });
   }
 
   async decide(
@@ -105,6 +123,7 @@ export class ClientPortalDeliverablesRepository {
         where d.tenant_id = $1
           and d.client_id = $2
           and d.status = 'active'
+          and coalesce(d.metadata->>'clientVisible', 'false') = 'true'
         order by d.updated_at desc, d.id desc
       `,
       [context.tenantId, context.clientAccountId],

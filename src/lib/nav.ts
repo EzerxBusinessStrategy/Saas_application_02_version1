@@ -3,6 +3,7 @@ import {
   Award,
   Building2,
   CheckSquare,
+  CalendarDays,
   ClipboardList,
   FileText,
   Handshake,
@@ -26,6 +27,12 @@ const common: NavigationItem[] = [
         href: "/tasks",
         icon: CheckSquare,
         permissions: ["task.read", "task.read.assigned"],
+      },
+      {
+        label: "Calendar", labelKey: "Navigation.calendar",
+        href: "/task-calendar",
+        icon: CalendarDays,
+        permissions: ["task.read"],
       },
       {
         label: "Clients", labelKey: "Navigation.clients",
@@ -55,6 +62,12 @@ const common: NavigationItem[] = [
         label: "Employees", labelKey: "Navigation.employees",
         href: "/employees",
         icon: Users,
+        permissions: ["employee.read"],
+      },
+      {
+        label: "Departments", labelKey: "Navigation.departments",
+        href: "/departments",
+        icon: Building2,
         permissions: ["employee.read"],
       },
       {
@@ -222,6 +235,7 @@ const tenantAdminNavigation = [
   tenantAdminItem("Dashboard"),
   tenantAdminGroup("People & Teams", Users, [
     "Employees",
+    "Departments",
     "Managers",
     "Work groups",
     "Employee Performance",
@@ -232,6 +246,7 @@ const tenantAdminNavigation = [
   ]),
   tenantAdminGroup("Operations", ClipboardList, [
     "Tasks",
+    "Calendar",
     "Services",
   ]),
   tenantAdminGroup(

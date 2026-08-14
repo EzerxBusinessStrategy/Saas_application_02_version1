@@ -179,6 +179,7 @@ export const documentUploadInputSchema = sharedDocumentSchema
     shareReason: true,
   });
 export type DocumentUploadInput = z.infer<typeof documentUploadInputSchema>;
+export type DocumentUploadWithFileInput = DocumentUploadInput & { readonly file: File };
 
 export const sharedInvoiceSchema = z.object({
   id: z.string(),
@@ -223,6 +224,7 @@ export const invoiceUploadInputSchema = sharedInvoiceSchema
   })
   .partial({ engagement: true, visibility: true });
 export type InvoiceUploadInput = z.infer<typeof invoiceUploadInputSchema>;
+export type InvoiceUploadWithFileInput = InvoiceUploadInput & { readonly file: File };
 
 export const clientRequestSchema = z.object({
   id: z.string(),

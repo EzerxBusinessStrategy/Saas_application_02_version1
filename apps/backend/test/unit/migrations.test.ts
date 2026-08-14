@@ -147,4 +147,53 @@ describe("database migrations", () => {
     expect(sql).toContain("from authn.sessions s");
     expect(sql).toContain("max(s.revoked_at) as last_logout_at");
   });
+
+  test("adds visible portal login and logout audit support without a second session store", () => {
+    expect(migrationNames).toContain("0062_portal_session_audit_events.sql");
+
+    const sql = readFileSync(
+      resolve(__dirname, "../../drizzle/migrations/0062_portal_session_audit_events.sql"),
+      "utf8",
+    );
+
+    expect(sql).toContain("'LOGGED_OUT'");
+    expect(sql).toContain("audit_events_auth_session_created_idx");
+    expect(sql).toContain("audit.write_portal_session_audit_event");
+    expect(sql).toContain("security definer");
+    expect(sql).not.toContain("create table");
+  });
+
+  test("adds private storage references without exposing document objects publicly", () => {
+    expect(migrationNames).toContain("0063_private_document_storage.sql");
+
+    const sql = readFileSync(
+      resolve(__dirname, "../../drizzle/migrations/0063_private_document_storage.sql"),
+      "utf8",
+    );
+
+    expect(sql).toContain("storage_bucket text");
+    expect(sql).toContain("storage_key text");
+    expect(sql).toContain("content_type text");
+    expect(sql).toContain("'tenant-documents'");
+    expect(sql).toContain("false");
+    expect(sql).toContain("tenant_documents_storage_object_unique");
+  });
+
+  test("creates private source buckets and tenant-scoped idempotency protection", () => {
+    expect(migrationNames).toContain("0064_portal_private_document_buckets.sql");
+
+    const sql = readFileSync(
+      resolve(__dirname, "../../drizzle/migrations/0064_portal_private_document_buckets.sql"),
+      "utf8",
+    );
+
+    expect(sql).toContain("'super-admin-documents'");
+    expect(sql).toContain("'tenant-documents'");
+    expect(sql).toContain("'manager-documents'");
+    expect(sql).toContain("'employee-documents'");
+    expect(sql).toContain("'client-documents'");
+    expect(sql).toContain("tenant_documents_idempotency_unique");
+    expect(sql).toContain("invoices_idempotency_unique");
+    expect(sql).toContain("public = false");
+  });
 });

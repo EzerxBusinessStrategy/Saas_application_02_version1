@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Inject, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Inject, Param, Post, UseGuards } from "@nestjs/common";
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { ActiveRequestContextGuard } from "../auth/guards/active-request-context.guard";
 import { PermissionGuard } from "../auth/guards/permission.guard";
@@ -9,7 +9,9 @@ import { RequestContext } from "../auth/request-context";
 import { ZodValidationPipe } from "../common/validation/zod-validation.pipe";
 import {
   createEmployeeDocumentSchema,
+  createEmployeeDocumentUploadUrlSchema,
   CreateEmployeeDocumentRequest,
+  CreateEmployeeDocumentUploadUrlRequest,
   EmployeeDocumentDto,
   EmployeeDocumentOptionsDto,
   EmployeeDocumentsResponseDto,
@@ -48,5 +50,22 @@ export class EmployeeDocumentsController {
     @Body(new ZodValidationPipe(createEmployeeDocumentSchema)) body: CreateEmployeeDocumentRequest,
   ): Promise<EmployeeDocumentDto> {
     return this.service.create(context, body);
+  }
+
+  @Post("upload-url")
+  @RequirePermissions("document.read")
+  @ApiOperation({ summary: "Authorize a private employee document upload." })
+  createUploadUrl(
+    @CurrentRequestContext() context: RequestContext,
+    @Body(new ZodValidationPipe(createEmployeeDocumentUploadUrlSchema)) body: CreateEmployeeDocumentUploadUrlRequest,
+  ) {
+    return this.service.createUploadUrl(context, body);
+  }
+
+  @Get(":documentId/download")
+  @RequirePermissions("document.read")
+  @ApiOperation({ summary: "Authorize a private employee document download." })
+  createDownloadUrl(@CurrentRequestContext() context: RequestContext, @Param("documentId") documentId: string) {
+    return this.service.createDownloadUrl(context, documentId);
   }
 }

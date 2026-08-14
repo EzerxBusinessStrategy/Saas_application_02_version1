@@ -10,4 +10,5 @@ export type PortalLoginRequest = z.infer<typeof portalLoginSchema>;
 export type RequestMetadata = {
   readonly ipAddress?: string;
   readonly userAgent?: string;
+  readonly requestId?: string;
 };

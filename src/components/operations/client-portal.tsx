@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { getClientPortalDashboard } from "@/features/client-portal/api/client-portal-dashboard-api";
 import {
   decideClientPortalDeliverable,
+  getClientPortalDeliverableDownloadUrl,
   listClientPortalDeliverables,
 } from "@/features/client-portal/api/client-portal-deliverables-api";
 import {
@@ -444,6 +445,9 @@ function ClientDeliverablesList({
                     />
                   </div>
                   <div className="mt-3 flex gap-2">
+                    <Button size="sm" variant="outline" onClick={() => void getClientPortalDeliverableDownloadUrl(item.id).then((url) => window.open(url, "_blank", "noopener,noreferrer")).catch((error) => toast.error(error instanceof Error ? error.message : "Document download could not be started."))}>
+                      Download
+                    </Button>
                     <Button
                       size="sm"
                       disabled={saving}

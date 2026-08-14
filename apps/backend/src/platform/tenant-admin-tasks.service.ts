@@ -4,6 +4,7 @@ import { PasswordService } from "../auth/core/password.service";
 import { requireTenantAdminContext } from "./tenant-admin-context";
 import {
   CreateTenantAdminTaskRequest,
+  CreateTenantAdminDepartmentRequest,
   CreateTenantAdminEmployeeRequest,
   TenantAdminEmployeeOptionDto,
   TenantAdminTaskItemDto,
@@ -11,6 +12,8 @@ import {
   TenantAdminTaskOptionsResponseDto,
   TenantAdminTasksResponseDto,
   TenantAdminEmployeesResponseDto,
+  TenantAdminDepartmentDto,
+  TenantAdminDepartmentsResponseDto,
   TenantAdminWorkGroupDto,
   TenantAdminWorkGroupsResponseDto,
   UpdateTenantAdminEmployeeAssignmentRequest,
@@ -83,6 +86,17 @@ export class TenantAdminTasksService {
   async listEmployees(context: RequestContext): Promise<TenantAdminEmployeesResponseDto> {
     const tenantContext = requireTenantAdminContext(context);
     return this.repository.listEmployees(tenantContext);
+  }
+
+  async listDepartments(context: RequestContext): Promise<TenantAdminDepartmentsResponseDto> {
+    return this.repository.listDepartments(requireTenantAdminContext(context));
+  }
+
+  async createDepartment(
+    context: RequestContext,
+    input: CreateTenantAdminDepartmentRequest,
+  ): Promise<TenantAdminDepartmentDto> {
+    return this.repository.createDepartment(requireTenantAdminContext(context), input);
   }
 
   async updateEmployeeAssignment(

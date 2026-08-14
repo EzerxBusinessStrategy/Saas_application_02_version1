@@ -7,7 +7,12 @@ const portalHeader: Record<PortalKey, string> = { "super-admin": "super-admin", 
 
 export async function loginPortal(portal: PortalKey, request: Request): Promise<NextResponse> {
   try {
-    const backend = await fetch(`${backendApiBaseUrl()}/auth/${portal}/login`, { method: "POST", headers: { "content-type": "application/json" }, body: await request.text(), cache: "no-store" });
+    const backend = await fetch(`${backendApiBaseUrl()}/auth/${portal}/login`, {
+      method: "POST",
+      headers: requestMetadataHeaders(request, { "content-type": "application/json" }),
+      body: await request.text(),
+      cache: "no-store",
+    });
     const payload = await parseBody(backend);
     if (!backend.ok || !isLoginResponse(payload)) return NextResponse.json(payload, { status: backend.status });
     const response = NextResponse.json({ redirect: payload.redirect });
@@ -18,9 +23,25 @@ export async function loginPortal(portal: PortalKey, request: Request): Promise<
   }
 }
 
-export async function logoutPortal(portal: PortalKey): Promise<NextResponse> {
+export async function logoutPortal(portal: PortalKey, request: Request): Promise<NextResponse> {
   const token = (await cookies()).get(sessionCookieForPortal(portal))?.value;
-  if (token) await fetch(`${backendApiBaseUrl()}/auth/${portal}/logout`, { method: "POST", headers: { cookie: `${sessionCookieForPortal(portal)}=${encodeURIComponent(token)}`, "x-portal": portalHeader[portal] }, cache: "no-store" }).catch(() => undefined);
+  if (token) {
+    try {
+      const backend = await fetch(`${backendApiBaseUrl()}/auth/${portal}/logout`, {
+        method: "POST",
+        headers: requestMetadataHeaders(request, {
+          cookie: `${sessionCookieForPortal(portal)}=${encodeURIComponent(token)}`,
+          "x-portal": portalHeader[portal],
+        }),
+        cache: "no-store",
+      });
+      if (!backend.ok && backend.status !== 401) {
+        return NextResponse.json({ message: "Sign out could not be completed. Please try again." }, { status: 503 });
+      }
+    } catch {
+      return NextResponse.json({ message: "Sign out could not be completed. Please try again." }, { status: 503 });
+    }
+  }
   const response = new NextResponse(null, { status: 204 });
   response.cookies.set(sessionCookieForPortal(portal), "", { maxAge: 0, path: "/" });
   return response;
@@ -51,4 +72,13 @@ async function parseBody(response: Response): Promise<unknown> {
 
 function isLoginResponse(value: unknown): value is { token: string; expiresAt: string; redirect: string } {
   return typeof value === "object" && value !== null && typeof (value as Record<string, unknown>).token === "string" && typeof (value as Record<string, unknown>).expiresAt === "string" && typeof (value as Record<string, unknown>).redirect === "string";
+}
+
+function requestMetadataHeaders(request: Request, headers: HeadersInit): Headers {
+  const forwarded = new Headers(headers);
+  for (const name of ["user-agent", "x-forwarded-for", "x-real-ip"]) {
+    const value = request.headers.get(name);
+    if (value) forwarded.set(name, value);
+  }
+  return forwarded;
 }
