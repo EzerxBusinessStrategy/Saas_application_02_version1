@@ -120,6 +120,29 @@ export class TenantDocumentStorageService {
     return data.signedUrl;
   }
 
+  async storeGeneratedInvoice(input: {
+    tenantId: string;
+    clientId: string;
+    invoiceId: string;
+    content: Buffer;
+  }): Promise<StoredDocumentObject> {
+    const storageBucket = documentStorageBucket("TENANT");
+    const storageKey = `tenants/${input.tenantId}/clients/${input.clientId}/tenant/invoices/${input.invoiceId}.pdf`;
+    const { error } = await this.requireClient().storage
+      .from(storageBucket)
+      .upload(storageKey, input.content, {
+        contentType: "application/pdf",
+        upsert: true,
+      });
+    if (error) {
+      throw new ServiceUnavailableException({
+        code: "INVOICE_STORAGE_UNAVAILABLE",
+        message: "The invoice file is temporarily unavailable. Please try again.",
+      });
+    }
+    return { storageBucket, storageKey };
+  }
+
   private requireClient(): SupabaseClient {
     if (!this.client) {
       throw new ServiceUnavailableException({

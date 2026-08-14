@@ -8,6 +8,7 @@ import { getClientPortalDashboard } from "@/features/client-portal/api/client-po
 import {
   decideClientPortalDeliverable,
   getClientPortalDeliverableDownloadUrl,
+  getClientPortalInvoiceDownloadUrl,
   listClientPortalDeliverables,
 } from "@/features/client-portal/api/client-portal-deliverables-api";
 import {
@@ -40,7 +41,7 @@ import { Select } from "@/components/ui/select";
 export function ClientPortal({
   section = "overview",
 }: {
-  section?: "overview" | "services" | "requests" | "profile" | "deliverables";
+  section?: "overview" | "services" | "requests" | "profile" | "deliverables" | "invoices";
 }) {
   const query = useQuery({
     queryKey: ["client-portal-dashboard"],
@@ -65,6 +66,9 @@ export function ClientPortal({
 
   if (section === "deliverables") {
     return <ClientDeliverables />;
+  }
+  if (section === "invoices") {
+    return <ClientInvoices invoices={data.invoices} />;
   }
   if (section === "requests") {
     return <ClientRequests requests={data.requests} onChanged={() => void query.refetch()} />;
@@ -112,6 +116,57 @@ export function ClientPortal({
         <ClientServices services={data.services} compact />
         <ClientRequests requests={data.requests} compact />
       </section>
+    </div>
+  );
+}
+
+function ClientInvoices({
+  invoices,
+}: {
+  invoices: Awaited<ReturnType<typeof getClientPortalDashboard>>["invoices"];
+}) {
+  return (
+    <div className="flex flex-col gap-[30px]">
+      <PageHeader
+        eyebrow="Client portal"
+        title="Invoices"
+        description="Invoices issued by your tenant for this client account."
+      />
+      <Card>
+        <CardContent className="pt-[30px]">
+          {invoices.length ? (
+            <ul className="flex flex-col divide-y">
+              {invoices.map((invoice) => (
+                <li key={invoice.id} className="flex flex-wrap items-center justify-between gap-4 py-4 first:pt-0">
+                  <div>
+                    <p className="font-medium">{invoice.invoiceNumber}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {invoice.taskTitle ?? "Invoice"} · Issued {invoice.issuedOn}
+                    </p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {formatCurrency(invoice.totalAmount, invoice.currencyCode)} · Outstanding {formatCurrency(invoice.outstandingAmount, invoice.currencyCode)}
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => void getClientPortalInvoiceDownloadUrl(invoice.id)
+                      .then((url) => window.open(url, "_blank", "noopener,noreferrer"))
+                      .catch((error) => toast.error(error instanceof Error ? error.message : "Invoice download could not be started."))}
+                  >
+                    Download invoice
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <EmptyState
+              title="No invoices"
+              description="Issued invoices for this client account will appear here."
+            />
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
@@ -436,49 +491,55 @@ function ClientDeliverablesList({
                         </p>
                       ) : null}
                     </div>
-                    <StatusBadge
-                      status={
-                        item.clientDecisionStatus === "approved"
-                          ? "complete"
-                          : item.clientDecisionStatus === "rejected"
-                            ? "at-risk"
-                            : "pending"
-                      }
-                    />
+                    {item.category !== "invoice" ? (
+                      <StatusBadge
+                        status={
+                          item.clientDecisionStatus === "approved"
+                            ? "complete"
+                            : item.clientDecisionStatus === "rejected"
+                              ? "at-risk"
+                              : "pending"
+                        }
+                      />
+                    ) : null}
                   </div>
                   <div className="mt-3 flex gap-2">
                     <Button size="sm" variant="outline" onClick={() => void getClientPortalDeliverableDownloadUrl(item.id).then((url) => window.open(url, "_blank", "noopener,noreferrer")).catch((error) => toast.error(error instanceof Error ? error.message : "Document download could not be started."))}>
                       Download
                     </Button>
-                    <Button
-                      size="sm"
-                      disabled={saving}
-                      onClick={() => {
-                        setSelected({
-                          id: item.id,
-                          title: item.title,
-                          decision: "approved",
-                        });
-                        setComment("");
-                      }}
-                    >
-                      Approve
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={saving}
-                      onClick={() => {
-                        setSelected({
-                          id: item.id,
-                          title: item.title,
-                          decision: "rejected",
-                        });
-                        setComment(item.clientDecisionComment ?? "");
-                      }}
-                    >
-                      Reject
-                    </Button>
+                    {item.category !== "invoice" ? (
+                      <>
+                        <Button
+                          size="sm"
+                          disabled={saving}
+                          onClick={() => {
+                            setSelected({
+                              id: item.id,
+                              title: item.title,
+                              decision: "approved",
+                            });
+                            setComment("");
+                          }}
+                        >
+                          Approve
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={saving}
+                          onClick={() => {
+                            setSelected({
+                              id: item.id,
+                              title: item.title,
+                              decision: "rejected",
+                            });
+                            setComment(item.clientDecisionComment ?? "");
+                          }}
+                        >
+                          Reject
+                        </Button>
+                      </>
+                    ) : null}
                   </div>
                 </li>
               ))}
@@ -658,6 +719,14 @@ function formatDate(value: string) {
     month: "short",
     day: "2-digit",
   });
+}
+
+function formatCurrency(amount: number, currencyCode: string) {
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: currencyCode,
+    maximumFractionDigits: 2,
+  }).format(amount);
 }
 
 function mapRequestStatus(status: string) {

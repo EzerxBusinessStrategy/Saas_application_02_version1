@@ -186,12 +186,13 @@ export default async function Section({
       "requests",
       "profile",
       "deliverables",
+      "invoices",
     ].includes(section)
   ) {
     return (
       <FeatureBoundary role={user.role} permissions={access?.permissions ?? []}>
         <ClientPortal
-          section={section as "services" | "requests" | "profile" | "deliverables"}
+          section={section as "services" | "requests" | "profile" | "deliverables" | "invoices"}
         />
       </FeatureBoundary>
     );

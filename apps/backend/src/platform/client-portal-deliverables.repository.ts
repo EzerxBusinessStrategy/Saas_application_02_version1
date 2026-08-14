@@ -7,6 +7,22 @@ import { ClientPortalRequestContext, ClientPortalScope, resolveClientPortalScope
 import { DecideClientPortalDeliverableRequest } from "./client-portal-deliverables.dto";
 import type { StoredDocumentObject } from "./tenant-document-storage.service";
 
+export type ClientDownloadableDocument =
+  | { readonly kind: "stored"; readonly object: StoredDocumentObject }
+  | {
+      readonly kind: "generated-invoice";
+      readonly documentId: string;
+      readonly clientId: string;
+      readonly invoiceId: string;
+      readonly invoiceNumber: string;
+      readonly clientName: string;
+      readonly taskTitle: string | null;
+      readonly issuedOn: string;
+      readonly dueOn: string | null;
+      readonly currency: string;
+      readonly amount: number;
+    };
+
 type ClientPortalDeliverableRow = {
   readonly id: string;
   readonly title: string;
@@ -29,20 +45,153 @@ export class ClientPortalDeliverablesRepository {
     return this.withContext(context, (client, scope) => this.getDeliverables(client, scope));
   }
 
-  async getDocumentStorageObject(context: ClientPortalRequestContext, documentId: string): Promise<StoredDocumentObject> {
+  async getDownloadableDocument(context: ClientPortalRequestContext, documentId: string): Promise<ClientDownloadableDocument> {
+    return this.withContext(context, (client, scope) => this.getDownloadableDocumentFromScope(client, scope, documentId));
+  }
+
+  async getInvoiceDownloadableDocument(context: ClientPortalRequestContext, invoiceId: string): Promise<ClientDownloadableDocument> {
     return this.withContext(context, async (client, scope) => {
-      const result = await client.query<{ storage_bucket: string | null; storage_key: string | null }>(
+      const result = await client.query<{ document_id: string }>(
         `
-          select storage_bucket, storage_key
-          from public.tenant_documents
-          where tenant_id = $1 and client_id = $2 and id = $3 and status = 'active'
-            and coalesce(metadata->>'clientVisible', 'false') = 'true'
+          select d.id::text as document_id
+          from public.tenant_documents d
+          where d.tenant_id = $1
+            and d.client_id = $2
+            and d.category = 'invoice'
+            and d.status = 'active'
+            and coalesce(d.metadata->>'clientVisible', 'false') = 'true'
+            and d.metadata->>'invoiceId' = $3
+          order by d.updated_at desc, d.id desc
+          limit 1
+        `,
+        [scope.tenantId, scope.clientId, invoiceId],
+      );
+      const documentId = result.rows[0]?.document_id;
+      if (!documentId) {
+        throw new ConflictException({ code: "INVOICE_FILE_NOT_AVAILABLE", message: "The invoice file is not available." });
+      }
+      return this.getDownloadableDocumentFromScope(client, scope, documentId);
+    });
+  }
+
+  private async getDownloadableDocumentFromScope(
+    client: PoolClient,
+    scope: ClientPortalScope,
+    documentId: string,
+  ): Promise<ClientDownloadableDocument> {
+      const result = await client.query<{
+        id: string;
+        client_id: string;
+        category: string;
+        storage_bucket: string | null;
+        storage_key: string | null;
+        invoice_id: string | null;
+        invoice_number: string | null;
+        client_name: string | null;
+        task_title: string | null;
+        issued_on: string | null;
+        due_on: string | null;
+        currency: string | null;
+        amount: number | null;
+      }>(
+        `
+          select
+            d.id::text,
+            d.client_id::text,
+            d.category,
+            d.storage_bucket,
+            d.storage_key,
+            i.id::text as invoice_id,
+            i.invoice_number,
+            c.display_name as client_name,
+            (
+              select t.title
+              from public.invoice_items ii
+              left join public.tasks t
+                on t.tenant_id = ii.tenant_id
+               and t.id = ii.task_id
+              where ii.tenant_id = i.tenant_id
+                and ii.invoice_id = i.id
+              order by ii.created_at asc
+              limit 1
+            ) as task_title,
+            i.issued_on::text,
+            i.due_on::text,
+            i.currency_code as currency,
+            i.total_amount as amount
+          from public.tenant_documents d
+          join public.clients c
+            on c.tenant_id = d.tenant_id
+           and c.id = d.client_id
+          left join public.invoices i
+            on i.tenant_id = d.tenant_id
+           and i.id = case
+             when coalesce(d.metadata->>'invoiceId', '') ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+               then (d.metadata->>'invoiceId')::uuid
+             else null
+           end
+          where d.tenant_id = $1
+            and d.client_id = $2
+            and d.id = $3
+            and d.status = 'active'
+            and coalesce(d.metadata->>'clientVisible', 'false') = 'true'
         `,
         [scope.tenantId, scope.clientId, documentId],
       );
-      const object = result.rows[0];
-      if (!object?.storage_bucket || !object.storage_key) throw new ConflictException({ code: "DELIVERABLE_FILE_NOT_AVAILABLE", message: "The file for this deliverable is not available." });
-      return { storageBucket: object.storage_bucket, storageKey: object.storage_key };
+      const document = result.rows[0];
+      if (document?.storage_bucket && document.storage_key) {
+        return { kind: "stored", object: { storageBucket: document.storage_bucket, storageKey: document.storage_key } };
+      }
+      if (
+        document?.category === "invoice" &&
+        document.invoice_id &&
+        document.invoice_number &&
+        document.client_name &&
+        document.issued_on &&
+        document.currency &&
+        document.amount !== null
+      ) {
+        return {
+          kind: "generated-invoice",
+          documentId: document.id,
+          clientId: document.client_id,
+          invoiceId: document.invoice_id,
+          invoiceNumber: document.invoice_number,
+          clientName: document.client_name,
+          taskTitle: document.task_title,
+          issuedOn: document.issued_on,
+          dueOn: document.due_on,
+          currency: document.currency,
+          amount: Number(document.amount),
+        };
+      }
+      throw new ConflictException({ code: "DELIVERABLE_FILE_NOT_AVAILABLE", message: "The file for this deliverable is not available." });
+  }
+
+  async attachGeneratedInvoiceStorageObject(
+    context: ClientPortalRequestContext,
+    documentId: string,
+    object: StoredDocumentObject,
+    sizeBytes: number,
+  ): Promise<void> {
+    await this.withContext(context, async (client, scope) => {
+      await client.query(
+        `
+          update public.tenant_documents
+          set storage_bucket = $4,
+              storage_key = $5,
+              content_type = 'application/pdf',
+              size_bytes = $6,
+              updated_at = now()
+          where tenant_id = $1
+            and client_id = $2
+            and id = $3
+            and category = 'invoice'
+            and status = 'active'
+            and coalesce(metadata->>'clientVisible', 'false') = 'true'
+        `,
+        [scope.tenantId, scope.clientId, documentId, object.storageBucket, object.storageKey, sizeBytes],
+      );
     });
   }
 
@@ -65,6 +214,7 @@ export class ClientPortalDeliverablesRepository {
           where d.tenant_id = $1
             and d.client_id = $2
             and d.id = $3
+            and d.category <> 'invoice'
             and d.status = 'active'
           returning d.id::text, d.title
         `,
@@ -122,6 +272,7 @@ export class ClientPortalDeliverablesRepository {
          and tm.tenant_id = d.tenant_id
         where d.tenant_id = $1
           and d.client_id = $2
+          and d.category <> 'invoice'
           and d.status = 'active'
           and coalesce(d.metadata->>'clientVisible', 'false') = 'true'
         order by d.updated_at desc, d.id desc

@@ -37,4 +37,14 @@ describe("TenantAdminFinanceRepository document delivery", () => {
     expect(source).toContain("jsonb_build_object('clientId', $4::uuid)");
     expect(source).toContain("jsonb_build_object('clientId', $4::uuid, 'documentId', $3::uuid, 'title', $5::text)");
   });
+
+  test("creates client-downloadable invoice PDFs through private storage", () => {
+    const storageSource = readFileSync(resolve(__dirname, "../../src/platform/tenant-document-storage.service.ts"), "utf8");
+    const clientDeliverablesSource = readFileSync(resolve(__dirname, "../../src/platform/client-portal-deliverables.service.ts"), "utf8");
+
+    expect(storageSource).toContain("storeGeneratedInvoice");
+    expect(storageSource).toContain("invoices/${input.invoiceId}.pdf");
+    expect(clientDeliverablesSource).toContain("getDownloadableDocument");
+    expect(clientDeliverablesSource).toContain("attachGeneratedInvoiceStorageObject");
+  });
 });

@@ -46,6 +46,12 @@ export async function getClientPortalDeliverableDownloadUrl(documentId: string):
   return z.object({ url: z.string().url() }).parse(await parseBody(response)).url;
 }
 
+export async function getClientPortalInvoiceDownloadUrl(invoiceId: string): Promise<string> {
+  const response = await fetch(`/api/client-portal/invoices/${encodeURIComponent(invoiceId)}/download`, { cache: "no-store" });
+  await redirectToLoginOnUnauthorized(response);
+  return z.object({ url: z.string().url() }).parse(await parseBody(response)).url;
+}
+
 async function parseBody(response: Response) {
   const body = await response.json().catch(() => null);
   if (!response.ok) {

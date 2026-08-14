@@ -17,7 +17,7 @@ import { ClientPortalDeliverablesService } from "./client-portal-deliverables.se
 
 @ApiTags("Client Portal")
 @ApiBearerAuth()
-@Controller("client-portal/deliverables")
+@Controller("client-portal")
 @UseGuards(PortalSessionGuard, ActiveRequestContextGuard, PermissionGuard)
 @RequirePermissions("client.read.assigned")
 export class ClientPortalDeliverablesController {
@@ -26,14 +26,14 @@ export class ClientPortalDeliverablesController {
     private readonly service: ClientPortalDeliverablesService,
   ) {}
 
-  @Get()
+  @Get("deliverables")
   @ApiOperation({ summary: "Return deliverables for the logged-in client account." })
   @ApiOkResponse({ type: ClientPortalDeliverablesResponseDto })
   list(@CurrentRequestContext() context: RequestContext): Promise<ClientPortalDeliverablesResponseDto> {
     return this.service.list(context);
   }
 
-  @Post(":documentId/decision")
+  @Post("deliverables/:documentId/decision")
   @ApiOperation({ summary: "Approve or reject one client deliverable." })
   @ApiOkResponse({ type: ClientPortalDeliverableDto })
   decide(
@@ -44,9 +44,15 @@ export class ClientPortalDeliverablesController {
     return this.service.decide(context, documentId, body);
   }
 
-  @Get(":documentId/download")
+  @Get("deliverables/:documentId/download")
   @ApiOperation({ summary: "Authorize a private client deliverable download." })
   createDownloadUrl(@CurrentRequestContext() context: RequestContext, @Param("documentId") documentId: string) {
     return this.service.createDownloadUrl(context, documentId);
+  }
+
+  @Get("invoices/:invoiceId/download")
+  @ApiOperation({ summary: "Authorize a private client invoice download." })
+  createInvoiceDownloadUrl(@CurrentRequestContext() context: RequestContext, @Param("invoiceId") invoiceId: string) {
+    return this.service.createInvoiceDownloadUrl(context, invoiceId);
   }
 }

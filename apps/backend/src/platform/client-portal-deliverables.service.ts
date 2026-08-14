@@ -7,6 +7,7 @@ import {
   DecideClientPortalDeliverableRequest,
 } from "./client-portal-deliverables.dto";
 import { ClientPortalDeliverablesRepository } from "./client-portal-deliverables.repository";
+import { createInvoicePdf } from "./invoice-pdf";
 import { TenantDocumentStorageService } from "./tenant-document-storage.service";
 
 @Injectable()
@@ -33,7 +34,38 @@ export class ClientPortalDeliverablesService {
 
   async createDownloadUrl(context: RequestContext, documentId: string): Promise<{ url: string }> {
     const scoped = requireClientPortalContext(context);
-    return { url: await this.storage.createSignedDownloadUrl(await this.repository.getDocumentStorageObject(scoped, documentId)) };
+    const document = await this.repository.getDownloadableDocument(scoped, documentId);
+    return this.createDownloadUrlForDocument(scoped, document);
+  }
+
+  async createInvoiceDownloadUrl(context: RequestContext, invoiceId: string): Promise<{ url: string }> {
+    const scoped = requireClientPortalContext(context);
+    const document = await this.repository.getInvoiceDownloadableDocument(scoped, invoiceId);
+    return this.createDownloadUrlForDocument(scoped, document);
+  }
+
+  private async createDownloadUrlForDocument(
+    scoped: ReturnType<typeof requireClientPortalContext>,
+    document: Awaited<ReturnType<ClientPortalDeliverablesRepository["getDownloadableDocument"]>>,
+  ): Promise<{ url: string }> {
+    if (document.kind === "stored") {
+      return { url: await this.storage.createSignedDownloadUrl(document.object) };
+    }
+
+    const content = createInvoicePdf(document);
+    const object = await this.storage.storeGeneratedInvoice({
+      tenantId: scoped.tenantId,
+      clientId: document.clientId,
+      invoiceId: document.invoiceId,
+      content,
+    });
+    await this.repository.attachGeneratedInvoiceStorageObject(
+      scoped,
+      document.documentId,
+      object,
+      content.byteLength,
+    );
+    return { url: await this.storage.createSignedDownloadUrl(object) };
   }
 }
 
