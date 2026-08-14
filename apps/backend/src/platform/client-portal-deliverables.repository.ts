@@ -192,7 +192,7 @@ export class ClientPortalDeliverablesRepository {
             ),
             $9
           from doc_client
-          on conflict (idempotency_key) do nothing
+          on conflict (idempotency_key) where idempotency_key is not null do nothing
           returning id
         )
         insert into public.notification_recipients (notification_id, recipient_user_id)

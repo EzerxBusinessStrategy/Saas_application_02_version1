@@ -199,7 +199,7 @@ export class ClientPortalRequestsRepository {
             jsonb_build_object('clientId', $2, 'requestId', $3::uuid, 'title', $4, 'serviceName', $5),
             'client-request-received:' || $3::uuid::text
           from request_client
-          on conflict (idempotency_key) do nothing
+          on conflict (idempotency_key) where idempotency_key is not null do nothing
           returning id
         )
         insert into public.notification_recipients (notification_id, recipient_user_id)

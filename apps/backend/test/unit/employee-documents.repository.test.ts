@@ -9,5 +9,6 @@ describe("EmployeeDocumentsRepository recipient notifications", () => {
     expect(source).toContain("$3::uuid,");
     expect(source).toContain("jsonb_build_object('documentId', $3::uuid, 'title', $4::text)");
     expect(source).toContain("tm.tenant_id = $1::uuid and tm.id = any($5::uuid[])");
+    expect(source).toMatch(/on conflict \(idempotency_key\) where idempotency_key is not null\s+do update/);
   });
 });

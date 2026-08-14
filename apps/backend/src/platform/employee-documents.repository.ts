@@ -287,7 +287,8 @@ export class EmployeeDocumentsRepository {
             jsonb_build_object('documentId', $3::uuid, 'title', $4::text),
             'employee-document-shared:' || $3::uuid::text
           )
-          on conflict (idempotency_key) do update set idempotency_key = public.notifications.idempotency_key
+          on conflict (idempotency_key) where idempotency_key is not null
+          do update set idempotency_key = public.notifications.idempotency_key
           returning id
         )
         insert into public.notification_recipients (notification_id, recipient_user_id)
