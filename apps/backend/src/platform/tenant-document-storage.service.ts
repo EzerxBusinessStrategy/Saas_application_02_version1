@@ -43,7 +43,12 @@ export class TenantDocumentStorageService {
   constructor(@Inject(APP_CONFIG) config: AppConfig) {
     this.client = config.supabaseUrl && config.supabaseAdminKey
       ? createClient(config.supabaseUrl, config.supabaseAdminKey, {
-          auth: { autoRefreshToken: false, persistSession: false },
+          auth: {
+            autoRefreshToken: false,
+            detectSessionInUrl: false,
+            persistSession: false,
+            skipAutoInitialize: true,
+          },
         })
       : null;
   }
