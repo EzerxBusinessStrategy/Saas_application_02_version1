@@ -234,7 +234,7 @@ export class EmployeeManagerService {
       await client.query(
         `
           insert into public.approvals (tenant_id, task_id, submission_id, approval_stage, decision, remarks, decided_by)
-          values ($1, $2, $3, 'manager_final_review', $4, nullif($5, ''), $6)
+          values ($1, $2, $3, 'manager_review', $4, nullif($5, ''), $6)
         `,
         [managerContext.tenantId, taskId, row.id, approved ? "approved" : "returned", input.remarks, managerContext.membershipId],
       );

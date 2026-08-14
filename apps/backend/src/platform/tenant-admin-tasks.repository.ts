@@ -828,7 +828,7 @@ export class TenantAdminTasksRepository {
           insert into public.approvals (
             tenant_id, task_id, submission_id, approval_stage, decision, remarks, decided_by
           )
-          values ($1, $2, $3, 'tenant_final_review', $4, nullif($5, ''), $6)
+          values ($1, $2, $3, 'tenant_admin_approval', $4, nullif($5, ''), $6)
         `,
         [context.tenantId, taskId, submission.id, approved ? "approved" : "returned", input.remarks, context.membershipId],
       );

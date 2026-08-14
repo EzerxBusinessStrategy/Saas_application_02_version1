@@ -48,6 +48,7 @@ describe("EmployeeManagerService", () => {
     expect(
       calls.find((call) => call.sql.includes("update public.tasks set status"))?.values,
     ).toEqual(["tenant-1", "task-1", "completed", "ready_for_billing", "manager-membership-1"]);
+    expect(calls.find((call) => call.sql.includes("insert into public.approvals"))?.sql).toContain("'manager_review'");
     const notificationValues = calls.find((call) => call.sql.includes("insert into public.notifications"))?.values;
     expect(notificationValues).toContain("INVOICE_READY_TO_GENERATE");
     expect(notificationValues).toContain("invoice-ready:task-1");

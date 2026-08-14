@@ -443,6 +443,7 @@ describe("TenantAdminTasksRepository", () => {
     expect(sql).toContain("t.status in ('manager_review', 'tenant_approval')");
     expect(sql).toContain("and status = 'pending_review'");
     expect(sql).toContain("'approved_for_invoice'");
+    expect(sql).toContain("'tenant_admin_approval'");
   });
 
   it("returns the same employee assignment to active rework with Tenant Admin remarks", async () => {
