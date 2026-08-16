@@ -14,6 +14,7 @@
 - [0012: Parallel Manager and Tenant Admin final task review](0012-parallel-manager-tenant-task-review.md) (Accepted)
 - [0013: Portal-Specific Authentication](0013-portal-specific-authentication.md) (Accepted)
 - [0014: Portal Private Document Buckets](0014-portal-private-document-buckets.md) (Accepted)
+- [0015: Additive service blueprint activation](0015-additive-service-blueprint-activation.md) (Accepted)
 
 Supporting proposed architecture documents:
 

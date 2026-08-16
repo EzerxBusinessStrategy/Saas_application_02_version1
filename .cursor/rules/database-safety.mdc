@@ -1,0 +1,19 @@
+---
+description: Database safety requirements
+alwaysApply: true
+---
+
+NEVER destructively alter the production schema unless explicitly approved.
+
+For feature development:
+- Prefer additive migrations.
+- Never drop existing tables or columns.
+- Never rename existing production columns without a migration strategy.
+- Never delete or rewrite existing records.
+- Preserve tenant_id ownership.
+- Preserve existing APIs and workflows.
+- New features must remain compatible with old records.
+- All multi-record activation workflows must be transactional.
+- Cross-tenant references are forbidden.
+- Check existing schema before creating new entities.
+- Do not create duplicate concepts already represented in the database.

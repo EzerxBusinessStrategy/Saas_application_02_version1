@@ -30,11 +30,16 @@ import {
   createTenantAdminEmployee,
   getTenantAdminEmployeeEmailAvailability,
   listTenantAdminEmployeeDirectory,
+  listTenantAdminServices,
   listTenantAdminWorkGroups,
   setTenantAdminEmployeeManager,
   updateTenantAdminEmployeeAssignment,
   updateTenantAdminEmployeeCapacity,
 } from "@/features/operations/api/operations-api";
+import {
+  getEmployeeServiceCapabilities,
+  replaceEmployeeServiceCapabilities,
+} from "@/features/administration/api/service-onboarding-api";
 import { readFormDraft } from "@/lib/client/form-draft-store";
 import type { Employee, EmployeeDirectoryFilters } from "@/types/workforce";
 
@@ -833,8 +838,19 @@ function AssignmentDialog({
   const [experienceLevel, setExperienceLevel] = useState("");
   const [managerId, setManagerId] = useState("");
   const [workGroupIds, setWorkGroupIds] = useState<string[]>([]);
+  const [serviceIds, setServiceIds] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const open = Boolean(employee);
+  const servicesQuery = useQuery({
+    queryKey: ["tenant-admin-services"],
+    queryFn: listTenantAdminServices,
+    enabled: open,
+  });
+  const capabilitiesQuery = useQuery({
+    queryKey: ["employee-service-capabilities", employee?.id],
+    queryFn: () => getEmployeeServiceCapabilities(employee!.id),
+    enabled: open && Boolean(employee?.id),
+  });
 
   useEffect(() => {
     setSkills(employee?.skills.join(", ") ?? "");
@@ -842,7 +858,13 @@ function AssignmentDialog({
     setExperienceLevel(employee?.experienceLevel ?? "");
     setManagerId(employee?.manager?.id ?? "");
     setWorkGroupIds(employee?.workGroups.map((workGroup) => workGroup.id) ?? []);
+    setServiceIds([]);
   }, [employee]);
+
+  useEffect(() => {
+    if (!capabilitiesQuery.data) return;
+    setServiceIds(capabilitiesQuery.data.capabilities.map((capability) => capability.serviceId));
+  }, [capabilitiesQuery.data]);
 
   const managerWorkGroupIds = workGroups
     .filter((workGroup) => workGroup.managerEmployeeId === employee?.id)
@@ -860,6 +882,7 @@ function AssignmentDialog({
     if (!employee) return;
     setSaving(true);
     try {
+      await replaceEmployeeServiceCapabilities(employee.id, serviceIds);
       await onSaved({
         skills: skills.split(",").map((value) => value.trim()).filter(Boolean),
         departmentId: departmentId || null,
@@ -901,6 +924,29 @@ function AssignmentDialog({
           </fieldset>
           <label className="text-sm font-medium">Department<Select name="departmentId" className="mt-1" value={departmentId} onChange={(event) => setDepartmentId(event.target.value)}><option value="">Unassigned</option>{departments.map((department) => <option key={department.id} value={department.id}>{department.name}</option>)}</Select></label>
           <label className="text-sm font-medium">Skills<Input name="skills" className="mt-1" value={skills} placeholder="GST, Payroll, Compliance" onChange={(event) => setSkills(event.target.value)} /></label>
+          <fieldset className="grid gap-2">
+            <legend className="text-sm font-medium">Services handled</legend>
+            <div className="max-h-40 space-y-1 overflow-y-auto rounded-[var(--radius-control)] border border-input bg-muted/20 p-2">
+              {servicesQuery.data?.length ? servicesQuery.data.map((service) => (
+                <label key={service.id} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-muted">
+                  <input
+                    type="checkbox"
+                    checked={serviceIds.includes(service.id)}
+                    onChange={(event) =>
+                      setServiceIds((current) =>
+                        event.target.checked ? [...new Set([...current, service.id])] : current.filter((id) => id !== service.id),
+                      )
+                    }
+                  />
+                  <span className="min-w-0 flex-1 truncate">{service.name}</span>
+                </label>
+              )) : (
+                <p className="px-2 py-1 text-sm text-muted-foreground">
+                  {servicesQuery.isPending ? "Loading services…" : "Create services first, then map the ones this employee handles."}
+                </p>
+              )}
+            </div>
+          </fieldset>
           <label className="text-sm font-medium">Level<Select name="experienceLevel" className="mt-1" value={experienceLevel} onChange={(event) => setExperienceLevel(event.target.value)}><option value="">Not set</option><option value="junior">Junior</option><option value="mid">Mid</option><option value="senior">Senior</option><option value="lead">Lead</option></Select></label>
           <label className="text-sm font-medium">Manager<Select name="managerId" className="mt-1" value={managerId} onChange={(event) => setManagerId(event.target.value)}><option value="">Unassigned</option>{managers.filter((manager) => manager.id !== employee?.id).map((manager) => <option key={manager.id} value={manager.id}>{manager.name}</option>)}</Select></label>
           <div className="flex justify-end gap-2">

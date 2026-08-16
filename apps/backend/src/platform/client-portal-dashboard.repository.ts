@@ -12,6 +12,13 @@ type SummaryRow = {
   currency_code: string;
 };
 
+type ServiceTaskJson = {
+  id: string;
+  title: string;
+  status: string;
+  plannedDueAt: string | Date | null;
+};
+
 type ServiceRow = {
   id: string;
   engagement_name: string;
@@ -21,6 +28,10 @@ type ServiceRow = {
   open_tasks: string;
   completed_tasks: string;
   total_tasks: string;
+  assigned_employee_name: string | null;
+  estimated_total: string | null;
+  currency_code: string | null;
+  tasks: readonly ServiceTaskJson[] | string;
 };
 
 type RequestRow = {
@@ -200,11 +211,58 @@ export class ClientPortalDashboardRepository {
           min(service_scope.next_due_at) as next_due_at,
           coalesce(sum(service_scope.open_tasks), 0)::text as open_tasks,
           coalesce(sum(service_scope.completed_tasks), 0)::text as completed_tasks,
-          coalesce(sum(service_scope.total_tasks), 0)::text as total_tasks
+          coalesce(sum(service_scope.total_tasks), 0)::text as total_tasks,
+          max(assigned.assigned_employee_name) as assigned_employee_name,
+          max(assigned.estimated_total) as estimated_total,
+          max(assigned.currency_code) as currency_code,
+          coalesce((array_agg(service_tasks.tasks))[1], '[]'::json) as tasks
         from service_scope
         join public.services s
           on s.id = service_scope.service_id
          and s.tenant_id = $1
+        left join lateral (
+          select
+            coalesce(tm.display_name, u.display_name, emp.employee_code) as assigned_employee_name,
+            esc.estimated_total::text as estimated_total,
+            esc.currency_code
+          from public.engagements e
+          join public.engagement_service_configurations esc
+            on esc.tenant_id = e.tenant_id
+           and esc.engagement_id = e.id
+           and esc.status = 'active'
+          join public.employees emp
+            on emp.id = esc.assigned_employee_id
+           and emp.tenant_id = e.tenant_id
+          join public.tenant_memberships tm
+            on tm.id = emp.membership_id
+           and tm.tenant_id = e.tenant_id
+          left join public.users u on u.id = tm.user_id
+          where e.tenant_id = $1
+            and e.client_id = $2
+            and e.service_id = s.id
+            and e.status = 'active'
+          order by e.start_date desc
+          limit 1
+        ) assigned on true
+        left join lateral (
+          select coalesce(
+            json_agg(
+              json_build_object(
+                'id', t.id::text,
+                'title', t.title,
+                'status', t.status,
+                'plannedDueAt', t.planned_due_at
+              )
+              order by t.planned_due_at nulls last, t.title
+            ),
+            '[]'::json
+          ) as tasks
+          from public.tasks t
+          where t.tenant_id = $1
+            and t.client_id = $2
+            and t.service_id = s.id
+            and t.status <> 'cancelled'
+        ) service_tasks on true
         group by s.id, s.name
         order by lower(coalesce(min(service_scope.engagement_name), s.name)) asc
       `,

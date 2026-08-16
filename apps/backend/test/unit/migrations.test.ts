@@ -196,4 +196,27 @@ describe("database migrations", () => {
     expect(sql).toContain("invoices_idempotency_unique");
     expect(sql).toContain("public = false");
   });
+
+  test("adds service capability and engagement snapshot tables without rewriting existing records", () => {
+    expect(migrationNames).toContain("0066_service_blueprint_activation.sql");
+    expect(migrationNames.indexOf("0066_service_blueprint_activation.sql")).toBeGreaterThan(
+      migrationNames.indexOf("0064_portal_private_document_buckets.sql"),
+    );
+
+    const sql = readFileSync(
+      resolve(__dirname, "../../drizzle/migrations/0066_service_blueprint_activation.sql"),
+      "utf8",
+    );
+
+    expect(sql).toContain("create table public.employee_service_capabilities");
+    expect(sql).toContain("create table public.engagement_service_configurations");
+    expect(sql).toContain("employee_service_capabilities_unique");
+    expect(sql).toContain("engagement_service_configurations_idempotency_unique");
+    expect(sql).toContain("enable row level security");
+    expect(sql).not.toContain("drop table public.tasks");
+    expect(sql).not.toContain("drop table public.clients");
+    expect(sql).not.toContain("drop table public.services");
+    expect(sql).not.toContain("drop table public.engagements");
+    expect(sql).not.toMatch(/alter table public\.tasks\s+drop/i);
+  });
 });

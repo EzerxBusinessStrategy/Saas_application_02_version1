@@ -1,0 +1,14 @@
+---
+description: Backend NestJS platform rules
+alwaysApply: true
+---
+
+Use NestJS, Fastify, Drizzle, node-postgres, Zod DTOs, and Swagger.
+
+Derive tenant, actor, roles, and permissions from the verified session. Never trust browser-supplied tenantId, employeeId authority, or roles.
+
+Set transaction-local PostgreSQL tenant context before tenant-owned queries.
+
+Activation, task generation, assignments, and billing inserts for one onboarding request must commit or roll back together.
+
+Require idempotency for service activation. Duplicate requests must not create duplicate engagements or tasks.

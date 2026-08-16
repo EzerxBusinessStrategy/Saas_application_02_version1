@@ -1,0 +1,14 @@
+---
+description: Testing requirements for tenant-owned features
+alwaysApply: true
+---
+
+Add unit tests for recurrence expansion and activation SQL/idempotency behavior.
+
+Add migration registration assertions for new additive SQL.
+
+Cover allowed and denied authorization paths for new endpoints when API tests are practical.
+
+Never claim tests passed when they were skipped or not executed.
+
+Existing client, service, task, billing, and portal tests must keep passing.

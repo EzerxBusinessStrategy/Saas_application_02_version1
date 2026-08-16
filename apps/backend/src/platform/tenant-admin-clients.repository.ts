@@ -617,7 +617,11 @@ export class TenantAdminClientsRepository {
           case when e.status = 'paused' then 'on-hold' when e.status = 'completed' then 'complete' when e.status = 'draft' then 'planning' else 'active' end as status,
           'medium' as priority, 'standard' as complexity,
           case when count(t.id) filter (where t.sla_status in ('near_breach', 'breached')) > 0 then 'at-risk' when count(t.id) filter (where t.status not in ('completed', 'cancelled')) > 0 then 'watch' else 'on-track' end as "slaStatus",
-          coalesce((array_agg(distinct tm.display_name order by tm.display_name) filter (where tm.display_name is not null))[1], 'Unassigned') as manager,
+          coalesce(
+            (array_agg(distinct tm.display_name order by tm.display_name) filter (where tm.display_name is not null))[1],
+            max(coalesce(assigned_tm.display_name, assigned_u.display_name, assigned_emp.employee_code)),
+            'Unassigned'
+          ) as manager,
           count(distinct ta.employee_id)::int as employees,
           count(distinct t.id) filter (where t.status not in ('completed', 'cancelled'))::int as "openTasks",
           case when count(distinct t.id) = 0 then 0 else round((count(distinct t.id) filter (where t.status = 'completed')::numeric / count(distinct t.id)) * 100)::int end as progress,
@@ -631,6 +635,13 @@ export class TenantAdminClientsRepository {
         left join public.work_group_memberships wgm on wgm.work_group_id = wg.id and wgm.tenant_id = wg.tenant_id and wgm.group_role = 'manager' and wgm.status = 'active'
         left join public.employees me on me.id = wgm.employee_id and me.tenant_id = wgm.tenant_id
         left join public.tenant_memberships tm on tm.id = me.membership_id and tm.tenant_id = me.tenant_id
+        left join public.engagement_service_configurations esc
+          on esc.tenant_id = e.tenant_id and esc.engagement_id = e.id and esc.status = 'active'
+        left join public.employees assigned_emp
+          on assigned_emp.id = esc.assigned_employee_id and assigned_emp.tenant_id = e.tenant_id
+        left join public.tenant_memberships assigned_tm
+          on assigned_tm.id = assigned_emp.membership_id and assigned_tm.tenant_id = e.tenant_id
+        left join public.users assigned_u on assigned_u.id = assigned_tm.user_id
         where e.tenant_id = $1 and e.client_id = $2
         group by e.id, e.name, e.code, s.name, e.start_date, e.end_date, e.status, s.default_billing_model
         order by e.start_date desc

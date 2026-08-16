@@ -72,6 +72,7 @@ export const migrationNames = [
   "0062_portal_session_audit_events.sql",
   "0063_private_document_storage.sql",
   "0064_portal_private_document_buckets.sql",
+  "0066_service_blueprint_activation.sql",
 ] as const;
 
 export async function runMigrations(

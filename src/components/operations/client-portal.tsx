@@ -178,6 +178,7 @@ function ClientServices({
   services: Awaited<ReturnType<typeof getClientPortalDashboard>>["services"];
   compact?: boolean;
 }) {
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   return (
     <Card>
       <CardHeader>
@@ -192,30 +193,78 @@ function ClientServices({
       <CardContent>
         {services.length ? (
           <ul className="flex flex-col divide-y">
-            {services.map((service) => (
-              <li key={service.id} className="py-4 first:pt-0">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="font-medium">{service.engagementName}</p>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      {service.serviceName}
-                    </p>
+            {services.map((service) => {
+              const expanded = expandedId === service.id;
+              const currency = service.currencyCode ?? "INR";
+              return (
+                <li key={service.id} className="py-4 first:pt-0">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-medium">{service.engagementName}</p>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        {service.serviceName}
+                      </p>
+                    </div>
+                    <StatusBadge
+                      status={service.status === "active" ? "on-track" : "pending"}
+                    />
                   </div>
-                  <StatusBadge
-                    status={service.status === "active" ? "on-track" : "pending"}
-                  />
-                </div>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  {service.completedTasks}/{service.totalTasks} tasks completed
-                  {service.openTasks > 0 ? ` · ${service.openTasks} open` : ""}
-                </p>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  {service.nextDueAt
-                    ? `Next due ${formatDate(service.nextDueAt)}`
-                    : "No upcoming due date"}
-                </p>
-              </li>
-            ))}
+                  {service.assignedEmployeeName ? (
+                    <p className="mt-2 text-sm text-muted-foreground">
+                      {service.assignedEmployeeName} · responsible person
+                    </p>
+                  ) : null}
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    {service.completedTasks}/{service.totalTasks} tasks completed
+                    {service.openTasks > 0 ? ` · ${service.openTasks} open` : ""}
+                  </p>
+                  <div className="mt-3">
+                    <div className="flex justify-between gap-3 text-sm">
+                      <span className="font-medium">Progress</span>
+                      <span className="text-muted-foreground">{service.progressPercent}%</span>
+                    </div>
+                    <div className="mt-2 h-2 overflow-hidden rounded-[var(--radius-control)] bg-muted">
+                      <div className="h-full bg-primary" style={{ width: `${service.progressPercent}%` }} />
+                    </div>
+                  </div>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    {service.nextDueAt
+                      ? `Next due ${formatDate(service.nextDueAt)}`
+                      : "No upcoming due date"}
+                    {service.estimatedTotal != null
+                      ? ` · ${formatCurrency(service.estimatedTotal, currency)}`
+                      : ""}
+                  </p>
+                  {!compact && service.tasks.length ? (
+                    <div className="mt-3">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setExpandedId(expanded ? null : service.id)}
+                      >
+                        {expanded ? "Hide tasks" : "View tasks"}
+                      </Button>
+                      {expanded ? (
+                        <ul className="mt-3 flex flex-col divide-y rounded-[var(--radius-control)] border">
+                          {service.tasks.map((task) => (
+                            <li key={task.id} className="flex items-start justify-between gap-3 px-3 py-2 text-sm">
+                              <div>
+                                <p className="font-medium">{task.title}</p>
+                                <p className="mt-1 text-muted-foreground">
+                                  {task.plannedDueAt ? formatDate(task.plannedDueAt) : "No due date"}
+                                </p>
+                              </div>
+                              <StatusBadge status={mapTaskStatus(task.status)} />
+                            </li>
+                          ))}
+                        </ul>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </li>
+              );
+            })}
           </ul>
         ) : (
           <EmptyState
@@ -727,6 +776,15 @@ function formatCurrency(amount: number, currencyCode: string) {
     currency: currencyCode,
     maximumFractionDigits: 2,
   }).format(amount);
+}
+
+function mapTaskStatus(status: string) {
+  if (status === "completed") return "complete";
+  if (["cancelled"].includes(status)) return "pending";
+  if (["in_progress", "submitted", "manager_review", "tenant_approval", "approved"].includes(status)) {
+    return "on-track";
+  }
+  return "pending";
 }
 
 function mapRequestStatus(status: string) {

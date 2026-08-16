@@ -71,6 +71,12 @@ import { TenantAdminNotificationsService } from "./tenant-admin-notifications.se
 import { TenantAdminServicesController } from "./tenant-admin-services.controller";
 import { TenantAdminServicesRepository } from "./tenant-admin-services.repository";
 import { TenantAdminServicesService } from "./tenant-admin-services.service";
+import { TenantAdminServiceBlueprintsController } from "./tenant-admin-service-blueprints.controller";
+import { TenantAdminServiceBlueprintsRepository } from "./tenant-admin-service-blueprints.repository";
+import { TenantAdminServiceBlueprintsService } from "./tenant-admin-service-blueprints.service";
+import { TenantAdminClientServiceActivationController } from "./tenant-admin-client-service-activation.controller";
+import { TenantAdminClientServiceActivationRepository } from "./tenant-admin-client-service-activation.repository";
+import { TenantAdminClientServiceActivationService } from "./tenant-admin-client-service-activation.service";
 import { TenantAdminTasksController } from "./tenant-admin-tasks.controller";
 import { TenantAdminTasksRepository } from "./tenant-admin-tasks.repository";
 import { TenantAdminTasksService } from "./tenant-admin-tasks.service";
@@ -101,11 +107,13 @@ import { TaskNotificationOutboxWorker } from "./task-notification-outbox.worker"
     EmployeeProfileController,
     EmployeeTasksController,
     TenantAdminDashboardController,
+    TenantAdminClientServiceActivationController,
     TenantAdminClientsController,
     TenantAdminEmployeePerformanceController,
     TenantAdminFinanceController,
     TenantAdminNotificationsController,
     TenantAdminServicesController,
+    TenantAdminServiceBlueprintsController,
     TenantAdminTasksController,
     TenantAnalyticsController,
   ],
@@ -148,6 +156,8 @@ import { TaskNotificationOutboxWorker } from "./task-notification-outbox.worker"
     TenantAdminDashboardService,
     TenantAdminClientsRepository,
     TenantAdminClientsService,
+    TenantAdminClientServiceActivationRepository,
+    TenantAdminClientServiceActivationService,
     TenantAdminEmployeePerformanceRepository,
     TenantAdminEmployeePerformanceService,
     TenantAdminFinanceRepository,
@@ -159,6 +169,8 @@ import { TaskNotificationOutboxWorker } from "./task-notification-outbox.worker"
     TenantAdminNotificationsListener,
     TenantAdminServicesRepository,
     TenantAdminServicesService,
+    TenantAdminServiceBlueprintsRepository,
+    TenantAdminServiceBlueprintsService,
     TenantAdminTasksRepository,
     TenantAdminTasksService,
     TenantAnalyticsRepository,

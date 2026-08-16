@@ -904,6 +904,79 @@ export const invoiceItems = pgTable(
   }),
 );
 
+export const employeeServiceCapabilities = pgTable(
+  "employee_service_capabilities",
+  {
+    id: uuid("id").default(sql`gen_random_uuid()`).primaryKey(),
+    tenantId: uuid("tenant_id").notNull(),
+    employeeId: uuid("employee_id").notNull(),
+    serviceId: uuid("service_id").notNull(),
+    status: text("status").default("active").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    tenantIdUnique: uniqueIndex("employee_service_capabilities_tenant_id_id_uidx").on(table.tenantId, table.id),
+    tenantEmployeeServiceUnique: uniqueIndex("employee_service_capabilities_unique").on(
+      table.tenantId,
+      table.employeeId,
+      table.serviceId,
+    ),
+    tenantEmployeeIndex: index("employee_service_capabilities_tenant_employee_idx").on(
+      table.tenantId,
+      table.employeeId,
+      table.status,
+    ),
+    tenantServiceIndex: index("employee_service_capabilities_tenant_service_idx").on(
+      table.tenantId,
+      table.serviceId,
+      table.status,
+    ),
+  }),
+);
+
+export const engagementServiceConfigurations = pgTable(
+  "engagement_service_configurations",
+  {
+    id: uuid("id").default(sql`gen_random_uuid()`).primaryKey(),
+    tenantId: uuid("tenant_id").notNull(),
+    engagementId: uuid("engagement_id").notNull(),
+    serviceId: uuid("service_id").notNull(),
+    assignedEmployeeId: uuid("assigned_employee_id").notNull(),
+    countryCode: text("country_code").notNull(),
+    configurationSnapshot: jsonb("configuration_snapshot").notNull(),
+    estimatedTotal: numeric("estimated_total", { precision: 18, scale: 2 }).default("0").notNull(),
+    currencyCode: text("currency_code").notNull(),
+    status: text("status").default("active").notNull(),
+    activatedAt: timestamp("activated_at", { withTimezone: true }).defaultNow().notNull(),
+    idempotencyKey: text("idempotency_key").notNull(),
+    requestFingerprint: text("request_fingerprint").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    tenantIdUnique: uniqueIndex("engagement_service_configurations_tenant_id_id_uidx").on(
+      table.tenantId,
+      table.id,
+    ),
+    engagementUnique: uniqueIndex("engagement_service_configurations_engagement_unique").on(
+      table.tenantId,
+      table.engagementId,
+    ),
+    idempotencyUnique: uniqueIndex("engagement_service_configurations_idempotency_unique").on(
+      table.tenantId,
+      table.idempotencyKey,
+      table.serviceId,
+    ),
+    tenantServiceIndex: index("engagement_service_configurations_tenant_service_idx").on(
+      table.tenantId,
+      table.serviceId,
+      table.status,
+      table.id,
+    ),
+  }),
+);
+
 export const payments = pgTable(
   "payments",
   {

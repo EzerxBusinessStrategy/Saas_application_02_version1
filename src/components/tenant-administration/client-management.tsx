@@ -53,6 +53,7 @@ import {
   type TenantAdminEmployeeOption,
   type TenantAdminWorkGroup,
 } from "@/features/operations/api/operations-api";
+import { ClientServiceOnboarding } from "@/components/tenant-administration/client-service-onboarding";
 import { readFormDraft } from "@/lib/client/form-draft-store";
 import {
   clientCreateInputSchema,
@@ -207,7 +208,7 @@ export function ClientDirectory() {
     await queryClient.invalidateQueries({ queryKey: ["clients"] });
     setCreateOpen(false);
     toast.success("Client created.");
-    router.push(`/admin/clients/${client.id}`);
+    router.push(`/admin/clients/${client.id}?tab=engagements&configureServices=1`);
   };
   const setParams = (updates: Record<string, string>) => {
     const next = new URLSearchParams(searchParams);
@@ -891,8 +892,11 @@ const recordNumber = (record: DetailRecord, key: string, fallback = 0) =>
 
 export function ClientDetail({ clientId }: { clientId: string }) {
   const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
   const queryClient = useQueryClient();
   const [tab, setTab] = useState(searchParams.get("tab") ?? "overview");
+  const [configureOpen, setConfigureOpen] = useState(searchParams.get("configureServices") === "1");
   const [editingContact, setEditingContact] = useState<
     ClientContact | "new" | null
   >(null);
@@ -935,6 +939,15 @@ export function ClientDetail({ clientId }: { clientId: string }) {
     await updateClientContact(client.id, archiveTarget.id, { status: "archived" });
     await queryClient.invalidateQueries({ queryKey: ["client", clientId] });
     setArchiveTarget(null);
+  };
+  const closeConfigure = () => {
+    setConfigureOpen(false);
+    if (searchParams.get("configureServices")) {
+      const next = new URLSearchParams(searchParams);
+      next.delete("configureServices");
+      const query = next.toString();
+      router.replace(`${pathname}${query ? `?${query}` : ""}`, { scroll: false });
+    }
   };
   const panel =
     tab === "overview" ? (
@@ -1139,10 +1152,15 @@ export function ClientDetail({ clientId }: { clientId: string }) {
               ))}
             </div>
           ) : (
-            <EmptyState
-              title="No service engagements"
-              description="Active engagements for this client will appear here."
-            />
+            <div className="flex flex-col items-center gap-4">
+              <EmptyState
+                title="No service engagements"
+                description="Configure the services this client purchased. Tasks are created only after you activate."
+              />
+              <Button type="button" onClick={() => setConfigureOpen(true)}>
+                Configure services
+              </Button>
+            </div>
           )}
         </CardContent>
       </Card>
@@ -1397,6 +1415,11 @@ export function ClientDetail({ clientId }: { clientId: string }) {
             <span>{client.openTasks} open tasks</span>
           </>
         }
+        actions={
+          <Button type="button" onClick={() => setConfigureOpen(true)}>
+            Configure services
+          </Button>
+        }
       />
       <ResponsiveTabs
         tabs={clientTabs}
@@ -1436,6 +1459,15 @@ export function ClientDetail({ clientId }: { clientId: string }) {
         confirmLabel="Archive contact"
         destructive
         onConfirm={() => void archiveContact()}
+      />
+      <ClientServiceOnboarding
+        clientId={client.id}
+        clientName={client.name}
+        open={configureOpen}
+        onOpenChange={(open) => {
+          if (open) setConfigureOpen(true);
+          else closeConfigure();
+        }}
       />
     </div>
   );

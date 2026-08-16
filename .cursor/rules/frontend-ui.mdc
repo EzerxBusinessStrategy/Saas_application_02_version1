@@ -1,0 +1,14 @@
+---
+description: Frontend UI rules for TailAdmin SaaS screens
+alwaysApply: true
+---
+
+Reuse PageHeader, EntityHeader, Card, Dialog, DataTable, StatusBadge, EmptyState, ErrorState, LoadingState, Button, Input, and Select.
+
+Do not create a second visual system, wizard primitive library, or duplicate metric/status components.
+
+Keep client create identity separate from Configure services. Activation is a deliberate final action.
+
+Preserve entered wizard values between steps. Show estimated pricing before activation.
+
+Mark new inferred screens as pending Figma verification. Do not claim pixel-perfect Figma matches.

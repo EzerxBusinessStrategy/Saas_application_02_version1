@@ -1,0 +1,14 @@
+---
+description: Multi-tenant isolation requirements
+alwaysApply: true
+---
+
+Every tenant-owned table and query must be tenant scoped.
+
+Composite foreign keys must include tenant_id so Tenant A cannot reference Tenant B rows.
+
+RLS is defense in depth, not a substitute for application WHERE tenant_id filters.
+
+Client portal queries must use the authenticated clientId. Employees see assigned or self-owned work only.
+
+Permission-denied responses must not leak whether an inaccessible resource exists.

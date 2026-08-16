@@ -57,3 +57,14 @@ Design status: Pending Figma verification.
   deliverable review, and policy settings reuse existing TailAdmin cards,
   dialogs, controls, badges, and responsive layouts. Figma MCP was not retried
   while rate limited.
+
+## Service blueprint activation compositions
+
+Design status: Pending Figma verification.
+
+- Service task booklet editor, employee services-handled mapping, client
+  service onboarding wizard (select, customize, assign, review/activate), and
+  client portal active-service enrichment reuse existing TailAdmin cards,
+  dialogs, tables, buttons, and empty states. Figma MCP was not used for these
+  screens. They are inferred design-system implementations, not pixel-perfect
+  Figma matches.

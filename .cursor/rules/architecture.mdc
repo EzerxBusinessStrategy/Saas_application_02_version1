@@ -1,0 +1,12 @@
+---
+description: Additive service activation architecture
+alwaysApply: true
+---
+
+Preserve the modular monolith. Do not create a second task, pricing, client, or portal system.
+
+Service Blueprint, employee service capability, and client service activation must reuse `services`, `engagements`, `compliance_calendar_rules`, `rate_cards`, `rate_card_items`, `tasks`, `task_assignments`, and `billable_task_entries`.
+
+Keep controllers thin. Put activation and blueprint rules in application services. Put SQL in the owning repository. Never import another module's repository.
+
+Existing create-service, create-client, and create-task contracts must remain backward compatible.

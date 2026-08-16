@@ -1,5 +1,12 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 
+export class ClientPortalDashboardServiceTaskDto {
+  @ApiProperty({ type: String }) id!: string;
+  @ApiProperty({ type: String }) title!: string;
+  @ApiProperty({ type: String }) status!: string;
+  @ApiPropertyOptional({ type: String, nullable: true }) plannedDueAt!: string | null;
+}
+
 export class ClientPortalDashboardServiceDto {
   @ApiProperty({ type: String }) id!: string;
   @ApiProperty({ type: String }) engagementName!: string;
@@ -9,6 +16,12 @@ export class ClientPortalDashboardServiceDto {
   @ApiProperty({ type: Number }) openTasks!: number;
   @ApiProperty({ type: Number }) completedTasks!: number;
   @ApiProperty({ type: Number }) totalTasks!: number;
+  @ApiProperty({ type: Number }) progressPercent!: number;
+  @ApiPropertyOptional({ type: String, nullable: true }) assignedEmployeeName!: string | null;
+  @ApiPropertyOptional({ type: Number, nullable: true }) estimatedTotal!: number | null;
+  @ApiPropertyOptional({ type: String, nullable: true }) currencyCode!: string | null;
+  @ApiProperty({ type: () => ClientPortalDashboardServiceTaskDto, isArray: true })
+  tasks!: readonly ClientPortalDashboardServiceTaskDto[];
 }
 
 export class ClientPortalDashboardRequestDto {

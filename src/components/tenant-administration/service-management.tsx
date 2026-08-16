@@ -10,6 +10,7 @@ import {
   type CreateTenantAdminServiceInput,
   type TenantAdminService,
 } from "@/features/operations/api/operations-api";
+import { ServiceBlueprintEditor } from "@/components/tenant-administration/service-blueprint-editor";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ErrorState } from "@/components/shared/error-state";
 import { LoadingState } from "@/components/shared/loading-state";
@@ -32,6 +33,7 @@ const serviceInput = {
 
 export function TenantServiceDirectory() {
   const queryClient = useQueryClient();
+  const [blueprintService, setBlueprintService] = useState<{ id: string; name: string } | null>(null);
   const query = useQuery({
     queryKey: ["tenant-admin-services"],
     queryFn: listTenantAdminServices,
@@ -60,7 +62,7 @@ export function TenantServiceDirectory() {
           <CardTitle>Service rate list</CardTitle>
         </CardHeader>
         <CardContent>
-          {query.data.length ? <ServiceTable services={query.data} /> : (
+          {query.data.length ? <ServiceTable services={query.data} onManageTasks={setBlueprintService} /> : (
             <EmptyState
               title="No services yet"
               description="Start with GST filing, bookkeeping, payroll, TDS filing, ROC filings, audit support, or advisory services."
@@ -68,11 +70,25 @@ export function TenantServiceDirectory() {
           )}
         </CardContent>
       </Card>
+      <ServiceBlueprintEditor
+        service={blueprintService}
+        onOpenChange={(open) => !open && setBlueprintService(null)}
+        onSaved={() => {
+          void queryClient.invalidateQueries({ queryKey: ["tenant-admin-services"] });
+          void queryClient.invalidateQueries({ queryKey: ["tenant-admin-task-options"] });
+        }}
+      />
     </div>
   );
 }
 
-function ServiceTable({ services }: { services: readonly TenantAdminService[] }) {
+function ServiceTable({
+  services,
+  onManageTasks,
+}: {
+  services: readonly TenantAdminService[];
+  onManageTasks: (service: { id: string; name: string }) => void;
+}) {
   return (
     <div className="overflow-x-auto border">
       <table className="min-w-full divide-y text-sm">
@@ -84,6 +100,7 @@ function ServiceTable({ services }: { services: readonly TenantAdminService[] })
             <th className="px-4 py-3 font-medium">Unit</th>
             <th className="px-4 py-3 font-medium">Tasks</th>
             <th className="px-4 py-3 font-medium">Status</th>
+            <th className="px-4 py-3 font-medium">Actions</th>
           </tr>
         </thead>
         <tbody className="divide-y">
@@ -107,6 +124,13 @@ function ServiceTable({ services }: { services: readonly TenantAdminService[] })
                 <td className="px-4 py-3">{rate ? billingUnitLabel(rate.unitType) : "-"}</td>
                 <td className="px-4 py-3">{rate?.tasksUsingRate ?? 0}</td>
                 <td className="px-4 py-3 capitalize">{service.status}</td>
+                <td className="px-4 py-3">
+                  {index === 0 ? (
+                    <Button type="button" size="sm" variant="outline" onClick={() => onManageTasks({ id: service.id, name: service.name })}>
+                      Manage tasks
+                    </Button>
+                  ) : null}
+                </td>
               </tr>
             ));
           })}

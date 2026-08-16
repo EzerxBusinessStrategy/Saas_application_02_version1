@@ -16,6 +16,21 @@ const clientPortalDashboardSchema = z.object({
       openTasks: z.number(),
       completedTasks: z.number(),
       totalTasks: z.number(),
+      progressPercent: z.number().min(0).max(100).optional().default(0),
+      assignedEmployeeName: z.string().nullable().optional().default(null),
+      estimatedTotal: z.number().nullable().optional().default(null),
+      currencyCode: z.string().nullable().optional().default(null),
+      tasks: z
+        .array(
+          z.object({
+            id: z.string(),
+            title: z.string(),
+            status: z.string(),
+            plannedDueAt: z.string().datetime().nullable(),
+          }),
+        )
+        .optional()
+        .default([]),
     }),
   ),
   requests: z.array(
