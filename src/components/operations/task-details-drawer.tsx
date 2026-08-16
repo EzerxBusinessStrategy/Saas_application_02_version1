@@ -270,20 +270,19 @@ export function TaskDetailsDrawer({
             <div className="mt-3 grid gap-3 sm:grid-cols-2">
               <label className="text-sm font-medium">
                 Assignee
-                <Select
-                  className="mt-1"
-                  value={task.assignee}
-                  disabled={!canManageAssignment}
-                  onChange={(event) =>
-                    onUpdate({ ...task, assignee: event.target.value })
-                  }
-                >
-                  {["Riley Shah", "Aarav Mehta", "Zoe Martin"].map(
-                    (assignee) => (
-                      <option key={assignee}>{assignee}</option>
-                    ),
-                  )}
-                </Select>
+                {canManageAssignment ? (
+                  <Select
+                    className="mt-1"
+                    value={task.assignee}
+                    onChange={(event) =>
+                      onUpdate({ ...task, assignee: event.target.value })
+                    }
+                  >
+                    <option value={task.assignee}>{task.assignee}</option>
+                  </Select>
+                ) : (
+                  <p className="mt-1 text-sm font-normal text-foreground">{task.assignee || "Unassigned"}</p>
+                )}
               </label>
               <label className="text-sm font-medium">
                 Due date

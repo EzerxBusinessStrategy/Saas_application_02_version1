@@ -83,7 +83,6 @@ const clientTabs = [
   { value: "overview", label: "Overview" },
   { value: "contacts", label: "Contacts" },
   { value: "engagements", label: "Service engagements" },
-  { value: "work-groups", label: "Work groups" },
   { value: "tasks", label: "Tasks" },
   { value: "billing", label: "Billing" },
   { value: "agreements", label: "Agreements" },
@@ -895,7 +894,10 @@ export function ClientDetail({ clientId }: { clientId: string }) {
   const router = useRouter();
   const pathname = usePathname();
   const queryClient = useQueryClient();
-  const [tab, setTab] = useState(searchParams.get("tab") ?? "overview");
+  const [tab, setTab] = useState(() => {
+    const requested = searchParams.get("tab") ?? "overview";
+    return clientTabs.some((item) => item.value === requested) ? requested : "overview";
+  });
   const [configureOpen, setConfigureOpen] = useState(searchParams.get("configureServices") === "1");
   const [editingContact, setEditingContact] = useState<
     ClientContact | "new" | null
@@ -1161,44 +1163,6 @@ export function ClientDetail({ clientId }: { clientId: string }) {
                 Configure services
               </Button>
             </div>
-          )}
-        </CardContent>
-      </Card>
-    ) : tab === "work-groups" ? (
-      <Card>
-        <CardHeader>
-          <CardTitle>Work groups</CardTitle>
-          <CardDescription>
-            Capacity and SLA context for client delivery groups.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {client.workGroups.length ? (
-            <ul className="flex flex-col divide-y">
-              {client.workGroups.map((group) => (
-                  <li
-                    key={recordText(group, "id")}
-                    className="flex flex-col gap-3 py-4 first:pt-0 sm:flex-row sm:justify-between"
-                  >
-                    <div>
-                      <p className="font-medium">{recordText(group, "name")}</p>
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        {group.manager} · {group.members} members ·{" "}
-                        {group.openTasks} open tasks
-                      </p>
-                    </div>
-                    <div className="flex gap-2">
-                      <StatusBadge status={group.slaStatus} />
-                      <StatusBadge status={group.status} />
-                    </div>
-                  </li>
-                ))}
-            </ul>
-          ) : (
-            <EmptyState
-              title="No work groups"
-              description="Work groups linked to this client will appear here."
-            />
           )}
         </CardContent>
       </Card>

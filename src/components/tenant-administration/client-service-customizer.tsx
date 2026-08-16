@@ -28,11 +28,13 @@ export function ClientServiceCustomizer({
   currencyCode,
   tasks,
   onChange,
+  description = "Changes apply to this client only.",
 }: {
   serviceName: string;
   currencyCode: string;
   tasks: readonly ClientServiceDraftTask[];
   onChange: (tasks: ClientServiceDraftTask[]) => void;
+  description?: string;
 }) {
   const estimated = estimatedServiceTotal(tasks);
   return (
@@ -40,7 +42,7 @@ export function ClientServiceCustomizer({
       <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-start">
         <div>
           <h3 className="font-medium">{serviceName}</h3>
-          <p className="mt-1 text-sm text-muted-foreground">Changes apply to this client only.</p>
+          <p className="mt-1 text-sm text-muted-foreground">{description}</p>
         </div>
         <p className="text-sm font-medium">{formatMoney(estimated, currencyCode)}</p>
       </div>

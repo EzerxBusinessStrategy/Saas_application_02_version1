@@ -977,6 +977,80 @@ export const engagementServiceConfigurations = pgTable(
   }),
 );
 
+export const clientServiceRequests = pgTable(
+  "client_service_requests",
+  {
+    id: uuid("id").default(sql`gen_random_uuid()`).primaryKey(),
+    tenantId: uuid("tenant_id").notNull(),
+    clientId: uuid("client_id").notNull(),
+    kind: text("kind").notNull(),
+    title: text("title").notNull(),
+    description: text("description").default("").notNull(),
+    countryCode: text("country_code").notNull(),
+    currencyCode: text("currency_code").notNull(),
+    status: text("status").default("submitted").notNull(),
+    snapshot: jsonb("snapshot").notNull(),
+    estimatedTotal: numeric("estimated_total", { precision: 18, scale: 2 }).default("0").notNull(),
+    submittedByUserId: uuid("submitted_by_user_id"),
+    reviewedByUserId: uuid("reviewed_by_user_id"),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+    reviewRemarks: text("review_remarks"),
+    idempotencyKey: text("idempotency_key").notNull(),
+    requestFingerprint: text("request_fingerprint").notNull(),
+    submittedAt: timestamp("submitted_at", { withTimezone: true }).defaultNow().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    tenantIdUnique: uniqueIndex("client_service_requests_tenant_id_id_uidx").on(table.tenantId, table.id),
+    idempotencyUnique: uniqueIndex("client_service_requests_idempotency_unique").on(
+      table.tenantId,
+      table.idempotencyKey,
+    ),
+    tenantClientStatusIndex: index("client_service_requests_tenant_client_status_idx").on(
+      table.tenantId,
+      table.clientId,
+      table.status,
+      table.submittedAt,
+      table.id,
+    ),
+    tenantStatusIndex: index("client_service_requests_tenant_status_idx").on(
+      table.tenantId,
+      table.status,
+      table.submittedAt,
+      table.id,
+    ),
+  }),
+);
+
+export const clientServiceRequestItems = pgTable(
+  "client_service_request_items",
+  {
+    id: uuid("id").default(sql`gen_random_uuid()`).primaryKey(),
+    tenantId: uuid("tenant_id").notNull(),
+    requestId: uuid("request_id").notNull(),
+    clientId: uuid("client_id").notNull(),
+    serviceId: uuid("service_id").notNull(),
+    taskSnapshot: jsonb("task_snapshot").notNull(),
+    assignedEmployeeId: uuid("assigned_employee_id"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    tenantIdUnique: uniqueIndex("client_service_request_items_tenant_id_id_uidx").on(table.tenantId, table.id),
+    requestServiceUnique: uniqueIndex("client_service_request_items_request_service_unique").on(
+      table.tenantId,
+      table.requestId,
+      table.serviceId,
+    ),
+    tenantRequestIndex: index("client_service_request_items_tenant_request_idx").on(
+      table.tenantId,
+      table.requestId,
+      table.serviceId,
+    ),
+  }),
+);
+
 export const payments = pgTable(
   "payments",
   {

@@ -83,20 +83,7 @@ test("Tenant Admin client directory and detail remain usable at tablet width", a
   await expect(page.getByRole("tab", { name: "Contacts" })).toBeVisible();
   await page.getByRole("tab", { name: "Contacts" }).click();
   await expect(page.getByRole("button", { name: "Add contact" })).toBeVisible();
-
-  await expectHealthyPage(page, "/admin/work-groups");
-  await page.getByRole("button", { name: "Create work group" }).click();
-  const workGroupDialog = page.getByRole("dialog");
-  await workGroupDialog
-    .getByLabel("Work-group name")
-    .fill("Quarterly tax review");
-  await workGroupDialog
-    .getByLabel("Service engagement")
-    .fill("Quarterly compliance");
-  await workGroupDialog
-    .getByRole("button", { name: "Create work group" })
-    .click();
-  await expect(page.getByText("Quarterly tax review").first()).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Work groups" })).toHaveCount(0);
 });
 
 test("Tenant creation validation and workforce mobile cards work at tablet and mobile widths", async ({

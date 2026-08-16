@@ -1,0 +1,229 @@
+- generic:
+  - generic:
+    - link:
+      - /url: "#main-content"
+      - text: Skip to content
+    - generic:
+      - complementary:
+        - generic:
+          - generic:
+            - generic: Hablox
+          - button:
+            - img
+        - navigation:
+          - link:
+            - /url: /admin
+            - img
+            - generic: Dashboard
+          - generic:
+            - button [expanded]:
+              - img
+              - generic: People & Teams
+              - img
+            - generic:
+              - link:
+                - /url: /admin/employees
+                - img
+                - generic: Employees
+              - link:
+                - /url: /admin/departments
+                - img
+                - generic: Departments
+              - link:
+                - /url: /admin/managers
+                - img
+                - generic: Managers
+              - link:
+                - /url: /admin/work-groups
+                - img
+                - generic: Work groups
+              - link:
+                - /url: /admin/employee-performance
+                - img
+                - generic: Employee performance
+          - generic:
+            - button [expanded]:
+              - img
+              - generic: Clients
+              - img
+            - generic:
+              - link:
+                - /url: /admin/clients
+                - img
+                - generic: Clients
+              - link:
+                - /url: /admin/agreements
+                - img
+                - generic: Agreements
+          - generic:
+            - button [expanded]:
+              - img
+              - generic: Operations
+              - img
+            - generic:
+              - link:
+                - /url: /admin/tasks
+                - img
+                - generic: Tasks
+              - link:
+                - /url: /admin/task-calendar
+                - img
+                - generic: Calendar
+              - link:
+                - /url: /admin/services
+                - img
+                - generic: Services
+          - generic:
+            - button [expanded]:
+              - img
+              - generic: Finance & Documents
+              - img
+            - generic:
+              - link:
+                - /url: /admin/invoices
+                - img
+                - generic: Invoices
+              - link:
+                - /url: /admin/documents
+                - img
+                - generic: Documents
+    - generic:
+      - banner:
+        - generic:
+          - generic:
+            - navigation:
+              - list:
+                - listitem:
+                  - link:
+                    - /url: /admin
+                    - text: Tenant administration
+                - listitem:
+                  - img
+                  - generic: Services
+        - generic:
+          - generic:
+            - generic:
+              - generic: Sun, 16 Aug, 2026
+              - generic: 09:55:06 pm
+            - button:
+              - generic:
+                - text: India (Kolkata)
+                - img
+              - generic: IST
+          - button:
+            - img
+            - generic: EN
+            - img
+          - button:
+            - img
+          - button:
+            - img
+          - switch
+          - generic: Light mode enabled
+          - button:
+            - img
+            - generic: "1"
+          - button:
+            - generic: S
+            - generic:
+              - generic: Sayantan
+              - generic: Tenant Admin
+            - img
+      - main:
+        - generic:
+          - generic:
+            - generic:
+              - paragraph: Tenant Admin
+              - heading [level=1]: Services
+              - paragraph: Manage tenant services and reusable rate-card prices used when creating client tasks.
+            - generic:
+              - button:
+                - img
+                - text: Create service
+          - generic:
+            - generic:
+              - heading [level=2]: Service rate list
+            - generic:
+              - generic:
+                - table:
+                  - rowgroup:
+                    - row:
+                      - columnheader: Service
+                      - columnheader: Rate
+                      - columnheader: Scope
+                      - columnheader: Unit
+                      - columnheader: Tasks
+                      - columnheader: Status
+                      - columnheader: Actions
+                  - rowgroup:
+                    - row:
+                      - cell:
+                        - paragraph: taxation
+                        - paragraph: taxation
+                      - cell: ₹100,000.00
+                      - cell: Tenant default
+                      - cell: per unit
+                      - cell: "8"
+                      - cell: active
+                      - cell:
+                        - button: Manage tasks
+  - region "Notifications alt+T"
+  - alert
+  - dialog "Manage tasks for taxation" [ref=e236]:
+    - heading "Manage tasks for taxation" [level=2] [ref=e237]
+    - paragraph [ref=e238]: Define the reusable booklet of tasks, recurrence, due rules, and default prices. Client packages already activated stay unchanged.
+    - generic [ref=e239]:
+      - heading "Manage tasks" [level=2] [ref=e240]
+      - paragraph [ref=e241]: taxation. These are tenant defaults. Activated clients keep their saved snapshot.
+      - generic [ref=e242]:
+        - generic [ref=e243]:
+          - text: Country
+          - textbox "Country" [ref=e244]: IN
+        - generic [ref=e245]:
+          - text: Currency
+          - combobox "Currency" [ref=e246]:
+            - option "INR" [selected]
+            - option "USD"
+            - option "GBP"
+        - generic [ref=e247]:
+          - text: Effective from
+          - textbox "Effective from" [ref=e248]: 2026-08-16
+      - list [ref=e249]:
+        - listitem [ref=e250]:
+          - generic [ref=e251]:
+            - generic [ref=e252]:
+              - text: Task
+              - textbox "Task" [ref=e253]: tax
+            - generic [ref=e254]:
+              - text: Frequency
+              - combobox "Frequency" [ref=e255]:
+                - option "Monthly" [selected]
+                - option "Quarterly"
+                - option "Yearly"
+                - option "One-time"
+            - generic [ref=e256]:
+              - text: Due day of month
+              - spinbutton "Due day of month" [ref=e257]: "11"
+            - generic [ref=e258]:
+              - text: Billing unit
+              - combobox "Billing unit" [ref=e259]:
+                - option "Per task"
+                - option "Per hour"
+                - option "Per filing"
+                - option "Per unit" [selected]
+            - generic [ref=e260]:
+              - text: Default price
+              - spinbutton "Default price" [ref=e261]: "100000"
+          - generic [ref=e262]:
+            - button "Remove" [disabled]:
+              - img
+              - text: Remove
+      - button "Add task" [ref=e263]:
+        - img [ref=e264]
+        - text: Add task
+      - paragraph [ref=e265]: Estimated annual total ₹12,00,000
+      - generic [ref=e266]:
+        - button "Cancel" [ref=e267]
+        - button "Save service tasks" [ref=e268]
+    - button "Close" [active] [ref=e269]:
+      - img [ref=e270]

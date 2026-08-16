@@ -31,7 +31,6 @@ import {
   getTenantAdminEmployeeEmailAvailability,
   listTenantAdminEmployeeDirectory,
   listTenantAdminServices,
-  listTenantAdminWorkGroups,
   setTenantAdminEmployeeManager,
   updateTenantAdminEmployeeAssignment,
   updateTenantAdminEmployeeCapacity,
@@ -186,11 +185,6 @@ export function EmployeeDirectory() {
   const employeesQuery = useQuery({
     queryKey: ["tenant-admin-employees"],
     queryFn: listTenantAdminEmployeeDirectory,
-  });
-  const workGroupsQuery = useQuery({
-    queryKey: ["tenant-admin-work-groups"],
-    queryFn: listTenantAdminWorkGroups,
-    enabled: Boolean(assignmentEmployee),
   });
   useEffect(() => {
     if (readFormDraft(`${pathname}:tenant-employee-create`)) {
@@ -615,7 +609,6 @@ export function EmployeeDirectory() {
         employee={assignmentEmployee}
         managers={options.managers}
         departments={employeesQuery.data?.departments ?? []}
-        workGroups={workGroupsQuery.data ?? []}
         onOpenChange={(open) => !open && setAssignmentEmployee(null)}
         onSaved={async (input) => {
           if (!assignmentEmployee) return;
@@ -816,14 +809,12 @@ function AssignmentDialog({
   employee,
   managers,
   departments,
-  workGroups,
   onOpenChange,
   onSaved,
 }: {
   employee: Employee | null;
   managers: readonly Employee[];
   departments: readonly { id: string; name: string }[];
-  workGroups: readonly { id: string; name: string; managerEmployeeId: string; status: "active" | "inactive" | "archived" }[];
   onOpenChange: (open: boolean) => void;
   onSaved: (input: {
     skills: string[];
@@ -866,18 +857,6 @@ function AssignmentDialog({
     setServiceIds(capabilitiesQuery.data.capabilities.map((capability) => capability.serviceId));
   }, [capabilitiesQuery.data]);
 
-  const managerWorkGroupIds = workGroups
-    .filter((workGroup) => workGroup.managerEmployeeId === employee?.id)
-    .map((workGroup) => workGroup.id);
-  const toggleWorkGroup = (workGroupId: string, checked: boolean) => {
-    if (managerWorkGroupIds.includes(workGroupId)) return;
-    setWorkGroupIds((current) =>
-      checked
-        ? [...new Set([...current, workGroupId])]
-        : current.filter((currentId) => currentId !== workGroupId),
-    );
-  };
-
   const save = async () => {
     if (!employee) return;
     setSaving(true);
@@ -899,7 +878,7 @@ function AssignmentDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent title="Edit employee details" description="Update department, work groups, skills, level, and reporting manager." className="max-w-md">
+      <DialogContent title="Edit employee details" description="Update department, skills, services handled, level, and reporting manager." className="max-w-md">
         <form
           data-draft-key={`tenant-employee-assignment-${employee?.id ?? "new"}`}
           className="grid gap-4 pr-8"
@@ -909,19 +888,6 @@ function AssignmentDialog({
             void save();
           }}
         >
-          <fieldset className="grid gap-2">
-            <legend className="text-sm font-medium">Work groups</legend>
-            <div className="max-h-40 space-y-1 overflow-y-auto rounded-[var(--radius-control)] border border-input bg-muted/20 p-2">
-              {workGroups.filter((workGroup) => workGroup.status === "active").length ? workGroups.filter((workGroup) => workGroup.status === "active").map((workGroup) => {
-                const managedByEmployee = managerWorkGroupIds.includes(workGroup.id);
-                return <label key={workGroup.id} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-muted">
-                  <input type="checkbox" name="workGroupIds" value={workGroup.id} checked={workGroupIds.includes(workGroup.id) || managedByEmployee} disabled={managedByEmployee} onChange={(event) => toggleWorkGroup(workGroup.id, event.target.checked)} />
-                  <span className="min-w-0 flex-1 truncate">{workGroup.name}</span>
-                  {managedByEmployee ? <span className="text-xs text-muted-foreground">Manager</span> : null}
-                </label>;
-              }) : <p className="px-2 py-1 text-sm text-muted-foreground">No active work groups are available.</p>}
-            </div>
-          </fieldset>
           <label className="text-sm font-medium">Department<Select name="departmentId" className="mt-1" value={departmentId} onChange={(event) => setDepartmentId(event.target.value)}><option value="">Unassigned</option>{departments.map((department) => <option key={department.id} value={department.id}>{department.name}</option>)}</Select></label>
           <label className="text-sm font-medium">Skills<Input name="skills" className="mt-1" value={skills} placeholder="GST, Payroll, Compliance" onChange={(event) => setSkills(event.target.value)} /></label>
           <fieldset className="grid gap-2">

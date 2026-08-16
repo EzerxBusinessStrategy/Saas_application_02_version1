@@ -808,9 +808,6 @@ function TenantAdminCreateTaskAction({
   }, [open, refetchTaskOptions]);
   const isLoadingOptions = optionsQuery.isPending;
   useEffect(() => setClientId(initialClientId ?? ""), [initialClientId]);
-  const workGroups = options.workGroups.filter(
-    (group) => !group.clientId || group.clientId === clientId,
-  );
   const rateEffectiveOn = taskRateEffectiveOn(input.plannedDueAt);
   const selectedRate = useMemo(() => {
     const matchingRate = options.rateItems.find(
@@ -832,7 +829,6 @@ function TenantAdminCreateTaskAction({
   );
   const estimateCurrency = selectedRate?.currencyCode ?? input.currencyCode;
   const safeCurrency = /^[A-Z]{3}$/.test(estimateCurrency) ? estimateCurrency : "INR";
-  const hasActiveEmployees = options.employees.length > 0;
   const selectedCountry = options.countries.find((country) => country.countryCode === input.countryCode);
   const money = new Intl.NumberFormat("en-US", {
     style: "currency",
@@ -1110,27 +1106,6 @@ function TenantAdminCreateTaskAction({
                 onChange={(event) => setInput((current) => ({ ...current, plannedDueAt: event.target.value }))}
               />
             </label>
-            <label className="text-sm font-medium">
-              Work group
-              <Select
-                className="mt-1"
-                disabled={isLoadingOptions || optionsQuery.isError || !hasActiveEmployees}
-                value={input.workGroupId}
-                onChange={(event) => setInput((current) => ({ ...current, workGroupId: event.target.value }))}
-              >
-                <option value="">No work group</option>
-                {workGroups.map((group) => (
-                  <option key={group.id} value={group.id}>
-                    {group.name}
-                  </option>
-                ))}
-              </Select>
-              {!hasActiveEmployees ? (
-                <span className="mt-1 block text-xs text-muted-foreground">
-                  Create at least one active employee before creating or assigning a work group.
-                </span>
-              ) : null}
-            </label>
           </div>
           <fieldset className="mt-5">
             <div className="flex items-center justify-between gap-2">
@@ -1156,7 +1131,7 @@ function TenantAdminCreateTaskAction({
               )}
             </div>
             <p className="mt-2 text-xs text-muted-foreground">
-              Select at least one employee. Work group is optional.
+              Select at least one employee.
             </p>
           </fieldset>
           <fieldset className="mt-5 rounded-[var(--radius-card)] border p-4">

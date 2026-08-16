@@ -255,7 +255,7 @@ export function ManagerDirectory() {
       <PageHeader
         eyebrow="Workforce"
         title="Managers"
-        description="Select employees who can manage work groups and review assigned work."
+        description="Select employees who can review assigned work."
         actions={<Button onClick={() => setAddOpen(true)}><Plus data-icon="inline-start" />Add manager</Button>}
       />
       <Card>

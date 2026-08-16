@@ -38,14 +38,19 @@ const PlatformReports = dynamicSection(() =>
 const ClientDirectory = dynamicSection(() =>
   import("@/components/tenant-administration/client-management").then((module) => ({ default: module.ClientDirectory })),
 );
-const WorkGroupDirectory = dynamicSection(() =>
-  import("@/components/tenant-administration/client-management").then((module) => ({ default: module.WorkGroupDirectory })),
-);
 const TenantServiceDirectory = dynamicSection(() =>
   import("@/components/tenant-administration/service-management").then((module) => ({ default: module.TenantServiceDirectory })),
 );
+const TenantServiceRequestsPage = dynamicSection(() =>
+  import("@/components/tenant-administration/service-requests").then((module) => ({
+    default: module.TenantServiceRequestsPage,
+  })),
+);
 const TenantEmployeePerformancePage = dynamicSection(() =>
   import("@/components/tenant-administration/employee-performance").then((module) => ({ default: module.TenantEmployeePerformancePage })),
+);
+const TenantSettingsPage = dynamicSection(() =>
+  import("@/components/tenant-administration/tenant-settings").then((module) => ({ default: module.TenantSettingsPage })),
 );
 const ClientPortal = dynamicSection(() =>
   import("@/components/operations/client-portal").then((module) => ({ default: module.ClientPortal })),
@@ -150,6 +155,13 @@ export default async function Section({
       </FeatureBoundary>
     );
   }
+  if (section === "service-requests" && workspace === "admin") {
+    return (
+      <FeatureBoundary role={user.role} permissions={["client.read"]}>
+        <TenantServiceRequestsPage />
+      </FeatureBoundary>
+    );
+  }
   if (
     workspace === "employee" &&
     ["clients", "assign-task", "task-reviews"].includes(section)
@@ -218,17 +230,20 @@ export default async function Section({
       );
     }
   }
-  if (section === "work-groups" && workspace === "admin") {
-    return (
-      <FeatureBoundary role={user.role} permissions={["work_group.manage"]}>
-        <WorkGroupDirectory />
-      </FeatureBoundary>
-    );
-  }
   if (section === "managers") {
     return (
       <FeatureBoundary role={user.role} permissions={["employee.read"]}>
         <ManagerDirectory />
+      </FeatureBoundary>
+    );
+  }
+  if (section === "settings" && workspace === "admin") {
+    return <TenantSettingsPage />;
+  }
+  if (section === "account" && workspace === "super-admin") {
+    return (
+      <FeatureBoundary role={user.role} permissions={["platform.configuration.update"]}>
+        <PlatformConfiguration />
       </FeatureBoundary>
     );
   }

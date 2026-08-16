@@ -12,9 +12,11 @@ import {
   listClientPortalDeliverables,
 } from "@/features/client-portal/api/client-portal-deliverables-api";
 import {
-  createClientPortalServiceRequest,
-  listClientPortalRequestServices,
-} from "@/features/client-portal/api/client-portal-requests-api";
+  createClientCatalogueRequest,
+  getClientServiceCatalogue,
+  listClientServiceRequests,
+} from "@/features/client-portal/api/client-service-requests-api";
+import { ClientServiceCustomizer, type ClientServiceDraftTask } from "@/components/tenant-administration/client-service-customizer";
 import {
   getClientPortalProfile,
   updateClientPortalProfile,
@@ -36,7 +38,6 @@ import {
 } from "@/components/ui/card";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Select } from "@/components/ui/select";
 
 export function ClientPortal({
   section = "overview",
@@ -267,10 +268,10 @@ function ClientServices({
             })}
           </ul>
         ) : (
-          <EmptyState
-            title="No active services"
-            description="Your tenant has not published any active services for this client account yet."
-          />
+            <EmptyState
+              title="No active services"
+              description="Tick services from Requests. After the tenant accepts and allots the responsible person, they appear here with dates and prices."
+            />
         )}
         {!compact && services.length ? (
           <p className="mt-5 text-sm text-muted-foreground">
@@ -292,39 +293,90 @@ function ClientRequests({
   onChanged?: () => void;
 }) {
   const [open, setOpen] = useState(false);
-  const [serviceId, setServiceId] = useState("");
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [drafts, setDrafts] = useState<Record<string, ClientServiceDraftTask[]>>({});
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [countryCode, setCountryCode] = useState("IN");
-  const [requestedDueDate, setRequestedDueDate] = useState("");
-  const [priority, setPriority] = useState<"low" | "normal" | "high" | "urgent">("normal");
   const [submitting, setSubmitting] = useState(false);
-  const serviceQuery = useQuery({
-    queryKey: ["client-portal-request-services"],
-    queryFn: listClientPortalRequestServices,
+  const catalogueQuery = useQuery({
+    queryKey: ["client-service-catalogue"],
+    queryFn: getClientServiceCatalogue,
+    enabled: open,
+  });
+  const requestQuery = useQuery({
+    queryKey: ["client-service-requests"],
+    queryFn: listClientServiceRequests,
     enabled: !compact,
   });
 
+  const catalogue = catalogueQuery.data?.services ?? [];
+  const selected = catalogue.filter((service) => selectedIds.includes(service.serviceId));
+  const listed = compact
+    ? requests
+    : [
+        ...(requestQuery.data ?? []).map((request) => ({
+          id: request.id,
+          title: request.title,
+          status: request.status,
+          serviceName:
+            request.services.map((service) => service.serviceName).join(", ") || "Custom request",
+          countryCode: request.countryCode,
+          requestedDueDate: null as string | null,
+          submittedAt: request.submittedAt,
+          updatedAt: request.updatedAt,
+        })),
+        ...requests.filter((request) => !(requestQuery.data ?? []).some((item) => item.id === request.id)),
+      ];
+  const canSend =
+    (selected.length > 0 && selected.every((service) => (drafts[service.serviceId] ?? []).some((task) => task.enabled))) ||
+    (title.trim().length >= 2 && description.trim().length >= 2);
+
+  function toggleService(serviceId: string, checked: boolean) {
+    setSelectedIds((current) =>
+      checked ? [...new Set([...current, serviceId])] : current.filter((id) => id !== serviceId),
+    );
+    const service = catalogue.find((item) => item.serviceId === serviceId);
+    if (checked && service && !drafts[serviceId]) {
+      setDrafts((current) => ({ ...current, [serviceId]: catalogueTasks(service.tasks) }));
+    }
+  }
+
   async function submit() {
-    if (!serviceId || !title.trim() || !description.trim()) return;
+    if (!canSend) return;
     setSubmitting(true);
     try {
-      await createClientPortalServiceRequest({
-        serviceId,
-        title: title.trim(),
+      await createClientCatalogueRequest({
+        idempotencyKey: crypto.randomUUID(),
+        kind: selected.length ? "catalogue" : "custom",
+        countryCode: "IN",
+        currencyCode:
+          selected[0]?.currencyCode === "USD" || selected[0]?.currencyCode === "GBP"
+            ? selected[0].currencyCode
+            : "INR",
+        title: title.trim() || undefined,
         description: description.trim(),
-        countryCode,
-        requestedDueDate: requestedDueDate || null,
-        priority,
+        services: selected.map((service) => ({
+          serviceId: service.serviceId,
+          tasks: (drafts[service.serviceId] ?? catalogueTasks(service.tasks)).map((task) => ({
+            taskType: task.taskType,
+            title: task.title,
+            frequency: task.frequency,
+            dueRule: task.dueRule,
+            unitType: task.unitType,
+            rateAmount: task.rateAmount,
+            taxCode: task.taxCode,
+            enabled: task.enabled,
+          })),
+        })),
       });
-      toast.success("Request sent to the tenant.");
+      toast.success("Request sent. The tenant will allot the responsible person before work is created.");
       setOpen(false);
-      setServiceId("");
+      setSelectedIds([]);
+      setDrafts({});
       setTitle("");
       setDescription("");
-      setRequestedDueDate("");
-      setPriority("normal");
       onChanged?.();
+      void requestQuery.refetch();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Request could not be submitted.");
     } finally {
@@ -340,16 +392,16 @@ function ClientRequests({
           <div>
             <CardTitle>Recent requests</CardTitle>
             <CardDescription>
-              Requests created for this client account only.
+              Tick services from the tenant catalogue, or send a custom request. Work is created after tenant accept.
             </CardDescription>
           </div>
-          {!compact ? <Button size="sm" onClick={() => setOpen(true)}>Request service</Button> : null}
+          {!compact ? <Button size="sm" onClick={() => setOpen(true)}>Request services</Button> : null}
         </div>
       </CardHeader>
       <CardContent>
-        {requests.length ? (
+        {listed.length ? (
           <ul className="flex flex-col divide-y">
-            {requests.map((request) => (
+            {listed.map((request) => (
               <li key={request.id} className="py-4 first:pt-0">
                 <div className="flex items-start justify-between gap-3">
                   <div>
@@ -369,71 +421,88 @@ function ClientRequests({
         ) : (
           <EmptyState
             title="No requests"
-            description="Client requests will appear here once they are submitted."
+            description="Tick the services you need, or send a custom request, then wait for the tenant to accept."
           />
         )}
       </CardContent>
     </Card>
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent title="Request service" description="Select a tenant service and send the request.">
-        <div className="grid gap-4 pr-8">
-          {serviceQuery.isError ? (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (!next) {
+          setSelectedIds([]);
+          setDrafts({});
+          setTitle("");
+          setDescription("");
+        }
+      }}
+    >
+      <DialogContent
+        title="Request services"
+        description="Choose from the tenant service list. You can change tasks, dates, and prices before sending. Design status: Pending Figma verification."
+      >
+        <div className="grid max-h-[70vh] gap-5 overflow-y-auto pr-8">
+          {catalogueQuery.isError ? (
             <p className="rounded-[var(--radius-control)] border border-destructive/30 p-3 text-sm text-destructive">
-              Services could not load.
+              The service catalogue could not load.
             </p>
           ) : null}
+          <section className="grid gap-3">
+            <h3 className="text-sm font-medium">Tenant services</h3>
+            {catalogueQuery.isPending ? <p className="text-sm text-muted-foreground">Loading services…</p> : null}
+            {!catalogueQuery.isPending && !catalogue.length ? (
+              <p className="text-sm text-muted-foreground">The tenant has not published a service booklet yet.</p>
+            ) : null}
+            {catalogue.map((service) => {
+              const disabled = service.alreadyActive || service.alreadyRequested;
+              return (
+                <label key={service.serviceId} className="flex items-start gap-3 rounded-[var(--radius-control)] border p-3 text-sm">
+                  <input
+                    type="checkbox"
+                    className="mt-1"
+                    checked={selectedIds.includes(service.serviceId)}
+                    disabled={disabled}
+                    aria-label={`Request ${service.name}`}
+                    onChange={(event) => toggleService(service.serviceId, event.target.checked)}
+                  />
+                  <span>
+                    <span className="font-medium">{service.name}</span>
+                    <span className="mt-1 block text-muted-foreground">
+                      {formatCurrency(service.estimatedAnnualTotal, service.currencyCode)}
+                      {service.alreadyActive ? " · already purchased" : ""}
+                      {service.alreadyRequested ? " · request waiting" : ""}
+                    </span>
+                  </span>
+                </label>
+              );
+            })}
+          </section>
+          {selected.map((service) => (
+            <ClientServiceCustomizer
+              key={service.serviceId}
+              serviceName={service.name}
+              currencyCode={service.currencyCode}
+              description="Change tasks, due dates, or prices for this request only."
+              tasks={drafts[service.serviceId] ?? catalogueTasks(service.tasks)}
+              onChange={(tasks) => setDrafts((current) => ({ ...current, [service.serviceId]: tasks }))}
+            />
+          ))}
           <label className="text-sm font-medium">
-            Service
-            <Select
-              className="mt-1"
-              value={serviceId}
-              onChange={(event) => {
-                const nextServiceId = event.target.value;
-                setServiceId(nextServiceId);
-                const service = serviceQuery.data?.find((item) => item.id === nextServiceId);
-                if (service && !title.trim()) setTitle(service.name);
-              }}
-            >
-              <option value="">{serviceQuery.isPending ? "Loading services..." : "Select service"}</option>
-              {(serviceQuery.data ?? []).map((service) => (
-                <option key={service.id} value={service.id}>{service.name}</option>
-              ))}
-            </Select>
-          </label>
-          <label className="text-sm font-medium">
-            Request title
+            Custom request title
             <Input className="mt-1" value={title} onChange={(event) => setTitle(event.target.value)} />
           </label>
           <label className="text-sm font-medium">
-            Description
+            Custom request details
             <textarea
               className="mt-1 min-h-28 w-full rounded-[var(--radius-control)] border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
               value={description}
               onChange={(event) => setDescription(event.target.value)}
             />
           </label>
-          <div className="grid gap-4 sm:grid-cols-3">
-            <label className="text-sm font-medium">
-              Country
-              <Input className="mt-1 uppercase" maxLength={2} value={countryCode} onChange={(event) => setCountryCode(event.target.value.toUpperCase())} />
-            </label>
-            <label className="text-sm font-medium">
-              Due date
-              <Input className="mt-1" type="date" value={requestedDueDate} onChange={(event) => setRequestedDueDate(event.target.value)} />
-            </label>
-            <label className="text-sm font-medium">
-              Priority
-              <Select className="mt-1" value={priority} onChange={(event) => setPriority(event.target.value as typeof priority)}>
-                <option value="normal">Normal</option>
-                <option value="low">Low</option>
-                <option value="high">High</option>
-                <option value="urgent">Urgent</option>
-              </Select>
-            </label>
-          </div>
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-            <Button disabled={submitting || !serviceId || !title.trim() || !description.trim()} onClick={() => void submit()}>
+            <Button disabled={submitting || !canSend} onClick={() => void submit()}>
               {submitting ? "Sending..." : "Send request"}
             </Button>
           </div>
@@ -442,6 +511,21 @@ function ClientRequests({
     </Dialog>
     </>
   );
+}
+
+function catalogueTasks(
+  tasks: Awaited<ReturnType<typeof getClientServiceCatalogue>>["services"][number]["tasks"],
+): ClientServiceDraftTask[] {
+  return tasks.map((task) => ({
+    taskType: task.taskType,
+    title: task.taskType,
+    frequency: task.frequency,
+    dueRule: task.dueRule,
+    unitType: task.unitType,
+    rateAmount: task.rateAmount,
+    taxCode: task.taxCode ?? "",
+    enabled: true,
+  }));
 }
 
 function ClientDeliverables() {
@@ -788,7 +872,8 @@ function mapTaskStatus(status: string) {
 }
 
 function mapRequestStatus(status: string) {
-  if (["resolved", "completed", "approved"].includes(status)) return "complete";
+  if (["resolved", "completed", "approved", "accepted"].includes(status)) return "complete";
+  if (["rejected", "cancelled"].includes(status)) return "blocked";
   if (["in_progress", "in-progress", "reviewed", "converted"].includes(status)) {
     return "on-track";
   }

@@ -149,8 +149,16 @@ export class TenantAdminClientServiceActivationRepository {
     clientId: string,
     input: ActivateClientServicesRequest,
   ): Promise<ActivateClientServicesResponseDto> {
-    return this.withContext(context, async (client) => {
-      await this.requireClient(client, context.tenantId, clientId);
+    return this.withContext(context, (client) => this.activateInTransaction(client, context, clientId, input));
+  }
+
+  async activateInTransaction(
+    client: PoolClient,
+    context: TenantAdminRequestContext,
+    clientId: string,
+    input: ActivateClientServicesRequest,
+  ): Promise<ActivateClientServicesResponseDto> {
+    await this.requireClient(client, context.tenantId, clientId);
       const fingerprint = requestFingerprint(clientId, input);
       const replayed = await this.loadByIdempotency(client, context.tenantId, clientId, input.idempotencyKey, fingerprint);
       if (replayed) return replayed;
@@ -293,7 +301,6 @@ export class TenantAdminClientServiceActivationRepository {
         currencyCode: input.currencyCode,
         services: activated,
       };
-    });
   }
 
   private async loadByIdempotency(

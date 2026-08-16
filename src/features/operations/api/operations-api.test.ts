@@ -1,5 +1,5 @@
 import { afterEach, expect, test, vi } from "vitest";
-import { createSharedDocument, listWorkLogs } from "@/features/operations/api/operations-api";
+import { createSharedDocument, listSharedDocuments, listWorkLogs } from "@/features/operations/api/operations-api";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -54,6 +54,34 @@ test("uploads the original file bytes to the signed storage URL before creating 
     clientId: "client-1",
     recipientEmployeeIds: ["employee-1"],
   });
+});
+
+test("lists tenant documents when an invoice PDF is stored with category invoice", async () => {
+  vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response(JSON.stringify({
+    documents: [{
+      id: "3cb036fe-dcca-4d35-9b3c-08a6cd354a48",
+      clientId: "client-1",
+      client: "Acme Operations",
+      title: "Invoice 1",
+      fileName: "invoice-1.pdf",
+      fileType: "PDF",
+      sizeBytes: 1000,
+      category: "invoice",
+      uploadedBy: "System",
+      updatedOn: "2026-08-14T10:39:19.706Z",
+      status: "active",
+      clientDecisionStatus: "pending",
+      clientDecisionAt: null,
+      clientDecisionBy: null,
+      clientDecisionComment: null,
+      shareReason: "Invoice sent to client.",
+      storageKey: "tenants/tenant-1/invoices/invoice-1.pdf",
+    }],
+  }), { status: 200, headers: { "content-type": "application/json" } }));
+
+  await expect(listSharedDocuments("admin")).resolves.toEqual([
+    expect.objectContaining({ id: "3cb036fe-dcca-4d35-9b3c-08a6cd354a48", category: "invoice", title: "Invoice 1" }),
+  ]);
 });
 
 test("accepts RFC 3339 work-segment timestamps returned by PostgreSQL JSON", async () => {

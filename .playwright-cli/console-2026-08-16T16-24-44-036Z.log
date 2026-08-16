@@ -1,0 +1,67 @@
+[    3621ms] Error: Minified React error #418; visit https://react.dev/errors/418?args[]=HTML&args[]= for the full message or use the non-minified dev environment for full errors and additional helpful warnings.
+    at rD (https://saas-application-02-version1.onrender.com/_next/static/chunks/9a3ab915-a5982b1f08722fb8.js:1:35061)
+    at oq (https://saas-application-02-version1.onrender.com/_next/static/chunks/9a3ab915-a5982b1f08722fb8.js:1:84565)
+    at ik (https://saas-application-02-version1.onrender.com/_next/static/chunks/9a3ab915-a5982b1f08722fb8.js:1:114681)
+    at https://saas-application-02-version1.onrender.com/_next/static/chunks/9a3ab915-a5982b1f08722fb8.js:1:110729
+    at iu (https://saas-application-02-version1.onrender.com/_next/static/chunks/9a3ab915-a5982b1f08722fb8.js:1:110830)
+    at iX (https://saas-application-02-version1.onrender.com/_next/static/chunks/9a3ab915-a5982b1f08722fb8.js:1:132933)
+    at MessagePort.w (https://saas-application-02-version1.onrender.com/_next/static/chunks/1050-2358b948bc8383c9.js:1:119318)
+[   55114ms] Error: Minified React error #418; visit https://react.dev/errors/418?args[]=HTML&args[]= for the full message or use the non-minified dev environment for full errors and additional helpful warnings.
+    at rD (https://saas-application-02-version1.onrender.com/_next/static/chunks/9a3ab915-a5982b1f08722fb8.js:1:35061)
+    at oq (https://saas-application-02-version1.onrender.com/_next/static/chunks/9a3ab915-a5982b1f08722fb8.js:1:84565)
+    at ik (https://saas-application-02-version1.onrender.com/_next/static/chunks/9a3ab915-a5982b1f08722fb8.js:1:114681)
+    at https://saas-application-02-version1.onrender.com/_next/static/chunks/9a3ab915-a5982b1f08722fb8.js:1:110729
+    at iu (https://saas-application-02-version1.onrender.com/_next/static/chunks/9a3ab915-a5982b1f08722fb8.js:1:110830)
+    at iX (https://saas-application-02-version1.onrender.com/_next/static/chunks/9a3ab915-a5982b1f08722fb8.js:1:132933)
+    at MessagePort.w (https://saas-application-02-version1.onrender.com/_next/static/chunks/1050-2358b948bc8383c9.js:1:119318)
+[   63278ms] Error: Minified React error #418; visit https://react.dev/errors/418?args[]=HTML&args[]= for the full message or use the non-minified dev environment for full errors and additional helpful warnings.
+    at rD (https://saas-application-02-version1.onrender.com/_next/static/chunks/9a3ab915-a5982b1f08722fb8.js:1:35061)
+    at oq (https://saas-application-02-version1.onrender.com/_next/static/chunks/9a3ab915-a5982b1f08722fb8.js:1:84565)
+    at ik (https://saas-application-02-version1.onrender.com/_next/static/chunks/9a3ab915-a5982b1f08722fb8.js:1:114681)
+    at https://saas-application-02-version1.onrender.com/_next/static/chunks/9a3ab915-a5982b1f08722fb8.js:1:110729
+    at iu (https://saas-application-02-version1.onrender.com/_next/static/chunks/9a3ab915-a5982b1f08722fb8.js:1:110830)
+    at iX (https://saas-application-02-version1.onrender.com/_next/static/chunks/9a3ab915-a5982b1f08722fb8.js:1:132933)
+    at MessagePort.w (https://saas-application-02-version1.onrender.com/_next/static/chunks/1050-2358b948bc8383c9.js:1:119318)
+[   68252ms] Error: Minified React error #418; visit https://react.dev/errors/418?args[]=HTML&args[]= for the full message or use the non-minified dev environment for full errors and additional helpful warnings.
+    at rD (https://saas-application-02-version1.onrender.com/_next/static/chunks/9a3ab915-a5982b1f08722fb8.js:1:35061)
+    at oq (https://saas-application-02-version1.onrender.com/_next/static/chunks/9a3ab915-a5982b1f08722fb8.js:1:84565)
+    at ik (https://saas-application-02-version1.onrender.com/_next/static/chunks/9a3ab915-a5982b1f08722fb8.js:1:114681)
+    at https://saas-application-02-version1.onrender.com/_next/static/chunks/9a3ab915-a5982b1f08722fb8.js:1:110729
+    at iu (https://saas-application-02-version1.onrender.com/_next/static/chunks/9a3ab915-a5982b1f08722fb8.js:1:110830)
+    at iX (https://saas-application-02-version1.onrender.com/_next/static/chunks/9a3ab915-a5982b1f08722fb8.js:1:132933)
+    at MessagePort.w (https://saas-application-02-version1.onrender.com/_next/static/chunks/1050-2358b948bc8383c9.js:1:119318)
+[   72448ms] Error: Minified React error #418; visit https://react.dev/errors/418?args[]=HTML&args[]= for the full message or use the non-minified dev environment for full errors and additional helpful warnings.
+    at rD (https://saas-application-02-version1.onrender.com/_next/static/chunks/9a3ab915-a5982b1f08722fb8.js:1:35061)
+    at oq (https://saas-application-02-version1.onrender.com/_next/static/chunks/9a3ab915-a5982b1f08722fb8.js:1:84565)
+    at ik (https://saas-application-02-version1.onrender.com/_next/static/chunks/9a3ab915-a5982b1f08722fb8.js:1:114681)
+    at https://saas-application-02-version1.onrender.com/_next/static/chunks/9a3ab915-a5982b1f08722fb8.js:1:110729
+    at iu (https://saas-application-02-version1.onrender.com/_next/static/chunks/9a3ab915-a5982b1f08722fb8.js:1:110830)
+    at iX (https://saas-application-02-version1.onrender.com/_next/static/chunks/9a3ab915-a5982b1f08722fb8.js:1:132933)
+    at MessagePort.w (https://saas-application-02-version1.onrender.com/_next/static/chunks/1050-2358b948bc8383c9.js:1:119318)
+[   78165ms] Error: Minified React error #418; visit https://react.dev/errors/418?args[]=HTML&args[]= for the full message or use the non-minified dev environment for full errors and additional helpful warnings.
+    at rD (https://saas-application-02-version1.onrender.com/_next/static/chunks/9a3ab915-a5982b1f08722fb8.js:1:35061)
+    at oq (https://saas-application-02-version1.onrender.com/_next/static/chunks/9a3ab915-a5982b1f08722fb8.js:1:84565)
+    at ik (https://saas-application-02-version1.onrender.com/_next/static/chunks/9a3ab915-a5982b1f08722fb8.js:1:114681)
+    at https://saas-application-02-version1.onrender.com/_next/static/chunks/9a3ab915-a5982b1f08722fb8.js:1:110729
+    at iu (https://saas-application-02-version1.onrender.com/_next/static/chunks/9a3ab915-a5982b1f08722fb8.js:1:110830)
+    at iX (https://saas-application-02-version1.onrender.com/_next/static/chunks/9a3ab915-a5982b1f08722fb8.js:1:132933)
+    at MessagePort.w (https://saas-application-02-version1.onrender.com/_next/static/chunks/1050-2358b948bc8383c9.js:1:119318)
+[  124757ms] Error: Minified React error #418; visit https://react.dev/errors/418?args[]=HTML&args[]= for the full message or use the non-minified dev environment for full errors and additional helpful warnings.
+    at rD (https://saas-application-02-version1.onrender.com/_next/static/chunks/9a3ab915-a5982b1f08722fb8.js:1:35061)
+    at oq (https://saas-application-02-version1.onrender.com/_next/static/chunks/9a3ab915-a5982b1f08722fb8.js:1:84565)
+    at ik (https://saas-application-02-version1.onrender.com/_next/static/chunks/9a3ab915-a5982b1f08722fb8.js:1:114681)
+    at https://saas-application-02-version1.onrender.com/_next/static/chunks/9a3ab915-a5982b1f08722fb8.js:1:110729
+    at iu (https://saas-application-02-version1.onrender.com/_next/static/chunks/9a3ab915-a5982b1f08722fb8.js:1:110830)
+    at iX (https://saas-application-02-version1.onrender.com/_next/static/chunks/9a3ab915-a5982b1f08722fb8.js:1:132933)
+    at MessagePort.w (https://saas-application-02-version1.onrender.com/_next/static/chunks/1050-2358b948bc8383c9.js:1:119318)
+[  131898ms] Error: Minified React error #418; visit https://react.dev/errors/418?args[]=HTML&args[]= for the full message or use the non-minified dev environment for full errors and additional helpful warnings.
+    at rD (https://saas-application-02-version1.onrender.com/_next/static/chunks/9a3ab915-a5982b1f08722fb8.js:1:35061)
+    at oq (https://saas-application-02-version1.onrender.com/_next/static/chunks/9a3ab915-a5982b1f08722fb8.js:1:84565)
+    at ik (https://saas-application-02-version1.onrender.com/_next/static/chunks/9a3ab915-a5982b1f08722fb8.js:1:114681)
+    at https://saas-application-02-version1.onrender.com/_next/static/chunks/9a3ab915-a5982b1f08722fb8.js:1:110729
+    at iu (https://saas-application-02-version1.onrender.com/_next/static/chunks/9a3ab915-a5982b1f08722fb8.js:1:110830)
+    at iX (https://saas-application-02-version1.onrender.com/_next/static/chunks/9a3ab915-a5982b1f08722fb8.js:1:132933)
+    at MessagePort.w (https://saas-application-02-version1.onrender.com/_next/static/chunks/1050-2358b948bc8383c9.js:1:119318)
+[  147250ms] [ERROR] Failed to load resource: the server responded with a status of 401 () @ https://saas-application-02-version1.onrender.com/api/auth/employee/login:0
+[  151043ms] [ERROR] Failed to load resource: the server responded with a status of 401 () @ https://saas-application-02-version1.onrender.com/api/auth/employee/login:0
+[  154995ms] [ERROR] Failed to load resource: the server responded with a status of 401 () @ https://saas-application-02-version1.onrender.com/api/auth/client/login:0

@@ -41,7 +41,7 @@ import type { Workspace } from "@/types/domain";
 import type { SharedDocument, SharedInvoice } from "@/types/operations";
 
 const rupees = new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 });
-const categories = ["agreement", "deliverable", "evidence", "compliance", "finance", "report", "client-upload", "employee-submission", "internal", "supporting", "other"] as const;
+const categories = ["agreement", "deliverable", "evidence", "compliance", "finance", "report", "invoice", "client-upload", "employee-submission", "internal", "supporting", "other"] as const;
 
 export function FinanceDocuments({
   section,

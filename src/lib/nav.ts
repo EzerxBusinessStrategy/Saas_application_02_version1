@@ -47,10 +47,10 @@ const common: NavigationItem[] = [
         permissions: ["client.read"],
       },
       {
-        label: "Work groups", labelKey: "Navigation.workGroups",
-        href: "/work-groups",
-        icon: Users,
-        permissions: ["work_group.manage"],
+        label: "Service requests", labelKey: "Navigation.serviceRequests",
+        href: "/service-requests",
+        icon: ClipboardList,
+        permissions: ["client.read"],
       },
     ],
   },
@@ -153,6 +153,7 @@ const tenantAdminOnlyItems = new Set([
   "Managers",
   "Settings",
   "Employee Performance",
+  "Service requests",
 ]);
 const platformOnlyItems = new Set([
   "Tenant list",
@@ -237,11 +238,11 @@ const tenantAdminNavigation = [
     "Employees",
     "Departments",
     "Managers",
-    "Work groups",
     "Employee Performance",
   ]),
   tenantAdminGroup("Clients", Building2, [
     "Clients",
+    "Service requests",
     "Agreements",
   ]),
   tenantAdminGroup("Operations", ClipboardList, [

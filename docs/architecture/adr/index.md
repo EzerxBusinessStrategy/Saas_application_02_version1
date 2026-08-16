@@ -15,6 +15,7 @@
 - [0013: Portal-Specific Authentication](0013-portal-specific-authentication.md) (Accepted)
 - [0014: Portal Private Document Buckets](0014-portal-private-document-buckets.md) (Accepted)
 - [0015: Additive service blueprint activation](0015-additive-service-blueprint-activation.md) (Accepted)
+- [0016: Client catalogue request then tenant accept activation](0016-client-catalogue-request-activation.md) (Accepted)
 
 Supporting proposed architecture documents:
 

@@ -124,6 +124,7 @@ export const sharedDocumentSchema = z.object({
     "compliance",
     "finance",
     "report",
+    "invoice",
     "client-upload",
     "employee-submission",
     "internal",

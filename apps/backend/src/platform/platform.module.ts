@@ -16,6 +16,9 @@ import { ClientPortalProfileService } from "./client-portal-profile.service";
 import { ClientPortalRequestsController } from "./client-portal-requests.controller";
 import { ClientPortalRequestsRepository } from "./client-portal-requests.repository";
 import { ClientPortalRequestsService } from "./client-portal-requests.service";
+import { ClientPortalServiceRequestsController } from "./client-portal-service-requests.controller";
+import { ClientServiceRequestsRepository } from "./client-service-requests.repository";
+import { ClientServiceRequestsService } from "./client-service-requests.service";
 import { EmployeeDashboardController } from "./employee-dashboard.controller";
 import { EmployeeDashboardRepository } from "./employee-dashboard.repository";
 import { EmployeeDashboardService } from "./employee-dashboard.service";
@@ -77,6 +80,7 @@ import { TenantAdminServiceBlueprintsService } from "./tenant-admin-service-blue
 import { TenantAdminClientServiceActivationController } from "./tenant-admin-client-service-activation.controller";
 import { TenantAdminClientServiceActivationRepository } from "./tenant-admin-client-service-activation.repository";
 import { TenantAdminClientServiceActivationService } from "./tenant-admin-client-service-activation.service";
+import { TenantAdminServiceRequestsController } from "./tenant-admin-service-requests.controller";
 import { TenantAdminTasksController } from "./tenant-admin-tasks.controller";
 import { TenantAdminTasksRepository } from "./tenant-admin-tasks.repository";
 import { TenantAdminTasksService } from "./tenant-admin-tasks.service";
@@ -100,6 +104,7 @@ import { TaskNotificationOutboxWorker } from "./task-notification-outbox.worker"
     ClientPortalNotificationsController,
     ClientPortalProfileController,
     ClientPortalRequestsController,
+    ClientPortalServiceRequestsController,
     EmployeeDashboardController,
     EmployeeDocumentsController,
     EmployeeManagerController,
@@ -108,6 +113,7 @@ import { TaskNotificationOutboxWorker } from "./task-notification-outbox.worker"
     EmployeeTasksController,
     TenantAdminDashboardController,
     TenantAdminClientServiceActivationController,
+    TenantAdminServiceRequestsController,
     TenantAdminClientsController,
     TenantAdminEmployeePerformanceController,
     TenantAdminFinanceController,
@@ -140,6 +146,8 @@ import { TaskNotificationOutboxWorker } from "./task-notification-outbox.worker"
     ClientPortalProfileService,
     ClientPortalRequestsRepository,
     ClientPortalRequestsService,
+    ClientServiceRequestsRepository,
+    ClientServiceRequestsService,
     EmployeeDashboardRepository,
     EmployeeDashboardService,
     EmployeeDocumentsRepository,

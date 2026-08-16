@@ -1,0 +1,259 @@
+- generic [active] [ref=e76]:
+  - generic [ref=e77]:
+    - link "Skip to content" [ref=e78] [cursor=pointer]:
+      - /url: "#main-content"
+    - complementary [ref=e80]:
+      - generic [ref=e81]:
+        - generic [ref=e83]: Hablox
+        - button "Collapse navigation" [ref=e84]:
+          - img [ref=e85]
+      - navigation "Workspace navigation" [ref=e88]:
+        - link "Dashboard" [ref=e89] [cursor=pointer]:
+          - /url: /admin
+          - img [ref=e90]
+          - generic [ref=e95]: Dashboard
+        - generic [ref=e96]:
+          - button "People & Teams" [expanded] [ref=e97]:
+            - img [ref=e98]
+            - generic [ref=e103]: People & Teams
+            - img [ref=e104]
+          - generic [ref=e106]:
+            - link "Employees" [ref=e107] [cursor=pointer]:
+              - /url: /admin/employees
+              - img [ref=e108]
+              - generic [ref=e113]: Employees
+            - link "Departments" [ref=e114] [cursor=pointer]:
+              - /url: /admin/departments
+              - img [ref=e115]
+              - generic [ref=e119]: Departments
+            - link "Managers" [ref=e120] [cursor=pointer]:
+              - /url: /admin/managers
+              - img [ref=e121]
+              - generic [ref=e126]: Managers
+            - link "Work groups" [ref=e127] [cursor=pointer]:
+              - /url: /admin/work-groups
+              - img [ref=e128]
+              - generic [ref=e133]: Work groups
+            - link "Employee performance" [ref=e134] [cursor=pointer]:
+              - /url: /admin/employee-performance
+              - img [ref=e135]
+              - generic [ref=e138]: Employee performance
+        - generic [ref=e139]:
+          - button "Clients" [expanded] [ref=e140]:
+            - img [ref=e141]
+            - generic [ref=e145]: Clients
+            - img [ref=e146]
+          - generic [ref=e148]:
+            - link "Clients" [ref=e149] [cursor=pointer]:
+              - /url: /admin/clients
+              - img [ref=e150]
+              - generic [ref=e154]: Clients
+            - link "Agreements" [ref=e155] [cursor=pointer]:
+              - /url: /admin/agreements
+              - img [ref=e156]
+              - generic [ref=e159]: Agreements
+        - generic [ref=e160]:
+          - button "Operations" [expanded] [ref=e161]:
+            - img [ref=e162]
+            - generic [ref=e165]: Operations
+            - img [ref=e166]
+          - generic [ref=e168]:
+            - link "Tasks" [ref=e169] [cursor=pointer]:
+              - /url: /admin/tasks
+              - img [ref=e170]
+              - generic [ref=e173]: Tasks
+            - link "Calendar" [ref=e174] [cursor=pointer]:
+              - /url: /admin/task-calendar
+              - img [ref=e175]
+              - generic [ref=e177]: Calendar
+            - link "Services" [ref=e178] [cursor=pointer]:
+              - /url: /admin/services
+              - img [ref=e179]
+              - generic [ref=e184]: Services
+        - generic [ref=e185]:
+          - button "Finance & Documents" [expanded] [ref=e186]:
+            - img [ref=e187]
+            - generic [ref=e189]: Finance & Documents
+            - img [ref=e190]
+          - generic [ref=e192]:
+            - link "Invoices" [ref=e193] [cursor=pointer]:
+              - /url: /admin/invoices
+              - img [ref=e194]
+              - generic [ref=e196]: Invoices
+            - link "Documents" [ref=e197] [cursor=pointer]:
+              - /url: /admin/documents
+              - img [ref=e198]
+              - generic [ref=e201]: Documents
+    - generic [ref=e202]:
+      - banner [ref=e203]:
+        - navigation "Breadcrumb" [ref=e206]:
+          - list [ref=e207]:
+            - listitem [ref=e208]:
+              - link "Tenant administration" [ref=e209] [cursor=pointer]:
+                - /url: /admin
+            - listitem [ref=e210]:
+              - img [ref=e211]
+              - generic "Tasks" [ref=e213]
+        - generic [ref=e214]:
+          - generic [ref=e215]:
+            - generic [ref=e216]:
+              - generic [ref=e217]: Sun, 16 Aug, 2026
+              - generic [ref=e218]: 09:54:38 pm
+            - button "Select clock country" [ref=e219]:
+              - generic [ref=e220]:
+                - text: India (Kolkata)
+                - img [ref=e221]
+              - generic [ref=e223]: IST
+          - button "Language" [ref=e224]:
+            - img [ref=e225]
+            - generic [ref=e229]: EN
+            - img [ref=e230]
+          - button "Update" [ref=e232]:
+            - img [ref=e233]
+          - button "Search workspace navigation." [ref=e238]:
+            - img [ref=e239]
+          - switch "Switch to dark mode" [ref=e242] [cursor=pointer]
+          - generic [ref=e259]: Light mode enabled
+          - button "Notifications, 1 unread" [ref=e260]:
+            - img [ref=e261]
+            - generic [ref=e264]: "1"
+          - button "Open user menu for Sayantan" [ref=e265]:
+            - generic [ref=e266]: S
+            - generic [ref=e267]:
+              - generic "Sayantan" [ref=e268]
+              - generic [ref=e269]: Tenant Admin
+            - img [ref=e270]
+      - main [ref=e272]:
+        - generic [ref=e273]:
+          - generic [ref=e274]:
+            - generic [ref=e275]:
+              - paragraph [ref=e276]: Delivery
+              - heading "Client tasks" [level=1] [ref=e277]
+              - paragraph [ref=e278]: Select a client to plan, assign, review and manage all work within their active scope.
+            - button "Create task" [ref=e280]:
+              - img [ref=e281]
+              - text: Create task
+          - tablist "Client task queue" [ref=e283]:
+            - tab "All client tasks" [selected] [ref=e284]
+            - tab "Submitted for review (0)" [ref=e285]
+          - generic [ref=e286]:
+            - generic [ref=e288]:
+              - generic [ref=e289]: Search tasks
+              - img
+              - textbox "Search tasks" [ref=e290]:
+                - /placeholder: Search task, client, engagement, or assignee
+            - generic [ref=e292]:
+              - generic [ref=e293]:
+                - text: Status
+                - combobox "Filter by task status" [ref=e294]:
+                  - option "All statuses" [selected]
+                  - option "To do"
+                  - option "In progress"
+                  - option "Review"
+                  - option "Rejected"
+                  - option "Done"
+              - generic [ref=e295]:
+                - text: Priority
+                - combobox "Filter by task priority" [ref=e296]:
+                  - option "All priorities" [selected]
+                  - option "High"
+                  - option "Medium"
+                  - option "Low"
+          - generic [ref=e297]:
+            - tablist "Task view" [ref=e298]:
+              - tab "Board" [ref=e299]
+              - tab "List" [selected] [ref=e300]
+            - tabpanel "List" [ref=e301]:
+              - table "Tasks in active scope" [ref=e306]:
+                - caption [ref=e307]: Tasks in active scope
+                - rowgroup [ref=e308]:
+                  - row "Task Client Assignee Priority Status Due" [ref=e309]:
+                    - columnheader "Task" [ref=e310]
+                    - columnheader "Client" [ref=e311]
+                    - columnheader "Assignee" [ref=e312]
+                    - columnheader "Priority" [ref=e313]
+                    - columnheader "Status" [ref=e314]
+                    - columnheader "Due" [ref=e315]
+                - rowgroup [ref=e316]:
+                  - row "tax (2027-03) Acme Operations Demo Medium on track Mar 11, 2027, 5:30 AM" [ref=e317]:
+                    - cell "tax (2027-03)" [ref=e318]:
+                      - button "tax (2027-03)" [ref=e319]
+                    - cell "Acme Operations" [ref=e320]
+                    - cell "Demo" [ref=e321]
+                    - cell "Medium" [ref=e322]:
+                      - generic [ref=e323]: Medium
+                    - cell "on track" [ref=e324]:
+                      - generic [ref=e325]: on track
+                    - cell "Mar 11, 2027, 5:30 AM" [ref=e326]
+                  - row "tax (2027-02) Acme Operations Demo Medium on track Feb 11, 2027, 5:30 AM" [ref=e327]:
+                    - cell "tax (2027-02)" [ref=e328]:
+                      - button "tax (2027-02)" [ref=e329]
+                    - cell "Acme Operations" [ref=e330]
+                    - cell "Demo" [ref=e331]
+                    - cell "Medium" [ref=e332]:
+                      - generic [ref=e333]: Medium
+                    - cell "on track" [ref=e334]:
+                      - generic [ref=e335]: on track
+                    - cell "Feb 11, 2027, 5:30 AM" [ref=e336]
+                  - row "tax (2027-01) Acme Operations Demo Medium on track Jan 11, 2027, 5:30 AM" [ref=e337]:
+                    - cell "tax (2027-01)" [ref=e338]:
+                      - button "tax (2027-01)" [ref=e339]
+                    - cell "Acme Operations" [ref=e340]
+                    - cell "Demo" [ref=e341]
+                    - cell "Medium" [ref=e342]:
+                      - generic [ref=e343]: Medium
+                    - cell "on track" [ref=e344]:
+                      - generic [ref=e345]: on track
+                    - cell "Jan 11, 2027, 5:30 AM" [ref=e346]
+                  - row "tax (2026-12) Acme Operations Demo Medium on track Dec 11, 2026, 5:30 AM" [ref=e347]:
+                    - cell "tax (2026-12)" [ref=e348]:
+                      - button "tax (2026-12)" [ref=e349]
+                    - cell "Acme Operations" [ref=e350]
+                    - cell "Demo" [ref=e351]
+                    - cell "Medium" [ref=e352]:
+                      - generic [ref=e353]: Medium
+                    - cell "on track" [ref=e354]:
+                      - generic [ref=e355]: on track
+                    - cell "Dec 11, 2026, 5:30 AM" [ref=e356]
+                  - row "tax (2026-11) Acme Operations Demo Medium on track Nov 11, 2026, 5:30 AM" [ref=e357]:
+                    - cell "tax (2026-11)" [ref=e358]:
+                      - button "tax (2026-11)" [ref=e359]
+                    - cell "Acme Operations" [ref=e360]
+                    - cell "Demo" [ref=e361]
+                    - cell "Medium" [ref=e362]:
+                      - generic [ref=e363]: Medium
+                    - cell "on track" [ref=e364]:
+                      - generic [ref=e365]: on track
+                    - cell "Nov 11, 2026, 5:30 AM" [ref=e366]
+                  - row "tax (2026-10) Acme Operations Demo Medium on track Oct 11, 2026, 5:30 AM" [ref=e367]:
+                    - cell "tax (2026-10)" [ref=e368]:
+                      - button "tax (2026-10)" [ref=e369]
+                    - cell "Acme Operations" [ref=e370]
+                    - cell "Demo" [ref=e371]
+                    - cell "Medium" [ref=e372]:
+                      - generic [ref=e373]: Medium
+                    - cell "on track" [ref=e374]:
+                      - generic [ref=e375]: on track
+                    - cell "Oct 11, 2026, 5:30 AM" [ref=e376]
+                  - row "tax (2026-09) Acme Operations Demo Medium on track Sep 11, 2026, 5:30 AM" [ref=e377]:
+                    - cell "tax (2026-09)" [ref=e378]:
+                      - button "tax (2026-09)" [ref=e379]
+                    - cell "Acme Operations" [ref=e380]
+                    - cell "Demo" [ref=e381]
+                    - cell "Medium" [ref=e382]:
+                      - generic [ref=e383]: Medium
+                    - cell "on track" [ref=e384]:
+                      - generic [ref=e385]: on track
+                    - cell "Sep 11, 2026, 5:30 AM" [ref=e386]
+                  - row "tax Acme Operations Rahul Medium complete Aug 28, 2026, 12:52 PM" [ref=e387]:
+                    - cell "tax" [ref=e388]:
+                      - button "tax" [ref=e389]
+                    - cell "Acme Operations" [ref=e390]
+                    - cell "Rahul" [ref=e391]
+                    - cell "Medium" [ref=e392]:
+                      - generic [ref=e393]: Medium
+                    - cell "complete" [ref=e394]:
+                      - generic [ref=e395]: complete
+                    - cell "Aug 28, 2026, 12:52 PM" [ref=e396]
+  - region "Notifications alt+T"
+  - alert [ref=e397]

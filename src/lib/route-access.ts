@@ -30,10 +30,6 @@ export const sectionAccess: Record<
     workspaces: ["employee"],
     permissions: ["work_log.review.assigned_group"],
   },
-  "work-groups": {
-    workspaces: ["admin"],
-    permissions: ["work_group.manage"],
-  },
   documents: {
     workspaces: ["admin", "employee"],
     permissions: ["document.read"],
@@ -67,10 +63,13 @@ export const sectionAccess: Record<
     permissions: ["client.read", "client.read.assigned"],
   },
   requests: { workspaces: ["client"], permissions: ["client.read.assigned"] },
+  "service-requests": { workspaces: ["admin"], permissions: ["client.read"] },
   deliverables: {
     workspaces: ["client"],
     permissions: ["client.read.assigned"],
   },
   notifications: { workspaces: ["employee"] },
   profile: { workspaces: ["employee", "client"] },
+  settings: { workspaces: ["admin"] },
+  account: { workspaces: ["super-admin"] },
 };

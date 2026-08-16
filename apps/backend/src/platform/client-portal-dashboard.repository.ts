@@ -115,11 +115,21 @@ export class ClientPortalDashboardRepository {
             from visible_services
           ) as active_services,
           (
-            select count(*)::text
-            from public.client_task_requests ctr
-            where ctr.tenant_id = $1
-              and ctr.client_id = $2
-              and ctr.status not in ('completed', 'cancelled', 'resolved')
+            select (
+              (
+                select count(*)
+                from public.client_task_requests ctr
+                where ctr.tenant_id = $1
+                  and ctr.client_id = $2
+                  and ctr.status not in ('completed', 'cancelled', 'resolved')
+              ) + (
+                select count(*)
+                from public.client_service_requests csr
+                where csr.tenant_id = $1
+                  and csr.client_id = $2
+                  and csr.status = 'submitted'
+              )
+            )::text
           ) as open_requests,
           coalesce(
             (
@@ -274,22 +284,45 @@ export class ClientPortalDashboardRepository {
   private async getRequests(client: PoolClient, context: ClientPortalScope): Promise<readonly RequestRow[]> {
     const result = await client.query<RequestRow>(
       `
-        select
-          ctr.id::text,
-          ctr.title,
-          ctr.status,
-          s.name as service_name,
-          ctr.country_code,
-          ctr.requested_due_date::text,
-          ctr.submitted_at,
-          ctr.updated_at
-        from public.client_task_requests ctr
-        join public.services s
-          on s.id = ctr.service_id
-         and s.tenant_id = ctr.tenant_id
-        where ctr.tenant_id = $1
-          and ctr.client_id = $2
-        order by ctr.updated_at desc, ctr.id desc
+        select * from (
+          select
+            ctr.id::text,
+            ctr.title,
+            ctr.status,
+            s.name as service_name,
+            ctr.country_code,
+            ctr.requested_due_date::text,
+            ctr.submitted_at,
+            ctr.updated_at
+          from public.client_task_requests ctr
+          join public.services s
+            on s.id = ctr.service_id
+           and s.tenant_id = ctr.tenant_id
+          where ctr.tenant_id = $1
+            and ctr.client_id = $2
+          union all
+          select
+            csr.id::text,
+            csr.title,
+            csr.status,
+            coalesce((
+              select string_agg(s.name, ', ' order by lower(s.name))
+              from public.client_service_request_items csri
+              join public.services s
+                on s.tenant_id = csri.tenant_id
+               and s.id = csri.service_id
+              where csri.tenant_id = csr.tenant_id
+                and csri.request_id = csr.id
+            ), 'Custom request') as service_name,
+            csr.country_code,
+            null::text as requested_due_date,
+            csr.submitted_at,
+            csr.updated_at
+          from public.client_service_requests csr
+          where csr.tenant_id = $1
+            and csr.client_id = $2
+        ) requests
+        order by updated_at desc, id desc
         limit 8
       `,
       [context.tenantId, context.clientId],

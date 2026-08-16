@@ -68,3 +68,12 @@ Design status: Pending Figma verification.
   dialogs, tables, buttons, and empty states. Figma MCP was not used for these
   screens. They are inferred design-system implementations, not pixel-perfect
   Figma matches.
+
+## Client catalogue request compositions
+
+Design status: Pending Figma verification.
+
+- Client portal tick-and-send Requests and Tenant Admin Service requests
+  reuse PageHeader, Card, Dialog, Button, ClientServiceCustomizer, and
+  ServiceEmployeeSelector. Figma MCP was not used. They are inferred
+  design-system implementations, not pixel-perfect Figma matches.

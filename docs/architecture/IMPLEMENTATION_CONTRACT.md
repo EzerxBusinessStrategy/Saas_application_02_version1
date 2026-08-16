@@ -8,7 +8,9 @@ Design status for new UI: Pending Figma verification
 
 Connect the existing service catalogue, employee roster, client records, engagements, rate cards, compliance calendar rules, tasks, assignments, billing, and client portal into one additive onboarding workflow:
 
-Service Blueprint → Employee Service Capability → Client selects services → Client-specific customization → Responsible employee assignment → Activate → Generate existing `public.tasks` → Existing task workflow → Client portal progress.
+Service Blueprint → Employee Service Capability → Client ticks catalogue services (or sends a custom request) → Client-specific booklet changes → Tenant accepts and allots the responsible employee → Existing activate generates `public.tasks` → Existing task workflow → Client portal progress.
+
+Tenant-initiated Configure services remains as an admin override of the same activate path.
 
 ## Non-negotiable constraints
 
@@ -71,6 +73,23 @@ Skills remain a separate concept. This mapping is service capability, not skill 
 
 Activate body includes `idempotencyKey` and one or more selected services, each with customized tasks and `assignedEmployeeId`.
 
+### Client catalogue requests
+
+Client portal uses the authenticated `clientId` only.
+
+- `GET /client-portal/service-catalogue` — `client.read.assigned`. All active tenant services that have a blueprint, with `alreadyActive` and `alreadyRequested`.
+- `GET /client-portal/service-requests` — `client.read.assigned`
+- `POST /client-portal/service-requests` — `client.read.assigned`. Catalogue tick-and-send or custom request. Does not create tasks.
+
+Tenant Admin:
+
+- `GET /tenant-admin/service-requests` — `client.read`
+- `GET /tenant-admin/service-requests/:requestId` — `client.read`
+- `POST /tenant-admin/service-requests/:requestId/accept` — `client.update`. Allot employees, then reuse activate in the same transaction.
+- `POST /tenant-admin/service-requests/:requestId/reject` — `client.update`
+
+Existing `POST /client-portal/requests` remains for ad-hoc work against an already-active service.
+
 Activate transaction per selected service:
 
 1. Validate tenant-owned client, service, employee, capability, and country financial year.
@@ -90,8 +109,10 @@ If any step fails, roll back.
 - Services: keep `TenantServiceDirectory`; add Manage tasks blueprint editor.
 - Employees: keep assignment dialog; add Services handled multi-select.
 - Clients: keep create-client identity flow; after create, open Configure services wizard.
-- Wizard steps: Select → Customize → Assign → Review & Activate.
-- Client portal: enrich Active services with assigned employee, value, task list, and calculated progress.
+- Wizard steps: Select → Customize → Assign → Review & Activate. This remains the tenant-initiated override.
+- Client portal Requests: tick catalogue services, open each booklet, optionally send a custom request.
+- Tenant Admin Service requests: accept/reject queue. Accept allots the employee per service, then calls existing activate.
+- Client portal Active services: assigned employee, value, task list, and calculated progress after accept.
 
 No new visual system. TailAdmin / existing shared components only.
 
@@ -105,9 +126,9 @@ Cancelled tasks are excluded.
 
 ## Files that may be modified
 
-- Additive migration `0066_service_blueprint_activation.sql` and `migrations.ts`
+- Additive migrations `0066_service_blueprint_activation.sql`, `0067_client_service_requests.sql`, and `migrations.ts`
 - `operations.schema.ts`
-- New isolated `tenant-admin-service-blueprints.*` and `tenant-admin-client-service-activation.*` files
+- New isolated `tenant-admin-service-blueprints.*`, `tenant-admin-client-service-activation.*`, and `client-service-requests.*` files
 - `platform.module.ts` registration only
 - `tenant-admin-clients.repository.ts` engagement read join only
 - `client-portal-dashboard.*` response enrichment

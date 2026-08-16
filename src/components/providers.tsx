@@ -45,7 +45,7 @@ export function Providers({ children }: { children: ReactNode }) {
     <ThemeProvider
       attribute="class"
       defaultTheme="system"
-      enableColorScheme
+      disableTransitionOnChange
       enableSystem
       storageKey="ezerx-theme"
     >

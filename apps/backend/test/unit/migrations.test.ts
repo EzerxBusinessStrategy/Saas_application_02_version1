@@ -219,4 +219,27 @@ describe("database migrations", () => {
     expect(sql).not.toContain("drop table public.engagements");
     expect(sql).not.toMatch(/alter table public\.tasks\s+drop/i);
   });
+
+  test("adds client service request tables without rewriting existing records", () => {
+    expect(migrationNames).toContain("0067_client_service_requests.sql");
+    expect(migrationNames.indexOf("0067_client_service_requests.sql")).toBeGreaterThan(
+      migrationNames.indexOf("0066_service_blueprint_activation.sql"),
+    );
+
+    const sql = readFileSync(
+      resolve(__dirname, "../../drizzle/migrations/0067_client_service_requests.sql"),
+      "utf8",
+    );
+
+    expect(sql).toContain("create table public.client_service_requests");
+    expect(sql).toContain("create table public.client_service_request_items");
+    expect(sql).toContain("client_service_requests_idempotency_unique");
+    expect(sql).toContain("client_service_request_items_request_service_unique");
+    expect(sql).toContain("enable row level security");
+    expect(sql).not.toContain("drop table public.tasks");
+    expect(sql).not.toContain("drop table public.clients");
+    expect(sql).not.toContain("drop table public.services");
+    expect(sql).not.toContain("drop table public.engagements");
+    expect(sql).not.toMatch(/alter table public\.tasks\s+drop/i);
+  });
 });
