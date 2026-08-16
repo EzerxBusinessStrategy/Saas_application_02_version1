@@ -1,0 +1,73 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - link "Skip to content" [ref=e3] [cursor=pointer]:
+      - /url: "#main-content"
+    - complementary [ref=e5]:
+      - generic [ref=e6]:
+        - generic [ref=e8]: SaaS App
+        - button "Collapse navigation" [ref=e9]:
+          - img [ref=e10]
+      - navigation "Workspace navigation" [ref=e13]:
+        - link "Dashboard" [ref=e14] [cursor=pointer]:
+          - /url: /super-admin
+          - img [ref=e15]
+          - generic [ref=e20]: Dashboard
+        - link "Audit log" [ref=e21] [cursor=pointer]:
+          - /url: /super-admin/audit-log
+          - img [ref=e22]
+          - generic [ref=e25]: Audit log
+        - link "Tenant list" [ref=e26] [cursor=pointer]:
+          - /url: /super-admin/tenants
+          - img [ref=e27]
+          - generic [ref=e31]: Tenant list
+        - link "Platform configuration" [ref=e32] [cursor=pointer]:
+          - /url: /super-admin/platform-settings
+          - img [ref=e33]
+          - generic [ref=e36]: Platform configuration
+        - link "Tenant analytics" [ref=e37] [cursor=pointer]:
+          - /url: /super-admin/tenant-analytics
+          - img [ref=e38]
+          - generic [ref=e40]: Tenant analytics
+        - link "Tenant password" [ref=e41] [cursor=pointer]:
+          - /url: /super-admin/tenant-password
+          - img [ref=e42]
+          - generic [ref=e45]: Tenant password
+    - generic [ref=e46]:
+      - banner [ref=e47]:
+        - navigation "Breadcrumb" [ref=e50]:
+          - list [ref=e51]:
+            - listitem [ref=e52]:
+              - link "Platform" [ref=e53] [cursor=pointer]:
+                - /url: /super-admin
+            - listitem [ref=e54]:
+              - img [ref=e55]
+              - generic "Tenant password" [ref=e57]
+        - generic [ref=e58]:
+          - generic [ref=e59]:
+            - generic [ref=e60]:
+              - generic [ref=e61]: Sun, 16 Aug, 2026
+              - generic [ref=e62]: 09:14:47 pm
+            - button "Select clock country" [ref=e63]:
+              - generic [ref=e64]:
+                - text: India (Kolkata)
+                - img [ref=e65]
+              - generic [ref=e67]: IST
+          - button "Language" [ref=e68]:
+            - img [ref=e69]
+            - generic [ref=e73]: EN
+            - img [ref=e74]
+          - button "Update" [ref=e76]:
+            - img [ref=e77]
+          - button "Search workspace navigation." [ref=e82]:
+            - img [ref=e83]
+          - switch "Switch to dark mode" [ref=e86] [cursor=pointer]
+          - generic [ref=e103]: Light mode enabled
+          - button "Notifications, 2 unread" [ref=e104]:
+            - img [ref=e105]
+            - generic [ref=e108]: "2"
+          - status "Loading account profile" [ref=e109]
+      - main [ref=e115]:
+        - status "Loading tenants" [ref=e117]:
+          - paragraph [ref=e129]: Loading tenants
+  - region "Notifications alt+T"
+  - alert [ref=e130]

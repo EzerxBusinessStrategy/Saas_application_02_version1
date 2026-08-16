@@ -1,0 +1,222 @@
+- generic:
+  - generic:
+    - link:
+      - /url: "#main-content"
+      - text: Skip to content
+    - generic:
+      - complementary:
+        - generic:
+          - generic:
+            - generic: Hablox
+          - button:
+            - img
+        - navigation:
+          - link:
+            - /url: /admin
+            - img
+            - generic: Dashboard
+          - generic:
+            - button [expanded]:
+              - img
+              - generic: People & Teams
+              - img
+            - generic:
+              - link:
+                - /url: /admin/employees
+                - img
+                - generic: Employees
+              - link:
+                - /url: /admin/departments
+                - img
+                - generic: Departments
+              - link:
+                - /url: /admin/managers
+                - img
+                - generic: Managers
+              - link:
+                - /url: /admin/work-groups
+                - img
+                - generic: Work groups
+              - link:
+                - /url: /admin/employee-performance
+                - img
+                - generic: Employee performance
+          - generic:
+            - button [expanded]:
+              - img
+              - generic: Clients
+              - img
+            - generic:
+              - link:
+                - /url: /admin/clients
+                - img
+                - generic: Clients
+              - link:
+                - /url: /admin/agreements
+                - img
+                - generic: Agreements
+          - generic:
+            - button [expanded]:
+              - img
+              - generic: Operations
+              - img
+            - generic:
+              - link:
+                - /url: /admin/tasks
+                - img
+                - generic: Tasks
+              - link:
+                - /url: /admin/task-calendar
+                - img
+                - generic: Calendar
+              - link:
+                - /url: /admin/services
+                - img
+                - generic: Services
+          - generic:
+            - button [expanded]:
+              - img
+              - generic: Finance & Documents
+              - img
+            - generic:
+              - link:
+                - /url: /admin/invoices
+                - img
+                - generic: Invoices
+              - link:
+                - /url: /admin/documents
+                - img
+                - generic: Documents
+    - generic:
+      - banner:
+        - generic:
+          - generic:
+            - navigation:
+              - list:
+                - listitem:
+                  - link:
+                    - /url: /admin
+                    - text: Tenant administration
+                - listitem:
+                  - img
+                  - link:
+                    - /url: /admin/clients
+                    - text: Clients
+                - listitem:
+                  - img
+                  - generic: 4acacf62 45ae 4318 9fc2 D286fd866a78
+        - generic:
+          - generic:
+            - generic:
+              - generic: Sun, 16 Aug, 2026
+              - generic: 09:20:57 pm
+            - button:
+              - generic:
+                - text: India (Kolkata)
+                - img
+              - generic: IST
+          - button:
+            - img
+            - generic: EN
+            - img
+          - button:
+            - img
+          - button:
+            - img
+          - switch
+          - generic: Light mode enabled
+          - button:
+            - img
+            - generic: "1"
+          - button:
+            - generic: S
+            - generic:
+              - generic: Sayantan
+              - generic: Tenant Admin
+            - img
+      - main:
+        - generic:
+          - generic:
+            - generic:
+              - generic:
+                - paragraph: Client management
+                - heading [level=1]: Acme Operations
+                - paragraph: cl-101
+              - generic:
+                - button: Configure services
+            - generic:
+              - generic: onboarding
+              - generic: 0 active services
+              - generic: 0 open tasks
+          - generic:
+            - tablist:
+              - tab [selected]: Overview
+              - tab: Contacts
+              - tab: Service engagements
+              - tab: Work groups
+              - tab: Tasks
+              - tab: Billing
+              - tab: Agreements
+              - tab: Documents
+              - tab: Activity
+            - tabpanel:
+              - generic:
+                - generic:
+                  - generic:
+                    - heading [level=2]: Client overview
+                    - paragraph: Contacts, services, managers, tasks, deadlines, and receivables.
+                  - generic:
+                    - generic:
+                      - paragraph: Primary contact
+                      - paragraph: sayantan
+                      - paragraph: sayantan@gmail.com
+                    - generic:
+                      - paragraph: Revenue
+                      - paragraph: ₹0
+                    - generic:
+                      - paragraph: Active services
+                    - generic:
+                      - paragraph: Assigned managers
+                    - generic:
+                      - paragraph: Open and at-risk tasks
+                      - paragraph: 0 open · 0 at risk
+                    - generic:
+                      - paragraph: Upcoming deadline
+                      - paragraph: No deadline
+                - generic:
+                  - generic:
+                    - heading [level=2]: Revenue and receivables
+                    - paragraph: Amounts are calculated from successful payments and unpaid invoices.
+                  - generic:
+                    - generic:
+                      - generic:
+                        - paragraph: Revenue
+                        - paragraph: ₹0
+                      - generic:
+                        - paragraph: Outstanding
+                        - paragraph: ₹80,000
+                    - generic:
+                      - generic:
+                        - generic: Client onboarding
+                        - generic: 35%
+  - region "Notifications alt+T"
+  - alert
+  - dialog "Configure services for Acme Operations" [active] [ref=e783]:
+    - heading "Configure services for Acme Operations" [level=2] [ref=e784]
+    - paragraph [ref=e785]: Select services, customize the booklet for this client, assign a responsible employee, then activate to generate tasks.
+    - generic [ref=e786]:
+      - heading "Configure services" [level=2] [ref=e787]
+      - paragraph [ref=e788]: Acme Operations · Step 3 of 4 · Assign responsible person
+      - generic [ref=e842]:
+        - heading "taxation" [level=3] [ref=e843]
+        - paragraph [ref=e844]: Who will take care of this service for the client?
+        - generic [ref=e845]:
+          - text: Responsible person
+          - combobox "Responsible person" [ref=e846]:
+            - option "Select an employee" [selected]
+            - option "Demo · handles this service · 0 active tasks · 40h/week"
+      - generic [ref=e798]:
+        - button "Back" [ref=e840]
+        - button "Continue" [disabled]
+    - button "Close" [ref=e799]:
+      - img [ref=e800]

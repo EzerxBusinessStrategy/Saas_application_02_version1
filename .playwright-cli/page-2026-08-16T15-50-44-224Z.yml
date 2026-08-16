@@ -1,0 +1,253 @@
+- generic:
+  - generic:
+    - link:
+      - /url: "#main-content"
+      - text: Skip to content
+    - generic:
+      - complementary:
+        - generic:
+          - generic:
+            - generic: Hablox
+          - button:
+            - img
+        - navigation:
+          - link:
+            - /url: /admin
+            - img
+            - generic: Dashboard
+          - generic:
+            - button [expanded]:
+              - img
+              - generic: People & Teams
+              - img
+            - generic:
+              - link:
+                - /url: /admin/employees
+                - img
+                - generic: Employees
+              - link:
+                - /url: /admin/departments
+                - img
+                - generic: Departments
+              - link:
+                - /url: /admin/managers
+                - img
+                - generic: Managers
+              - link:
+                - /url: /admin/work-groups
+                - img
+                - generic: Work groups
+              - link:
+                - /url: /admin/employee-performance
+                - img
+                - generic: Employee performance
+          - generic:
+            - button [expanded]:
+              - img
+              - generic: Clients
+              - img
+            - generic:
+              - link:
+                - /url: /admin/clients
+                - img
+                - generic: Clients
+              - link:
+                - /url: /admin/agreements
+                - img
+                - generic: Agreements
+          - generic:
+            - button [expanded]:
+              - img
+              - generic: Operations
+              - img
+            - generic:
+              - link:
+                - /url: /admin/tasks
+                - img
+                - generic: Tasks
+              - link:
+                - /url: /admin/task-calendar
+                - img
+                - generic: Calendar
+              - link:
+                - /url: /admin/services
+                - img
+                - generic: Services
+          - generic:
+            - button [expanded]:
+              - img
+              - generic: Finance & Documents
+              - img
+            - generic:
+              - link:
+                - /url: /admin/invoices
+                - img
+                - generic: Invoices
+              - link:
+                - /url: /admin/documents
+                - img
+                - generic: Documents
+    - generic:
+      - banner:
+        - generic:
+          - generic:
+            - navigation:
+              - list:
+                - listitem:
+                  - link:
+                    - /url: /admin
+                    - text: Tenant administration
+                - listitem:
+                  - img
+                  - link:
+                    - /url: /admin/clients
+                    - text: Clients
+                - listitem:
+                  - img
+                  - generic: 4acacf62 45ae 4318 9fc2 D286fd866a78
+        - generic:
+          - generic:
+            - generic:
+              - generic: Sun, 16 Aug, 2026
+              - generic: 09:20:43 pm
+            - button:
+              - generic:
+                - text: India (Kolkata)
+                - img
+              - generic: IST
+          - button:
+            - img
+            - generic: EN
+            - img
+          - button:
+            - img
+          - button:
+            - img
+          - switch
+          - generic: Light mode enabled
+          - button:
+            - img
+            - generic: "1"
+          - button:
+            - generic: S
+            - generic:
+              - generic: Sayantan
+              - generic: Tenant Admin
+            - img
+      - main:
+        - generic:
+          - generic:
+            - generic:
+              - generic:
+                - paragraph: Client management
+                - heading [level=1]: Acme Operations
+                - paragraph: cl-101
+              - generic:
+                - button: Configure services
+            - generic:
+              - generic: onboarding
+              - generic: 0 active services
+              - generic: 0 open tasks
+          - generic:
+            - tablist:
+              - tab [selected]: Overview
+              - tab: Contacts
+              - tab: Service engagements
+              - tab: Work groups
+              - tab: Tasks
+              - tab: Billing
+              - tab: Agreements
+              - tab: Documents
+              - tab: Activity
+            - tabpanel:
+              - generic:
+                - generic:
+                  - generic:
+                    - heading [level=2]: Client overview
+                    - paragraph: Contacts, services, managers, tasks, deadlines, and receivables.
+                  - generic:
+                    - generic:
+                      - paragraph: Primary contact
+                      - paragraph: sayantan
+                      - paragraph: sayantan@gmail.com
+                    - generic:
+                      - paragraph: Revenue
+                      - paragraph: ₹0
+                    - generic:
+                      - paragraph: Active services
+                    - generic:
+                      - paragraph: Assigned managers
+                    - generic:
+                      - paragraph: Open and at-risk tasks
+                      - paragraph: 0 open · 0 at risk
+                    - generic:
+                      - paragraph: Upcoming deadline
+                      - paragraph: No deadline
+                - generic:
+                  - generic:
+                    - heading [level=2]: Revenue and receivables
+                    - paragraph: Amounts are calculated from successful payments and unpaid invoices.
+                  - generic:
+                    - generic:
+                      - generic:
+                        - paragraph: Revenue
+                        - paragraph: ₹0
+                      - generic:
+                        - paragraph: Outstanding
+                        - paragraph: ₹80,000
+                    - generic:
+                      - generic:
+                        - generic: Client onboarding
+                        - generic: 35%
+  - region "Notifications alt+T"
+  - alert
+  - dialog "Configure services for Acme Operations" [ref=e783]:
+    - heading "Configure services for Acme Operations" [level=2] [ref=e784]
+    - paragraph [ref=e785]: Select services, customize the booklet for this client, assign a responsible employee, then activate to generate tasks.
+    - generic [ref=e786]:
+      - heading "Configure services" [level=2] [ref=e787]
+      - paragraph [ref=e788]: Acme Operations · Step 2 of 4 · Customize package
+      - generic [ref=e805]:
+        - generic [ref=e806]:
+          - generic [ref=e807]:
+            - heading "taxation" [level=3] [ref=e808]
+            - paragraph [ref=e809]: Changes apply to this client only.
+          - paragraph [ref=e810]: ₹12,00,000
+        - table [ref=e812]:
+          - rowgroup [ref=e813]:
+            - row "Include Task Frequency Due Price" [ref=e814]:
+              - columnheader "Include" [ref=e815]
+              - columnheader "Task" [ref=e816]
+              - columnheader "Frequency" [ref=e817]
+              - columnheader "Due" [ref=e818]
+              - columnheader "Price" [ref=e819]
+          - rowgroup [ref=e820]:
+            - row "Include tax tax Monthly Due day of month 11 Price for tax 100000" [ref=e821]:
+              - cell "Include tax" [ref=e822]:
+                - checkbox "Include tax" [checked] [ref=e823]
+              - cell "tax" [ref=e824]:
+                - textbox [ref=e825]: tax
+              - cell "Monthly" [ref=e826]:
+                - combobox [ref=e827]:
+                  - option "Monthly" [selected]
+                  - option "Quarterly"
+                  - option "Yearly"
+                  - option "One-time"
+              - cell "Due day of month 11" [ref=e828]:
+                - generic [ref=e829]:
+                  - text: Due day of month
+                  - spinbutton "Due day of month" [ref=e830]: "11"
+              - cell "Price for tax 100000" [ref=e831]:
+                - generic [ref=e832]: Price for tax
+                - spinbutton [ref=e833]: "100000"
+        - button "Add task" [ref=e834]:
+          - img [ref=e835]
+          - text: Add task
+        - paragraph [ref=e836]:
+          - img [ref=e837]
+          - text: Tenant defaults stay unchanged when you edit this booklet.
+      - generic [ref=e798]:
+        - button "Back" [ref=e840]
+        - button "Continue" [active] [ref=e803]
+    - button "Close" [ref=e799]:
+      - img [ref=e800]

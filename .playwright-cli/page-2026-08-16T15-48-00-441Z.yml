@@ -1,0 +1,280 @@
+- generic [ref=e1]:
+  - generic [ref=e2]:
+    - link "Skip to content" [ref=e3] [cursor=pointer]:
+      - /url: "#main-content"
+    - complementary [ref=e5]:
+      - generic [ref=e6]:
+        - generic [ref=e8]: Hablox
+        - button "Collapse navigation" [ref=e9]:
+          - img [ref=e10]
+      - navigation "Workspace navigation" [ref=e13]:
+        - link "Dashboard" [ref=e14] [cursor=pointer]:
+          - /url: /admin
+          - img [ref=e15]
+          - generic [ref=e20]: Dashboard
+        - generic [ref=e21]:
+          - button "People & Teams" [expanded] [ref=e22]:
+            - img [ref=e23]
+            - generic [ref=e28]: People & Teams
+            - img [ref=e29]
+          - generic [ref=e31]:
+            - link "Employees" [active] [ref=e32] [cursor=pointer]:
+              - /url: /admin/employees
+              - img [ref=e33]
+              - generic [ref=e38]: Employees
+            - link "Departments" [ref=e39] [cursor=pointer]:
+              - /url: /admin/departments
+              - img [ref=e40]
+              - generic [ref=e44]: Departments
+            - link "Managers" [ref=e45] [cursor=pointer]:
+              - /url: /admin/managers
+              - img [ref=e46]
+              - generic [ref=e51]: Managers
+            - link "Work groups" [ref=e52] [cursor=pointer]:
+              - /url: /admin/work-groups
+              - img [ref=e53]
+              - generic [ref=e58]: Work groups
+            - link "Employee performance" [ref=e59] [cursor=pointer]:
+              - /url: /admin/employee-performance
+              - img [ref=e60]
+              - generic [ref=e63]: Employee performance
+        - generic [ref=e64]:
+          - button "Clients" [expanded] [ref=e65]:
+            - img [ref=e66]
+            - generic [ref=e70]: Clients
+            - img [ref=e71]
+          - generic [ref=e73]:
+            - link "Clients" [ref=e74] [cursor=pointer]:
+              - /url: /admin/clients
+              - img [ref=e75]
+              - generic [ref=e79]: Clients
+            - link "Agreements" [ref=e80] [cursor=pointer]:
+              - /url: /admin/agreements
+              - img [ref=e81]
+              - generic [ref=e84]: Agreements
+        - generic [ref=e85]:
+          - button "Operations" [expanded] [ref=e86]:
+            - img [ref=e87]
+            - generic [ref=e90]: Operations
+            - img [ref=e91]
+          - generic [ref=e93]:
+            - link "Tasks" [ref=e94] [cursor=pointer]:
+              - /url: /admin/tasks
+              - img [ref=e95]
+              - generic [ref=e98]: Tasks
+            - link "Calendar" [ref=e99] [cursor=pointer]:
+              - /url: /admin/task-calendar
+              - img [ref=e100]
+              - generic [ref=e102]: Calendar
+            - link "Services" [ref=e103] [cursor=pointer]:
+              - /url: /admin/services
+              - img [ref=e104]
+              - generic [ref=e109]: Services
+        - generic [ref=e110]:
+          - button "Finance & Documents" [expanded] [ref=e111]:
+            - img [ref=e112]
+            - generic [ref=e114]: Finance & Documents
+            - img [ref=e115]
+          - generic [ref=e117]:
+            - link "Invoices" [ref=e118] [cursor=pointer]:
+              - /url: /admin/invoices
+              - img [ref=e119]
+              - generic [ref=e121]: Invoices
+            - link "Documents" [ref=e122] [cursor=pointer]:
+              - /url: /admin/documents
+              - img [ref=e123]
+              - generic [ref=e126]: Documents
+    - generic [ref=e127]:
+      - banner [ref=e128]:
+        - navigation "Breadcrumb" [ref=e131]:
+          - list [ref=e132]:
+            - listitem [ref=e133]:
+              - link "Tenant administration" [ref=e298] [cursor=pointer]:
+                - /url: /admin
+            - listitem [ref=e383]:
+              - img [ref=e384]
+              - generic "Employees" [ref=e386]
+        - generic [ref=e135]:
+          - generic [ref=e136]:
+            - generic [ref=e137]:
+              - generic [ref=e138]: Sun, 16 Aug, 2026
+              - generic [ref=e139]: 09:17:59 pm
+            - button "Select clock country" [ref=e140]:
+              - generic [ref=e141]:
+                - text: India (Kolkata)
+                - img [ref=e142]
+              - generic [ref=e144]: IST
+          - button "Language" [ref=e145]:
+            - img [ref=e146]
+            - generic [ref=e150]: EN
+            - img [ref=e151]
+          - button "Update" [ref=e153]:
+            - img [ref=e154]
+          - button "Search workspace navigation." [ref=e159]:
+            - img [ref=e160]
+          - switch "Switch to dark mode" [ref=e163] [cursor=pointer]
+          - generic [ref=e180]: Light mode enabled
+          - button "Notifications, 1 unread" [ref=e197]:
+            - img [ref=e182]
+            - generic [ref=e198]: "1"
+          - button "Open user menu for Sayantan" [ref=e199]:
+            - generic [ref=e200]: S
+            - generic [ref=e201]:
+              - generic "Sayantan" [ref=e202]
+              - generic [ref=e203]: Tenant Admin
+            - img [ref=e204]
+      - main [ref=e191]:
+        - generic [ref=e387]:
+          - generic [ref=e388]:
+            - generic [ref=e389]:
+              - paragraph [ref=e390]: Workforce
+              - heading "All employees" [level=1] [ref=e391]
+              - paragraph [ref=e392]: Monitor capability, availability, and work allocation across your tenant.
+            - button "Create employee" [ref=e394]:
+              - img [ref=e395]
+              - text: Create employee
+          - generic [ref=e396]:
+            - generic [ref=e397]:
+              - generic [ref=e398]:
+                - heading "Employee directory" [level=2] [ref=e399]
+                - paragraph [ref=e400]: Search and refine the workforce roster before assigning client work.
+              - generic [ref=e401]:
+                - generic [ref=e402]:
+                  - generic [ref=e403]:
+                    - generic [ref=e404]: Search employees
+                    - img
+                    - textbox "Search employees" [ref=e405]:
+                      - /placeholder: Search name or code
+                  - generic [ref=e406]:
+                    - generic [ref=e407]:
+                      - generic [ref=e408]: Sort employees
+                      - combobox "Sort employees" [ref=e409]:
+                        - 'option "Sort: Name" [selected]'
+                        - 'option "Sort: Workload"'
+                    - generic [ref=e410]: 2 employees
+                - generic [ref=e412]:
+                  - generic [ref=e413]:
+                    - generic [ref=e414]: Filter by department
+                    - combobox "Filter by department" [ref=e415]:
+                      - 'option "Department: All" [selected]'
+                      - option "GST"
+                  - generic [ref=e416]:
+                    - generic [ref=e417]: Filter by category
+                    - combobox "Filter by category" [ref=e418]:
+                      - 'option "Category: All" [selected]'
+                  - generic [ref=e419]:
+                    - generic [ref=e420]: Filter by manager
+                    - combobox "Filter by manager" [ref=e421]:
+                      - 'option "Manager: All" [selected]'
+                      - option "Rahul"
+                  - generic [ref=e422]:
+                    - generic [ref=e423]: Filter by availability
+                    - combobox "Filter by availability" [ref=e424]:
+                      - 'option "Availability: All" [selected]'
+                      - option "Available"
+                      - option "Partially Available"
+                      - option "Unavailable"
+                  - generic [ref=e425]:
+                    - generic [ref=e426]: Filter by employment status
+                    - combobox "Filter by employment status" [ref=e427]:
+                      - 'option "Employment status: All" [selected]'
+                      - option "Active"
+                      - option "On Leave"
+                      - option "Inactive"
+            - generic [ref=e428]:
+              - table "Employees in the active tenant" [ref=e431]:
+                - caption [ref=e432]: Employees in the active tenant
+                - rowgroup [ref=e433]:
+                  - row "Employee Department Skills & level Manager Capacity & utilisation Availability Status Actions" [ref=e434]:
+                    - columnheader "Employee" [ref=e435]
+                    - columnheader "Department" [ref=e436]
+                    - columnheader "Skills & level" [ref=e437]
+                    - columnheader "Manager" [ref=e438]
+                    - columnheader "Capacity & utilisation" [ref=e439]
+                    - columnheader "Availability" [ref=e440]
+                    - columnheader "Status" [ref=e441]
+                    - columnheader "Actions" [ref=e442]
+                - rowgroup [ref=e443]:
+                  - row "D Demo emp-30cc0c7a GST payroll Senior Rahul 0/40 hours 0% utilised · 0 active tasks available active Manager Edit details Edit capacity View profile" [ref=e444]:
+                    - cell "D Demo emp-30cc0c7a" [ref=e445]:
+                      - generic [ref=e446]:
+                        - generic [ref=e447]: D
+                        - generic [ref=e448]:
+                          - generic [ref=e449]: Demo
+                          - generic [ref=e450]: emp-30cc0c7a
+                    - cell "GST" [ref=e451]:
+                      - generic [ref=e452]: GST
+                    - cell "payroll Senior" [ref=e453]:
+                      - generic [ref=e454]:
+                        - text: payroll
+                        - generic [ref=e455]: Senior
+                    - cell "Rahul" [ref=e456]:
+                      - generic [ref=e457]: Rahul
+                    - cell "0/40 hours 0% utilised · 0 active tasks" [ref=e458]:
+                      - generic [ref=e459]:
+                        - generic [ref=e460]: 0/40 hours
+                        - generic [ref=e461]: 0% utilised · 0 active tasks
+                    - cell "available" [ref=e462]:
+                      - generic [ref=e463]: available
+                    - cell "active" [ref=e464]:
+                      - generic [ref=e465]: active
+                    - cell "Manager Edit details Edit capacity View profile" [ref=e466]:
+                      - generic [ref=e467]:
+                        - generic [ref=e468]:
+                          - checkbox "Manager" [ref=e469]
+                          - text: Manager
+                        - button "Edit details" [ref=e470]
+                        - button "Edit capacity" [ref=e471]
+                        - button "View profile" [ref=e472]
+                  - row "R Rahul emp-53174e7a GST Finance Lead This employee is a manager 0/40 hours 0% utilised · 1 active tasks available active Manager Edit details Edit capacity View profile" [ref=e473]:
+                    - cell "R Rahul emp-53174e7a" [ref=e474]:
+                      - generic [ref=e475]:
+                        - generic [ref=e476]: R
+                        - generic [ref=e477]:
+                          - generic [ref=e478]: Rahul
+                          - generic [ref=e479]: emp-53174e7a
+                    - cell "GST" [ref=e480]:
+                      - generic [ref=e481]: GST
+                    - cell "Finance Lead" [ref=e482]:
+                      - generic [ref=e483]:
+                        - text: Finance
+                        - generic [ref=e484]: Lead
+                    - cell "This employee is a manager" [ref=e485]:
+                      - img "This employee is a manager" [ref=e487]:
+                        - img [ref=e488]
+                    - cell "0/40 hours 0% utilised · 1 active tasks" [ref=e491]:
+                      - generic [ref=e492]:
+                        - generic [ref=e493]: 0/40 hours
+                        - generic [ref=e494]: 0% utilised · 1 active tasks
+                    - cell "available" [ref=e495]:
+                      - generic [ref=e496]: available
+                    - cell "active" [ref=e497]:
+                      - generic [ref=e498]: active
+                    - cell "Manager Edit details Edit capacity View profile" [ref=e499]:
+                      - generic [ref=e500]:
+                        - generic [ref=e501]:
+                          - checkbox "Manager" [checked] [ref=e502]
+                          - text: Manager
+                        - button "Edit details" [ref=e503]
+                        - button "Edit capacity" [ref=e504]
+                        - button "View profile" [ref=e505]
+              - navigation "Pagination" [ref=e507]:
+                - paragraph [ref=e508]: 2 records - Page 1 of 1
+                - generic [ref=e509]:
+                  - generic [ref=e510]:
+                    - generic [ref=e511]: Rows per page
+                    - combobox "Rows per page" [ref=e512]:
+                      - option "5 per page" [selected]
+                      - option "10 per page"
+                      - option "25 per page"
+                      - option "50 per page"
+                  - button "Previous page" [disabled]:
+                    - img
+                    - generic: Previous
+                  - generic "Page numbers" [ref=e513]:
+                    - button "1" [ref=e514]
+                  - button "Next page" [disabled]:
+                    - generic: Next
+                    - img
+  - region "Notifications alt+T"
+  - alert [ref=e196]

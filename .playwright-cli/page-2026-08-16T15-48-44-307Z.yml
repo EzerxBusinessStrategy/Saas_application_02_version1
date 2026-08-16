@@ -1,0 +1,318 @@
+- generic [active]:
+  - generic:
+    - status:
+      - img
+      - generic: Saving changes
+    - link:
+      - /url: "#main-content"
+      - text: Skip to content
+    - generic:
+      - complementary:
+        - generic:
+          - generic:
+            - generic: Hablox
+          - button:
+            - img
+        - navigation:
+          - link:
+            - /url: /admin
+            - img
+            - generic: Dashboard
+          - generic:
+            - button [expanded]:
+              - img
+              - generic: People & Teams
+              - img
+            - generic:
+              - link:
+                - /url: /admin/employees
+                - img
+                - generic: Employees
+              - link:
+                - /url: /admin/departments
+                - img
+                - generic: Departments
+              - link:
+                - /url: /admin/managers
+                - img
+                - generic: Managers
+              - link:
+                - /url: /admin/work-groups
+                - img
+                - generic: Work groups
+              - link:
+                - /url: /admin/employee-performance
+                - img
+                - generic: Employee performance
+          - generic:
+            - button [expanded]:
+              - img
+              - generic: Clients
+              - img
+            - generic:
+              - link:
+                - /url: /admin/clients
+                - img
+                - generic: Clients
+              - link:
+                - /url: /admin/agreements
+                - img
+                - generic: Agreements
+          - generic:
+            - button [expanded]:
+              - img
+              - generic: Operations
+              - img
+            - generic:
+              - link:
+                - /url: /admin/tasks
+                - img
+                - generic: Tasks
+              - link:
+                - /url: /admin/task-calendar
+                - img
+                - generic: Calendar
+              - link:
+                - /url: /admin/services
+                - img
+                - generic: Services
+          - generic:
+            - button [expanded]:
+              - img
+              - generic: Finance & Documents
+              - img
+            - generic:
+              - link:
+                - /url: /admin/invoices
+                - img
+                - generic: Invoices
+              - link:
+                - /url: /admin/documents
+                - img
+                - generic: Documents
+    - generic:
+      - banner:
+        - generic:
+          - generic:
+            - navigation:
+              - list:
+                - listitem:
+                  - link:
+                    - /url: /admin
+                    - text: Tenant administration
+                - listitem:
+                  - img
+                  - generic: Employees
+        - generic:
+          - generic:
+            - generic:
+              - generic: Sun, 16 Aug, 2026
+              - generic: 09:18:43 pm
+            - button:
+              - generic:
+                - text: India (Kolkata)
+                - img
+              - generic: IST
+          - button:
+            - img
+            - generic: EN
+            - img
+          - button:
+            - img
+          - button:
+            - img
+          - switch
+          - generic: Light mode enabled
+          - button:
+            - img
+            - generic: "1"
+          - button:
+            - generic: S
+            - generic:
+              - generic: Sayantan
+              - generic: Tenant Admin
+            - img
+      - main:
+        - generic:
+          - generic:
+            - generic:
+              - paragraph: Workforce
+              - heading [level=1]: All employees
+              - paragraph: Monitor capability, availability, and work allocation across your tenant.
+            - generic:
+              - button:
+                - img
+                - text: Create employee
+          - generic:
+            - generic:
+              - generic:
+                - heading [level=2]: Employee directory
+                - paragraph: Search and refine the workforce roster before assigning client work.
+              - generic:
+                - generic:
+                  - generic:
+                    - generic: Search employees
+                    - img
+                    - textbox:
+                      - /placeholder: Search name or code
+                  - generic:
+                    - generic:
+                      - generic: Sort employees
+                      - combobox
+                    - generic: 2 employees
+                - generic:
+                  - generic:
+                    - generic:
+                      - generic: Filter by department
+                      - combobox
+                    - generic:
+                      - generic: Filter by category
+                      - combobox
+                    - generic:
+                      - generic: Filter by manager
+                      - combobox
+                    - generic:
+                      - generic: Filter by availability
+                      - combobox
+                    - generic:
+                      - generic: Filter by employment status
+                      - combobox
+            - generic:
+              - generic:
+                - generic:
+                  - table:
+                    - caption: Employees in the active tenant
+                    - rowgroup:
+                      - row:
+                        - columnheader: Employee
+                        - columnheader: Department
+                        - columnheader: Skills & level
+                        - columnheader: Manager
+                        - columnheader: Capacity & utilisation
+                        - columnheader: Availability
+                        - columnheader: Status
+                        - columnheader: Actions
+                    - rowgroup:
+                      - row:
+                        - cell:
+                          - generic:
+                            - generic: D
+                            - generic:
+                              - generic: Demo
+                              - generic: emp-30cc0c7a
+                        - cell:
+                          - generic: GST
+                        - cell:
+                          - generic:
+                            - text: payroll
+                            - generic: Senior
+                        - cell:
+                          - generic: Rahul
+                        - cell:
+                          - generic:
+                            - generic: 0/40 hours
+                            - generic: 0% utilised · 0 active tasks
+                        - cell:
+                          - generic: available
+                        - cell:
+                          - generic: active
+                        - cell:
+                          - generic:
+                            - generic:
+                              - checkbox
+                              - text: Manager
+                            - button: Edit details
+                            - button: Edit capacity
+                            - button: View profile
+                      - row:
+                        - cell:
+                          - generic:
+                            - generic: R
+                            - generic:
+                              - generic: Rahul
+                              - generic: emp-53174e7a
+                        - cell:
+                          - generic: GST
+                        - cell:
+                          - generic:
+                            - text: Finance
+                            - generic: Lead
+                        - cell:
+                          - generic:
+                            - img:
+                              - img
+                        - cell:
+                          - generic:
+                            - generic: 0/40 hours
+                            - generic: 0% utilised · 1 active tasks
+                        - cell:
+                          - generic: available
+                        - cell:
+                          - generic: active
+                        - cell:
+                          - generic:
+                            - generic:
+                              - checkbox [checked]
+                              - text: Manager
+                            - button: Edit details
+                            - button: Edit capacity
+                            - button: View profile
+              - generic:
+                - navigation "Pagination":
+                  - paragraph: 2 records - Page 1 of 1
+                  - generic:
+                    - generic:
+                      - generic: Rows per page
+                      - combobox
+                    - button [disabled]:
+                      - img
+                      - generic: Previous
+                    - generic:
+                      - button: "1"
+                    - button [disabled]:
+                      - generic: Next
+                      - img
+  - region "Notifications alt+T"
+  - alert
+  - dialog "Edit employee details" [ref=e516]:
+    - heading "Edit employee details" [level=2] [ref=e517]
+    - paragraph [ref=e518]: Update department, work groups, skills, level, and reporting manager.
+    - generic [ref=e519]:
+      - group "Work groups" [ref=e520]:
+        - generic [ref=e521]: Work groups
+        - generic [ref=e523] [cursor=pointer]:
+          - checkbox "GST Filing" [checked] [ref=e524]
+          - generic [ref=e525]: GST Filing
+      - generic [ref=e526]:
+        - text: Department
+        - combobox "Department" [ref=e527]:
+          - option "Unassigned"
+          - option "GST" [selected]
+      - generic [ref=e528]:
+        - text: Skills
+        - textbox "Skills" [ref=e529]:
+          - /placeholder: GST, Payroll, Compliance
+          - text: payroll
+      - group "Services handled" [ref=e530]:
+        - generic [ref=e531]: Services handled
+        - generic [ref=e533] [cursor=pointer]:
+          - checkbox "taxation" [checked] [ref=e534]
+          - generic [ref=e535]: taxation
+      - generic [ref=e536]:
+        - text: Level
+        - combobox "Level" [ref=e537]:
+          - option "Not set"
+          - option "Junior"
+          - option "Mid"
+          - option "Senior" [selected]
+          - option "Lead"
+      - generic [ref=e538]:
+        - text: Manager
+        - combobox "Manager" [ref=e539]:
+          - option "Unassigned"
+          - option "Rahul" [selected]
+      - generic [ref=e540]:
+        - button "Cancel" [ref=e541]
+        - button "Saving..." [disabled]
+    - button "Close" [ref=e543]:
+      - img [ref=e544]

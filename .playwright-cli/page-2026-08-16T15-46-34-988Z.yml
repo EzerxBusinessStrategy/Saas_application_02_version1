@@ -1,0 +1,118 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - link "Skip to content" [ref=e3] [cursor=pointer]:
+      - /url: "#main-content"
+    - complementary [ref=e5]:
+      - generic [ref=e6]:
+        - generic [ref=e8]: Tenant workspace
+        - button "Collapse navigation" [ref=e9]:
+          - img [ref=e10]
+      - navigation "Workspace navigation" [ref=e13]:
+        - link "Dashboard" [ref=e14] [cursor=pointer]:
+          - /url: /admin
+          - img [ref=e15]
+          - generic [ref=e20]: Dashboard
+        - generic [ref=e21]:
+          - button "People & Teams" [expanded] [ref=e22]:
+            - img [ref=e23]
+            - generic [ref=e28]: People & Teams
+            - img [ref=e29]
+          - generic [ref=e31]:
+            - link "Employees" [ref=e32] [cursor=pointer]:
+              - /url: /admin/employees
+              - img [ref=e33]
+              - generic [ref=e38]: Employees
+            - link "Departments" [ref=e39] [cursor=pointer]:
+              - /url: /admin/departments
+              - img [ref=e40]
+              - generic [ref=e44]: Departments
+            - link "Managers" [ref=e45] [cursor=pointer]:
+              - /url: /admin/managers
+              - img [ref=e46]
+              - generic [ref=e51]: Managers
+            - link "Work groups" [ref=e52] [cursor=pointer]:
+              - /url: /admin/work-groups
+              - img [ref=e53]
+              - generic [ref=e58]: Work groups
+            - link "Employee performance" [ref=e59] [cursor=pointer]:
+              - /url: /admin/employee-performance
+              - img [ref=e60]
+              - generic [ref=e63]: Employee performance
+        - generic [ref=e64]:
+          - button "Clients" [expanded] [ref=e65]:
+            - img [ref=e66]
+            - generic [ref=e70]: Clients
+            - img [ref=e71]
+          - generic [ref=e73]:
+            - link "Clients" [ref=e74] [cursor=pointer]:
+              - /url: /admin/clients
+              - img [ref=e75]
+              - generic [ref=e79]: Clients
+            - link "Agreements" [ref=e80] [cursor=pointer]:
+              - /url: /admin/agreements
+              - img [ref=e81]
+              - generic [ref=e84]: Agreements
+        - generic [ref=e85]:
+          - button "Operations" [expanded] [ref=e86]:
+            - img [ref=e87]
+            - generic [ref=e90]: Operations
+            - img [ref=e91]
+          - generic [ref=e93]:
+            - link "Tasks" [ref=e94] [cursor=pointer]:
+              - /url: /admin/tasks
+              - img [ref=e95]
+              - generic [ref=e98]: Tasks
+            - link "Calendar" [ref=e99] [cursor=pointer]:
+              - /url: /admin/task-calendar
+              - img [ref=e100]
+              - generic [ref=e102]: Calendar
+            - link "Services" [ref=e103] [cursor=pointer]:
+              - /url: /admin/services
+              - img [ref=e104]
+              - generic [ref=e109]: Services
+        - generic [ref=e110]:
+          - button "Finance & Documents" [expanded] [ref=e111]:
+            - img [ref=e112]
+            - generic [ref=e114]: Finance & Documents
+            - img [ref=e115]
+          - generic [ref=e117]:
+            - link "Invoices" [ref=e118] [cursor=pointer]:
+              - /url: /admin/invoices
+              - img [ref=e119]
+              - generic [ref=e121]: Invoices
+            - link "Documents" [ref=e122] [cursor=pointer]:
+              - /url: /admin/documents
+              - img [ref=e123]
+              - generic [ref=e126]: Documents
+    - generic [ref=e127]:
+      - banner [ref=e128]:
+        - navigation "Breadcrumb" [ref=e131]:
+          - list [ref=e132]:
+            - listitem [ref=e133]:
+              - generic "Tenant administration" [ref=e134]
+        - generic [ref=e135]:
+          - generic [ref=e136]:
+            - generic [ref=e137]:
+              - generic [ref=e138]: Sun, 16 Aug, 2026
+              - generic [ref=e139]: 09:16:34 pm
+            - button "Select clock country" [ref=e140]:
+              - generic [ref=e141]:
+                - text: India (Kolkata)
+                - img [ref=e142]
+              - generic [ref=e144]: IST
+          - button "Language" [ref=e145]:
+            - img [ref=e146]
+            - generic [ref=e150]: EN
+            - img [ref=e151]
+          - button "Update" [ref=e153]:
+            - img [ref=e154]
+          - button "Search workspace navigation." [ref=e159]:
+            - img [ref=e160]
+          - switch "Switch to dark mode" [ref=e163] [cursor=pointer]
+          - generic [ref=e180]: Light mode enabled
+          - button "Notifications" [ref=e181]:
+            - img [ref=e182]
+          - status "Loading account profile" [ref=e185]
+      - main [ref=e191]
+  - region "Notifications alt+T"
+  - alert [ref=e196]

@@ -1,0 +1,311 @@
+- generic:
+  - generic:
+    - link:
+      - /url: "#main-content"
+      - text: Skip to content
+    - generic:
+      - complementary:
+        - generic:
+          - generic:
+            - generic: Demo
+          - button:
+            - img
+        - navigation:
+          - link:
+            - /url: /super-admin
+            - img
+            - generic: Dashboard
+          - link:
+            - /url: /super-admin/audit-log
+            - img
+            - generic: Audit log
+          - link:
+            - /url: /super-admin/tenants
+            - img
+            - generic: Tenant list
+          - link:
+            - /url: /super-admin/platform-settings
+            - img
+            - generic: Platform configuration
+          - link:
+            - /url: /super-admin/tenant-analytics
+            - img
+            - generic: Tenant analytics
+          - link:
+            - /url: /super-admin/tenant-password
+            - img
+            - generic: Tenant password
+    - generic:
+      - banner:
+        - generic:
+          - generic:
+            - navigation:
+              - list:
+                - listitem:
+                  - generic: Platform
+        - generic:
+          - generic:
+            - generic:
+              - generic: Sun, 16 Aug, 2026
+              - generic: 09:06:52 pm
+            - button:
+              - generic:
+                - text: India (Kolkata)
+                - img
+              - generic: IST
+          - button:
+            - img
+            - generic: EN
+            - img
+          - button:
+            - img
+          - button:
+            - img
+          - switch
+          - generic: Light mode enabled
+          - button:
+            - img
+            - generic: "2"
+          - button [expanded]:
+            - generic: S
+            - generic:
+              - generic: superadmin
+              - generic: Super Admin
+            - img
+      - main:
+        - generic:
+          - generic:
+            - generic:
+              - paragraph:
+                - img
+                - text: Super Admin
+              - heading [level=1]: Platform overview
+              - paragraph: Tenant financial health and platform activity across every workspace.
+          - region:
+            - generic:
+              - generic:
+                - heading [level=2]: Main Financial Summary
+                - paragraph: Currency totals are grouped by currency and never combined.
+              - generic:
+                - generic:
+                  - text: Country
+                  - combobox
+            - generic:
+              - generic:
+                - generic:
+                  - generic:
+                    - generic:
+                      - strong: "2"
+                      - paragraph: Total tenants
+                    - generic:
+                      - img
+                      - text: Country scoped
+              - generic:
+                - generic:
+                  - strong: No records
+                  - paragraph: Total turnover
+              - generic:
+                - generic:
+                  - strong: No records
+                  - paragraph: Collected amount
+              - generic:
+                - generic:
+                  - strong: No records
+                  - paragraph: Outstanding amount
+              - generic:
+                - generic:
+                  - generic:
+                    - generic:
+                      - strong: "2"
+                      - paragraph: Low-health tenants
+                    - generic:
+                      - img
+                      - text: Financial period scoped
+            - generic:
+              - heading [level=2]: Platform Status
+              - generic:
+                - generic:
+                  - generic:
+                    - generic:
+                      - generic:
+                        - strong: "2"
+                        - paragraph: Active tenants
+                - generic:
+                  - generic:
+                    - generic:
+                      - generic:
+                        - strong: "0"
+                        - paragraph: Suspended tenants
+                - generic:
+                  - generic:
+                    - generic:
+                      - generic:
+                        - strong: "8"
+                        - paragraph: Active tenant users
+          - generic:
+            - generic:
+              - generic:
+                - generic:
+                  - heading [level=2]:
+                    - text: Tenant Turnover Health
+                    - generic:
+                      - img
+                  - paragraph: Compare tenant turnover bands while keeping tenant status separate.
+                - generic:
+                  - generic: "Low: 0 - 5,00,000"
+                  - generic: "Developing: 5,00,000 - 20,00,000"
+                  - generic: "Healthy: 20,00,000 - 50,00,000"
+                  - generic: "High Performing: 50,00,000+"
+              - generic:
+                - generic:
+                  - generic:
+                    - text: Country
+                    - combobox
+                - generic:
+                  - generic:
+                    - text: Reporting Period
+                    - combobox
+                - generic:
+                  - text: Health
+                  - combobox
+                - generic:
+                  - generic:
+                    - text: Tenant Status
+                    - combobox
+                - generic:
+                  - text: Search Tenant
+                  - generic:
+                    - textbox:
+                      - /placeholder: Search tenant...
+                    - button:
+                      - img
+              - generic:
+                - button: All 2
+                - button: Low 2
+                - button: Developing 0
+                - button: Healthy 0
+                - button: High Performing 0
+            - generic:
+              - generic:
+                - generic:
+                  - heading [level=3]: Top Performing Tenants by Country
+                  - generic:
+                    - generic:
+                      - paragraph: IN
+                      - paragraph: Hablox
+                      - paragraph: ₹0
+                      - paragraph: FY ending 2027-04 - Low
+                    - generic:
+                      - paragraph: SG
+                      - paragraph: SG Corp
+                      - paragraph: SGD 0
+                      - paragraph: FY 2026-27 - Low
+                - generic:
+                  - table:
+                    - caption: Tenant turnover health
+                    - rowgroup:
+                      - row:
+                        - columnheader: Tenant
+                        - columnheader: Country
+                        - columnheader: Currency
+                        - columnheader: Turnover
+                        - columnheader: Growth
+                        - columnheader: Health
+                        - columnheader: Status
+                        - columnheader: Action
+                    - rowgroup:
+                      - row:
+                        - cell:
+                          - paragraph: Hablox
+                          - paragraph: 4 active users
+                        - cell: IN
+                        - cell: INR
+                        - cell: ₹0
+                        - cell: Not enough data
+                        - cell:
+                          - generic: Low
+                        - cell:
+                          - generic: Active
+                        - cell:
+                          - button:
+                            - img
+                      - row:
+                        - cell:
+                          - paragraph: SG Corp
+                          - paragraph: 4 active users
+                        - cell: SG
+                        - cell: SGD
+                        - cell: SGD 0
+                        - cell: Not enough data
+                        - cell:
+                          - generic: Low
+                        - cell:
+                          - generic: Active
+                        - cell:
+                          - button:
+                            - img
+          - generic:
+            - generic:
+              - heading [level=2]: Tenant Financial Details
+              - paragraph: Select one tenant to inspect turnover and payment details.
+            - generic:
+              - generic:
+                - generic:
+                  - text: Select Tenant
+                  - combobox
+              - generic:
+                - generic:
+                  - img
+                  - paragraph: Select a tenant to view turnover and payment details.
+                  - paragraph: Tenant-level financial cards and trend will appear here.
+          - generic:
+            - generic:
+              - generic:
+                - generic:
+                  - heading [level=2]:
+                    - img
+                    - text: Recent Activity
+                  - paragraph: Latest important platform events.
+                - link:
+                  - /url: /super-admin/audit-log
+                  - text: View full audit log
+            - generic:
+              - list:
+                - listitem:
+                  - paragraph: Super Admin Logged In
+                  - paragraph: auth_session - superadmin
+                  - paragraph: 16 Aug 2026, 09:05 pm IST
+                - listitem:
+                  - paragraph: Client Logged Out
+                  - paragraph: SG Corp - Partha
+                  - paragraph: 14 Aug 2026, 06:02 pm IST
+                - listitem:
+                  - paragraph: Client Logged In
+                  - paragraph: SG Corp - Partha
+                  - paragraph: 14 Aug 2026, 05:37 pm IST
+                - listitem:
+                  - paragraph: Tenant Logged Out
+                  - paragraph: Hablox - Sayantan
+                  - paragraph: 14 Aug 2026, 05:37 pm IST
+                - listitem:
+                  - paragraph: Service Created
+                  - paragraph: SG Corp - Rajkumar Sutradhar
+                  - paragraph: 14 Aug 2026, 05:26 pm IST
+  - region "Notifications alt+T"
+  - alert
+  - menu "Open user menu for superadmin" [active] [ref=e355]:
+    - generic [ref=e358]:
+      - generic [ref=e359]: S
+      - generic [ref=e360]:
+        - generic "superadmin" [ref=e361]
+        - paragraph [ref=e362]: Super Admin
+        - paragraph [ref=e363]: superadmin@bc.com
+    - separator [ref=e364]
+    - menuitem "Profile and preferences" [ref=e365] [cursor=pointer]:
+      - img [ref=e366]
+      - generic [ref=e369]: Profile and preferences
+      - img [ref=e370]
+    - separator [ref=e372]
+    - menuitem "Sign out" [ref=e373] [cursor=pointer]:
+      - img [ref=e374]
+      - generic [ref=e377]: Sign out

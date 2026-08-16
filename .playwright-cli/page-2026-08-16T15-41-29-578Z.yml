@@ -1,0 +1,61 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - complementary [ref=e3]:
+      - generic [ref=e5]: SaaS App
+      - generic [ref=e6]:
+        - paragraph [ref=e7]: Operations workspace
+        - heading "Secure operations for modern enterprises" [level=1] [ref=e8]
+        - paragraph [ref=e9]: Manage teams, services, compliance workflows and support operations through one secure workspace.
+        - list [ref=e10]:
+          - listitem [ref=e11]:
+            - img [ref=e13]
+            - text: Centralised administration
+          - listitem [ref=e15]:
+            - img [ref=e17]
+            - text: Secure role-based access
+          - listitem [ref=e19]:
+            - img [ref=e21]
+            - text: Built for multi-team operations
+      - generic [ref=e23]:
+        - generic [ref=e24]:
+          - img [ref=e25]
+          - text: SSO Ready
+        - generic [ref=e28]:
+          - img [ref=e29]
+          - text: MFA Supported
+        - generic [ref=e32]:
+          - img [ref=e33]
+          - text: Role-Based Access
+    - main [ref=e37]:
+      - generic [ref=e39]:
+        - generic [ref=e41]:
+          - img [ref=e43]
+          - generic [ref=e46]:
+            - heading "Tenant sign in" [level=2] [ref=e47]
+            - paragraph [ref=e48]: Access your organisation workspace.
+        - generic [ref=e49]:
+          - generic [ref=e50]:
+            - generic [ref=e51]:
+              - text: Email
+              - textbox "Email *" [ref=e52]:
+                - /placeholder: name@company.com
+                - text: hablox@gmail.com
+              - text: "*"
+            - generic [ref=e53]:
+              - generic [ref=e54]: Password *
+              - generic [ref=e55]:
+                - textbox "Password" [ref=e56]: Super@1234
+                - button "Show password" [ref=e57]:
+                  - img [ref=e58]
+            - alert [ref=e72]: Invalid email or password.
+            - button "Sign in" [ref=e61]
+          - link "Choose a different portal" [ref=e63] [cursor=pointer]:
+            - /url: /login
+      - generic [ref=e64]:
+        - generic [ref=e65]: Privacy
+        - generic [ref=e66]: Terms
+        - generic [ref=e67]: Help
+        - generic [ref=e68]: System status
+        - generic "System operational" [ref=e69]
+  - region "Notifications alt+T"
+  - alert [ref=e70]

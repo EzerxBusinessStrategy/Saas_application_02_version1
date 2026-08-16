@@ -1,0 +1,105 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - link "Skip to content" [ref=e3] [cursor=pointer]:
+      - /url: "#main-content"
+    - complementary [ref=e5]:
+      - generic [ref=e6]:
+        - generic [ref=e8]: Demo
+        - button "Collapse navigation" [ref=e9]:
+          - img [ref=e10]
+      - navigation "Workspace navigation" [ref=e13]:
+        - link "Dashboard" [ref=e14] [cursor=pointer]:
+          - /url: /super-admin
+          - img [ref=e15]
+          - generic [ref=e20]: Dashboard
+        - link "Audit log" [ref=e21] [cursor=pointer]:
+          - /url: /super-admin/audit-log
+          - img [ref=e22]
+          - generic [ref=e25]: Audit log
+        - link "Tenant list" [ref=e26] [cursor=pointer]:
+          - /url: /super-admin/tenants
+          - img [ref=e27]
+          - generic [ref=e31]: Tenant list
+        - link "Platform configuration" [ref=e32] [cursor=pointer]:
+          - /url: /super-admin/platform-settings
+          - img [ref=e33]
+          - generic [ref=e36]: Platform configuration
+        - link "Tenant analytics" [ref=e37] [cursor=pointer]:
+          - /url: /super-admin/tenant-analytics
+          - img [ref=e38]
+          - generic [ref=e40]: Tenant analytics
+        - link "Tenant password" [ref=e41] [cursor=pointer]:
+          - /url: /super-admin/tenant-password
+          - img [ref=e42]
+          - generic [ref=e45]: Tenant password
+    - generic [ref=e46]:
+      - banner [ref=e47]:
+        - navigation "Breadcrumb" [ref=e50]:
+          - list [ref=e51]:
+            - listitem [ref=e52]:
+              - link "Platform" [ref=e53] [cursor=pointer]:
+                - /url: /super-admin
+            - listitem [ref=e54]:
+              - img [ref=e55]
+              - generic "Tenant password" [ref=e57]
+        - generic [ref=e58]:
+          - generic [ref=e59]:
+            - generic [ref=e60]:
+              - generic [ref=e61]: Sun, 16 Aug, 2026
+              - generic [ref=e62]: 09:15:26 pm
+            - button "Select clock country" [ref=e63]:
+              - generic [ref=e64]:
+                - text: India (Kolkata)
+                - img [ref=e65]
+              - generic [ref=e67]: IST
+          - button "Language" [ref=e68]:
+            - img [ref=e69]
+            - generic [ref=e73]: EN
+            - img [ref=e74]
+          - button "Update" [ref=e76]:
+            - img [ref=e77]
+          - button "Search workspace navigation." [ref=e82]:
+            - img [ref=e83]
+          - switch "Switch to dark mode" [ref=e86] [cursor=pointer]
+          - generic [ref=e103]: Light mode enabled
+          - button "Notifications, 2 unread" [ref=e104]:
+            - img [ref=e105]
+            - generic [ref=e108]: "2"
+          - button "Open user menu for superadmin" [ref=e131]:
+            - generic [ref=e132]: S
+            - generic [ref=e133]:
+              - generic "superadmin" [ref=e134]
+              - generic [ref=e135]: Super Admin
+            - img [ref=e136]
+      - main [ref=e115]:
+        - generic [ref=e140]:
+          - generic [ref=e141]:
+            - heading "Set Tenant Administrator password" [level=2] [ref=e142]:
+              - img [ref=e143]
+              - text: Set Tenant Administrator password
+            - paragraph [ref=e146]: The password is stored only as an Argon2id hash and cannot be viewed after saving.
+          - generic [ref=e147]:
+            - generic [ref=e148]:
+              - textbox "Search tenant" [ref=e149]:
+                - /placeholder: Search tenant name or code
+              - button "Search" [ref=e150]
+            - generic [ref=e151]:
+              - generic [ref=e152]:
+                - text: Tenant
+                - combobox "Tenant *" [ref=e153]:
+                  - option "Select tenant"
+                  - option "Hablox (H001)" [selected]
+                  - option "SG Corp (S002)"
+                - text: "*"
+              - generic [ref=e154]:
+                - text: New password
+                - textbox "New password *" [ref=e155]
+                - text: "*"
+              - generic [ref=e156]:
+                - text: Confirm new password
+                - textbox "Confirm new password *" [ref=e157]
+                - text: "*"
+              - status [ref=e160]: Password updated for hablox@gmail.com.
+              - button "Update password" [ref=e159]
+  - region "Notifications alt+T"
+  - alert [ref=e130]

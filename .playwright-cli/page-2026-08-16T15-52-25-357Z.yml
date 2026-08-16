@@ -1,0 +1,177 @@
+- generic [ref=e1]:
+  - generic [ref=e2]:
+    - link "Skip to content" [ref=e3] [cursor=pointer]:
+      - /url: "#main-content"
+    - complementary [ref=e5]:
+      - generic [ref=e6]:
+        - generic [ref=e8]: Hablox
+        - button "Collapse navigation" [ref=e9]:
+          - img [ref=e10]
+      - navigation "Workspace navigation" [ref=e13]:
+        - link "Dashboard" [ref=e14] [cursor=pointer]:
+          - /url: /admin
+          - img [ref=e15]
+          - generic [ref=e20]: Dashboard
+        - generic [ref=e21]:
+          - button "People & Teams" [expanded] [ref=e22]:
+            - img [ref=e23]
+            - generic [ref=e28]: People & Teams
+            - img [ref=e29]
+          - generic [ref=e31]:
+            - link "Employees" [ref=e32] [cursor=pointer]:
+              - /url: /admin/employees
+              - img [ref=e33]
+              - generic [ref=e38]: Employees
+            - link "Departments" [ref=e39] [cursor=pointer]:
+              - /url: /admin/departments
+              - img [ref=e40]
+              - generic [ref=e44]: Departments
+            - link "Managers" [ref=e45] [cursor=pointer]:
+              - /url: /admin/managers
+              - img [ref=e46]
+              - generic [ref=e51]: Managers
+            - link "Work groups" [ref=e52] [cursor=pointer]:
+              - /url: /admin/work-groups
+              - img [ref=e53]
+              - generic [ref=e58]: Work groups
+            - link "Employee performance" [ref=e59] [cursor=pointer]:
+              - /url: /admin/employee-performance
+              - img [ref=e60]
+              - generic [ref=e63]: Employee performance
+        - generic [ref=e64]:
+          - button "Clients" [expanded] [ref=e65]:
+            - img [ref=e66]
+            - generic [ref=e70]: Clients
+            - img [ref=e71]
+          - generic [ref=e73]:
+            - link "Clients" [ref=e74] [cursor=pointer]:
+              - /url: /admin/clients
+              - img [ref=e75]
+              - generic [ref=e79]: Clients
+            - link "Agreements" [ref=e80] [cursor=pointer]:
+              - /url: /admin/agreements
+              - img [ref=e81]
+              - generic [ref=e84]: Agreements
+        - generic [ref=e85]:
+          - button "Operations" [expanded] [ref=e86]:
+            - img [ref=e87]
+            - generic [ref=e90]: Operations
+            - img [ref=e91]
+          - generic [ref=e93]:
+            - link "Tasks" [ref=e94] [cursor=pointer]:
+              - /url: /admin/tasks
+              - img [ref=e95]
+              - generic [ref=e98]: Tasks
+            - link "Calendar" [ref=e99] [cursor=pointer]:
+              - /url: /admin/task-calendar
+              - img [ref=e100]
+              - generic [ref=e102]: Calendar
+            - link "Services" [ref=e103] [cursor=pointer]:
+              - /url: /admin/services
+              - img [ref=e104]
+              - generic [ref=e109]: Services
+        - generic [ref=e110]:
+          - button "Finance & Documents" [expanded] [ref=e111]:
+            - img [ref=e112]
+            - generic [ref=e114]: Finance & Documents
+            - img [ref=e115]
+          - generic [ref=e117]:
+            - link "Invoices" [ref=e118] [cursor=pointer]:
+              - /url: /admin/invoices
+              - img [ref=e119]
+              - generic [ref=e121]: Invoices
+            - link "Documents" [ref=e122] [cursor=pointer]:
+              - /url: /admin/documents
+              - img [ref=e123]
+              - generic [ref=e126]: Documents
+    - generic [ref=e127]:
+      - banner [ref=e128]:
+        - navigation "Breadcrumb" [ref=e131]:
+          - list [ref=e132]:
+            - listitem [ref=e133]:
+              - link "Tenant administration" [ref=e298] [cursor=pointer]:
+                - /url: /admin
+            - listitem [ref=e597]:
+              - img [ref=e598]
+              - link "Clients" [ref=e689] [cursor=pointer]:
+                - /url: /admin/clients
+            - listitem [ref=e690]:
+              - img [ref=e691]
+              - generic "4acacf62 45ae 4318 9fc2 D286fd866a78" [ref=e693]
+        - generic [ref=e135]:
+          - generic [ref=e136]:
+            - generic [ref=e137]:
+              - generic [ref=e138]: Sun, 16 Aug, 2026
+              - generic [ref=e139]: 09:22:24 pm
+            - button "Select clock country" [ref=e140]:
+              - generic [ref=e141]:
+                - text: India (Kolkata)
+                - img [ref=e142]
+              - generic [ref=e144]: IST
+          - button "Language" [ref=e145]:
+            - img [ref=e146]
+            - generic [ref=e150]: EN
+            - img [ref=e151]
+          - button "Update" [ref=e153]:
+            - img [ref=e154]
+          - button "Search workspace navigation." [ref=e159]:
+            - img [ref=e160]
+          - switch "Switch to dark mode" [ref=e163] [cursor=pointer]
+          - generic [ref=e180]: Light mode enabled
+          - button "Notifications, 1 unread" [ref=e197]:
+            - img [ref=e182]
+            - generic [ref=e198]: "1"
+          - button "Open user menu for Sayantan" [ref=e199]:
+            - generic [ref=e200]: S
+            - generic [ref=e201]:
+              - generic "Sayantan" [ref=e202]
+              - generic [ref=e203]: Tenant Admin
+            - img [ref=e204]
+      - main [ref=e191]:
+        - generic [ref=e716]:
+          - generic [ref=e717]:
+            - generic [ref=e718]:
+              - generic [ref=e719]:
+                - paragraph [ref=e720]: Client management
+                - heading "Acme Operations" [level=1] [ref=e721]
+                - paragraph [ref=e722]: cl-101
+              - button "Configure services" [ref=e724]
+            - generic [ref=e725]:
+              - generic [ref=e726]: onboarding
+              - generic [ref=e727]: 1 active services
+              - generic [ref=e728]: 7 open tasks
+          - generic [ref=e729]:
+            - tablist "Client detail sections" [ref=e730]:
+              - tab "Overview" [ref=e731]
+              - tab "Contacts" [ref=e732]
+              - tab "Service engagements" [active] [selected] [ref=e733]
+              - tab "Work groups" [ref=e734]
+              - tab "Tasks" [ref=e735]
+              - tab "Billing" [ref=e736]
+              - tab "Agreements" [ref=e737]
+              - tab "Documents" [ref=e738]
+              - tab "Activity" [ref=e739]
+            - tabpanel "Service engagements" [ref=e863]:
+              - generic [ref=e864]:
+                - generic [ref=e865]:
+                  - heading "Service engagements" [level=2] [ref=e866]
+                  - paragraph [ref=e867]: Progress, service scope, SLA, people, and milestones for the selected client.
+                - article [ref=e870]:
+                  - generic [ref=e871]:
+                    - generic [ref=e872]:
+                      - paragraph [ref=e873]: taxation
+                      - paragraph [ref=e874]: taxation-2026-08-16 · taxation · per_unit
+                    - generic [ref=e875]:
+                      - generic [ref=e876]: active
+                      - generic [ref=e877]: watch
+                  - generic [ref=e878]:
+                    - paragraph [ref=e879]: Demo · manager
+                    - paragraph [ref=e880]: 1 employees · 7 open tasks
+                    - paragraph [ref=e881]: 2026-08-16 to 2027-03-31
+                  - generic [ref=e882]:
+                    - generic [ref=e884]:
+                      - generic [ref=e885]: Engagement milestone progress
+                      - generic [ref=e886]: 0%
+                    - paragraph [ref=e888]: "Milestones:"
+  - region "Notifications alt+T"
+  - alert [ref=e196]

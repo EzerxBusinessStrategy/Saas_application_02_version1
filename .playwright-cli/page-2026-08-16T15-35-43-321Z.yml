@@ -1,0 +1,61 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - link "Skip to content" [ref=e3] [cursor=pointer]:
+      - /url: "#main-content"
+    - complementary [ref=e5]:
+      - generic [ref=e6]:
+        - generic [ref=e8]: SaaS App
+        - button "Collapse navigation" [ref=e9]:
+          - img [ref=e10]
+      - navigation "Workspace navigation" [ref=e13]:
+        - link "Dashboard" [ref=e14] [cursor=pointer]:
+          - /url: /super-admin
+          - img [ref=e15]
+          - generic [ref=e20]: Dashboard
+        - link "Audit log" [ref=e21] [cursor=pointer]:
+          - /url: /super-admin/audit-log
+          - img [ref=e22]
+          - generic [ref=e25]: Audit log
+        - link "Tenant list" [ref=e26] [cursor=pointer]:
+          - /url: /super-admin/tenants
+          - img [ref=e27]
+          - generic [ref=e31]: Tenant list
+        - link "Platform configuration" [ref=e32] [cursor=pointer]:
+          - /url: /super-admin/platform-settings
+          - img [ref=e33]
+          - generic [ref=e36]: Platform configuration
+        - link "Tenant analytics" [ref=e37] [cursor=pointer]:
+          - /url: /super-admin/tenant-analytics
+          - img [ref=e38]
+          - generic [ref=e40]: Tenant analytics
+        - link "Tenant password" [ref=e41] [cursor=pointer]:
+          - /url: /super-admin/tenant-password
+          - img [ref=e42]
+          - generic [ref=e45]: Tenant password
+    - generic [ref=e46]:
+      - banner [ref=e47]:
+        - navigation "Breadcrumb" [ref=e50]:
+          - list [ref=e51]:
+            - listitem [ref=e52]:
+              - generic "Platform" [ref=e53]
+        - generic [ref=e54]:
+          - button "Select clock country" [ref=e58]:
+            - generic [ref=e59]:
+              - text: India (Kolkata)
+              - img [ref=e60]
+          - button "Language" [ref=e62]:
+            - img [ref=e63]
+            - generic [ref=e67]: EN
+            - img [ref=e68]
+          - button "Update" [ref=e70]:
+            - img [ref=e71]
+          - button "Search workspace navigation." [ref=e76]:
+            - img [ref=e77]
+          - switch "Theme preference is loading" [disabled] [ref=e80]
+          - button "Notifications" [ref=e98]:
+            - img [ref=e99]
+          - status "Loading account profile" [ref=e102]
+      - main [ref=e108]:
+        - status "Loading Super Admin dashboard" [ref=e110]:
+          - paragraph [ref=e122]: Loading Super Admin dashboard
+  - region "Notifications alt+T"

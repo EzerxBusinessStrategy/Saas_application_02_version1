@@ -2,6 +2,15 @@
   "plugins": {
     "supabase": {
       "enabled": true
+    },
+    "github": {
+      "enabled": true
+    },
+    "render": {
+      "enabled": true
+    },
+    "cloudflare": {
+      "enabled": true
     }
   }
 }

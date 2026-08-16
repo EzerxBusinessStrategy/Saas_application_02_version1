@@ -1,0 +1,127 @@
+- generic:
+  - generic:
+    - link:
+      - /url: "#main-content"
+      - text: Skip to content
+    - generic:
+      - complementary:
+        - generic:
+          - generic:
+            - generic: Demo
+          - button:
+            - img
+        - navigation:
+          - link:
+            - /url: /super-admin
+            - img
+            - generic: Dashboard
+          - link:
+            - /url: /super-admin/audit-log
+            - img
+            - generic: Audit log
+          - link:
+            - /url: /super-admin/tenants
+            - img
+            - generic: Tenant list
+          - link:
+            - /url: /super-admin/platform-settings
+            - img
+            - generic: Platform configuration
+          - link:
+            - /url: /super-admin/tenant-analytics
+            - img
+            - generic: Tenant analytics
+          - link:
+            - /url: /super-admin/tenant-password
+            - img
+            - generic: Tenant password
+    - generic:
+      - banner:
+        - generic:
+          - generic:
+            - navigation:
+              - list:
+                - listitem:
+                  - link:
+                    - /url: /super-admin
+                    - text: Platform
+                - listitem:
+                  - img
+                  - generic: Tenant password
+        - generic:
+          - generic:
+            - generic:
+              - generic: Sun, 16 Aug, 2026
+              - generic: 09:15:48 pm
+            - button:
+              - generic:
+                - text: India (Kolkata)
+                - img
+              - generic: IST
+          - button:
+            - img
+            - generic: EN
+            - img
+          - button:
+            - img
+          - button:
+            - img
+          - switch
+          - generic: Light mode enabled
+          - button:
+            - img
+            - generic: "2"
+          - button [expanded]:
+            - generic: S
+            - generic:
+              - generic: superadmin
+              - generic: Super Admin
+            - img
+      - main:
+        - generic:
+          - generic:
+            - generic:
+              - generic:
+                - heading [level=2]:
+                  - img
+                  - text: Set Tenant Administrator password
+                - paragraph: The password is stored only as an Argon2id hash and cannot be viewed after saving.
+              - generic:
+                - generic:
+                  - textbox:
+                    - /placeholder: Search tenant name or code
+                  - button: Search
+                - generic:
+                  - generic:
+                    - text: Tenant
+                    - combobox
+                    - text: "*"
+                  - generic:
+                    - text: New password
+                    - textbox
+                    - text: "*"
+                  - generic:
+                    - text: Confirm new password
+                    - textbox
+                    - text: "*"
+                  - status: Password updated for hablox@gmail.com.
+                  - generic:
+                    - button: Update password
+  - region "Notifications alt+T"
+  - alert
+  - menu "Open user menu for superadmin" [active] [ref=e161]:
+    - generic [ref=e164]:
+      - generic [ref=e165]: S
+      - generic [ref=e166]:
+        - generic "superadmin" [ref=e167]
+        - paragraph [ref=e168]: Super Admin
+        - paragraph [ref=e169]: superadmin@bc.com
+    - separator [ref=e170]
+    - menuitem "Profile and preferences" [ref=e171] [cursor=pointer]:
+      - img [ref=e172]
+      - generic [ref=e175]: Profile and preferences
+      - img [ref=e176]
+    - separator [ref=e178]
+    - menuitem "Sign out" [ref=e179] [cursor=pointer]:
+      - img [ref=e180]
+      - generic [ref=e183]: Sign out

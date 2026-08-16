@@ -1,0 +1,8 @@
+[    3220ms] Error: Minified React error #418; visit https://react.dev/errors/418?args[]=HTML&args[]= for the full message or use the non-minified dev environment for full errors and additional helpful warnings.
+    at rD (https://saas-application-02-version1.onrender.com/_next/static/chunks/9a3ab915-a5982b1f08722fb8.js:1:35061)
+    at oq (https://saas-application-02-version1.onrender.com/_next/static/chunks/9a3ab915-a5982b1f08722fb8.js:1:84565)
+    at ik (https://saas-application-02-version1.onrender.com/_next/static/chunks/9a3ab915-a5982b1f08722fb8.js:1:114681)
+    at https://saas-application-02-version1.onrender.com/_next/static/chunks/9a3ab915-a5982b1f08722fb8.js:1:110729
+    at iu (https://saas-application-02-version1.onrender.com/_next/static/chunks/9a3ab915-a5982b1f08722fb8.js:1:110830)
+    at iX (https://saas-application-02-version1.onrender.com/_next/static/chunks/9a3ab915-a5982b1f08722fb8.js:1:132933)
+    at MessagePort.w (https://saas-application-02-version1.onrender.com/_next/static/chunks/1050-2358b948bc8383c9.js:1:119318)

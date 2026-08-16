@@ -1,0 +1,71 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - complementary [ref=e3]:
+      - generic [ref=e5]: SaaS App
+      - generic [ref=e6]:
+        - paragraph [ref=e7]: Operations workspace
+        - heading "Secure operations for modern enterprises" [level=1] [ref=e8]
+        - paragraph [ref=e9]: Manage teams, services, compliance workflows and support operations through one secure workspace.
+        - list [ref=e10]:
+          - listitem [ref=e11]:
+            - img [ref=e13]
+            - text: Centralised administration
+          - listitem [ref=e15]:
+            - img [ref=e17]
+            - text: Secure role-based access
+          - listitem [ref=e19]:
+            - img [ref=e21]
+            - text: Built for multi-team operations
+      - generic [ref=e23]:
+        - generic [ref=e24]:
+          - img [ref=e25]
+          - text: SSO Ready
+        - generic [ref=e28]:
+          - img [ref=e29]
+          - text: MFA Supported
+        - generic [ref=e32]:
+          - img [ref=e33]
+          - text: Role-Based Access
+    - main [ref=e37]:
+      - generic [ref=e39]:
+        - generic [ref=e41]:
+          - img [ref=e43]
+          - generic [ref=e46]:
+            - heading "Sign in" [level=2] [ref=e47]
+            - paragraph [ref=e48]: Choose the portal assigned to your account.
+        - navigation "Sign-in portals" [ref=e50]:
+          - link "Administrator Platform administration" [ref=e51] [cursor=pointer]:
+            - /url: /super-admin/login
+            - img [ref=e53]
+            - generic [ref=e57]:
+              - generic [ref=e58]: Administrator
+              - generic [ref=e59]: Platform administration
+            - img [ref=e60]
+          - link "Tenant Organisation workspace" [ref=e62] [cursor=pointer]:
+            - /url: /admin/login
+            - img [ref=e64]
+            - generic [ref=e68]:
+              - generic [ref=e69]: Tenant
+              - generic [ref=e70]: Organisation workspace
+            - img [ref=e71]
+          - link "Employee Assigned work" [ref=e73] [cursor=pointer]:
+            - /url: /employee/login
+            - img [ref=e75]
+            - generic [ref=e78]:
+              - generic [ref=e79]: Employee
+              - generic [ref=e80]: Assigned work
+            - img [ref=e81]
+          - link "Client Client portal" [ref=e83] [cursor=pointer]:
+            - /url: /client/login
+            - img [ref=e85]
+            - generic [ref=e90]:
+              - generic [ref=e91]: Client
+              - generic [ref=e92]: Client portal
+            - img [ref=e93]
+      - generic [ref=e95]:
+        - generic [ref=e96]: Privacy
+        - generic [ref=e97]: Terms
+        - generic [ref=e98]: Help
+        - generic [ref=e99]: System status
+        - generic "System operational" [ref=e100]
+  - region "Notifications alt+T"
