@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ListChecks } from "lucide-react";
+import { ChevronDown, ListChecks } from "lucide-react";
 import { toast } from "sonner";
 import {
   getClientPortalDashboard,
@@ -339,7 +339,7 @@ function ClientServices({
           Active services
         </CardTitle>
         <CardDescription>
-          Each month shows its price so you can see what to pay this month, next month, and in total.
+          Each service stays compact. Open the task list to see every month’s price, due date, and status.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -385,50 +385,12 @@ function ClientServices({
                     </p>
                   </div>
                   {service.tasks.length ? (
-                    <ul className="mt-3 flex flex-col divide-y rounded-[var(--radius-control)] border">
-                      {service.tasks.map((task) => {
-                        const yearMonth = taskYearMonth(task.plannedDueAt);
-                        const monthHint =
-                          yearMonth === schedule.thisMonthKey
-                            ? "This month"
-                            : yearMonth === schedule.nextMonthKey
-                              ? "Next month"
-                              : null;
-                        return (
-                          <li key={task.id} className="flex items-start justify-between gap-3 px-3 py-2 text-sm">
-                            <div>
-                              <p className="font-medium">{task.title}</p>
-                              <p className="mt-1 text-muted-foreground">
-                                {task.plannedDueAt ? formatDate(task.plannedDueAt) : "No due date"}
-                                {monthHint ? ` · ${monthHint}` : ""}
-                              </p>
-                            </div>
-                            <div className="flex flex-col items-end gap-1">
-                              <span className="font-medium">
-                                {formatCurrency(task.rateAmount, task.currencyCode || currency)}
-                              </span>
-                              <StatusBadge status={mapTaskStatus(task.status)} />
-                            </div>
-                          </li>
-                        );
-                      })}
-                      <li className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
-                        <span className="font-medium">Total task amount</span>
-                        <span className="font-medium">{formatCurrency(schedule.taskTotal, currency)}</span>
-                      </li>
-                      {schedule.discountAmount > 0 ? (
-                        <>
-                          <li className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
-                            <span>Discount ({formatDiscountPercent(schedule.discountPercent)})</span>
-                            <span>−{formatCurrency(schedule.discountAmount, currency)}</span>
-                          </li>
-                          <li className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
-                            <span className="font-medium">Amount due</span>
-                            <span className="font-medium">{formatCurrency(schedule.amountDue, currency)}</span>
-                          </li>
-                        </>
-                      ) : null}
-                    </ul>
+                    <ClientServiceTaskDropdown
+                      serviceName={service.serviceName}
+                      tasks={service.tasks}
+                      schedule={schedule}
+                      currency={currency}
+                    />
                   ) : (
                     <p className="mt-3 text-sm text-muted-foreground">
                       No tasks have been created for this service yet.
@@ -452,6 +414,78 @@ function ClientServices({
         ) : null}
       </CardContent>
     </Card>
+  );
+}
+
+function ClientServiceTaskDropdown({
+  serviceName,
+  tasks,
+  schedule,
+  currency,
+}: {
+  serviceName: string;
+  tasks: Awaited<ReturnType<typeof getClientPortalDashboard>>["services"][number]["tasks"];
+  schedule: ReturnType<typeof summarizeClientServiceSchedule>;
+  currency: string;
+}) {
+  const taskCountLabel = `${tasks.length} ${tasks.length === 1 ? "task" : "tasks"}`;
+
+  return (
+    <details className="group mt-3 rounded-[var(--radius-control)] border">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2.5 text-sm outline-none marker:content-none focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
+        <span className="font-medium">
+          {taskCountLabel} under {serviceName}
+        </span>
+        <span className="flex items-center gap-2">
+          <span className="text-muted-foreground">{formatCurrency(schedule.amountDue, currency)}</span>
+          <ChevronDown aria-hidden className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
+        </span>
+      </summary>
+      <ul className="flex flex-col divide-y border-t">
+        {tasks.map((task) => {
+          const yearMonth = taskYearMonth(task.plannedDueAt);
+          const monthHint =
+            yearMonth === schedule.thisMonthKey
+              ? "This month"
+              : yearMonth === schedule.nextMonthKey
+                ? "Next month"
+                : null;
+          return (
+            <li key={task.id} className="flex items-start justify-between gap-3 px-3 py-2 text-sm">
+              <div>
+                <p className="font-medium">{task.title}</p>
+                <p className="mt-1 text-muted-foreground">
+                  {task.plannedDueAt ? formatDate(task.plannedDueAt) : "No due date"}
+                  {monthHint ? ` · ${monthHint}` : ""}
+                </p>
+              </div>
+              <div className="flex flex-col items-end gap-1">
+                <span className="font-medium">
+                  {formatCurrency(task.rateAmount, task.currencyCode || currency)}
+                </span>
+                <StatusBadge status={mapTaskStatus(task.status)} />
+              </div>
+            </li>
+          );
+        })}
+        <li className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
+          <span className="font-medium">Total task amount</span>
+          <span className="font-medium">{formatCurrency(schedule.taskTotal, currency)}</span>
+        </li>
+        {schedule.discountAmount > 0 ? (
+          <>
+            <li className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
+              <span>Discount ({formatDiscountPercent(schedule.discountPercent)})</span>
+              <span>−{formatCurrency(schedule.discountAmount, currency)}</span>
+            </li>
+            <li className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
+              <span className="font-medium">Amount due</span>
+              <span className="font-medium">{formatCurrency(schedule.amountDue, currency)}</span>
+            </li>
+          </>
+        ) : null}
+      </ul>
+    </details>
   );
 }
 

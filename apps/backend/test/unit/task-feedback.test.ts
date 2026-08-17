@@ -40,6 +40,9 @@ test("task feedback repository scopes client queries to authenticated client", (
   expect(source).toContain("ctf.employee_id = $2");
   expect(source).toContain("interval '60 days'");
   expect(source).toContain("expire_unanswered_client_task_feedback");
+  expect(source).toContain("on conflict (tenant_id, idempotency_key) do nothing");
+  expect(source).toContain("submitted_by_user_id, idempotency_key");
+  expect(source).not.toContain("idempotency_key, status");
 });
 
 test("employee feedback listing resolves employee from membership, not request body", () => {

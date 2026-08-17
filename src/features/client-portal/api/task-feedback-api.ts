@@ -46,6 +46,21 @@ export type TaskFeedbackLogResponse = {
   total: number;
 };
 
+type ApiErrorBody = {
+  message?: string;
+  error?: { message?: string };
+};
+
+function apiErrorMessage(body: ApiErrorBody | null, fallback: string): string {
+  if (typeof body?.error?.message === "string" && body.error.message.trim()) {
+    return body.error.message;
+  }
+  if (typeof body?.message === "string" && body.message.trim()) {
+    return body.message;
+  }
+  return fallback;
+}
+
 export async function listPendingTaskFeedback(): Promise<PendingTaskFeedbackResponse> {
   const response = await fetch("/api/client-portal/task-feedback/pending");
   if (!response.ok) {
@@ -67,8 +82,8 @@ export async function submitTaskFeedback(input: {
     body: JSON.stringify(input),
   });
   if (!response.ok) {
-    const body = (await response.json().catch(() => null)) as { message?: string } | null;
-    throw new Error(body?.message ?? "Feedback could not be submitted.");
+    const body = (await response.json().catch(() => null)) as ApiErrorBody | null;
+    throw new Error(apiErrorMessage(body, "Feedback could not be submitted."));
   }
   return response.json() as Promise<ClientTaskFeedback>;
 }

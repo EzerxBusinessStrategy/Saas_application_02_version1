@@ -176,9 +176,9 @@ export class TaskFeedbackRepository {
         `
           insert into public.client_task_feedback (
             tenant_id, client_id, task_id, invoice_id, employee_id,
-            task_rating, employee_rating, submitted_by_user_id, idempotency_key, status
+            task_rating, employee_rating, submitted_by_user_id, idempotency_key
           )
-          values ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'submitted')
+          values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
           on conflict (tenant_id, idempotency_key) do nothing
           returning id::text, created_at
         `,
@@ -204,29 +204,37 @@ export class TaskFeedbackRepository {
         });
       }
 
-      await this.notifyTenantAndEmployee(
-        client,
-        scope,
-        row.id,
-        eligible.task_title,
-        eligible.employee_id,
-        eligible.employee_name,
-        input.taskRating,
-        input.employeeRating,
-      );
-      await client.query(
-        "select audit.write_audit_event('CLIENT_TASK_FEEDBACK_SUBMITTED', 'client_task_feedback', $1::uuid, 'succeeded', null, $2::jsonb)",
-        [
+      try {
+        await this.notifyTenantAndEmployee(
+          client,
+          scope,
           row.id,
-          JSON.stringify({
-            clientId: scope.clientId,
-            taskId: eligible.task_id,
-            employeeId: eligible.employee_id,
-            taskRating: input.taskRating,
-            employeeRating: input.employeeRating,
-          }),
-        ],
-      );
+          eligible.task_title,
+          eligible.employee_id,
+          eligible.employee_name,
+          input.taskRating,
+          input.employeeRating,
+        );
+      } catch {
+        // Keep the submitted rating even if a notification insert is blocked.
+      }
+      try {
+        await client.query(
+          "select audit.write_audit_event('CLIENT_TASK_FEEDBACK_SUBMITTED', 'client_task_feedback', $1::uuid, 'succeeded', null, $2::jsonb)",
+          [
+            row.id,
+            JSON.stringify({
+              clientId: scope.clientId,
+              taskId: eligible.task_id,
+              employeeId: eligible.employee_id,
+              taskRating: input.taskRating,
+              employeeRating: input.employeeRating,
+            }),
+          ],
+        );
+      } catch {
+        // Keep the submitted rating even if audit write is unavailable.
+      }
 
       return {
         id: row.id,
@@ -515,7 +523,7 @@ export class TaskFeedbackRepository {
 
   private async expireUnanswered(client: PoolClient): Promise<void> {
     await client.query("select private.expire_unanswered_client_task_feedback()").catch((error: unknown) => {
-      if (isUndefinedFunction(error) || isUndefinedTable(error)) return;
+      if (isUndefinedFunction(error) || isUndefinedTable(error) || isUndefinedColumn(error)) return;
       throw error;
     });
   }
@@ -562,4 +570,8 @@ function isUndefinedTable(error: unknown): boolean {
 
 function isUndefinedFunction(error: unknown): boolean {
   return typeof error === "object" && error !== null && "code" in error && error.code === "42883";
+}
+
+function isUndefinedColumn(error: unknown): boolean {
+  return typeof error === "object" && error !== null && "code" in error && error.code === "42703";
 }

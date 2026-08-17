@@ -92,7 +92,8 @@ test("shows this month due, next month due, monthly prices, and total without in
 
   renderWithQuery(<ClientPortal section="services" />);
 
-  expect(await screen.findByText("GST")).toBeInTheDocument();
+  expect(await screen.findByText("2 tasks under demo")).toBeInTheDocument();
+  expect(screen.getByText("GST")).toBeInTheDocument();
   expect(screen.getByText("Monthly books")).toBeInTheDocument();
   expect(screen.getByText(/This month due/)).toBeInTheDocument();
   expect(screen.getByText(/Next month due/)).toBeInTheDocument();
@@ -106,7 +107,7 @@ test("shows this month due, next month due, monthly prices, and total without in
   expect(screen.getByText("Discount (10%)")).toBeInTheDocument();
   expect(screen.getByText("−₹16,000.00")).toBeInTheDocument();
   expect(screen.getByText("Amount due")).toBeInTheDocument();
-  expect(screen.getByText("₹1,44,000.00")).toBeInTheDocument();
+  expect(screen.getAllByText("₹1,44,000.00").length).toBeGreaterThanOrEqual(2);
   expect(screen.queryByText(/responsible person/i)).not.toBeInTheDocument();
   expect(screen.queryByText("Ada")).not.toBeInTheDocument();
   expect(screen.queryByText("₹19,20,000.00")).not.toBeInTheDocument();

@@ -440,7 +440,7 @@ export function TenantAdministrationOverview() {
       ) : null}
 
       <section
-        className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5"
+        className="grid items-stretch gap-4 sm:grid-cols-2 xl:grid-cols-5"
         aria-label="Tenant administration metrics"
         aria-busy={isFetching}
       >

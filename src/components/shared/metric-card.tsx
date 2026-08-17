@@ -59,8 +59,8 @@ function ElevatedMetricContent({
         : "text-muted-foreground";
 
   return (
-    <CardContent className="pt-8 pb-[30px] px-[30px]">
-      <div className="min-w-0">
+    <CardContent className="flex h-full flex-1 flex-col pt-8 pb-[30px] px-[30px]">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         {Icon ? (
           <div
             className={cn(
@@ -77,21 +77,23 @@ function ElevatedMetricContent({
         </strong>
         <p className="mt-1 text-sm font-medium text-foreground/90">{metric.label}</p>
 
-        {metric.change ? (
-          <p className={cn("mt-2 line-clamp-2 text-xs leading-relaxed", trendTone)}>
+        <p className={cn("mt-2 min-h-8 text-xs leading-relaxed", trendTone)}>
+          {metric.change ? (
             <span className="inline-flex items-start gap-1">
               <TrendIcon className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
-              <span>{metric.change}</span>
+              <span className="line-clamp-2">{metric.change}</span>
             </span>
-          </p>
-        ) : null}
+          ) : null}
+        </p>
 
-        {isInteractive ? (
-          <span className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-primary opacity-80 transition-opacity duration-200 group-hover:opacity-100">
-            View details
-            <ArrowUpRight className="size-3.5" aria-hidden="true" />
-          </span>
-        ) : null}
+        <span className="mt-auto inline-flex min-h-5 items-center gap-1 pt-3 text-xs font-medium text-primary">
+          {isInteractive ? (
+            <>
+              View details
+              <ArrowUpRight className="size-3.5" aria-hidden="true" />
+            </>
+          ) : null}
+        </span>
       </div>
     </CardContent>
   );
@@ -121,24 +123,18 @@ export function MetricCard({
   const card = (
     <Card
       className={cn(
-        "relative h-full overflow-hidden transition-[box-shadow,transform,border-color] duration-200",
+        "relative flex h-full flex-col overflow-hidden transition-[box-shadow,border-color] duration-200",
         isElevated && [
           "border-border/70 shadow-sm",
           isInteractive &&
-            "group cursor-pointer hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-md focus-within:border-primary/25 focus-within:shadow-md",
+            "group cursor-pointer hover:border-primary/25 hover:shadow-md focus-within:border-primary/25 focus-within:shadow-md",
           !isInteractive && "hover:border-border hover:shadow-md",
         ],
         className,
       )}
     >
       {isElevated ? (
-        <span
-          aria-hidden="true"
-          className={cn(
-            "absolute inset-x-0 top-0 h-0.5 origin-left scale-x-0 bg-primary/80 transition-transform duration-300",
-            isInteractive ? "group-hover:scale-x-100 group-focus-within:scale-x-100" : "scale-x-100",
-          )}
-        />
+        <span aria-hidden="true" className="absolute inset-x-0 top-0 h-0.5 bg-primary/80" />
       ) : null}
 
       {isElevated ? (
@@ -154,7 +150,7 @@ export function MetricCard({
       href={href}
       aria-label={ariaLabel ?? `View ${metric.label}`}
       className={cn(
-        "block rounded-[var(--radius-card)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+        "flex h-full rounded-[var(--radius-card)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
         !isElevated && "transition-colors hover:bg-muted/40",
       )}
     >
@@ -165,11 +161,12 @@ export function MetricCard({
   );
 
   if (animationIndex === undefined || reduceMotion) {
-    return wrapped;
+    return <div className="h-full min-h-0">{wrapped}</div>;
   }
 
   return (
     <motion.div
+      className="h-full min-h-0"
       initial={{ opacity: 0, x: -18 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{
