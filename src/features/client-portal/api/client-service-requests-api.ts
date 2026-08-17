@@ -156,7 +156,11 @@ export async function createClientCatalogueRequest(input: {
 async function parseBody(response: Response) {
   const body = await response.json().catch(() => null);
   if (!response.ok) {
-    throw new Error(typeof body?.message === "string" ? body.message : "Client service request failed.");
+    const message =
+      (typeof body?.error?.message === "string" && body.error.message) ||
+      (typeof body?.message === "string" && body.message) ||
+      "Client service request failed.";
+    throw new Error(message);
   }
   return body;
 }

@@ -167,6 +167,10 @@ describe("ClientServiceRequestsRepository", () => {
     const insertValues = client.query.mock.calls.find((call) => String(call[0]).includes("insert into public.client_service_requests"))?.[1];
     expect(insertValues?.[1]).toBe(clientId);
     expect(insertValues?.[4]).toBe("Please allot GST filing for this quarter.");
+    const notifySql = String(
+      client.query.mock.calls.find((call) => String(call[0]).includes("CLIENT_REQUEST_RECEIVED"))?.[0] ?? "",
+    );
+    expect(notifySql).toContain("$6::text");
   });
 
   it("replays the same idempotency key without inserting another request", async () => {
