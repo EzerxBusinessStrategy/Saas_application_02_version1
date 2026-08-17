@@ -10,6 +10,7 @@ import {
   LayoutDashboard,
   ReceiptText,
   Settings,
+  Star,
   KeyRound,
   Users,
 } from "lucide-react";
@@ -184,6 +185,7 @@ const clientNavigation: NavigationItem[] = [
   { label: "Deliverables", labelKey: "Navigation.deliverables", href: "/deliverables", icon: FileText },
   { label: "Requests", labelKey: "Navigation.requests", href: "/requests", icon: ClipboardList },
   { label: "Invoices", labelKey: "Navigation.invoices", href: "/invoices", icon: ReceiptText },
+  { label: "Feedback", labelKey: "Navigation.feedback", href: "/feedback", icon: Star },
   { label: "Profile", labelKey: "Navigation.profile", href: "/profile", icon: Users },
 ];
 

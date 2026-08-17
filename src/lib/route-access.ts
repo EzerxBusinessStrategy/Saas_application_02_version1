@@ -47,8 +47,8 @@ export const sectionAccess: Record<
     permissions: ["employee.read"],
   },
   feedback: {
-    workspaces: ["employee"],
-    permissions: ["task.read.assigned"],
+    workspaces: ["employee", "client"],
+    permissions: ["task.read.assigned", "client.read.assigned"],
   },
   documents: {
     workspaces: ["admin", "employee"],

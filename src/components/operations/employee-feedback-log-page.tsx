@@ -39,7 +39,16 @@ const columns: ColumnDef<TaskFeedbackLogItem>[] = [
     cell: ({ row }) => <StarRatingDisplay value={row.original.employeeRating} />,
   },
   {
-    header: "Submitted (IST)",
+    header: "Status",
+    accessorKey: "status",
+    cell: ({ row }) => (
+      <span className="text-sm">
+        {row.original.status === "expired" ? "No response" : "Submitted"}
+      </span>
+    ),
+  },
+  {
+    header: "Recorded (IST)",
     accessorKey: "createdAt",
     cell: ({ row }) => (
       <span className="whitespace-nowrap text-sm">{formatIndiaTimestamp(row.original.createdAt)}</span>

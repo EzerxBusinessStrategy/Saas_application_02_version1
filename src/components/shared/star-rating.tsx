@@ -75,9 +75,12 @@ export function StarRatingDisplay({
   value,
   size = "sm",
 }: {
-  value: number;
+  value: number | null;
   size?: "sm" | "md";
 }) {
+  if (value == null) {
+    return <span className="text-sm text-muted-foreground">No response</span>;
+  }
   const iconSize = size === "sm" ? "size-4" : "size-5";
   return (
     <div className="inline-flex items-center gap-0.5" aria-label={`${value} out of 5 stars`}>

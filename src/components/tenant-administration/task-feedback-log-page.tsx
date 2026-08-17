@@ -46,7 +46,16 @@ const columns: ColumnDef<TaskFeedbackLogItem>[] = [
     cell: ({ row }) => <StarRatingDisplay value={row.original.employeeRating} />,
   },
   {
-    header: "Submitted (IST)",
+    header: "Status",
+    accessorKey: "status",
+    cell: ({ row }) => (
+      <span className="text-sm">
+        {row.original.status === "expired" ? "No response" : "Submitted"}
+      </span>
+    ),
+  },
+  {
+    header: "Recorded (IST)",
     accessorKey: "createdAt",
     cell: ({ row }) => (
       <span className="whitespace-nowrap text-sm">{formatIndiaTimestamp(row.original.createdAt)}</span>
@@ -74,7 +83,7 @@ export function TenantTaskFeedbackLogPage() {
     <div className="space-y-6">
       <PageHeader
         title="Feedback log"
-        description="Client star ratings on completed tasks after invoice delivery. Timestamps shown in IST."
+        description="Client star ratings on completed tasks after invoice delivery. Unanswered reviews are recorded automatically after 60 days. Timestamps shown in IST."
         actions={
           <div className="flex items-center gap-2">
             <Link href="/admin" className={cn(buttonVariants({ variant: "outline", size: "sm" }))}>

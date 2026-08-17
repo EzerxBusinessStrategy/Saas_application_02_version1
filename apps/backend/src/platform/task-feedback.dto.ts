@@ -12,31 +12,31 @@ export const submitClientTaskFeedbackSchema = z.object({
 export type SubmitClientTaskFeedback = z.infer<typeof submitClientTaskFeedbackSchema>;
 
 export class PendingTaskFeedbackItemDto {
-  @ApiProperty()
+  @ApiProperty({ type: String })
   taskId!: string;
 
-  @ApiProperty()
+  @ApiProperty({ type: String })
   taskTitle!: string;
 
-  @ApiProperty()
+  @ApiProperty({ type: String })
   invoiceId!: string;
 
-  @ApiProperty()
+  @ApiProperty({ type: String })
   invoiceNumber!: string;
 
-  @ApiProperty()
+  @ApiProperty({ type: String })
   employeeId!: string;
 
-  @ApiProperty()
+  @ApiProperty({ type: String })
   employeeName!: string;
 
-  @ApiProperty()
+  @ApiProperty({ type: String, format: "date-time" })
   invoiceSentAt!: string;
 
-  @ApiProperty()
+  @ApiProperty({ type: String, format: "date-time" })
   completedAt!: string;
 
-  @ApiProperty()
+  @ApiProperty({ type: String, format: "date-time" })
   expiresAt!: string;
 }
 
@@ -46,69 +46,69 @@ export class PendingTaskFeedbackResponseDto {
 }
 
 export class ClientTaskFeedbackDto {
-  @ApiProperty()
+  @ApiProperty({ type: String })
   id!: string;
 
-  @ApiProperty()
+  @ApiProperty({ type: String })
   taskId!: string;
 
-  @ApiProperty()
+  @ApiProperty({ type: String })
   taskTitle!: string;
 
-  @ApiProperty()
+  @ApiProperty({ type: String })
   invoiceId!: string;
 
-  @ApiProperty()
+  @ApiProperty({ type: String })
   employeeId!: string;
 
-  @ApiProperty()
+  @ApiProperty({ type: String })
   employeeName!: string;
 
-  @ApiProperty()
+  @ApiProperty({ type: Number })
   taskRating!: number;
 
-  @ApiProperty()
+  @ApiProperty({ type: Number })
   employeeRating!: number;
 
-  @ApiProperty()
+  @ApiProperty({ type: Boolean })
   replayed!: boolean;
 
-  @ApiProperty()
+  @ApiProperty({ type: String, format: "date-time" })
   createdAt!: string;
 }
 
 export class TaskFeedbackLogItemDto {
-  @ApiProperty()
+  @ApiProperty({ type: String })
   id!: string;
 
-  @ApiProperty()
+  @ApiProperty({ type: String })
   taskId!: string;
 
-  @ApiProperty()
+  @ApiProperty({ type: String })
   taskTitle!: string;
 
-  @ApiProperty()
+  @ApiProperty({ type: String })
   clientId!: string;
 
-  @ApiProperty()
+  @ApiProperty({ type: String })
   clientName!: string;
 
-  @ApiProperty()
+  @ApiProperty({ type: String })
   employeeId!: string;
 
-  @ApiProperty()
+  @ApiProperty({ type: String })
   employeeName!: string;
 
-  @ApiProperty({ nullable: true, type: Number })
+  @ApiProperty({ type: Number, nullable: true })
   taskRating!: number | null;
 
-  @ApiProperty({ nullable: true, type: Number })
+  @ApiProperty({ type: Number, nullable: true })
   employeeRating!: number | null;
 
-  @ApiProperty({ enum: ["submitted", "expired"] })
+  @ApiProperty({ type: String, enum: ["submitted", "expired"] })
   status!: "submitted" | "expired";
 
-  @ApiProperty()
+  @ApiProperty({ type: String, format: "date-time" })
   createdAt!: string;
 }
 
@@ -116,6 +116,6 @@ export class TaskFeedbackLogResponseDto {
   @ApiProperty({ type: () => TaskFeedbackLogItemDto, isArray: true })
   items!: TaskFeedbackLogItemDto[];
 
-  @ApiProperty()
+  @ApiProperty({ type: Number })
   total!: number;
 }

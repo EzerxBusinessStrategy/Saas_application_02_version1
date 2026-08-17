@@ -62,7 +62,7 @@ export function ClientTaskFeedbackDialog({
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onDismiss?.()}>
       <DialogContent
         title="Task feedback"
-        description="Your invoice is ready. Please rate the completed work."
+        description="Your invoice is ready. Rate the work now, or choose Later and finish it from Feedback within 60 days of completion."
         className="max-w-lg"
       >
         <motion.div
@@ -91,7 +91,16 @@ export function ClientTaskFeedbackDialog({
                 disabled={submitting}
               />
               <div className="flex justify-end gap-2 pt-2">
-                <Button variant="outline" disabled={submitting} onClick={() => onDismiss?.()}>
+                <Button
+                  variant="outline"
+                  disabled={submitting}
+                  onClick={() => {
+                    toast.message("Saved for later", {
+                      description: "Open Feedback in the sidebar to rate this task within 60 days of completion.",
+                    });
+                    onDismiss?.();
+                  }}
+                >
                   Later
                 </Button>
                 <Button disabled={!canSubmit} onClick={() => void handleSubmit()}>

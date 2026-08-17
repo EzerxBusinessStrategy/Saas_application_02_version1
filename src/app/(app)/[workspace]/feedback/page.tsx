@@ -1,11 +1,12 @@
 import { notFound } from "next/navigation";
 import { FeatureBoundary } from "@/components/shared/feature-boundary";
+import { ClientTaskFeedbackPage } from "@/components/operations/client-task-feedback-page";
 import { EmployeeTaskFeedbackLogPage } from "@/components/operations/employee-feedback-log-page";
 import { sectionAccess } from "@/lib/route-access";
 import { getAuthenticatedWorkspaceUser } from "@/lib/server/authenticated-workspace-user";
 import type { Workspace } from "@/types/domain";
 
-export default async function EmployeeFeedbackPage({
+export default async function FeedbackPage({
   params,
 }: {
   params: Promise<{ workspace: Workspace }>;
@@ -17,7 +18,7 @@ export default async function EmployeeFeedbackPage({
 
   return (
     <FeatureBoundary role={user.role} permissions={access.permissions ?? []}>
-      <EmployeeTaskFeedbackLogPage />
+      {workspace === "client" ? <ClientTaskFeedbackPage /> : <EmployeeTaskFeedbackLogPage />}
     </FeatureBoundary>
   );
 }

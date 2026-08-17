@@ -35,7 +35,7 @@ describe("TenantAdminFinanceRepository document delivery", () => {
     expect(source).toContain("'client-deliverable-shared:' || $3::uuid::text");
     expect(source).toContain("'client-invoice-sent:' || $3::uuid::text");
     expect(source).toContain("jsonb_build_object('documentId', $3::uuid, 'title', $4::text)");
-    expect(source).toContain("jsonb_build_object('clientId', $4::uuid)");
+    expect(source).toContain("jsonb_build_object('clientId', $4::uuid, 'requestFeedback', true)");
     expect(source).toContain("jsonb_build_object('clientId', $4::uuid, 'documentId', $3::uuid, 'title', $5::text)");
   });
 

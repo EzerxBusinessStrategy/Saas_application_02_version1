@@ -6,6 +6,8 @@ export type PendingTaskFeedbackItem = {
   employeeId: string;
   employeeName: string;
   invoiceSentAt: string;
+  completedAt: string;
+  expiresAt: string;
 };
 
 export type PendingTaskFeedbackResponse = {
@@ -33,8 +35,9 @@ export type TaskFeedbackLogItem = {
   clientName: string;
   employeeId: string;
   employeeName: string;
-  taskRating: number;
-  employeeRating: number;
+  taskRating: number | null;
+  employeeRating: number | null;
+  status: "submitted" | "expired";
   createdAt: string;
 };
 

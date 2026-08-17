@@ -38,6 +38,8 @@ test("task feedback repository scopes client queries to authenticated client", (
   expect(source).toContain("scope.clientId");
   expect(source).toContain("client_task_feedback");
   expect(source).toContain("ctf.employee_id = $2");
+  expect(source).toContain("interval '60 days'");
+  expect(source).toContain("expire_unanswered_client_task_feedback");
 });
 
 test("employee feedback listing resolves employee from membership, not request body", () => {
