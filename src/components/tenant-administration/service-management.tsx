@@ -2,11 +2,12 @@
 
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus } from "lucide-react";
+import { MoreVertical, Plus } from "lucide-react";
 import { toast } from "sonner";
 import {
   createTenantAdminService,
   listTenantAdminServices,
+  setTenantAdminServiceTaskStatus,
   type CreateTenantAdminServiceInput,
   type TenantAdminService,
 } from "@/features/operations/api/operations-api";
@@ -15,9 +16,16 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { ErrorState } from "@/components/shared/error-state";
 import { LoadingState } from "@/components/shared/loading-state";
 import { PageHeader } from "@/components/shared/page-header";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 
@@ -34,10 +42,29 @@ const serviceInput = {
 export function TenantServiceDirectory() {
   const queryClient = useQueryClient();
   const [blueprintService, setBlueprintService] = useState<{ id: string; name: string } | null>(null);
+  const [updatingRateItemId, setUpdatingRateItemId] = useState<string | null>(null);
   const query = useQuery({
     queryKey: ["tenant-admin-services"],
     queryFn: listTenantAdminServices,
   });
+
+  const setTaskStatus = async (serviceId: string, rateItemId: string, status: "active" | "inactive") => {
+    setUpdatingRateItemId(rateItemId);
+    try {
+      const result = await setTenantAdminServiceTaskStatus({ serviceId, rateItemId, status });
+      toast.success(
+        result.status === "inactive"
+          ? `"${result.taskType}" is disabled and hidden from the client service request form.`
+          : `"${result.taskType}" is enabled and visible in the client service request form.`,
+      );
+      await queryClient.invalidateQueries({ queryKey: ["tenant-admin-services"] });
+      void queryClient.invalidateQueries({ queryKey: ["tenant-admin-task-options"] });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "The task status could not be updated.");
+    } finally {
+      setUpdatingRateItemId(null);
+    }
+  };
 
   if (query.isPending) return <LoadingState label="Loading services and rates" rows={5} />;
   if (query.isError) return <ErrorState title="Services could not load" onRetry={() => void query.refetch()} />;
@@ -62,7 +89,14 @@ export function TenantServiceDirectory() {
           <CardTitle>Service rate list</CardTitle>
         </CardHeader>
         <CardContent>
-          {query.data.length ? <ServiceTable services={query.data} onManageTasks={setBlueprintService} /> : (
+          {query.data.length ? (
+            <ServiceTable
+              services={query.data}
+              updatingRateItemId={updatingRateItemId}
+              onManageTasks={setBlueprintService}
+              onSetTaskStatus={setTaskStatus}
+            />
+          ) : (
             <EmptyState
               title="No services yet"
               description="Start with GST filing, bookkeeping, payroll, TDS filing, ROC filings, audit support, or advisory services."
@@ -84,10 +118,14 @@ export function TenantServiceDirectory() {
 
 function ServiceTable({
   services,
+  updatingRateItemId,
   onManageTasks,
+  onSetTaskStatus,
 }: {
   services: readonly TenantAdminService[];
+  updatingRateItemId: string | null;
   onManageTasks: (service: { id: string; name: string }) => void;
+  onSetTaskStatus: (serviceId: string, rateItemId: string, status: "active" | "inactive") => Promise<void>;
 }) {
   return (
     <div className="overflow-x-auto border">
@@ -116,7 +154,40 @@ function ServiceTable({
                   </td>
                 ) : null}
                 <td className="px-4 py-3">
-                  <p className="font-medium">{rate?.taskType?.trim() || "No task"}</p>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <p className={rate?.status === "inactive" ? "font-medium text-muted-foreground" : "font-medium"}>
+                        {rate?.taskType?.trim() || "No task"}
+                      </p>
+                      {rate?.status === "inactive" ? <Badge tone="neutral">Disabled</Badge> : null}
+                    </div>
+                    {rate && !rate.clientName ? (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            className="px-1.5"
+                            aria-label={`Task actions for ${rate.taskType}`}
+                            disabled={updatingRateItemId === rate.id}
+                          >
+                            <MoreVertical className="size-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            disabled={updatingRateItemId === rate.id}
+                            onSelect={() =>
+                              void onSetTaskStatus(service.id, rate.id, rate.status === "active" ? "inactive" : "active")
+                            }
+                          >
+                            {rate.status === "active" ? "Disable task" : "Enable task"}
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    ) : null}
+                  </div>
                 </td>
                 <td className="px-4 py-3 font-medium">
                   {rate ? formatMoney(rate.rateAmount, rate.currencyCode) : "No rate"}

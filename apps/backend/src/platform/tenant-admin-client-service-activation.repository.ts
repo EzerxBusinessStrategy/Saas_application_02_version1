@@ -84,6 +84,7 @@ export class TenantAdminClientServiceActivationRepository {
       const result = await client.query<{
         employee_id: string;
         name: string;
+        department_name: string | null;
         service_capable: boolean;
         active_tasks: string;
         weekly_capacity_hours: string;
@@ -92,6 +93,7 @@ export class TenantAdminClientServiceActivationRepository {
           select
             e.id::text as employee_id,
             coalesce(tm.display_name, u.display_name, e.employee_code) as name,
+            d.name as department_name,
             exists (
               select 1
               from public.employee_service_capabilities esc
@@ -113,6 +115,9 @@ export class TenantAdminClientServiceActivationRepository {
           from public.employees e
           join public.tenant_memberships tm on tm.id = e.membership_id and tm.tenant_id = e.tenant_id
           left join public.users u on u.id = tm.user_id
+          left join public.departments d
+            on d.tenant_id = e.tenant_id
+           and d.id = e.department_id
           where e.tenant_id = $1
             and e.employment_status = 'active'
           order by
@@ -136,6 +141,7 @@ export class TenantAdminClientServiceActivationRepository {
         employees: rows.map((row) => ({
           employeeId: row.employee_id,
           name: row.name,
+          departmentName: row.department_name,
           serviceCapable: row.service_capable,
           activeTasks: Number(row.active_tasks),
           weeklyCapacityHours: Number(row.weekly_capacity_hours),
@@ -201,10 +207,10 @@ export class TenantAdminClientServiceActivationRepository {
           `
             insert into public.engagement_service_configurations (
               tenant_id, engagement_id, service_id, assigned_employee_id, country_code,
-              configuration_snapshot, estimated_total, currency_code, status, activated_at,
+              configuration_snapshot, estimated_total, discount_percent, currency_code, status, activated_at,
               idempotency_key, request_fingerprint
             )
-            values ($1, $2, $3, $4, $5, $6::jsonb, $7, $8, 'active', now(), $9, $10)
+            values ($1, $2, $3, $4, $5, $6::jsonb, $7, $8, $9, 'active', now(), $10, $11)
           `,
           [
             context.tenantId,
@@ -214,6 +220,7 @@ export class TenantAdminClientServiceActivationRepository {
             input.countryCode,
             JSON.stringify(snapshot),
             estimatedTotal,
+            normalizeDiscountPercent(input.discountPercent),
             input.currencyCode,
             input.idempotencyKey,
             fingerprint,
@@ -883,6 +890,9 @@ function requestFingerprint(clientId: string, input: ActivateClientServicesReque
     clientId,
     countryCode: input.countryCode,
     currencyCode: input.currencyCode,
+    ...(input.discountPercent !== undefined
+      ? { discountPercent: normalizeDiscountPercent(input.discountPercent) }
+      : {}),
     services: [...input.services]
       .map((service) => ({
         serviceId: service.serviceId,
@@ -905,4 +915,9 @@ function requestFingerprint(clientId: string, input: ActivateClientServicesReque
 
 function roundMoney(value: number): number {
   return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
+function normalizeDiscountPercent(value: number | undefined): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.min(100, Math.max(0, roundMoney(Number(value))));
 }

@@ -1,6 +1,5 @@
 export type PricedClientServiceTask = {
   rateAmount: number;
-  discountAmount?: number;
 };
 
 export type ScheduledClientServiceTask = PricedClientServiceTask & {
@@ -10,29 +9,37 @@ export type ScheduledClientServiceTask = PricedClientServiceTask & {
 
 const CLOSED_TASK_STATUSES = new Set(["completed", "cancelled"]);
 
-export function summarizeClientServicePricing(tasks: readonly PricedClientServiceTask[]) {
+/**
+ * The discount comes only from the percent the tenant entered when accepting
+ * the request. Invoice-level discounts are intentionally not mixed in here.
+ */
+export function summarizeClientServicePricing(
+  tasks: readonly PricedClientServiceTask[],
+  discountPercent: number = 0,
+) {
   const taskTotal = roundMoney(
     tasks.reduce((sum, task) => sum + finiteAmount(task.rateAmount), 0),
   );
-  const discountAmount = roundMoney(
-    tasks.reduce((sum, task) => sum + finiteAmount(task.discountAmount), 0),
-  );
+  const percent = clampPercent(discountPercent);
+  const discountAmount = taskTotal > 0 && percent > 0 ? roundMoney((taskTotal * percent) / 100) : 0;
   const amountDue = roundMoney(Math.max(0, taskTotal - discountAmount));
-  const discountPercent =
-    taskTotal > 0 && discountAmount > 0
-      ? Math.round((discountAmount / taskTotal) * 10_000) / 100
-      : 0;
-  return { taskTotal, discountAmount, discountPercent, amountDue };
+  return {
+    taskTotal,
+    discountAmount,
+    discountPercent: discountAmount > 0 ? percent : 0,
+    amountDue,
+  };
 }
 
 export function summarizeClientServiceSchedule(
   tasks: readonly ScheduledClientServiceTask[],
+  discountPercent: number = 0,
   now: Date = new Date(),
 ) {
   const thisMonthKey = utcMonthKey(now);
   const nextMonthKey = utcMonthKey(new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)));
   return {
-    ...summarizeClientServicePricing(tasks),
+    ...summarizeClientServicePricing(tasks, discountPercent),
     thisMonthKey,
     nextMonthKey,
     thisMonthDue: sumPayableInMonth(tasks, thisMonthKey),
@@ -76,6 +83,11 @@ function sumPayableInMonth(tasks: readonly ScheduledClientServiceTask[], yearMon
 
 function utcMonthKey(date: Date) {
   return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
+function clampPercent(value: number) {
+  if (!Number.isFinite(value)) return 0;
+  return Math.min(100, Math.max(0, roundMoney(Number(value))));
 }
 
 function finiteAmount(value: number | undefined) {

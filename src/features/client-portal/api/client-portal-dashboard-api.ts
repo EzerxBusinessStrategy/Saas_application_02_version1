@@ -40,9 +40,6 @@ const clientPortalDashboardSchema = z.object({
             status: z.string(),
             plannedDueAt: z.string().datetime().nullable(),
             rateAmount: z.number().optional().default(0),
-            discountAmount: z.number().optional().default(0),
-            discountType: z.string().nullable().optional().default(null),
-            discountValue: z.number().nullable().optional().default(null),
             currencyCode: z.string().optional().default("INR"),
           }),
         )

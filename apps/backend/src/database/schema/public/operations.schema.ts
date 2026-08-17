@@ -946,6 +946,7 @@ export const engagementServiceConfigurations = pgTable(
     countryCode: text("country_code").notNull(),
     configurationSnapshot: jsonb("configuration_snapshot").notNull(),
     estimatedTotal: numeric("estimated_total", { precision: 18, scale: 2 }).default("0").notNull(),
+    discountPercent: numeric("discount_percent", { precision: 5, scale: 2 }).default("0").notNull(),
     currencyCode: text("currency_code").notNull(),
     status: text("status").default("active").notNull(),
     activatedAt: timestamp("activated_at", { withTimezone: true }).defaultNow().notNull(),

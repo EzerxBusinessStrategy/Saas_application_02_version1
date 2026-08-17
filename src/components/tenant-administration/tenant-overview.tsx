@@ -344,7 +344,7 @@ export function TenantAdministrationOverview() {
       <PageHeader
         eyebrow={`Tenant Admin · ${tenant.name}`}
         title="Operations overview"
-        description={`Showing ${formatLocalIsoDate(period.from)} – ${formatLocalIsoDate(period.to)} (${periodLabel}). Design status: Pending Figma verification.`}
+        description={`Showing ${formatLocalIsoDate(period.from)} – ${formatLocalIsoDate(period.to)} (${periodLabel}).`}
       />
 
       <FilterToolbar

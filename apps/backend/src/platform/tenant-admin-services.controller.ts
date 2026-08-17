@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Inject, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Inject, Param, ParseUUIDPipe, Patch, Post, UseGuards } from "@nestjs/common";
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { ActiveRequestContextGuard } from "../auth/guards/active-request-context.guard";
 import { PermissionGuard } from "../auth/guards/permission.guard";
@@ -9,9 +9,12 @@ import { RequestContext } from "../auth/request-context";
 import { ZodValidationPipe } from "../common/validation/zod-validation.pipe";
 import {
   tenantAdminServiceCreateSchema,
+  tenantAdminServiceTaskStatusSchema,
   TenantAdminServiceCreateRequest,
   TenantAdminServiceDto,
   TenantAdminServicesResponseDto,
+  TenantAdminServiceTaskStatusRequest,
+  TenantAdminServiceTaskStatusResponseDto,
 } from "./tenant-admin-services.dto";
 import { TenantAdminServicesService } from "./tenant-admin-services.service";
 
@@ -42,6 +45,19 @@ export class TenantAdminServicesController {
     @Body(new ZodValidationPipe(tenantAdminServiceCreateSchema)) body: TenantAdminServiceCreateRequest,
   ): Promise<TenantAdminServiceDto> {
     return this.service.create(context, body);
+  }
+
+  @Patch(":serviceId/rate-items/:rateItemId/status")
+  @RequirePermissions("client.update")
+  @ApiOperation({ summary: "Enable or disable one tenant-default service task rate." })
+  @ApiOkResponse({ type: TenantAdminServiceTaskStatusResponseDto })
+  setTaskStatus(
+    @CurrentRequestContext() context: RequestContext,
+    @Param("serviceId", new ParseUUIDPipe()) serviceId: string,
+    @Param("rateItemId", new ParseUUIDPipe()) rateItemId: string,
+    @Body(new ZodValidationPipe(tenantAdminServiceTaskStatusSchema)) body: TenantAdminServiceTaskStatusRequest,
+  ): Promise<TenantAdminServiceTaskStatusResponseDto> {
+    return this.service.setTaskStatus(context, serviceId, rateItemId, body);
   }
 }
 

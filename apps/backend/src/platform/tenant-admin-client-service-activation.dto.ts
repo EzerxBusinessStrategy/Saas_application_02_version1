@@ -27,6 +27,7 @@ export const activateClientServicesSchema = z.object({
   countryCode: z.string().trim().length(2).transform((value) => value.toUpperCase()).default("IN"),
   currencyCode: z.enum(["INR", "USD", "GBP"]).default("INR"),
   startDate: isoDate.optional(),
+  discountPercent: z.number().min(0).max(100).optional(),
   services: z.array(activateClientServiceSchema).min(1).max(20),
 });
 export type ActivateClientServicesRequest = z.infer<typeof activateClientServicesSchema>;
@@ -97,6 +98,9 @@ export class ServiceOnboardingAssigneeDto {
 
   @ApiProperty({ type: String })
   name!: string;
+
+  @ApiPropertyOptional({ type: String, nullable: true })
+  departmentName!: string | null;
 
   @ApiProperty({ type: Boolean })
   serviceCapable!: boolean;

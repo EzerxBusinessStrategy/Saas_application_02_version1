@@ -75,6 +75,7 @@ const tenantAdminServiceRateSchema = z.object({
   currencyCode: z.string(),
   taxCode: z.string().nullable(),
   tasksUsingRate: z.number(),
+  status: z.enum(["active", "inactive"]).catch("active"),
 });
 const tenantAdminServiceSchema = z.object({
   id: z.string(),
@@ -721,6 +722,24 @@ export async function createTenantAdminService(input: CreateTenantAdminServiceIn
     body: JSON.stringify(input),
   });
   return tenantAdminServiceSchema.parse(await parseJsonResponse(response));
+}
+
+export async function setTenantAdminServiceTaskStatus(input: {
+  serviceId: string;
+  rateItemId: string;
+  status: "active" | "inactive";
+}): Promise<{ rateItemId: string; taskType: string; status: "active" | "inactive" }> {
+  const response = await fetch(
+    `/api/tenant-admin/services/${encodeURIComponent(input.serviceId)}/rate-items/${encodeURIComponent(input.rateItemId)}/status`,
+    {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ status: input.status }),
+    },
+  );
+  return z
+    .object({ rateItemId: z.string(), taskType: z.string(), status: z.enum(["active", "inactive"]) })
+    .parse(await parseJsonResponse(response));
 }
 
 export async function createTenantAdminEmployee(input: CreateTenantAdminEmployeeInput): Promise<TenantAdminEmployeeOption> {

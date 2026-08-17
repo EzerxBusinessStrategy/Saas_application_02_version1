@@ -62,6 +62,7 @@ export type ListTenantServiceRequestsQuery = z.infer<typeof listTenantServiceReq
 
 export const acceptClientServiceRequestSchema = z.object({
   remarks: z.string().trim().max(2000).optional(),
+  discountPercent: z.number().min(0).max(100).optional(),
   assignments: z
     .array(
       z.object({

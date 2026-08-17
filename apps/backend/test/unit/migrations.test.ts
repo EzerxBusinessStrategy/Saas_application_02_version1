@@ -266,4 +266,23 @@ describe("database migrations", () => {
     expect(sql).not.toContain("drop table public.services");
     expect(sql).not.toContain("drop table public.engagements");
   });
+
+  test("adds the engagement service discount percent additively", () => {
+    expect(migrationNames).toContain("0069_engagement_service_discount.sql");
+    expect(migrationNames.indexOf("0069_engagement_service_discount.sql")).toBeGreaterThan(
+      migrationNames.indexOf("0068_client_service_comments.sql"),
+    );
+
+    const sql = readFileSync(
+      resolve(__dirname, "../../drizzle/migrations/0069_engagement_service_discount.sql"),
+      "utf8",
+    );
+
+    expect(sql).toContain(
+      "add column if not exists discount_percent numeric(5,2) not null default 0",
+    );
+    expect(sql).toContain("discount_percent >= 0 and discount_percent <= 100");
+    expect(sql).not.toContain("drop table");
+    expect(sql).not.toMatch(/alter table [^\n]+ drop column/i);
+  });
 });

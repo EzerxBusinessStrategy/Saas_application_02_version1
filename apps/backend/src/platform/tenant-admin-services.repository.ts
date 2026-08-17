@@ -1,10 +1,15 @@
-import { BadRequestException, ConflictException, Inject, Injectable } from "@nestjs/common";
+import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { Pool, PoolClient } from "pg";
 import { databaseNotConfigured } from "../auth/auth-errors";
 import { DATABASE_POOL } from "../database/database.tokens";
 import { withDatabaseTransaction } from "../database/transaction-context";
 import { TenantAdminRequestContext } from "./tenant-admin-context";
-import { TenantAdminServiceCreateRequest, TenantAdminServiceDto, TenantAdminServiceRateDto } from "./tenant-admin-services.dto";
+import {
+  TenantAdminServiceCreateRequest,
+  TenantAdminServiceDto,
+  TenantAdminServiceRateDto,
+  TenantAdminServiceTaskStatusResponseDto,
+} from "./tenant-admin-services.dto";
 
 @Injectable()
 export class TenantAdminServicesRepository {
@@ -17,7 +22,7 @@ export class TenantAdminServicesRepository {
         name: string;
         code: string;
         status: "active" | "inactive" | "archived";
-        rates: TenantAdminServiceRateDto[];
+        rates: (TenantAdminServiceRateDto & { updatedAt: string })[];
       }>(
         `
           select
@@ -36,17 +41,23 @@ export class TenantAdminServicesRepository {
                   'rateAmount', rci.rate_amount::float,
                   'currencyCode', rc.currency_code,
                   'taxCode', rci.tax_code,
-                  'tasksUsingRate', coalesce(rt.tasks_using_rate, 0)
+                  'tasksUsingRate', coalesce(rt.tasks_using_rate, 0),
+                  'status', rci.status,
+                  'updatedAt', rci.updated_at
                 )
                 order by rc.client_id nulls first, rci.task_type asc, rci.rate_amount asc
-              ) filter (where rci.id is not null and rc.id is not null),
+              ) filter (
+                where rci.id is not null
+                  and rc.id is not null
+                  and (rci.status = 'active' or rc.client_id is null)
+              ),
               '[]'::jsonb
             ) as rates
           from public.services s
           left join public.rate_card_items rci
             on rci.service_id = s.id
            and rci.tenant_id = s.tenant_id
-           and rci.status = 'active'
+           and rci.status in ('active', 'inactive')
           left join public.rate_cards rc
             on rc.id = rci.rate_card_id
            and rc.tenant_id = rci.tenant_id
@@ -67,7 +78,54 @@ export class TenantAdminServicesRepository {
         `,
         [context.tenantId],
       );
-      return result.rows;
+      return result.rows.map((row) => ({ ...row, rates: dedupeRates(row.rates) }));
+    });
+  }
+
+  async setRateItemStatus(
+    context: TenantAdminRequestContext,
+    serviceId: string,
+    rateItemId: string,
+    status: "active" | "inactive",
+  ): Promise<TenantAdminServiceTaskStatusResponseDto> {
+    return this.withContext(context, async (client) => {
+      const found = await client.query<{ id: string; task_type: string }>(
+        `
+          select rci.id::text, rci.task_type
+          from public.rate_card_items rci
+          join public.rate_cards rc on rc.id = rci.rate_card_id and rc.tenant_id = rci.tenant_id
+          where rci.tenant_id = $1
+            and rci.id = $2
+            and rci.service_id = $3
+            and rc.client_id is null
+          for update of rci
+        `,
+        [context.tenantId, rateItemId, serviceId],
+      );
+      const item = found.rows[0];
+      if (!item) {
+        throw new NotFoundException({ code: "SERVICE_TASK_NOT_AVAILABLE", message: "Select a task from this tenant service." });
+      }
+      await client.query(
+        "update public.rate_card_items set status = $3, updated_at = now() where tenant_id = $1 and id = $2",
+        [context.tenantId, rateItemId, status],
+      );
+      await client.query(
+        `
+          update public.compliance_calendar_rules
+          set status = $4, updated_at = now()
+          where tenant_id = $1
+            and service_id = $2
+            and task_type = $3
+            and status <> $4
+        `,
+        [context.tenantId, serviceId, item.task_type, status],
+      );
+      await client.query(
+        "select audit.write_audit_event('SERVICE_TASK_STATUS_UPDATED', 'service', $1::uuid, 'succeeded', null, $2::jsonb)",
+        [serviceId, JSON.stringify({ rateItemId, taskType: item.task_type, status })],
+      );
+      return { rateItemId, taskType: item.task_type, status };
     });
   }
 
@@ -181,7 +239,8 @@ export class TenantAdminServicesRepository {
                 'rateAmount', rci.rate_amount::float,
                 'currencyCode', rc.currency_code,
                 'taxCode', rci.tax_code,
-                'tasksUsingRate', 0
+                'tasksUsingRate', 0,
+                'status', rci.status
               )
             ) filter (where rci.id is not null and rc.id is not null),
             '[]'::jsonb
@@ -208,6 +267,21 @@ export class TenantAdminServicesRepository {
     if (!this.pool) throw databaseNotConfigured();
     return withDatabaseTransaction(this.pool, context, (_tx, client) => work(client));
   }
+}
+
+function dedupeRates(rates: readonly (TenantAdminServiceRateDto & { updatedAt: string })[]): TenantAdminServiceRateDto[] {
+  const byKey = new Map<string, TenantAdminServiceRateDto & { updatedAt: string }>();
+  for (const rate of rates) {
+    const key = `${rate.clientName ?? ""}|${rate.taskType.toLowerCase()}`;
+    const existing = byKey.get(key);
+    const winsOverExisting =
+      !existing ||
+      (rate.status === "active" && existing.status !== "active") ||
+      (rate.status === existing.status && rate.updatedAt > existing.updatedAt);
+    if (winsOverExisting) byKey.set(key, rate);
+  }
+  const kept = new Set([...byKey.values()].map((rate) => rate.id));
+  return rates.filter((rate) => kept.has(rate.id)).map(({ updatedAt: _updatedAt, ...rate }) => rate);
 }
 
 function normalizeServiceCode(name: string): string {

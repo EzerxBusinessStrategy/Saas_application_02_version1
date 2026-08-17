@@ -29,6 +29,7 @@ export function ServiceEmployeeSelector({
           {employees.map((employee) => (
             <option key={employee.employeeId} value={employee.employeeId}>
               {employee.name}
+              {employee.departmentName ? ` · ${employee.departmentName}` : ""}
               {employee.serviceCapable ? " · handles this service" : ""}
               {` · ${employee.activeTasks} active tasks · ${employee.weeklyCapacityHours}h/week`}
             </option>
@@ -37,6 +38,7 @@ export function ServiceEmployeeSelector({
       </label>
       {selected ? (
         <p className="mt-2 text-sm text-muted-foreground">
+          {selected.departmentName ? `${selected.departmentName} department. ` : ""}
           {selected.serviceCapable ? "Mapped to this service." : "Not mapped to this service; still available because no specialist is set."}{" "}
           {selected.activeTasks} open tasks, {selected.weeklyCapacityHours}h weekly capacity.
         </p>

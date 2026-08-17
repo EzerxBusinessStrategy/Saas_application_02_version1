@@ -149,7 +149,7 @@ export function TenantTasksPage() {
       <PageHeader
         eyebrow="Delivery"
         title="Tasks"
-        description="Review client service requests, allot the responsible employee, and approve finished work. Design status: Pending Figma verification."
+        description="Review client service requests, allot the responsible employee, and approve finished work."
       />
       <ResponsiveTabs
         label="Client work queue"

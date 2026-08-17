@@ -13,9 +13,6 @@ export class ClientPortalDashboardServiceTaskDto {
   @ApiProperty({ type: String }) status!: string;
   @ApiPropertyOptional({ type: String, nullable: true }) plannedDueAt!: string | null;
   @ApiProperty({ type: Number }) rateAmount!: number;
-  @ApiProperty({ type: Number }) discountAmount!: number;
-  @ApiPropertyOptional({ type: String, nullable: true }) discountType!: string | null;
-  @ApiPropertyOptional({ type: Number, nullable: true }) discountValue!: number | null;
   @ApiProperty({ type: String }) currencyCode!: string;
 }
 

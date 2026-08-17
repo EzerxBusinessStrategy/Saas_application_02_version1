@@ -213,6 +213,15 @@ const tenantAdminItemsByLabel = new Map(
     .map((item) => [item.label, item]),
 );
 
+const tenantTasksItem = tenantAdminItemsByLabel.get("Tasks");
+if (tenantTasksItem) {
+  tenantAdminItemsByLabel.set("Task request", {
+    ...tenantTasksItem,
+    label: "Task request",
+    labelKey: "Navigation.taskRequest",
+  });
+}
+
 const tenantAdminItem = (label: string) => tenantAdminItemsByLabel.get(label);
 const tenantAdminGroup = (
   label: string,
@@ -238,9 +247,9 @@ const tenantAdminNavigation = [
     "Agreements",
   ]),
   tenantAdminGroup("Operations", ClipboardList, [
-    "Tasks",
-    "Calendar",
     "Services",
+    "Task request",
+    "Calendar",
   ]),
   tenantAdminGroup(
     "Finance & Documents",

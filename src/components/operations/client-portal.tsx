@@ -111,7 +111,7 @@ export function ClientPortal({
         ? "custom"
         : period.source
       : preset;
-  const periodDescription = `Showing ${formatLocalIsoDate(period.from)} – ${formatLocalIsoDate(period.to)} (${periodSourceLabel(period.source)}). Design status: Pending Figma verification.`;
+  const periodDescription = `Showing ${formatLocalIsoDate(period.from)} – ${formatLocalIsoDate(period.to)} (${periodSourceLabel(period.source)}).`;
 
   function applyRange(from: string, to: string, nextPreset: ClientDashboardPreset) {
     if (!from || !to || from > to || isoDateDiffDays(from, to) > CLIENT_DASHBOARD_MAX_SPAN_DAYS) {
@@ -340,7 +340,6 @@ function ClientServices({
         </CardTitle>
         <CardDescription>
           Each month shows its price so you can see what to pay this month, next month, and in total.
-          Design status: Pending Figma verification.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -348,7 +347,7 @@ function ClientServices({
           <ul className="flex flex-col divide-y">
             {services.map((service) => {
               const currency = service.currencyCode ?? "INR";
-              const schedule = summarizeClientServiceSchedule(service.tasks);
+              const schedule = summarizeClientServiceSchedule(service.tasks, service.discountPercent);
               return (
                 <li key={service.id} className="py-4 first:pt-0">
                   <div className="flex items-start justify-between gap-3">
@@ -683,7 +682,7 @@ function ClientRequests({
     >
       <DialogContent
         title="Request services"
-        description="Choose from the tenant service list. You can change tasks, dates, and prices before sending. Design status: Pending Figma verification."
+        description="Choose from the tenant service list. You can change tasks, dates, and prices before sending."
         className="max-h-[90vh] w-[min(42rem,calc(100vw-2rem))] max-w-2xl overflow-y-auto"
       >
         <div className="grid min-w-0 gap-5 pr-8">

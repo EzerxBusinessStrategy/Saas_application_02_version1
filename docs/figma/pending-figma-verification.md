@@ -111,8 +111,11 @@ Design status: Pending Figma verification.
   StatusBadge, and TaskDetailsDrawer. Figma MCP was not used.
 - Client Active services lists every taken month with its price. This month
   due and next month due are the remaining open installments for those months.
-  Total task amount is the sum of listed prices. Any billing discount is shown
-  separately with the discount percent, then Amount due. Assigned employees are
+  Total task amount is the sum of listed prices. A discount row appears only
+  when the tenant entered a discount percent while accepting the request; the
+  backend stores that percent on the engagement configuration and computes the
+  amount. Invoice discounts stay on invoices and never appear here. Assigned
+  employees are
   not shown to clients. The Service catalogue card was removed from this page
   because clients already tick services from Requests. Comments notify Tenant
   Admins and Owners with the client name. Reuses Card, StatusBadge, Button, and

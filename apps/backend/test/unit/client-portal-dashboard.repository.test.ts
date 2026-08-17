@@ -8,13 +8,13 @@ test("client dashboard queries use the authenticated account's business client s
   expect(source).toContain("resolveClientPortalScope");
   expect(source).toContain("context.clientId");
   expect(source).toContain("rateAmount");
-  expect(source).toContain("discountAmount");
-  expect(source).toContain("bte.discount_amount");
   expect(source).toContain("as task_total");
-  expect(source).toContain("as discount_total");
-  expect(source).toContain("as amount_due");
-  expect(source).toContain("as total_due");
   expect(source).toContain("rci.rate_amount");
+  // The client-visible discount comes from the engagement configuration the
+  // tenant approved, never from invoice-level billable-entry discounts.
+  expect(source).toContain("esc.discount_percent");
+  expect(source).not.toContain("bte.discount_amount");
+  expect(source).not.toContain("bte.discount_type");
   expect(source).toContain("coalesce(t.planned_due_at::date, t.created_at::date) between $3::date and $4::date");
   expect(source).toContain("as pending_tasks");
   expect(source).toContain("as completed_tasks");

@@ -45,7 +45,10 @@ export class ClientPortalDashboardService {
         const completedTasks = Number(service.completed_tasks);
         const totalTasks = Number(service.total_tasks);
         const tasks = parseServiceTasks(service.tasks);
-        const pricing = summarizeClientServicePricing(tasks);
+        const pricing = summarizeClientServicePricing(
+          tasks,
+          toFiniteNumber(service.discount_percent) ?? 0,
+        );
         return {
           id: service.id,
           engagementName: service.engagement_name,
@@ -114,9 +117,6 @@ function parseServiceTasks(value: unknown): ClientPortalDashboardServiceTaskDto[
         status,
         plannedDueAt: toIsoDateTime(record.plannedDueAt),
         rateAmount: toFiniteNumber(record.rateAmount) ?? 0,
-        discountAmount: toFiniteNumber(record.discountAmount) ?? 0,
-        discountType: typeof record.discountType === "string" ? record.discountType : null,
-        discountValue: toFiniteNumber(record.discountValue),
         currencyCode,
       },
     ];

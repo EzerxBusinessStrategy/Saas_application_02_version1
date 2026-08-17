@@ -461,6 +461,7 @@ export class ClientServiceRequestsRepository {
       idempotencyKey: request.id,
       countryCode: request.country_code,
       currencyCode: request.currency_code as ActivateClientServicesRequest["currencyCode"],
+      discountPercent: input.discountPercent,
       services: mapped.services.map((service) => {
         const assignedEmployeeId = assignmentByService.get(service.serviceId);
         if (!assignedEmployeeId) {

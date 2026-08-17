@@ -88,6 +88,7 @@ export async function acceptTenantServiceRequest(
   requestId: string,
   input: {
     remarks?: string;
+    discountPercent?: number;
     assignments: readonly { serviceId: string; assignedEmployeeId: string }[];
   },
 ): Promise<TenantServiceRequest> {

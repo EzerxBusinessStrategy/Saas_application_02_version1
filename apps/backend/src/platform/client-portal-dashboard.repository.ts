@@ -21,9 +21,6 @@ type ServiceTaskJson = {
   status: string;
   plannedDueAt: string | Date | null;
   rateAmount?: number | string;
-  discountAmount?: number | string;
-  discountType?: string | null;
-  discountValue?: number | string | null;
   currencyCode?: string;
 };
 
@@ -38,9 +35,8 @@ type ServiceRow = {
   total_tasks: string;
   assigned_employee_name: string | null;
   estimated_total: string | null;
+  discount_percent: string | null;
   task_total: string;
-  discount_total: string;
-  total_due: string;
   currency_code: string | null;
   tasks: readonly ServiceTaskJson[] | string;
 };
@@ -283,9 +279,8 @@ export class ClientPortalDashboardRepository {
           coalesce(sum(service_scope.total_tasks), 0)::text as total_tasks,
           max(assigned.assigned_employee_name) as assigned_employee_name,
           max(assigned.estimated_total) as estimated_total,
+          max(assigned.discount_percent) as discount_percent,
           coalesce((array_agg(service_tasks.task_total))[1], 0)::text as task_total,
-          coalesce((array_agg(service_tasks.discount_total))[1], 0)::text as discount_total,
-          coalesce((array_agg(service_tasks.amount_due))[1], 0)::text as total_due,
           max(assigned.currency_code) as currency_code,
           coalesce((array_agg(service_tasks.tasks))[1], '[]'::json) as tasks
         from service_scope
@@ -296,6 +291,7 @@ export class ClientPortalDashboardRepository {
           select
             coalesce(tm.display_name, u.display_name, emp.employee_code) as assigned_employee_name,
             esc.estimated_total::text as estimated_total,
+            esc.discount_percent::text as discount_percent,
             esc.currency_code
           from public.engagements e
           join public.engagement_service_configurations esc
@@ -325,18 +321,13 @@ export class ClientPortalDashboardRepository {
                 'status', priced.status,
                 'plannedDueAt', priced.planned_due_at,
                 'rateAmount', priced.rate_amount,
-                'discountAmount', priced.discount_amount,
-                'discountType', priced.discount_type,
-                'discountValue', priced.discount_value,
                 'currencyCode', priced.currency_code
               )
               order by priced.planned_due_at nulls last, priced.title
             ),
             '[]'::json
           ) as tasks,
-          coalesce(sum(priced.rate_amount), 0) as task_total,
-          coalesce(sum(priced.discount_amount), 0) as discount_total,
-          greatest(coalesce(sum(priced.rate_amount), 0) - coalesce(sum(priced.discount_amount), 0), 0) as amount_due
+          coalesce(sum(priced.rate_amount), 0) as task_total
           from (
             select
               t.id,
@@ -348,9 +339,6 @@ export class ClientPortalDashboardRepository {
                 max(rci.rate_amount),
                 0
               ) as rate_amount,
-              coalesce(max(bte.discount_amount) filter (where bte.id is not null), 0) as discount_amount,
-              max(bte.discount_type) filter (where bte.id is not null) as discount_type,
-              max(bte.discount_value) filter (where bte.id is not null) as discount_value,
               coalesce(
                 max(nullif(bte.currency_code, '')) filter (where bte.id is not null),
                 'INR'

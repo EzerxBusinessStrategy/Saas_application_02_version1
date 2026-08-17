@@ -6,12 +6,10 @@ import {
   summarizeClientServiceSchedule,
 } from "@/features/client-portal/client-service-pricing";
 
-test("sums listed task prices and keeps discount separate with a package percent", () => {
+test("sums listed task prices and applies the tenant-provided discount percent after the total", () => {
   const summary = summarizeClientServicePricing(
-    Array.from({ length: 8 }, () => ({
-      rateAmount: 100_000,
-      discountAmount: 2_500,
-    })),
+    Array.from({ length: 8 }, () => ({ rateAmount: 100_000 })),
+    2.5,
   );
 
   expect(summary.taskTotal).toBe(800_000);
@@ -21,9 +19,9 @@ test("sums listed task prices and keeps discount separate with a package percent
   expect(formatDiscountPercent(summary.discountPercent)).toBe("2.5%");
 });
 
-test("omits discount percent when no discount was given", () => {
+test("omits discount when the tenant did not provide one", () => {
   const summary = summarizeClientServicePricing([
-    { rateAmount: 10_000, discountAmount: 0 },
+    { rateAmount: 10_000 },
     { rateAmount: 150_000 },
   ]);
 
@@ -53,6 +51,7 @@ test("this month due is remaining open work in the current month and next month 
         status: "assigned",
       },
     ],
+    0,
     now,
   );
 

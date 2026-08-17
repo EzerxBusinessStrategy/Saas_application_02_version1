@@ -138,6 +138,7 @@ function RequestReviewDialog({
   onChanged: () => void;
 }) {
   const [remarks, setRemarks] = useState("");
+  const [discountInput, setDiscountInput] = useState("");
   const [assignments, setAssignments] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const open = Boolean(request);
@@ -158,10 +159,16 @@ function RequestReviewDialog({
 
   async function accept() {
     if (!request) return;
+    const discountPercent = parseDiscountPercent(discountInput);
+    if (discountPercent === "invalid") {
+      toast.error("Discount must be a number between 0 and 100.");
+      return;
+    }
     setSaving(true);
     try {
       await acceptTenantServiceRequest(request.id, {
         remarks: remarks.trim() || undefined,
+        discountPercent,
         assignments: request.services.map((service) => ({
           serviceId: service.serviceId,
           assignedEmployeeId: assignments[service.serviceId] ?? "",
@@ -170,6 +177,7 @@ function RequestReviewDialog({
       toast.success(request.kind === "custom" ? "Custom request accepted." : "Services activated and tasks created.");
       onOpenChange(false);
       setRemarks("");
+      setDiscountInput("");
       setAssignments({});
       onChanged();
     } catch (error) {
@@ -190,6 +198,7 @@ function RequestReviewDialog({
       toast.success("Request rejected.");
       onOpenChange(false);
       setRemarks("");
+      setDiscountInput("");
       setAssignments({});
       onChanged();
     } catch (error) {
@@ -205,6 +214,7 @@ function RequestReviewDialog({
       onOpenChange={(next) => {
         if (!next) {
           setRemarks("");
+          setDiscountInput("");
           setAssignments({});
         }
         onOpenChange(next);
@@ -265,6 +275,25 @@ function RequestReviewDialog({
             )}
             {request.status === "submitted" ? (
               <>
+                {request.kind === "catalogue" ? (
+                  <label className="text-sm font-medium">
+                    Discount (%)
+                    <Input
+                      className="mt-1"
+                      type="number"
+                      inputMode="decimal"
+                      min={0}
+                      max={100}
+                      step="0.01"
+                      placeholder="No discount"
+                      value={discountInput}
+                      onChange={(event) => setDiscountInput(event.target.value)}
+                    />
+                    <span className="mt-1 block text-xs font-normal text-muted-foreground">
+                      Optional. Applied to each accepted service&apos;s task total and shown to the client.
+                    </span>
+                  </label>
+                ) : null}
                 <label className="text-sm font-medium">
                   Remarks
                   <Input className="mt-1" value={remarks} onChange={(event) => setRemarks(event.target.value)} />
@@ -304,6 +333,15 @@ function mapStatus(status: TenantServiceRequest["status"]) {
       return exhaustive;
     }
   }
+}
+
+function parseDiscountPercent(value: string): number | undefined | "invalid" {
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  const parsed = Number(trimmed);
+  if (!Number.isFinite(parsed) || parsed < 0 || parsed > 100) return "invalid";
+  const rounded = Math.round(parsed * 100) / 100;
+  return rounded > 0 ? rounded : undefined;
 }
 
 function formatMoney(amount: number, currencyCode: string) {

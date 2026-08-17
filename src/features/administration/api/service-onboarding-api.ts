@@ -99,6 +99,7 @@ const serviceOnboardingAssigneesSchema = z.object({
     z.object({
       employeeId: z.string(),
       name: z.string(),
+      departmentName: z.string().nullable().catch(null),
       serviceCapable: z.boolean(),
       activeTasks: z.number(),
       weeklyCapacityHours: z.number(),
