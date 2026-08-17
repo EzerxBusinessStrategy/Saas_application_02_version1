@@ -2,19 +2,25 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { sessionCookieForPortal, type PortalKey } from "@/lib/auth-cookies";
 import { backendApiBaseUrl } from "@/lib/server/backend-api-url";
+import {
+  backendStartingMessage,
+  isBackendStartingResponse,
+  parseBackendJson,
+} from "@/lib/server/backend-response";
 
 const portalHeader: Record<PortalKey, string> = { "super-admin": "super-admin", tenant: "admin", employee: "employee", client: "client" };
+const loginRetryDelaysMs = [2_000, 4_000, 8_000, 12_000] as const;
 
 export async function loginPortal(portal: PortalKey, request: Request): Promise<NextResponse> {
   try {
-    const backend = await fetch(`${backendApiBaseUrl()}/auth/${portal}/login`, {
-      method: "POST",
-      headers: requestMetadataHeaders(request, { "content-type": "application/json" }),
-      body: await request.text(),
-      cache: "no-store",
-    });
-    const payload = await parseBody(backend);
-    if (!backend.ok || !isLoginResponse(payload)) return NextResponse.json(payload, { status: backend.status });
+    const body = await request.text();
+    const headers = requestMetadataHeaders(request, { "content-type": "application/json" });
+    const { status, payload } = await fetchBackendLogin(portal, headers, body);
+    if (!isLoginResponse(payload)) {
+      const starting = payload && typeof payload === "object" && "message" in payload
+        && (payload as { message?: unknown }).message === backendStartingMessage;
+      return NextResponse.json(payload, { status: starting ? 503 : status });
+    }
     const response = NextResponse.json({ redirect: payload.redirect });
     response.cookies.set(sessionCookieForPortal(portal), payload.token, { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", path: "/", expires: new Date(payload.expiresAt) });
     return response;
@@ -55,7 +61,7 @@ export async function proxyPortalBackend(portal: PortalKey, options: { path: str
     headers.set("cookie", `${sessionCookieForPortal(portal)}=${encodeURIComponent(token)}`);
     headers.set("x-portal", portalHeader[portal]);
     const backend = await fetch(`${backendApiBaseUrl()}${options.path}`, { ...options.init, headers, cache: "no-store" });
-    const response = NextResponse.json(await parseBody(backend), { status: backend.status });
+    const response = NextResponse.json(parseBackendJson(backend.status, await backend.text()), { status: backend.status });
     if (backend.status === 401) response.cookies.set(sessionCookieForPortal(portal), "", { maxAge: 0, path: "/" });
     return response;
   } catch {
@@ -63,15 +69,46 @@ export async function proxyPortalBackend(portal: PortalKey, options: { path: str
   }
 }
 
-async function parseBody(response: Response): Promise<unknown> {
-  if (response.status === 204) return {};
-  const text = await response.text();
-  if (!text) return { message: "Backend returned an empty response." };
-  try { return JSON.parse(text); } catch { return { message: "Backend returned an invalid response." }; }
+async function fetchBackendLogin(
+  portal: PortalKey,
+  headers: Headers,
+  body: string,
+): Promise<{ status: number; payload: unknown }> {
+  let lastStatus = 503;
+  let lastPayload: unknown = { message: backendStartingMessage };
+
+  for (let attempt = 0; attempt <= loginRetryDelaysMs.length; attempt += 1) {
+    const backend = await fetch(`${backendApiBaseUrl()}/auth/${portal}/login`, {
+      method: "POST",
+      headers,
+      body,
+      cache: "no-store",
+    });
+    const text = await backend.text();
+    lastStatus = backend.status;
+    lastPayload = parseBackendJson(backend.status, text);
+    if (!isBackendStartingResponse(backend.status, text)) {
+      return { status: backend.status, payload: lastPayload };
+    }
+    const delay = loginRetryDelaysMs[attempt];
+    if (delay === undefined) break;
+    await new Promise((resolve) => setTimeout(resolve, delay));
+  }
+
+  return { status: lastStatus, payload: lastPayload };
 }
 
 function isLoginResponse(value: unknown): value is { token: string; expiresAt: string; redirect: string } {
-  return typeof value === "object" && value !== null && typeof (value as Record<string, unknown>).token === "string" && typeof (value as Record<string, unknown>).expiresAt === "string" && typeof (value as Record<string, unknown>).redirect === "string";
+  if (typeof value !== "object" || value === null) return false;
+  const record = value as Record<string, unknown>;
+  const expiresAt =
+    typeof record.expiresAt === "string"
+      ? record.expiresAt
+      : record.expiresAt instanceof Date
+        ? record.expiresAt.toISOString()
+        : undefined;
+  if (expiresAt) record.expiresAt = expiresAt;
+  return typeof record.token === "string" && typeof expiresAt === "string" && typeof record.redirect === "string";
 }
 
 function requestMetadataHeaders(request: Request, headers: HeadersInit): Headers {

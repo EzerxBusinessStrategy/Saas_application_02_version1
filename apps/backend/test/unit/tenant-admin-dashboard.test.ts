@@ -1,10 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
 import type { Pool } from "pg";
 import { RequestContext } from "../../src/auth/request-context";
+import { tenantAdminDashboardQuerySchema } from "../../src/platform/tenant-admin-dashboard.dto";
+import { resolveTenantDashboardPeriod } from "../../src/platform/tenant-admin-dashboard.period";
 import { TenantAdminDashboardService } from "../../src/platform/tenant-admin-dashboard.service";
 import type { DashboardMetricsResult } from "../../src/platform/tenant-admin-dashboard.repository";
 import { TenantAdminDashboardRepository } from "../../src/platform/tenant-admin-dashboard.repository";
 import type { TenantAdminRequestContext } from "../../src/platform/tenant-admin-context";
+
+const period = { from: "2026-04-01", to: "2027-03-31", source: "financial_year" as const };
 
 describe("TenantAdminDashboardService", () => {
   it("rejects platform admin and incomplete tenant contexts before querying", async () => {
@@ -53,6 +57,7 @@ describe("TenantAdminDashboardService", () => {
     const repository = {
       getDashboardData: vi.fn().mockResolvedValue({
         tenant: { id: "tenant-1", name: "Acme Corp", currencyCode: "INR" },
+        period,
         financialYear: { id: "fy-1", label: "FY 2026-27", startsOn: "2026-04-01", endsOn: "2027-03-31" },
         metrics: {
           activeClients: 5,
@@ -118,6 +123,7 @@ describe("TenantAdminDashboardService", () => {
     const result = await service.getDashboard(tenantAdminContext);
 
     expect(result.tenant).toEqual({ id: "tenant-1", name: "Acme Corp", currencyCode: "INR" });
+    expect(result.period).toEqual(period);
     expect(result.financialYear?.label).toBe("FY 2026-27");
     expect(result.financialDataAvailable).toBe(true);
     expect(result.financialDataUnavailableReason).toBeNull();
@@ -150,12 +156,13 @@ describe("TenantAdminDashboardService", () => {
     const repository = {
       getDashboardData: vi.fn().mockResolvedValue({
         tenant: { id: "tenant-2", name: "Stark Industries", currencyCode: "USD" },
+        period: { from: "2026-07-18", to: "2026-08-16", source: "last_30_days" },
         financialYear: null,
         metrics: {
           activeClients: 3,
-          totalSalesAmount: null,
-          collectedAmount: null,
-          outstandingAmount: null,
+          totalSalesAmount: "0.00",
+          collectedAmount: "0.00",
+          outstandingAmount: "0.00",
           currencyCode: "USD",
           openTasks: 8,
         },
@@ -190,15 +197,16 @@ describe("TenantAdminDashboardService", () => {
     const result = await service.getDashboard(tenantAdminContext);
 
     expect(result.financialYear).toBeNull();
+    expect(result.period).toEqual({ from: "2026-07-18", to: "2026-08-16", source: "last_30_days" });
     expect(result.financialDataAvailable).toBe(false);
     expect(result.financialDataUnavailableReason).toBe("CURRENT_FINANCIAL_YEAR_NOT_CONFIGURED");
-    expect(result.metrics.totalSales).toBeNull();
-    expect(result.metrics.outstanding).toBeNull();
+    expect(result.metrics.totalSales).toEqual({ amount: "0.00", currencyCode: "USD" });
+    expect(result.metrics.outstanding).toEqual({ amount: "0.00", currencyCode: "USD" });
     expect(result.metrics.activeClients).toBe(3);
     expect(result.metrics.openTasks).toBe(8);
   });
 
-  it("calculates financial-year metrics without requiring unimplemented credit note tables", async () => {
+  it("calculates period metrics from issued invoices without requiring unimplemented credit note tables", async () => {
     type MetricsClient = {
       query(sqlText: string): Promise<{ rows: Array<Record<string, unknown>> }>;
     };
@@ -229,16 +237,21 @@ describe("TenantAdminDashboardService", () => {
         getMetrics(
           client: MetricsClient,
           tenantId: string,
-          financialYearId: string | undefined,
+          period: { from: string; to: string; source: "query" | "financial_year" | "last_30_days" },
           currencyCode: string,
+          timezone: string,
         ): Promise<DashboardMetricsResult>;
       }
     ).getMetrics.bind(repository);
 
-    const result = await getMetrics(client, "tenant-1", "fy-1", "INR");
+    const result = await getMetrics(client, "tenant-1", period, "INR", "Asia/Kolkata");
 
     expect(queries.join("\n")).not.toContain("public.credit_notes");
     expect(queries.join("\n")).not.toContain("sla_status");
+    expect(queries.join("\n")).toContain("i.tenant_id = $1");
+    expect(queries.join("\n")).toContain("i.issued_on between $2::date and $3::date");
+    expect(queries.join("\n")).toContain("t.tenant_id = $1");
+    expect(queries.join("\n")).not.toContain("i.financial_year_id = $2");
     expect(result.totalSalesAmount).toBe("1000.00");
     expect(result.collectedAmount).toBe("400.00");
     expect(result.outstandingAmount).toBe("600.00");
@@ -274,17 +287,23 @@ describe("TenantAdminDashboardService", () => {
     const repository = new TenantAdminDashboardRepository(null);
     const getRecentActivity = (
       repository as unknown as {
-        getRecentActivity(client: ActivityClient, tenantId: string): Promise<unknown[]>;
+        getRecentActivity(
+          client: ActivityClient,
+          tenantId: string,
+          period: { from: string; to: string; source: "query" | "financial_year" | "last_30_days" },
+          timezone: string,
+        ): Promise<unknown[]>;
       }
     ).getRecentActivity.bind(repository);
 
-    const result = await getRecentActivity(client, "tenant-1");
+    const result = await getRecentActivity(client, "tenant-1", period, "Asia/Kolkata");
 
     expect(queries.join("\n")).toContain("ae.tenant_id = $1");
     expect(queries.join("\n")).toContain("ae.result = 'succeeded'");
     expect(queries.join("\n")).toContain("ae.action <> 'TENANT_ADMIN_LOGGED_IN'");
+    expect(queries.join("\n")).toContain("(ae.created_at at time zone $4)::date between $2::date and $3::date");
     expect(queries.join("\n")).toContain("limit 8");
-    expect(params[0]).toEqual(["tenant-1"]);
+    expect(params[0]).toEqual(["tenant-1", period.from, period.to, "Asia/Kolkata"]);
     expect(result[0]).toMatchObject({ id: "activity-1", resourceType: "task", resourceId: "task-1" });
   });
 
@@ -320,18 +339,23 @@ describe("TenantAdminDashboardService", () => {
     const repository = new TenantAdminDashboardRepository(null);
     const getUpcomingDeadlines = (
       repository as unknown as {
-        getUpcomingDeadlines(client: DeadlineClient, tenantId: string): Promise<unknown[]>;
+        getUpcomingDeadlines(
+          client: DeadlineClient,
+          tenantId: string,
+          period: { from: string; to: string; source: "query" | "financial_year" | "last_30_days" },
+          timezone: string,
+        ): Promise<unknown[]>;
       }
     ).getUpcomingDeadlines.bind(repository);
 
-    const result = await getUpcomingDeadlines(client, "tenant-1");
+    const result = await getUpcomingDeadlines(client, "tenant-1", period, "Asia/Kolkata");
 
     expect(queries.join("\n")).toContain("where t.tenant_id = $1");
     expect(queries.join("\n")).toContain("t.status not in ('completed', 'cancelled')");
-    expect(queries.join("\n")).toContain("t.planned_due_at >= now()");
-    expect(queries.join("\n")).toContain("t.planned_due_at < now() + interval '14 days'");
+    expect(queries.join("\n")).toContain("(t.planned_due_at at time zone $4)::date between $2::date and $3::date");
+    expect(queries.join("\n")).not.toContain("now() + interval '14 days'");
     expect(queries.join("\n")).toContain("c.tenant_id = t.tenant_id");
-    expect(params[0]).toEqual(["tenant-1"]);
+    expect(params[0]).toEqual(["tenant-1", period.from, period.to, "Asia/Kolkata"]);
     expect(result[0]).toMatchObject({ taskTitle: "GST Return Filing", clientName: "ABC Pvt Ltd", assigneeCount: 3 });
   });
 
@@ -392,5 +416,43 @@ describe("TenantAdminDashboardService", () => {
     queries.length = 0;
     await repository.updateTenantProfile(context, "Northstar Advisory");
     expect(queries.some(({ sql }) => sql.includes("audit.write_audit_event"))).toBe(false);
+  });
+});
+
+describe("tenant dashboard date range", () => {
+  it("defaults to the current financial year, otherwise the last 30 days", () => {
+    expect(
+      resolveTenantDashboardPeriod({
+        financialYear: { startsOn: "2026-04-01", endsOn: "2027-03-31" },
+        today: "2026-08-16",
+      }),
+    ).toEqual({ from: "2026-04-01", to: "2027-03-31", source: "financial_year" });
+
+    expect(
+      resolveTenantDashboardPeriod({
+        financialYear: null,
+        today: "2026-08-16",
+      }),
+    ).toEqual({ from: "2026-07-18", to: "2026-08-16", source: "last_30_days" });
+  });
+
+  it("lets an explicit query range override the financial year", () => {
+    expect(
+      resolveTenantDashboardPeriod({
+        from: "2026-08-01",
+        to: "2026-08-16",
+        financialYear: { startsOn: "2026-04-01", endsOn: "2027-03-31" },
+        today: "2026-08-16",
+      }),
+    ).toEqual({ from: "2026-08-01", to: "2026-08-16", source: "query" });
+  });
+
+  it("rejects inverted, incomplete, and oversized dashboard date ranges", () => {
+    expect(tenantAdminDashboardQuerySchema.safeParse({}).success).toBe(true);
+    expect(tenantAdminDashboardQuerySchema.safeParse({ from: "2026-08-01" }).success).toBe(false);
+    expect(tenantAdminDashboardQuerySchema.safeParse({ from: "2026-08-16", to: "2026-08-01" }).success).toBe(false);
+    expect(tenantAdminDashboardQuerySchema.safeParse({ from: "2026-08-01", to: "2026-08-16" }).success).toBe(true);
+    expect(tenantAdminDashboardQuerySchema.safeParse({ from: "2020-01-01", to: "2023-01-02" }).success).toBe(false);
+    expect(tenantAdminDashboardQuerySchema.safeParse({ from: "2014-12-31", to: "2015-01-31" }).success).toBe(false);
   });
 });

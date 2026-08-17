@@ -1,4 +1,5 @@
 import { loadAppConfig } from "../config/app-config";
+import { createPostgresPoolConfig } from "./postgres-connection";
 import { runMigrationsFromConfig } from "./migrations";
 
 async function main(): Promise<void> {
@@ -7,11 +8,12 @@ async function main(): Promise<void> {
   if (!connectionString) {
     throw new Error("BACKEND_DATABASE_MIGRATION_URL or BACKEND_DATABASE_URL is required.");
   }
-  const result = await runMigrationsFromConfig({
-    connectionString,
-    max: 1,
-    application_name: "saas-app-backend-migrator",
-  });
+  const result = await runMigrationsFromConfig(
+    createPostgresPoolConfig(connectionString, {
+      max: 1,
+      application_name: "saas-app-backend-migrator",
+    }),
+  );
   console.log(JSON.stringify(result));
 }
 

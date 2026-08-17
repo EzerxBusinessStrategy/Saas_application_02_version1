@@ -1,9 +1,50 @@
-# Load environment variables from .env file
-Get-Content .env | ForEach-Object {
-    if ($_ -match '^([^#=]+)=(.*)$') {
-        $name = $matches[1].Trim()
-        $value = $matches[2].Trim()
-        [Environment]::SetEnvironmentVariable($name, $value, "Process")
+# Load environment variables from local backend and repo-root env files.
+$scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$repoRoot = Resolve-Path (Join-Path $scriptDir "..\..")
+$envFiles = @(
+    (Join-Path $scriptDir ".env.local"),
+    (Join-Path $scriptDir ".env"),
+    (Join-Path $repoRoot ".env.local"),
+    (Join-Path $repoRoot ".env")
+)
+
+foreach ($envFile in $envFiles) {
+    if (-not (Test-Path $envFile)) {
+        continue
+    }
+    Get-Content $envFile | ForEach-Object {
+        if ($_ -match '^([^#=]+)=(.*)$') {
+            $name = $matches[1].Trim()
+            $value = $matches[2].Trim()
+            if (($value.StartsWith('"') -and $value.EndsWith('"')) -or ($value.StartsWith("'") -and $value.EndsWith("'"))) {
+                $value = $value.Substring(1, $value.Length - 2)
+            }
+            [Environment]::SetEnvironmentVariable($name, $value, "Process")
+        }
+    }
+}
+
+# Ensure Supabase database URLs use an IPv4-compatible pooler host on Windows.
+$ensurePoolerScript = Join-Path $scriptDir "scripts/ensure-pooler-database-url.mjs"
+if (Test-Path $ensurePoolerScript) {
+    node $ensurePoolerScript | Out-Host
+    if ($LASTEXITCODE -ne 0) {
+        throw "Failed to normalize Supabase database URLs. See ensure-pooler-database-url.mjs output."
+    }
+    foreach ($envFile in $envFiles) {
+        if (-not (Test-Path $envFile)) {
+            continue
+        }
+        Get-Content $envFile | ForEach-Object {
+            if ($_ -match '^([^#=]+)=(.*)$') {
+                $name = $matches[1].Trim()
+                $value = $matches[2].Trim()
+                if (($value.StartsWith('"') -and $value.EndsWith('"')) -or ($value.StartsWith("'") -and $value.EndsWith("'"))) {
+                    $value = $value.Substring(1, $value.Length - 2)
+                }
+                [Environment]::SetEnvironmentVariable($name, $value, "Process")
+            }
+        }
     }
 }
 

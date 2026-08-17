@@ -15,10 +15,12 @@ function portalForPathname(pathname: string): "super-admin" | "tenant" | "employ
   if (pathname.startsWith("/super-admin")) return "super-admin";
   if (pathname.startsWith("/admin")) return "tenant";
   if (pathname.startsWith("/client")) return "client";
+  if (pathname.startsWith("/employee") || pathname.startsWith("/manager")) return "employee";
   return "employee";
 }
 
 function loginPathForPathname(pathname: string): string {
+  if (pathname === "/login") return "/login";
   if (pathname.startsWith("/super-admin")) return "/super-admin/login";
   if (pathname.startsWith("/admin")) return "/admin/login";
   if (pathname.startsWith("/client")) return "/client/login";

@@ -69,7 +69,17 @@ Design status: Pending Figma verification.
   screens. They are inferred design-system implementations, not pixel-perfect
   Figma matches.
 
-## Client catalogue request compositions
+## Tenant dashboard date filter and request comments
+
+Design status: Pending Figma verification.
+
+- Tenant Admin operations overview date-range filter (presets and custom From/To)
+  reuses PageHeader, FilterToolbar, Input, Select, and Button. Metrics, deadlines,
+  and activity are loaded from the tenant-scoped dashboard API for the selected
+  dates. Figma MCP was not used.
+- Client request send now opens ConfirmationDialog for a required comment. Tenant
+  Service requests show that comment with the request. Figma MCP was not used.
+
 
 Design status: Pending Figma verification.
 

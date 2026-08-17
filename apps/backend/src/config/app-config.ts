@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { z } from "zod";
+import { normalizeSupabaseDatabaseUrl } from "../database/postgres-connection";
 
 export type AppEnvironment = "development" | "test" | "staging" | "production";
 export type LogLevel = "fatal" | "error" | "warn" | "info" | "debug" | "trace" | "silent";
@@ -17,6 +18,7 @@ export type AppConfig = {
   readonly trustProxy: boolean;
   readonly databaseUrl?: string;
   readonly databaseMigrationUrl?: string;
+  readonly databasePoolerHost?: string;
   readonly databasePoolMax: number;
   readonly supabaseUrl?: string;
   readonly supabaseAnonKey?: string;
@@ -71,6 +73,7 @@ const rawEnvSchema = z
     BACKEND_TRUST_PROXY: z.enum(["true", "false"]).default("false"),
     BACKEND_DATABASE_URL: optionalString,
     BACKEND_DATABASE_MIGRATION_URL: optionalString,
+    BACKEND_DATABASE_POOLER_HOST: optionalString,
     BACKEND_DATABASE_POOL_MAX: z.coerce.number().int().min(1).max(50).default(5),
     BACKEND_SUPABASE_URL: optionalUrl,
     BACKEND_SUPABASE_ANON_KEY: optionalString,
@@ -120,7 +123,11 @@ const rawEnvSchema = z
   });
 
 export function loadAppConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
-  const parsed = rawEnvSchema.safeParse(env === process.env ? loadEnvFiles(env) : env);
+  const source = env === process.env ? loadEnvFiles(env) : env;
+  const parsed = rawEnvSchema.safeParse({
+    ...source,
+    BACKEND_PORT: source.BACKEND_PORT || source.PORT,
+  });
   if (!parsed.success) {
     throw new ConfigValidationError(
       parsed.error.issues.map((issue) => ({
@@ -142,8 +149,15 @@ export function loadAppConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     publicAppUrl: parsed.data.BACKEND_PUBLIC_APP_URL,
     requestBodyLimitBytes: parsed.data.BACKEND_REQUEST_BODY_LIMIT_BYTES,
     trustProxy: parsed.data.BACKEND_TRUST_PROXY === "true",
-    databaseUrl: parsed.data.BACKEND_DATABASE_URL,
-    databaseMigrationUrl: parsed.data.BACKEND_DATABASE_MIGRATION_URL,
+    databaseUrl: normalizeSupabaseDatabaseUrl(
+      parsed.data.BACKEND_DATABASE_URL,
+      parsed.data.BACKEND_DATABASE_POOLER_HOST,
+    ),
+    databaseMigrationUrl: normalizeSupabaseDatabaseUrl(
+      parsed.data.BACKEND_DATABASE_MIGRATION_URL,
+      parsed.data.BACKEND_DATABASE_POOLER_HOST,
+    ),
+    databasePoolerHost: parsed.data.BACKEND_DATABASE_POOLER_HOST,
     databasePoolMax: parsed.data.BACKEND_DATABASE_POOL_MAX,
     supabaseUrl: parsed.data.BACKEND_SUPABASE_URL,
     supabaseAnonKey: parsed.data.BACKEND_SUPABASE_ANON_KEY,

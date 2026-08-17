@@ -1,17 +1,12 @@
+import { cache } from "react";
 import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
-import {
-  clientSessionCookie,
-  employeeSessionCookie,
-  superAdminSessionCookie,
-  tenantSessionCookie,
-} from "@/lib/auth-cookies";
+import { notFound, redirect } from "next/navigation";
+import { sessionCookieForPortal, type PortalKey } from "@/lib/auth-cookies";
 import { locales, timezones, type AppLocale, type AppTimezone } from "@/i18n/config";
 import { rolePermissions } from "@/lib/permissions";
 import { backendApiBaseUrl } from "@/lib/server/backend-api-url";
+import { normalizeAppWorkspace } from "@/lib/workspace-routing";
 import { roles, type Role, type User, type Workspace } from "@/types/domain";
-
-type PortalKey = "super-admin" | "tenant" | "employee" | "client";
 
 const portalForWorkspace: Record<Workspace, PortalKey> = {
   "super-admin": "super-admin",
@@ -29,13 +24,6 @@ const loginForWorkspace: Record<Workspace, string> = {
   client: "/client/login",
 };
 
-const cookieForPortal: Record<PortalKey, string> = {
-  "super-admin": superAdminSessionCookie,
-  tenant: tenantSessionCookie,
-  employee: employeeSessionCookie,
-  client: clientSessionCookie,
-};
-
 const rolesForWorkspace: Record<Workspace, readonly Role[]> = {
   "super-admin": ["SUPER_ADMIN"],
   admin: ["TENANT_OWNER", "TENANT_ADMIN", "FINANCE_USER", "HR_OPERATIONS_USER"],
@@ -50,16 +38,20 @@ type MeResponse = {
   readonly preferences?: { readonly locale?: unknown; readonly timezone?: unknown };
 };
 
-export async function getAuthenticatedWorkspaceUser(workspace: Workspace): Promise<User> {
+export const getAuthenticatedWorkspaceUser = cache(async (workspaceInput: Workspace | string): Promise<User> => {
+  const workspace = normalizeAppWorkspace(workspaceInput);
+  if (!workspace) notFound();
+
   const portal = portalForWorkspace[workspace];
-  const token = (await cookies()).get(cookieForPortal[portal])?.value;
+  const cookieName = sessionCookieForPortal(portal);
+  const token = (await cookies()).get(cookieName)?.value;
   if (!token) redirect(loginForWorkspace[workspace]);
 
   let response: Response;
   try {
     response = await fetch(`${backendApiBaseUrl()}/me`, {
       headers: {
-        cookie: `${cookieForPortal[portal]}=${encodeURIComponent(token)}`,
+        cookie: `${cookieName}=${encodeURIComponent(token)}`,
         "x-portal": portal === "tenant" ? "admin" : portal,
       },
       cache: "no-store",
@@ -93,7 +85,7 @@ export async function getAuthenticatedWorkspaceUser(workspace: Workspace): Promi
     permissions: [...new Set(activeRoles.flatMap((activeRole) => rolePermissions[activeRole]))],
     preferences: preferencesFrom(profile.preferences),
   };
-}
+});
 
 function initialsFor(name: string): string {
   return name.split(" ").filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase();

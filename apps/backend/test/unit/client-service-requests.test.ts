@@ -38,7 +38,7 @@ const catalogueInput: CreateClientServiceRequest = {
   countryCode: "IN",
   currencyCode: "INR",
   title: "GST services",
-  description: "",
+  description: "Please allot GST filing for this quarter.",
   services: [
     {
       serviceId,
@@ -63,7 +63,7 @@ function requestRow(status: "submitted" | "accepted" | "rejected" = "submitted")
     id: requestId,
     kind: "catalogue" as const,
     title: "GST services",
-    description: "",
+    description: "Please allot GST filing for this quarter.",
     status,
     client_id: clientId,
     client_name: "Acme Operations",
@@ -166,6 +166,7 @@ describe("ClientServiceRequestsRepository", () => {
     expect(client.query.mock.calls.some((call) => String(call[0]).includes("insert into public.client_service_requests"))).toBe(true);
     const insertValues = client.query.mock.calls.find((call) => String(call[0]).includes("insert into public.client_service_requests"))?.[1];
     expect(insertValues?.[1]).toBe(clientId);
+    expect(insertValues?.[4]).toBe("Please allot GST filing for this quarter.");
   });
 
   it("replays the same idempotency key without inserting another request", async () => {

@@ -46,7 +46,13 @@ export function PortalLoginForm({ portal }: { portal: PortalKey }) {
       });
       const body = await response.json().catch(() => null) as { redirect?: string; message?: string; error?: { message?: string } } | null;
       if (!response.ok || !body?.redirect) {
-        setError(body?.error?.message ?? body?.message ?? "Unable to sign in.");
+        setError(
+          body?.error?.message ??
+            body?.message ??
+            (response.status === 503
+              ? "The API is starting up. Wait about 30 seconds and sign in again."
+              : "Unable to sign in."),
+        );
         return;
       }
       window.location.assign(body.redirect);

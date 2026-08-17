@@ -235,8 +235,8 @@ const tenantAdminGroup = (
 const tenantAdminNavigation = [
   tenantAdminItem("Dashboard"),
   tenantAdminGroup("People & Teams", Users, [
-    "Employees",
     "Departments",
+    "Employees",
     "Managers",
     "Employee Performance",
   ]),

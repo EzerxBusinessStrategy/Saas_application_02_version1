@@ -1,7 +1,12 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { RequestContext } from "../auth/request-context";
 import { requireTenantAdminContext } from "./tenant-admin-context";
-import { TenantAdminDashboardResponseDto, TenantProfileDto, UpdateTenantProfileRequest } from "./tenant-admin-dashboard.dto";
+import {
+  TenantAdminDashboardQuery,
+  TenantAdminDashboardResponseDto,
+  TenantProfileDto,
+  UpdateTenantProfileRequest,
+} from "./tenant-admin-dashboard.dto";
 import { TenantAdminDashboardRepository } from "./tenant-admin-dashboard.repository";
 
 @Injectable()
@@ -11,9 +16,12 @@ export class TenantAdminDashboardService {
     private readonly repository: TenantAdminDashboardRepository,
   ) {}
 
-  async getDashboard(context: RequestContext): Promise<TenantAdminDashboardResponseDto> {
+  async getDashboard(
+    context: RequestContext,
+    query: TenantAdminDashboardQuery = {},
+  ): Promise<TenantAdminDashboardResponseDto> {
     const tenantContext = requireTenantAdminContext(context);
-    const data = await this.repository.getDashboardData(tenantContext);
+    const data = await this.repository.getDashboardData(tenantContext, query);
     const hasFinancialYear = data.financialYear !== null;
 
     return {
@@ -21,6 +29,11 @@ export class TenantAdminDashboardService {
         id: data.tenant.id,
         name: data.tenant.name,
         currencyCode: data.tenant.currencyCode,
+      },
+      period: {
+        from: data.period.from,
+        to: data.period.to,
+        source: data.period.source,
       },
       financialYear: data.financialYear
         ? {
@@ -37,7 +50,7 @@ export class TenantAdminDashboardService {
       metrics: {
         activeClients: data.metrics.activeClients,
         totalSales:
-          hasFinancialYear && data.metrics.totalSalesAmount !== null
+          data.metrics.totalSalesAmount !== null
             ? {
                 amount: data.metrics.totalSalesAmount,
                 currencyCode: data.metrics.currencyCode,
@@ -45,7 +58,7 @@ export class TenantAdminDashboardService {
             : null,
         openTasks: data.metrics.openTasks,
         outstanding:
-          hasFinancialYear && data.metrics.outstandingAmount !== null
+          data.metrics.outstandingAmount !== null
             ? {
                 amount: data.metrics.outstandingAmount,
                 currencyCode: data.metrics.currencyCode,

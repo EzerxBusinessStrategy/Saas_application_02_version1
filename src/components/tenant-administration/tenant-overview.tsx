@@ -1,7 +1,10 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import { CalendarClock, CheckCircle2, RefreshCw, ShieldAlert } from "lucide-react";
+import { EmptyState } from "@/components/shared/empty-state";
+import { FilterToolbar } from "@/components/shared/filter-toolbar";
 import { MetricCard } from "@/components/shared/metric-card";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
@@ -12,6 +15,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 
 type DashboardResponse = {
   tenant: {
@@ -74,6 +79,11 @@ type DashboardResponse = {
     workGroupName: string | null;
     assigneeCount: number;
   }[];
+  period: {
+    from: string;
+    to: string;
+    source: "query" | "financial_year" | "last_30_days";
+  };
 };
 
 function formatMoney(amount: string, currencyCode: string): string {
@@ -86,19 +96,6 @@ function formatMoney(amount: string, currencyCode: string): string {
     }).format(num);
   } catch {
     return `${currencyCode} ${num.toFixed(2)}`;
-  }
-}
-
-function formatDate(dateStr: string): string {
-  try {
-    const date = new Date(dateStr);
-    return new Intl.DateTimeFormat(undefined, {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    }).format(date);
-  } catch {
-    return dateStr;
   }
 }
 
@@ -128,7 +125,9 @@ function relativeTime(value: string): string {
 }
 
 function timeRemaining(value: string): string {
-  const minutes = Math.max(0, Math.ceil((new Date(value).getTime() - Date.now()) / 60_000));
+  const diff = new Date(value).getTime() - Date.now();
+  if (diff <= 0) return "Overdue";
+  const minutes = Math.ceil(diff / 60_000);
   if (minutes < 60) return `${minutes} min remaining`;
   const hours = Math.ceil(minutes / 60);
   if (hours < 24) return `${hours} hr${hours === 1 ? "" : "s"} remaining`;
@@ -140,18 +139,87 @@ function humanise(value: string): string {
   return value.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
+function formatLocalIsoDate(isoDate: string): string {
+  const [year, month, day] = isoDate.split("-").map(Number);
+  if (!year || !month || !day) return isoDate;
+  return new Intl.DateTimeFormat(undefined, {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(new Date(year, month - 1, day));
+}
+
+function toLocalIsoDate(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function addLocalIsoDays(isoDate: string, days: number): string {
+  const [year, month, day] = isoDate.split("-").map(Number);
+  const date = new Date(year, (month ?? 1) - 1, day ?? 1);
+  date.setDate(date.getDate() + days);
+  return toLocalIsoDate(date);
+}
+
+function isoDateDiffDays(from: string, to: string): number {
+  const start = Date.parse(`${from}T00:00:00.000Z`);
+  const end = Date.parse(`${to}T00:00:00.000Z`);
+  return Math.round((end - start) / 86_400_000);
+}
+
+function periodSourceLabel(
+  period: DashboardResponse["period"],
+  financialYear: DashboardResponse["financialYear"],
+): string {
+  switch (period.source) {
+    case "financial_year":
+      return "current financial year";
+    case "last_30_days":
+      return "last 30 days";
+    case "query":
+      if (
+        financialYear &&
+        period.from === financialYear.startsOn &&
+        period.to === financialYear.endsOn
+      ) {
+        return "current financial year";
+      }
+      return "selected dates";
+    default: {
+      const exhaustive: never = period.source;
+      return exhaustive;
+    }
+  }
+}
+
+type DashboardPreset = "custom" | "this_month" | "last_30_days" | "financial_year";
+
 export function TenantAdministrationOverview() {
-  const { data, isLoading, isError, refetch } = useQuery<DashboardResponse>({
-    queryKey: ["tenant-operations-overview"],
+  const [applied, setApplied] = useState<{ from?: string; to?: string }>({});
+  const [draftFrom, setDraftFrom] = useState<string | null>(null);
+  const [draftTo, setDraftTo] = useState<string | null>(null);
+  const [preset, setPreset] = useState<DashboardPreset>("custom");
+  const query = useQuery<DashboardResponse>({
+    queryKey: ["tenant-operations-overview", applied.from ?? "", applied.to ?? ""],
     queryFn: async () => {
-      const res = await fetch("/api/admin/operations-overview", { cache: "no-store" });
+      const params = new URLSearchParams();
+      if (applied.from && applied.to) {
+        params.set("from", applied.from);
+        params.set("to", applied.to);
+      }
+      const suffix = params.toString() ? `?${params.toString()}` : "";
+      const res = await fetch(`/api/admin/operations-overview${suffix}`, { cache: "no-store" });
       if (!res.ok) throw new Error("Failed to load operations overview");
       return res.json();
     },
+    placeholderData: keepPreviousData,
     staleTime: 10000,
   });
+  const { data, isLoading, isError, isFetching, refetch } = query;
 
-  if (isLoading) {
+  if (isLoading && !data) {
     return <TenantOverviewSkeleton />;
   }
 
@@ -168,20 +236,83 @@ export function TenantAdministrationOverview() {
     );
   }
 
-  const { metrics, financialYear, financialDataAvailable, recentActivity: rawRecentActivity, tenant, organisationSetup, upcomingDeadlines } = data;
+  const { metrics, financialYear, financialDataAvailable, recentActivity: rawRecentActivity, tenant, organisationSetup, upcomingDeadlines, period } = data;
   const currency = tenant.currencyCode || "INR";
   const recentActivity = rawRecentActivity.map((item) => ({ ...item, action: item.label }));
   const setupComplete = organisationSetup.completed === organisationSetup.total;
+  const fromValue = draftFrom ?? period.from;
+  const toValue = draftTo ?? period.to;
+  const incompleteRange = Boolean(fromValue) !== Boolean(toValue);
+  const invertedRange = Boolean(fromValue && toValue && fromValue > toValue);
+  const oversizedRange = Boolean(fromValue && toValue && isoDateDiffDays(fromValue, toValue) > 731);
+  const invalidRange = incompleteRange || invertedRange || oversizedRange;
+  const filtersDirty = fromValue !== period.from || toValue !== period.to;
+  const periodLabel = periodSourceLabel(period, financialYear);
+  const selectValue: DashboardPreset =
+    draftFrom === null && draftTo === null
+      ? period.source === "query"
+        ? "custom"
+        : period.source
+      : preset;
+  const hasFilteredRecords =
+    metrics.activeClients > 0 ||
+    metrics.openTasks > 0 ||
+    Number(metrics.totalSales?.amount ?? 0) > 0 ||
+    upcomingDeadlines.length > 0 ||
+    recentActivity.length > 0;
 
-  const financialYearText = financialYear
-    ? `${financialYear.label} (${formatDate(financialYear.startsOn)} – ${formatDate(financialYear.endsOn)})`
-    : null;
+  function applyRange(from: string, to: string, nextPreset: DashboardPreset) {
+    if (!from || !to || from > to || isoDateDiffDays(from, to) > 731) return;
+    setDraftFrom(from);
+    setDraftTo(to);
+    setPreset(nextPreset);
+    setApplied({ from, to });
+  }
+
+  function applyDraft() {
+    applyRange(fromValue, toValue, "custom");
+  }
+
+  function applyPreset(next: DashboardPreset) {
+    switch (next) {
+      case "custom":
+        setPreset("custom");
+        return;
+      case "financial_year":
+        if (!financialYear) return;
+        applyRange(financialYear.startsOn, financialYear.endsOn, "financial_year");
+        return;
+      case "last_30_days": {
+        const today = toLocalIsoDate(new Date());
+        applyRange(addLocalIsoDays(today, -29), today, "last_30_days");
+        return;
+      }
+      case "this_month": {
+        const today = toLocalIsoDate(new Date());
+        const monthStart = `${today.slice(0, 8)}01`;
+        const monthEndDate = new Date(Number(today.slice(0, 4)), Number(today.slice(5, 7)), 0);
+        applyRange(monthStart, toLocalIsoDate(monthEndDate), "this_month");
+        return;
+      }
+      default: {
+        const exhaustive: never = next;
+        return exhaustive;
+      }
+    }
+  }
+
+  function resetPeriod() {
+    setDraftFrom(null);
+    setDraftTo(null);
+    setPreset("custom");
+    setApplied({});
+  }
 
   const cards = [
     {
       label: "Active clients",
       value: metrics.activeClients.toString(),
-      change: metrics.activeClients > 0 ? `+${metrics.activeClients} active` : "0 active clients",
+      change: metrics.activeClients > 0 ? "With work or billing in this period" : "None in this period",
       trend: metrics.activeClients > 0 ? ("up" as const) : ("flat" as const),
     },
     {
@@ -189,13 +320,13 @@ export function TenantAdministrationOverview() {
       value: metrics.totalSales
         ? formatMoney(metrics.totalSales.amount, metrics.totalSales.currencyCode || currency)
         : "Not available",
-      change: financialYear ? financialYear.label : "Financial year unconfigured",
+      change: "Invoices issued in this period",
       trend: metrics.totalSales && Number(metrics.totalSales.amount) > 0 ? ("up" as const) : ("flat" as const),
     },
     {
       label: "Open tasks",
       value: metrics.openTasks.toString(),
-      change: metrics.openTasks > 0 ? "Awaiting completion" : "No open tasks",
+      change: metrics.openTasks > 0 ? "Due or created in this period" : "None in this period",
       trend: metrics.openTasks > 0 ? ("up" as const) : ("flat" as const),
     },
     {
@@ -203,7 +334,7 @@ export function TenantAdministrationOverview() {
       value: metrics.outstanding
         ? formatMoney(metrics.outstanding.amount, metrics.outstanding.currencyCode || currency)
         : "Not available",
-      change: metrics.outstanding && Number(metrics.outstanding.amount) > 0 ? "Pending collection" : "0 outstanding",
+      change: metrics.outstanding && Number(metrics.outstanding.amount) > 0 ? "Unpaid in this period" : "0 outstanding",
       trend: metrics.outstanding && Number(metrics.outstanding.amount) > 0 ? ("down" as const) : ("flat" as const),
     },
   ];
@@ -213,19 +344,77 @@ export function TenantAdministrationOverview() {
       <PageHeader
         eyebrow={`Tenant Admin · ${tenant.name}`}
         title="Operations overview"
-        description={
-          financialYearText
-            ? `Current Financial Year: ${financialYearText}`
-            : "Monitor client delivery, workforce capacity, billing follow-up, and organisation readiness."
-        }
+        description={`Showing ${formatLocalIsoDate(period.from)} – ${formatLocalIsoDate(period.to)} (${periodLabel}). Design status: Pending Figma verification.`}
       />
+
+      <FilterToolbar
+        activeFilterCount={applied.from && applied.to ? 1 : 0}
+        onClear={resetPeriod}
+        trailing={
+          <Button type="button" disabled={!filtersDirty || invalidRange || isFetching} onClick={applyDraft}>
+            Apply dates
+          </Button>
+        }
+      >
+        <label className="text-sm font-medium">
+          Period
+          <Select
+            className="mt-1"
+            aria-label="Dashboard date preset"
+            value={selectValue}
+            onChange={(event) => applyPreset(event.target.value as DashboardPreset)}
+          >
+            <option value="custom">Custom range</option>
+            <option value="this_month">This month</option>
+            <option value="last_30_days">Last 30 days</option>
+            <option value="financial_year" disabled={!financialYear}>
+              Current financial year
+            </option>
+          </Select>
+        </label>
+        <label className="text-sm font-medium">
+          From
+          <Input
+            className="mt-1"
+            type="date"
+            aria-label="Dashboard from date"
+            value={fromValue}
+            onChange={(event) => {
+              setPreset("custom");
+              setDraftFrom(event.target.value);
+            }}
+          />
+        </label>
+        <label className="text-sm font-medium">
+          To
+          <Input
+            className="mt-1"
+            type="date"
+            aria-label="Dashboard to date"
+            value={toValue}
+            onChange={(event) => {
+              setPreset("custom");
+              setDraftTo(event.target.value);
+            }}
+          />
+        </label>
+        {invalidRange ? (
+          <p className="text-sm text-muted-foreground sm:col-span-2 xl:col-span-1">
+            {incompleteRange
+              ? "Choose both a start and end date."
+              : invertedRange
+                ? "The end date must be on or after the start date."
+                : "The range cannot exceed 731 days."}
+          </p>
+        ) : null}
+      </FilterToolbar>
 
       {!financialDataAvailable ? (
         <div className="flex items-center gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-4 text-amber-600 dark:text-amber-400" role="alert">
           <ShieldAlert className="size-5 shrink-0" aria-hidden="true" />
           <div>
             <p className="font-semibold">Current financial year not configured</p>
-            <p className="text-sm">Current financial year is not configured for this tenant. Please contact the Super Admin.</p>
+            <p className="text-sm">Sales still use the selected dates. Ask Super Admin to configure the financial year if you want that default range.</p>
           </div>
         </div>
       ) : null}
@@ -233,6 +422,7 @@ export function TenantAdministrationOverview() {
       <section
         className="grid overflow-hidden rounded-[var(--radius-card)] border border-border bg-border sm:grid-cols-2 lg:grid-cols-4"
         aria-label="Tenant administration metrics"
+        aria-busy={isFetching}
       >
         {cards.map((metric) => (
           <MetricCard
@@ -242,6 +432,12 @@ export function TenantAdministrationOverview() {
           />
         ))}
       </section>
+      {!hasFilteredRecords ? (
+        <EmptyState
+          title="No matching records in this date range"
+          description="Try another period. Organisation setup below is current and is not date filtered."
+        />
+      ) : null}
       <section className="grid gap-[30px] xl:grid-cols-[0.95fr_1.05fr]">
         <Card>
           <CardHeader>
@@ -286,17 +482,18 @@ export function TenantAdministrationOverview() {
                 className="size-[18px] text-primary"
                 aria-hidden="true"
               />
-              Upcoming deadlines
+              Deadlines in this period
             </CardTitle>
             <CardDescription>
-              Client milestones and operational follow-ups in the next delivery window.
+              Open tasks due between {formatLocalIsoDate(period.from)} and {formatLocalIsoDate(period.to)}.
             </CardDescription>
           </CardHeader>
           <CardContent>
             {upcomingDeadlines.length === 0 ? (
-              <div className="py-6 text-center text-sm text-muted-foreground">
-                No upcoming deadlines found.
-              </div>
+              <EmptyState
+                title="No deadlines in this period"
+                description="Open tasks with due dates in the selected range will appear here."
+              />
             ) : (
               <ol className="flex flex-col gap-4 text-sm">
                 {upcomingDeadlines.map((item) => (
@@ -322,14 +519,17 @@ export function TenantAdministrationOverview() {
       <section>
         <Card>
           <CardHeader>
-            <CardTitle>Recent activity</CardTitle>
+            <CardTitle>Activity in this period</CardTitle>
             <CardDescription>
-              Changes requiring a traceable follow-up.
+              Traceable changes between {formatLocalIsoDate(period.from)} and {formatLocalIsoDate(period.to)}.
             </CardDescription>
           </CardHeader>
           <CardContent>
             {recentActivity.length === 0 ? (
-              <p className="py-6 text-center text-sm text-muted-foreground">No recent activity recorded.</p>
+              <EmptyState
+                title="No activity in this period"
+                description="Tenant audit events in the selected range will appear here."
+              />
             ) : (
               <ol className="flex flex-col gap-4 text-sm">
                 {recentActivity.map((item) => (

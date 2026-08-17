@@ -4,6 +4,7 @@ import { Pool } from "pg";
 import { APP_CONFIG, AppConfigModule } from "../config/app-config.module";
 import { AppConfig } from "../config/app-config";
 import { DATABASE_POOL, DRIZZLE_DB } from "./database.tokens";
+import { createPostgresPoolConfig } from "./postgres-connection";
 import * as schema from "./schema";
 
 @Module({
@@ -16,15 +17,12 @@ import * as schema from "./schema";
         if (!config.databaseUrl) {
           return null;
         }
-        return new Pool({
-          connectionString: config.databaseUrl,
-          max: config.databasePoolMax,
-          idleTimeoutMillis: 30_000,
-          connectionTimeoutMillis: 5_000,
-          keepAlive: true,
-          keepAliveInitialDelayMillis: 10_000,
-          application_name: "saas-app-backend-api",
-        });
+        return new Pool(
+          createPostgresPoolConfig(config.databaseUrl, {
+            max: config.databasePoolMax,
+            application_name: "saas-app-backend-api",
+          }),
+        );
       },
     },
     {

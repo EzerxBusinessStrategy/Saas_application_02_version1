@@ -32,7 +32,7 @@ export const createClientServiceRequestSchema = z
     countryCode: isoCountry.default("IN"),
     currencyCode: z.enum(["INR", "USD", "GBP"]).default("INR"),
     title: z.string().trim().min(2).max(160).optional(),
-    description: z.string().trim().max(2000).optional().default(""),
+    description: z.string().trim().min(2).max(2000),
     services: z.array(createClientServiceRequestItemSchema).max(20).optional().default([]),
   })
   .superRefine((value, context) => {
@@ -43,21 +43,12 @@ export const createClientServiceRequestSchema = z
         path: ["services"],
       });
     }
-    if (value.kind === "custom") {
-      if (!value.title) {
-        context.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: "Title is required.",
-          path: ["title"],
-        });
-      }
-      if (!value.description?.trim()) {
-        context.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: "Description is required.",
-          path: ["description"],
-        });
-      }
+    if (value.kind === "custom" && !value.title) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Title is required.",
+        path: ["title"],
+      });
     }
   });
 export type CreateClientServiceRequest = z.infer<typeof createClientServiceRequestSchema>;

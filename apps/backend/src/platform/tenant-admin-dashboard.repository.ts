@@ -4,16 +4,17 @@ import { databaseNotConfigured } from "../auth/auth-errors";
 import { DATABASE_POOL } from "../database/database.tokens";
 import { withDatabaseTransaction } from "../database/transaction-context";
 import { TenantAdminRequestContext } from "./tenant-admin-context";
+import { TenantAdminDashboardQuery } from "./tenant-admin-dashboard.dto";
+import { DashboardPeriod, resolveTenantDashboardPeriod, utcTodayIso } from "./tenant-admin-dashboard.period";
 
 export type TenantInfoResult = {
   readonly id: string;
   readonly name: string;
   readonly currencyCode: string;
-};
-
-export type TenantProfileResult = TenantInfoResult & {
   readonly timezone: string;
 };
+
+export type TenantProfileResult = TenantInfoResult;
 
 export type FinancialYearInfoResult = {
   readonly id: string;
@@ -66,6 +67,7 @@ export type UpcomingDeadlineResult = {
 
 export type TenantAdminDashboardData = {
   readonly tenant: TenantInfoResult;
+  readonly period: DashboardPeriod;
   readonly financialYear: FinancialYearInfoResult | null;
   readonly metrics: DashboardMetricsResult;
   readonly recentActivity: readonly RecentActivityResult[];
@@ -77,7 +79,10 @@ export type TenantAdminDashboardData = {
 export class TenantAdminDashboardRepository {
   constructor(@Inject(DATABASE_POOL) private readonly pool: Pool | null) {}
 
-  async getDashboardData(context: TenantAdminRequestContext): Promise<TenantAdminDashboardData> {
+  async getDashboardData(
+    context: TenantAdminRequestContext,
+    query: TenantAdminDashboardQuery = {},
+  ): Promise<TenantAdminDashboardData> {
     if (!this.pool) throw databaseNotConfigured();
 
     return withDatabaseTransaction(this.pool, context, async (_tx, client) => {
@@ -86,13 +91,22 @@ export class TenantAdminDashboardRepository {
 
       const tenant = await this.getTenantInfo(client, tenantId);
       const financialYear = await this.getCurrentFinancialYear(client, tenantId);
-      const metrics = await this.getMetrics(client, tenantId, financialYear?.id, tenant.currencyCode);
-      const recentActivity = await this.getRecentActivity(client, tenantId);
+      const today = await this.getCurrentDate(client);
+      const period = resolveTenantDashboardPeriod({
+        from: query.from,
+        to: query.to,
+        financialYear,
+        today,
+      });
+      const timezone = tenant.timezone || "UTC";
+      const metrics = await this.getMetrics(client, tenantId, period, tenant.currencyCode, timezone);
+      const recentActivity = await this.getRecentActivity(client, tenantId, period, timezone);
       const organisationSetup = await this.getOrganisationSetup(client, tenantId);
-      const upcomingDeadlines = await this.getUpcomingDeadlines(client, tenantId);
+      const upcomingDeadlines = await this.getUpcomingDeadlines(client, tenantId, period, timezone);
 
       return {
         tenant,
+        period,
         financialYear,
         metrics,
         recentActivity,
@@ -158,9 +172,18 @@ export class TenantAdminDashboardRepository {
   }
 
   private async getTenantInfo(client: PoolClient, tenantId: string): Promise<TenantInfoResult> {
-    const result = await client.query<{ id: string; name: string; currency_code: string | null }>(
+    const result = await client.query<{
+      id: string;
+      name: string;
+      currency_code: string | null;
+      timezone: string | null;
+    }>(
       `
-        select id::text, display_name as name, coalesce(currency, 'INR') as currency_code
+        select
+          id::text,
+          display_name as name,
+          coalesce(currency, 'INR') as currency_code,
+          coalesce(timezone, 'UTC') as timezone
         from public.tenants
         where id = $1
       `,
@@ -168,9 +191,19 @@ export class TenantAdminDashboardRepository {
     );
     const row = result.rows[0];
     if (!row) {
-      return { id: tenantId, name: "Tenant", currencyCode: "INR" };
+      return { id: tenantId, name: "Tenant", currencyCode: "INR", timezone: "UTC" };
     }
-    return { id: row.id, name: row.name, currencyCode: row.currency_code ?? "INR" };
+    return {
+      id: row.id,
+      name: row.name,
+      currencyCode: row.currency_code ?? "INR",
+      timezone: row.timezone || "UTC",
+    };
+  }
+
+  private async getCurrentDate(client: PoolClient): Promise<string> {
+    const result = await client.query<{ today: string }>("select current_date::text as today");
+    return result.rows[0]?.today ?? utcTodayIso();
   }
 
   private async getTenantProfileRow(client: PoolClient, tenantId: string): Promise<TenantProfileResult> {
@@ -220,34 +253,10 @@ export class TenantAdminDashboardRepository {
   private async getMetrics(
     client: PoolClient,
     tenantId: string,
-    financialYearId: string | undefined,
+    period: DashboardPeriod,
     currencyCode: string,
+    timezone: string,
   ): Promise<DashboardMetricsResult> {
-    if (!financialYearId) {
-      const opResult = await client.query<{
-        active_clients: number;
-        open_tasks: number;
-      }>(
-        `
-          select
-            (select count(*)::int from public.clients where tenant_id = $1 and status = 'active') as active_clients,
-            (select count(*)::int from public.tasks where tenant_id = $1 and status not in ('completed', 'cancelled')) as open_tasks
-        `,
-        [tenantId],
-      );
-
-      const row = opResult.rows[0];
-
-      return {
-        activeClients: Number(row?.active_clients ?? 0),
-        totalSalesAmount: null,
-        collectedAmount: null,
-        outstandingAmount: null,
-        currencyCode,
-        openTasks: Number(row?.open_tasks ?? 0),
-      };
-    }
-
     const query = `
       with scoped_invoices as (
         select i.id, i.tenant_id
@@ -255,7 +264,7 @@ export class TenantAdminDashboardRepository {
         where i.tenant_id = $1
           and i.finalized_at is not null
           and i.status not in ('draft', 'cancelled', 'void')
-          and i.financial_year_id = $2
+          and i.issued_on between $2::date and $3::date
       ), invoice_gross as (
         select coalesce(sum(ii.gross_amount - ii.discount_amount), 0)::numeric as sales
         from scoped_invoices si
@@ -266,10 +275,46 @@ export class TenantAdminDashboardRepository {
         join scoped_invoices si on si.id = p.invoice_id and si.tenant_id = p.tenant_id
       )
       select
-        (select count(*)::int from public.clients where tenant_id = $1 and status = 'active') as active_clients,
+        (
+          select count(distinct c.id)::int
+          from public.clients c
+          where c.tenant_id = $1
+            and c.status = 'active'
+            and (
+              (c.created_at at time zone $4)::date between $2::date and $3::date
+              or exists (
+                select 1
+                from public.tasks t
+                where t.tenant_id = c.tenant_id
+                  and t.client_id = c.id
+                  and t.status <> 'cancelled'
+                  and coalesce(
+                    (t.planned_due_at at time zone $4)::date,
+                    (t.created_at at time zone $4)::date
+                  ) between $2::date and $3::date
+              )
+              or exists (
+                select 1
+                from public.invoices i
+                where i.tenant_id = c.tenant_id
+                  and i.client_id = c.id
+                  and i.status not in ('draft', 'cancelled', 'void')
+                  and i.issued_on between $2::date and $3::date
+              )
+            )
+        ) as active_clients,
         (select sales from invoice_gross) as total_sales,
         (select collected from payment_total) as collected,
-        (select count(*)::int from public.tasks where tenant_id = $1 and status not in ('completed', 'cancelled')) as open_tasks;
+        (
+          select count(*)::int
+          from public.tasks t
+          where t.tenant_id = $1
+            and t.status not in ('completed', 'cancelled')
+            and coalesce(
+              (t.planned_due_at at time zone $4)::date,
+              (t.created_at at time zone $4)::date
+            ) between $2::date and $3::date
+        ) as open_tasks;
     `;
 
     const result = await client.query<{
@@ -277,7 +322,7 @@ export class TenantAdminDashboardRepository {
       total_sales: string | number | null;
       collected: string | number | null;
       open_tasks: number;
-    }>(query, [tenantId, financialYearId]);
+    }>(query, [tenantId, period.from, period.to, timezone]);
 
     const row = result.rows[0];
     const rawSales = Math.max(0, Number(row?.total_sales ?? 0));
@@ -294,7 +339,12 @@ export class TenantAdminDashboardRepository {
     };
   }
 
-  private async getRecentActivity(client: PoolClient, tenantId: string): Promise<readonly RecentActivityResult[]> {
+  private async getRecentActivity(
+    client: PoolClient,
+    tenantId: string,
+    period: DashboardPeriod,
+    timezone: string,
+  ): Promise<readonly RecentActivityResult[]> {
     const result = await client.query<{
       id: string;
       action: string;
@@ -320,10 +370,11 @@ export class TenantAdminDashboardRepository {
         where ae.tenant_id = $1
           and ae.result = 'succeeded'
           and ae.action <> 'TENANT_ADMIN_LOGGED_IN'
+          and (ae.created_at at time zone $4)::date between $2::date and $3::date
         order by ae.created_at desc
         limit 8
       `,
-      [tenantId],
+      [tenantId, period.from, period.to, timezone],
     );
 
     return result.rows.map((row) => ({
@@ -407,7 +458,12 @@ export class TenantAdminDashboardRepository {
     };
   }
 
-  private async getUpcomingDeadlines(client: PoolClient, tenantId: string): Promise<readonly UpcomingDeadlineResult[]> {
+  private async getUpcomingDeadlines(
+    client: PoolClient,
+    tenantId: string,
+    period: DashboardPeriod,
+    timezone: string,
+  ): Promise<readonly UpcomingDeadlineResult[]> {
     const result = await client.query<{
       id: string;
       task_id: string;
@@ -445,8 +501,8 @@ export class TenantAdminDashboardRepository {
          and ta.status = 'active'
         where t.tenant_id = $1
           and t.status not in ('completed', 'cancelled')
-          and t.planned_due_at >= now()
-          and t.planned_due_at < now() + interval '14 days'
+          and t.planned_due_at is not null
+          and (t.planned_due_at at time zone $4)::date between $2::date and $3::date
         group by
           t.id,
           t.title,
@@ -460,7 +516,7 @@ export class TenantAdminDashboardRepository {
           t.planned_due_at asc
         limit 8
       `,
-      [tenantId],
+      [tenantId, period.from, period.to, timezone],
     );
 
     return result.rows.map((row) => ({

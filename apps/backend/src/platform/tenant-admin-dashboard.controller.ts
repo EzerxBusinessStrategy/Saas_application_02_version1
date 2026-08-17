@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Inject, Patch, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Inject, Patch, Query, UseGuards } from "@nestjs/common";
 import {
   ApiBearerAuth,
   ApiForbiddenResponse,
@@ -15,7 +15,14 @@ import { CurrentRequestContext } from "../auth/request-context.decorator";
 import { RequestContext } from "../auth/request-context";
 import { ApiErrorResponseDto } from "../common/errors/api-error.dto";
 import { ZodValidationPipe } from "../common/validation/zod-validation.pipe";
-import { TenantAdminDashboardResponseDto, TenantProfileDto, updateTenantProfileSchema, UpdateTenantProfileRequest } from "./tenant-admin-dashboard.dto";
+import {
+  TenantAdminDashboardQuery,
+  TenantAdminDashboardResponseDto,
+  TenantProfileDto,
+  tenantAdminDashboardQuerySchema,
+  updateTenantProfileSchema,
+  UpdateTenantProfileRequest,
+} from "./tenant-admin-dashboard.dto";
 import { TenantAdminDashboardService } from "./tenant-admin-dashboard.service";
 
 @ApiTags("Tenant Admin")
@@ -34,8 +41,11 @@ export class TenantAdminDashboardController {
   @ApiOkResponse({ type: TenantAdminDashboardResponseDto })
   @ApiUnauthorizedResponse({ type: ApiErrorResponseDto })
   @ApiForbiddenResponse({ type: ApiErrorResponseDto })
-  getDashboard(@CurrentRequestContext() context: RequestContext): Promise<TenantAdminDashboardResponseDto> {
-    return this.service.getDashboard(context);
+  getDashboard(
+    @CurrentRequestContext() context: RequestContext,
+    @Query(new ZodValidationPipe(tenantAdminDashboardQuerySchema)) query: TenantAdminDashboardQuery,
+  ): Promise<TenantAdminDashboardResponseDto> {
+    return this.service.getDashboard(context, query);
   }
 
   @Get("profile")

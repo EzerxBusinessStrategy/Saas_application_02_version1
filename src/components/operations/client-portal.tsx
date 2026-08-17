@@ -25,6 +25,7 @@ import {
 import { EmptyState } from "@/components/shared/empty-state";
 import { ErrorState } from "@/components/shared/error-state";
 import { LoadingState } from "@/components/shared/loading-state";
+import { ConfirmationDialog } from "@/components/shared/confirmation-dialog";
 import { MetricCard } from "@/components/shared/metric-card";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatusBadge } from "@/components/shared/status-badge";
@@ -293,10 +294,11 @@ function ClientRequests({
   onChanged?: () => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [commentOpen, setCommentOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [drafts, setDrafts] = useState<Record<string, ClientServiceDraftTask[]>>({});
   const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
+  const [comment, setComment] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const catalogueQuery = useQuery({
     queryKey: ["client-service-catalogue"],
@@ -312,12 +314,13 @@ function ClientRequests({
   const catalogue = catalogueQuery.data?.services ?? [];
   const selected = catalogue.filter((service) => selectedIds.includes(service.serviceId));
   const listed = compact
-    ? requests
+    ? requests.map((request) => ({ ...request, comment: undefined as string | undefined }))
     : [
         ...(requestQuery.data ?? []).map((request) => ({
           id: request.id,
           title: request.title,
           status: request.status,
+          comment: request.description.trim() || undefined,
           serviceName:
             request.services.map((service) => service.serviceName).join(", ") || "Custom request",
           countryCode: request.countryCode,
@@ -325,11 +328,13 @@ function ClientRequests({
           submittedAt: request.submittedAt,
           updatedAt: request.updatedAt,
         })),
-        ...requests.filter((request) => !(requestQuery.data ?? []).some((item) => item.id === request.id)),
+        ...requests
+          .filter((request) => !(requestQuery.data ?? []).some((item) => item.id === request.id))
+          .map((request) => ({ ...request, comment: undefined as string | undefined })),
       ];
   const canSend =
     (selected.length > 0 && selected.every((service) => (drafts[service.serviceId] ?? []).some((task) => task.enabled))) ||
-    (title.trim().length >= 2 && description.trim().length >= 2);
+    title.trim().length >= 2;
 
   function toggleService(serviceId: string, checked: boolean) {
     setSelectedIds((current) =>
@@ -342,7 +347,7 @@ function ClientRequests({
   }
 
   async function submit() {
-    if (!canSend) return;
+    if (!canSend || comment.trim().length < 2) return;
     setSubmitting(true);
     try {
       await createClientCatalogueRequest({
@@ -354,7 +359,7 @@ function ClientRequests({
             ? selected[0].currencyCode
             : "INR",
         title: title.trim() || undefined,
-        description: description.trim(),
+        description: comment.trim(),
         services: selected.map((service) => ({
           serviceId: service.serviceId,
           tasks: (drafts[service.serviceId] ?? catalogueTasks(service.tasks)).map((task) => ({
@@ -370,11 +375,12 @@ function ClientRequests({
         })),
       });
       toast.success("Request sent. The tenant will allot the responsible person before work is created.");
+      setCommentOpen(false);
       setOpen(false);
       setSelectedIds([]);
       setDrafts({});
       setTitle("");
-      setDescription("");
+      setComment("");
       onChanged?.();
       void requestQuery.refetch();
     } catch (error) {
@@ -409,6 +415,9 @@ function ClientRequests({
                     <p className="mt-1 text-sm text-muted-foreground">
                       {request.serviceName} · {request.countryCode}
                     </p>
+                    {request.comment ? (
+                      <p className="mt-1 text-sm">Comment: {request.comment}</p>
+                    ) : null}
                     <p className="mt-1 text-sm text-muted-foreground">
                       Updated {formatDate(request.updatedAt)}
                     </p>
@@ -427,14 +436,15 @@ function ClientRequests({
       </CardContent>
     </Card>
     <Dialog
-      open={open}
+      open={open && !commentOpen}
       onOpenChange={(next) => {
         setOpen(next);
         if (!next) {
           setSelectedIds([]);
           setDrafts({});
           setTitle("");
-          setDescription("");
+          setComment("");
+          setCommentOpen(false);
         }
       }}
     >
@@ -492,23 +502,39 @@ function ClientRequests({
             Custom request title
             <Input className="mt-1" value={title} onChange={(event) => setTitle(event.target.value)} />
           </label>
-          <label className="text-sm font-medium">
-            Custom request details
-            <textarea
-              className="mt-1 min-h-28 w-full rounded-[var(--radius-control)] border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              value={description}
-              onChange={(event) => setDescription(event.target.value)}
-            />
-          </label>
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-            <Button disabled={submitting || !canSend} onClick={() => void submit()}>
-              {submitting ? "Sending..." : "Send request"}
+            <Button disabled={submitting || !canSend} onClick={() => setCommentOpen(true)}>
+              Send request
             </Button>
           </div>
         </div>
       </DialogContent>
     </Dialog>
+    <ConfirmationDialog
+      open={commentOpen}
+      onOpenChange={(next) => {
+        setCommentOpen(next);
+      }}
+      title="Add a comment"
+      description="This note is sent to the tenant with your service request."
+      confirmLabel="Send request"
+      isConfirming={submitting}
+      confirmDisabled={comment.trim().length < 2}
+      onConfirm={() => void submit()}
+    >
+      <label className="text-sm font-medium">
+        Comment
+        <textarea
+          className="mt-1 min-h-24 w-full rounded-[var(--radius-control)] border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          value={comment}
+          maxLength={2000}
+          aria-label="Comment for the tenant"
+          placeholder="Tell the tenant what you need."
+          onChange={(event) => setComment(event.target.value)}
+        />
+      </label>
+    </ConfirmationDialog>
     </>
   );
 }

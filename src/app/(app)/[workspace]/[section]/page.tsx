@@ -6,6 +6,7 @@ import { SectionSkeleton } from "@/components/shared/section-skeleton";
 import { ManagerDirectory } from "@/components/tenant-administration/workforce-administration";
 import { sectionAccess } from "@/lib/route-access";
 import { getAuthenticatedWorkspaceUser } from "@/lib/server/authenticated-workspace-user";
+import { normalizeAppWorkspace } from "@/lib/workspace-routing";
 import type { Workspace } from "@/types/domain";
 
 const dynamicSection = (load: () => Promise<{ default: ComponentType<any> }>) =>
@@ -65,9 +66,12 @@ const FinanceDocuments = dynamicSection(() =>
 export default async function Section({
   params,
 }: {
-  params: Promise<{ workspace: Workspace; section: string }>;
+  params: Promise<{ workspace: string; section: string }>;
 }) {
-  const { workspace, section } = await params;
+  const { workspace: rawWorkspace, section } = await params;
+  const workspace = normalizeAppWorkspace(rawWorkspace);
+  if (!workspace) notFound();
+  if (section === "login") notFound();
   const access = sectionAccess[section];
   if (access && !access.workspaces.includes(workspace)) notFound();
   const user = await getAuthenticatedWorkspaceUser(workspace);

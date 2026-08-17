@@ -27,6 +27,16 @@ describe("loadAppConfig", () => {
     });
   });
 
+  test("uses PORT when BACKEND_PORT is unset", () => {
+    const config = loadAppConfig({
+      NODE_ENV: "test",
+      PORT: "10000",
+      BACKEND_CORS_ORIGINS: "https://app.example.com",
+    });
+
+    expect(config.port).toBe(10000);
+  });
+
   test("fails production configuration without CORS origins and public URL", () => {
     expect(() =>
       loadAppConfig({

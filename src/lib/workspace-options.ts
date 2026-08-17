@@ -1,5 +1,6 @@
 import type { WorkspaceOption } from "@/types/app-shell";
 import type { Workspace } from "@/types/domain";
+import { appWorkspaces } from "@/lib/workspace-routing";
 
 export const workspaceOptions: WorkspaceOption[] = [
   { value: "super-admin", label: "Platform" },
@@ -8,4 +9,4 @@ export const workspaceOptions: WorkspaceOption[] = [
   { value: "client", label: "Client portal" },
 ];
 
-export const workspaces = workspaceOptions.map((option) => option.value) as Workspace[];
+export const workspaces = appWorkspaces satisfies readonly Workspace[];

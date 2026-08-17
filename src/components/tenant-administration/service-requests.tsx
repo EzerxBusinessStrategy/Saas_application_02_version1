@@ -99,6 +99,15 @@ function columns(onOpen: (id: string) => void): ColumnDef<TenantServiceRequest, 
       accessorKey: "title",
     },
     {
+      header: "Client comment",
+      accessorFn: (row) => row.description.trim() || "—",
+      cell: ({ row }) => (
+        <span className="line-clamp-2 max-w-xs text-sm">
+          {row.original.description.trim() || "—"}
+        </span>
+      ),
+    },
+    {
       header: "Type",
       accessorFn: (row) => (row.kind === "custom" ? "Custom" : "Catalogue"),
     },
@@ -210,7 +219,12 @@ function RequestReviewDialog({
       >
         {request ? (
           <div className="grid max-h-[70vh] gap-5 overflow-y-auto pr-8">
-            {request.description ? <p className="text-sm text-muted-foreground">{request.description}</p> : null}
+            <section className="rounded-[var(--radius-control)] border bg-muted/30 p-4">
+              <h3 className="text-sm font-medium">Client comment</h3>
+              <p className="mt-2 whitespace-pre-wrap text-sm">
+                {request.description.trim() || "No comment was added."}
+              </p>
+            </section>
             {request.kind === "custom" ? (
               <p className="text-sm text-muted-foreground">
                 Custom requests do not create tasks. Accept to record the review, then use Configure services if you later map this to a catalogue service.

@@ -1,10 +1,67 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import { z } from "zod";
+import {
+  DASHBOARD_MAX_FUTURE_DAYS,
+  DASHBOARD_MAX_SPAN_DAYS,
+  DASHBOARD_MIN_FROM,
+  ISO_DATE_PATTERN,
+  addIsoDateDays,
+  isoDateDiffDays,
+  utcTodayIso,
+} from "./tenant-admin-dashboard.period";
 
 export const updateTenantProfileSchema = z.object({
   name: z.string().trim().min(2).max(160),
 });
 export type UpdateTenantProfileRequest = z.infer<typeof updateTenantProfileSchema>;
+
+const optionalIsoDate = z.preprocess(
+  (value) => (typeof value === "string" && value.trim() ? value.trim() : undefined),
+  z.string().regex(ISO_DATE_PATTERN).optional(),
+);
+
+export const tenantAdminDashboardQuerySchema = z
+  .object({
+    from: optionalIsoDate,
+    to: optionalIsoDate,
+  })
+  .superRefine((value, context) => {
+    if ((value.from && !value.to) || (!value.from && value.to)) {
+      context.addIssue({ code: z.ZodIssueCode.custom, message: "from and to must be supplied together." });
+    }
+    if (value.from && value.to && value.from > value.to) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["to"],
+        message: "to must be on or after from.",
+      });
+    }
+    if (value.from && value.to) {
+      if (isoDateDiffDays(value.from, value.to) > DASHBOARD_MAX_SPAN_DAYS) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `Date range cannot exceed ${DASHBOARD_MAX_SPAN_DAYS} days.`,
+        });
+      }
+      if (value.from < DASHBOARD_MIN_FROM) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["from"],
+          message: `from cannot be earlier than ${DASHBOARD_MIN_FROM}.`,
+        });
+      }
+      const maxTo = addIsoDateDays(utcTodayIso(), DASHBOARD_MAX_FUTURE_DAYS);
+      if (value.to > maxTo) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["to"],
+          message: `to cannot be more than ${DASHBOARD_MAX_FUTURE_DAYS} days in the future.`,
+        });
+      }
+    }
+  })
+  .default({});
+export type TenantAdminDashboardQuery = z.infer<typeof tenantAdminDashboardQuerySchema>;
 
 export class TenantInfoDto {
   @ApiProperty({ type: String, format: "uuid" })
@@ -150,9 +207,23 @@ export class UpcomingDeadlineItemDto {
   assigneeCount!: number;
 }
 
+export class TenantAdminDashboardPeriodDto {
+  @ApiProperty({ type: String, format: "date", example: "2026-04-01" })
+  from!: string;
+
+  @ApiProperty({ type: String, format: "date", example: "2027-03-31" })
+  to!: string;
+
+  @ApiProperty({ enum: ["query", "financial_year", "last_30_days"] })
+  source!: "query" | "financial_year" | "last_30_days";
+}
+
 export class TenantAdminDashboardResponseDto {
   @ApiProperty({ type: () => TenantInfoDto })
   tenant!: TenantInfoDto;
+
+  @ApiProperty({ type: () => TenantAdminDashboardPeriodDto })
+  period!: TenantAdminDashboardPeriodDto;
 
   @ApiPropertyOptional({ type: () => FinancialYearInfoDto, nullable: true })
   financialYear!: FinancialYearInfoDto | null;
