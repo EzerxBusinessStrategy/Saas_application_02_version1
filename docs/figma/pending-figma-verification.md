@@ -87,3 +87,18 @@ Design status: Pending Figma verification.
   reuse PageHeader, Card, Dialog, Button, ClientServiceCustomizer, and
   ServiceEmployeeSelector. Figma MCP was not used. They are inferred
   design-system implementations, not pixel-perfect Figma matches.
+
+## Simplified tenant Tasks section and client catalogue
+
+Design status: Pending Figma verification.
+
+- The Tenant Admin Tasks section now shows the client service-request inbox
+  (accept opens the employee allotment dialog, reject requires a remark) plus
+  a Submitted-for-review tab for final task approval. The Create task action
+  and the separate Service requests page were removed; the old route redirects
+  to Tasks. Reuses PageHeader, ResponsiveTabs, Card, DataTable, Dialog,
+  StatusBadge, and TaskDetailsDrawer. Figma MCP was not used.
+- The client portal Services page adds a read-only Service catalogue card
+  listing every tenant-published service with its blueprint tasks, frequency,
+  and rates. Reuses Card, StatusBadge, EmptyState, ErrorState, and
+  LoadingState. Figma MCP was not used.

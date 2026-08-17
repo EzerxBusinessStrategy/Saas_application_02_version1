@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import dynamic from "next/dynamic";
 import type { ComponentType } from "react";
 import { FeatureBoundary } from "@/components/shared/feature-boundary";
@@ -41,11 +41,6 @@ const ClientDirectory = dynamicSection(() =>
 );
 const TenantServiceDirectory = dynamicSection(() =>
   import("@/components/tenant-administration/service-management").then((module) => ({ default: module.TenantServiceDirectory })),
-);
-const TenantServiceRequestsPage = dynamicSection(() =>
-  import("@/components/tenant-administration/service-requests").then((module) => ({
-    default: module.TenantServiceRequestsPage,
-  })),
 );
 const TenantEmployeePerformancePage = dynamicSection(() =>
   import("@/components/tenant-administration/employee-performance").then((module) => ({ default: module.TenantEmployeePerformancePage })),
@@ -160,11 +155,7 @@ export default async function Section({
     );
   }
   if (section === "service-requests" && workspace === "admin") {
-    return (
-      <FeatureBoundary role={user.role} permissions={["client.read"]}>
-        <TenantServiceRequestsPage />
-      </FeatureBoundary>
-    );
+    redirect(`/${workspace}/tasks`);
   }
   if (
     workspace === "employee" &&

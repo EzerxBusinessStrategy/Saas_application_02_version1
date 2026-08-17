@@ -737,7 +737,7 @@ export class ClientServiceRequestsRepository {
             $5,
             'client_service_request',
             $3::uuid,
-            '/admin/service-requests',
+            '/admin/tasks',
             jsonb_build_object('clientId', $2, 'requestId', $3::uuid, 'kind', $6),
             'client-service-request-received:' || $3::uuid::text
           from request_client

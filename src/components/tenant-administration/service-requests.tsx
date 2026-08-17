@@ -7,10 +7,9 @@ import { ServiceEmployeeSelector } from "@/components/tenant-administration/serv
 import { EmptyState } from "@/components/shared/empty-state";
 import { ErrorState } from "@/components/shared/error-state";
 import { LoadingState } from "@/components/shared/loading-state";
-import { PageHeader } from "@/components/shared/page-header";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -24,7 +23,7 @@ import {
 } from "@/features/administration/api/tenant-service-requests-api";
 import type { ColumnDef } from "@tanstack/react-table";
 
-export function TenantServiceRequestsPage() {
+export function TenantServiceRequestsInbox() {
   const queryClient = useQueryClient();
   const [status, setStatus] = useState<"submitted" | "all">("submitted");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -33,31 +32,31 @@ export function TenantServiceRequestsPage() {
     queryFn: () => listTenantServiceRequests(status === "all" ? undefined : "submitted"),
   });
 
-  if (query.isPending) return <LoadingState label="Loading service requests" rows={5} />;
-  if (query.isError) return <ErrorState title="Service requests could not load" onRetry={() => void query.refetch()} />;
+  if (query.isPending) return <LoadingState label="Loading client requests" rows={5} />;
+  if (query.isError) return <ErrorState title="Client requests could not load" onRetry={() => void query.refetch()} />;
 
   const selected = query.data.find((request) => request.id === selectedId) ?? null;
 
   return (
-    <div className="flex flex-col gap-[30px]">
-      <PageHeader
-        eyebrow="Tenant Admin"
-        title="Service requests"
-        description="Clients tick services from your master list. Accept and allot the responsible person to generate the task calendar. Design status: Pending Figma verification."
-        actions={
-          <Select
-            aria-label="Filter request status"
-            value={status}
-            onChange={(event) => setStatus(event.target.value === "all" ? "all" : "submitted")}
-          >
-            <option value="submitted">Waiting for review</option>
-            <option value="all">All requests</option>
-          </Select>
-        }
-      />
+    <>
       <Card>
         <CardHeader>
-          <CardTitle>Client requests</CardTitle>
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <CardTitle>Client requests</CardTitle>
+              <CardDescription>
+                Clients tick services from your catalogue. Accept a request and allot the responsible employee to create the scheduled tasks.
+              </CardDescription>
+            </div>
+            <Select
+              aria-label="Filter request status"
+              value={status}
+              onChange={(event) => setStatus(event.target.value === "all" ? "all" : "submitted")}
+            >
+              <option value="submitted">Waiting for review</option>
+              <option value="all">All requests</option>
+            </Select>
+          </div>
         </CardHeader>
         <CardContent>
           {query.data.length ? (
@@ -81,10 +80,12 @@ export function TenantServiceRequestsPage() {
         onOpenChange={(open) => !open && setSelectedId(null)}
         onChanged={() => {
           void queryClient.invalidateQueries({ queryKey: ["tenant-service-requests"] });
+          void queryClient.invalidateQueries({ queryKey: ["tenant-admin-tasks"] });
+          void queryClient.invalidateQueries({ queryKey: ["admin-operations-overview"] });
           void query.refetch();
         }}
       />
-    </div>
+    </>
   );
 }
 

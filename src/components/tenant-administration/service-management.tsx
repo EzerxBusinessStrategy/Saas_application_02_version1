@@ -95,10 +95,11 @@ function ServiceTable({
         <thead className="bg-muted/40 text-left text-xs uppercase text-muted-foreground">
           <tr>
             <th className="px-4 py-3 font-medium">Service</th>
+            <th className="px-4 py-3 font-medium">Task</th>
             <th className="px-4 py-3 font-medium">Rate</th>
             <th className="px-4 py-3 font-medium">Scope</th>
             <th className="px-4 py-3 font-medium">Unit</th>
-            <th className="px-4 py-3 font-medium">Tasks</th>
+            <th className="px-4 py-3 font-medium">In use</th>
             <th className="px-4 py-3 font-medium">Status</th>
             <th className="px-4 py-3 font-medium">Actions</th>
           </tr>
@@ -109,12 +110,11 @@ function ServiceTable({
             return rates.map((rate, index) => (
               <tr key={rate?.id ?? service.id}>
                 <td className="px-4 py-3">
-                  {index === 0 ? (
-                    <>
-                      <p className="font-medium">{service.name}</p>
-                      <p className="text-xs text-muted-foreground">{service.code}</p>
-                    </>
-                  ) : null}
+                  <p className="font-medium">{service.name}</p>
+                  <p className="text-xs text-muted-foreground">{service.code}</p>
+                </td>
+                <td className="px-4 py-3">
+                  <p className="font-medium">{rate?.taskType?.trim() || "No task"}</p>
                 </td>
                 <td className="px-4 py-3 font-medium">
                   {rate ? formatMoney(rate.rateAmount, rate.currencyCode) : "No rate"}

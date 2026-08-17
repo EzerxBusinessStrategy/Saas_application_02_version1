@@ -4,37 +4,22 @@ import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
-import { Plus } from "lucide-react";
 import { toast } from "sonner";
 import {
-  decideTenantTaskApproval,
-  createTenantAdminEmployee,
-  createTenantAdminTask,
-  getTenantAdminEmployeeEmailAvailability,
-  getTenantAdminTaskReviewDetail,
   listEmployeeTasks,
-  listTenantAdminTaskOptions,
-  listTenantAdminTasks,
   listWorkLogs,
   pauseEmployeeTask,
   resumeEmployeeTask,
   startEmployeeTask,
   submitEmployeeTaskForReview,
-  type CreateTenantAdminTaskInput,
-  type TenantAdminEmployeeOption,
-  type TenantAdminService,
-  type TenantAdminTask,
-  type TenantAdminTaskOptions,
 } from "@/features/operations/api/operations-api";
 import { TaskBoard } from "@/components/operations/task-board";
 import { TaskDetailsDrawer } from "@/components/operations/task-details-drawer";
-import { NewServiceDialog } from "@/components/tenant-administration/service-management";
 import { DataTable } from "@/components/operations/data-table";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ConfirmationDialog } from "@/components/shared/confirmation-dialog";
 import { ErrorState } from "@/components/shared/error-state";
 import { FilterToolbar } from "@/components/shared/filter-toolbar";
-import { BoxBuildLoader } from "@/components/shared/box-build-loader";
 import { LoadingState } from "@/components/shared/loading-state";
 import { MobileEntityCard } from "@/components/shared/mobile-entity-card";
 import { PageHeader } from "@/components/shared/page-header";
@@ -43,8 +28,6 @@ import { ResponsiveTabs } from "@/components/shared/responsive-tabs";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import type { Workspace } from "@/types/domain";
 import type { OperationalTask } from "@/types/operations";
@@ -57,7 +40,7 @@ const statusLabel = {
   done: "Done",
 } as const;
 
-function taskStatus(task: OperationalTask) {
+export function taskStatus(task: OperationalTask) {
   return task.status === "done"
     ? "complete"
     : task.status === "rejected"
@@ -71,29 +54,20 @@ function taskStatus(task: OperationalTask) {
 
 export function TasksPage({
   workspace,
-  canCreate = false,
   canUpdate = false,
 }: {
   workspace: Workspace;
-  canCreate?: boolean;
   canUpdate?: boolean;
 }) {
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
-  const [view, setView] = useState<"board" | "list">(
-    workspace === "admin" ? "list" : "board",
-  );
-  const [tenantApprovalView, setTenantApprovalView] = useState<
-    "all" | "awaiting-tenant-approval"
-  >("all");
-  const selectedClientId = workspace === "admin" ? searchParams.get("clientId") : null;
+  const [view, setView] = useState<"board" | "list">("board");
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<OperationalTask["status"] | "">("");
   const [priority, setPriority] = useState<OperationalTask["priority"] | "">(
     "",
   );
   const [selected, setSelected] = useState<OperationalTask | null>(null);
-  const [createdTasks, setCreatedTasks] = useState<OperationalTask[]>([]);
   const [overrides, setOverrides] = useState<Record<string, OperationalTask>>(
     {},
   );
@@ -102,41 +76,22 @@ export function TasksPage({
     useState<OperationalTask | null>(null);
   const [reviewComment, setReviewComment] = useState("");
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
-  const [tenantReturnTask, setTenantReturnTask] = useState<OperationalTask | null>(null);
-  const [tenantReturnRemarks, setTenantReturnRemarks] = useState("");
-  const [isReturningTenantTask, setIsReturningTenantTask] = useState(false);
-  const [tenantDecisionTaskId, setTenantDecisionTaskId] = useState<string | null>(null);
   const tasksQuery = useQuery({
-    queryKey: ["operational-tasks", workspace, selectedClientId, query, status, priority],
+    queryKey: ["operational-tasks", workspace],
     queryFn: async () => {
-      if (workspace === "admin") {
-        return (await listTenantAdminTasks(selectedClientId ?? undefined)).map(
-          mapTenantAdminTask,
-        );
-      }
       if (workspace === "employee") return listEmployeeTasks();
-
       return [];
     },
-    enabled: true,
     refetchInterval: workspace === "employee" ? 30000 : false,
     refetchOnWindowFocus: false,
   });
   const logsQuery = useQuery({
-    queryKey: ["operational-work-logs", workspace, selectedClientId],
+    queryKey: ["operational-work-logs", workspace],
     queryFn: () => listWorkLogs(workspace),
     enabled: workspace === "employee",
   });
-  const reviewDetailQuery = useQuery({
-    queryKey: ["tenant-task-review-detail", selected?.id],
-    queryFn: () => getTenantAdminTaskReviewDetail(selected!.id),
-    enabled: workspace === "admin" && Boolean(selected),
-  });
   const tasks = useMemo(() => {
-    const items = [
-      ...(tasksQuery.data ?? []),
-      ...(workspace === "admin" ? [] : createdTasks),
-    ].map(
+    const items = (tasksQuery.data ?? []).map(
       (task) => overrides[task.id] ?? task,
     );
     return items.filter(
@@ -145,16 +100,7 @@ export function TasksPage({
         (!status || task.status === status) &&
         (!priority || task.priority === priority),
     );
-  }, [createdTasks, overrides, priority, query, status, tasksQuery.data, workspace]);
-  const visibleTasks =
-    workspace === "admin" && tenantApprovalView === "awaiting-tenant-approval"
-      ? tasks.filter(
-          (task) =>
-            task.status === "review" &&
-            task.reviewStatus === "pending" &&
-            task.approvalStatus === "pending",
-        )
-      : tasks;
+  }, [overrides, priority, query, status, tasksQuery.data]);
   const requestedTaskId = searchParams.get("task");
   useEffect(() => {
     if (!requestedTaskId || requestedTaskId === openedTaskId) return;
@@ -168,79 +114,12 @@ export function TasksPage({
     setSelected((current) => (current?.id === next.id ? next : current));
   };
   const updateTask = (next: OperationalTask) => {
-    if (workspace === "admin") {
-      toast.error("Task updates must be saved through the backend workflow.");
-      return;
-    }
     syncTask(next);
     toast.success("Task change saved for this mock session.");
   };
   const refreshTaskWorkflow = () => {
     void queryClient.invalidateQueries({ queryKey: ["operational-tasks"] });
     void queryClient.invalidateQueries({ queryKey: ["manager-workspace"] });
-  };
-  const handleTenantApproval = async (
-    task: OperationalTask,
-    decision: "approve" | "return",
-    remarks = "",
-  ) => {
-    if (tenantDecisionTaskId) return false;
-    setTenantDecisionTaskId(task.id);
-    try {
-      syncTask(mapTenantAdminTask(await decideTenantTaskApproval(task.id, decision, remarks)));
-      refreshTaskWorkflow();
-      void queryClient.invalidateQueries({ queryKey: ["tenant-task-review-detail", task.id] });
-      toast.success(
-        decision === "approve"
-          ? "Tenant approval recorded. The task is complete."
-          : "Task returned to the employee for rework.",
-      );
-      return true;
-    } catch (error) {
-      toast.error(
-        error instanceof Error
-          ? error.message
-          : "The tenant approval decision could not be saved.",
-      );
-      return false;
-    } finally {
-      setTenantDecisionTaskId(null);
-    }
-  };
-  const isAwaitingTenantApproval = (task: OperationalTask) =>
-    task.status === "review" &&
-    task.reviewStatus === "pending" &&
-    task.approvalStatus === "pending";
-  const handleTenantBoardStatusChange = (
-    task: OperationalTask,
-    nextStatus: OperationalTask["status"],
-  ) => {
-    if (!isAwaitingTenantApproval(task)) return;
-    if (nextStatus === "done") {
-      void handleTenantApproval(task, "approve");
-      return;
-    }
-    if (nextStatus === "rejected") {
-      setTenantReturnTask(task);
-      setTenantReturnRemarks("");
-    }
-  };
-  const returnTenantTask = async () => {
-    if (!tenantReturnTask || !tenantReturnRemarks.trim()) return;
-    setIsReturningTenantTask(true);
-    try {
-      const saved = await handleTenantApproval(
-        tenantReturnTask,
-        "return",
-        tenantReturnRemarks.trim(),
-      );
-      if (saved) {
-        setTenantReturnTask(null);
-        setTenantReturnRemarks("");
-      }
-    } finally {
-      setIsReturningTenantTask(false);
-    }
   };
   const handleEmployeeStatusChange = async (
     task: OperationalTask,
@@ -358,72 +237,10 @@ export function TasksPage({
     <div className="flex flex-col gap-[30px]">
       <PageHeader
         eyebrow="Delivery"
-        title={workspace === "admin" ? "Client tasks" : "Tasks"}
-        description={workspace === "admin" ? "Select a client to plan, assign, review and manage all work within their active scope." : "Plan, assign, complete, review, and approve client work within the active scope."}
-        actions={
-          canCreate ? (
-            workspace === "admin" ? (
-              <TenantAdminCreateTaskAction
-                initialClientId={selectedClientId ?? undefined}
-                onCreated={() => {
-                  void queryClient.invalidateQueries({ queryKey: ["operational-tasks", workspace] });
-                  void queryClient.invalidateQueries({ queryKey: ["admin-operations-overview"] });
-                }}
-              />
-            ) : (
-              <CreateTaskAction
-                onCreate={(title) => {
-                  const task: OperationalTask = {
-                    id: `TASK-MOCK-${createdTasks.length + 1}`,
-                    tenantId: "acme",
-                    clientId: "northstar",
-                    client: "Northstar Labs",
-                    engagement: "GST Filing",
-                    workGroup: "GST Review",
-                    managerId: "mgr-avery",
-                    manager: "Avery Patel",
-                    assigneeId: "emp-riley",
-                    assignee: "Riley Shah",
-                    title,
-                    description: "New task created in the current mock session.",
-                    priority: "medium",
-                    complexity: "standard",
-                    status: "to-do",
-                    sla: "on-track",
-                    dueDate: "2026-07-25",
-                    checklist: [],
-                    dependencyIds: [],
-                    attachmentCount: 0,
-                    commentCount: 0,
-                    reviewStatus: "not-required",
-                    approvalStatus: "not-required",
-                    blocked: false,
-                  };
-                  setCreatedTasks((current) => [task, ...current]);
-                }}
-              />
-            )
-          ) : undefined
-        }
+        title="Tasks"
+        description="Start assigned work, track time, and submit finished tasks for review."
       />
-      <>
       {workspace === "employee" ? <ActiveTaskTimer tasks={tasks} /> : null}
-      {workspace === "admin" ? (
-        <ResponsiveTabs
-          label="Client task queue"
-          value={tenantApprovalView}
-          onValueChange={(value) =>
-            setTenantApprovalView(value as "all" | "awaiting-tenant-approval")
-          }
-          tabs={[
-            { value: "all", label: "All client tasks" },
-            {
-              value: "awaiting-tenant-approval",
-              label: `Submitted for review (${tasks.filter((task) => task.status === "review" && task.reviewStatus === "pending" && task.approvalStatus === "pending").length})`,
-            },
-          ]}
-        />
-      ) : null}
       <FilterToolbar
         search={{
           value: query,
@@ -473,20 +290,14 @@ export function TasksPage({
           </Select>
         </label>
       </FilterToolbar>
-      {!visibleTasks.length ? (
+      {!tasks.length ? (
         <EmptyState
           title={
-            tenantApprovalView === "awaiting-tenant-approval"
-              ? "No tasks are submitted for review"
-              : query || status || priority
+            query || status || priority
               ? "No tasks match these filters"
               : "No tasks are assigned"
           }
-          description={
-            tenantApprovalView === "awaiting-tenant-approval"
-              ? "Employee submissions will appear here for a Tenant Admin or manager decision."
-              : "Clear filters or wait for authorised work to be assigned."
-          }
+          description="Clear filters or wait for authorised work to be assigned."
         />
       ) : (
         <ResponsiveTabs
@@ -501,28 +312,13 @@ export function TasksPage({
           {view === "board" ? (
             <>
               <TaskBoard
-                tasks={visibleTasks}
+                tasks={tasks}
                 onOpen={setSelected}
                 onPause={workspace === "employee" ? pauseTask : undefined}
                 onResume={workspace === "employee" ? resumeTask : undefined}
-                canDragTask={
-                  workspace === "admin"
-                    ? (task) =>
-                        canUpdate &&
-                        !tenantDecisionTaskId &&
-                        isAwaitingTenantApproval(task)
-                    : undefined
-                }
-                allowedDropStatuses={
-                  workspace === "admin" ? ["rejected", "done"] : undefined
-                }
                 onStatusChange={(id, nextStatus) => {
-                  const task = visibleTasks.find((item) => item.id === id);
-                  if (!task || !canUpdate || tenantDecisionTaskId) return;
-                  if (workspace === "admin") {
-                    handleTenantBoardStatusChange(task, nextStatus);
-                    return;
-                  }
+                  const task = tasks.find((item) => item.id === id);
+                  if (!task || !canUpdate) return;
                   if (workspace === "employee") {
                     void handleEmployeeStatusChange(task, nextStatus);
                     return;
@@ -532,7 +328,7 @@ export function TasksPage({
               />
               <Card className="lg:hidden">
                 <CardContent>
-                  <TaskMobileList tasks={visibleTasks} onOpen={setSelected} />
+                  <TaskMobileList tasks={tasks} onOpen={setSelected} />
                 </CardContent>
               </Card>
             </>
@@ -543,13 +339,13 @@ export function TasksPage({
                   <DataTable
                     caption="Tasks in active scope"
                     columns={columns}
-                    data={visibleTasks}
+                    data={tasks}
                     emptyTitle="No tasks"
                     emptyDescription="No task records are available."
                   />
                 </div>
                 <div className="md:hidden">
-                  <TaskMobileList tasks={visibleTasks} onOpen={setSelected} />
+                  <TaskMobileList tasks={tasks} onOpen={setSelected} />
                 </div>
               </CardContent>
             </Card>
@@ -562,13 +358,9 @@ export function TasksPage({
         onOpenChange={(open) => !open && setSelected(null)}
         workLogs={logsQuery.data ?? []}
         canUpdate={canUpdate}
-        canChangeStatus={workspace !== "employee" && workspace !== "admin" && canUpdate}
-        canManageAssignment={workspace !== "employee" && workspace !== "admin" && canUpdate}
-        canTenantApprove={workspace === "admin"}
-        onTenantApproval={handleTenantApproval}
+        canChangeStatus={workspace !== "employee" && canUpdate}
+        canManageAssignment={workspace !== "employee" && canUpdate}
         onUpdate={updateTask}
-        reviewDetail={reviewDetailQuery.data}
-        isReviewDetailLoading={reviewDetailQuery.isLoading}
       />
       <ConfirmationDialog
         open={Boolean(reviewSubmission)}
@@ -598,161 +390,8 @@ export function TasksPage({
           />
         </label>
       </ConfirmationDialog>
-      <ConfirmationDialog
-        open={Boolean(tenantReturnTask)}
-        onOpenChange={(open) => {
-          if (!open && !isReturningTenantTask) {
-            setTenantReturnTask(null);
-            setTenantReturnRemarks("");
-          }
-        }}
-        title="Return task for changes"
-        description="Explain what the employee must change. The task will return to in progress once this is saved."
-        confirmLabel="Return task"
-        warning
-        confirmDisabled={!tenantReturnRemarks.trim()}
-        isConfirming={isReturningTenantTask}
-        onConfirm={() => void returnTenantTask()}
-      >
-        <label className="flex flex-col gap-1 text-sm font-medium">
-          Changes required
-          <textarea
-            required
-            className="min-h-24 rounded-[var(--radius-control)] border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            maxLength={2000}
-            placeholder="Describe what must be changed"
-            value={tenantReturnRemarks}
-            onChange={(event) => setTenantReturnRemarks(event.target.value)}
-          />
-        </label>
-      </ConfirmationDialog>
-      </>
     </div>
   );
-}
-
-function mapTenantAdminTask(task: TenantAdminTask): OperationalTask {
-  const assignee = task.assignees.length
-    ? task.assignees.map((item) => item.name).join(", ")
-    : "Unassigned";
-
-  return {
-    id: task.id,
-    tenantId: "authenticated",
-    clientId: task.clientId,
-    client: task.clientName,
-    engagement: task.serviceName,
-    workGroup: task.workGroupName ?? "No work group",
-    managerId: "",
-    manager: "Manager not assigned",
-    assigneeId: task.assignees[0]?.id ?? "",
-    assignee: task.assigneeCount > 1 ? `${task.assigneeCount} employees` : assignee,
-    title: task.title,
-    description: task.description ?? "No description recorded.",
-    priority: mapTaskPriority(task.priority),
-    complexity: "standard",
-    status: task.latestSubmissionStatus === "returned" ? "rejected" : mapTaskStatus(task.status),
-    sla: task.slaStatus === "near_breach" || task.slaStatus === "breached" ? "at-risk" : "on-track",
-    dueDate: task.plannedDueAt ? formatTaskDate(task.plannedDueAt) : "No due date",
-    checklist: [],
-    dependencyIds: [],
-    attachmentCount: 0,
-    commentCount: 0,
-    reviewStatus:
-      task.latestSubmissionStatus === "returned"
-        ? "changes-requested"
-        : ["submitted", "manager_review"].includes(task.status)
-        ? "pending"
-        : task.status === "tenant_approval"
-          ? "approved"
-          : task.status === "approved"
-          ? "pending"
-          : task.status === "returned"
-            ? "changes-requested"
-            : "not-required",
-    approvalStatus: ["manager_review", "tenant_approval"].includes(task.status) ? "pending" : "not-required",
-    reviewComment: task.latestReviewRemarks,
-    blocked: task.latestSubmissionStatus === "returned" || task.status === "returned",
-  };
-}
-
-function mapTaskPriority(priority: TenantAdminTask["priority"]): OperationalTask["priority"] {
-  if (priority === "urgent" || priority === "high") return "high";
-  if (priority === "normal") return "medium";
-  return "low";
-}
-
-function mapTaskStatus(status: TenantAdminTask["status"]): OperationalTask["status"] {
-  if (status === "in_progress") return "in-progress";
-  if (["submitted", "manager_review", "tenant_approval", "approved"].includes(status)) return "review";
-  if (status === "returned") return "rejected";
-  if (status === "completed") return "done";
-  return "to-do";
-}
-
-function formatTaskDate(value: string) {
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(value));
-}
-
-const emptyTenantTaskInput = {
-  serviceId: "",
-  countryCode: "",
-  title: "",
-  description: "",
-  priority: "normal" as CreateTenantAdminTaskInput["priority"],
-  plannedDueAt: "",
-  workGroupId: "",
-  employeeIds: [] as string[],
-  rateCardItemId: "",
-  taskType: "",
-  unitType: "per_task" as "per_task" | "per_hour" | "per_filing" | "per_unit",
-  rateAmount: "",
-  currencyCode: "INR",
-  taxCode: "",
-  effectiveFrom: new Date().toISOString().slice(0, 10),
-  saveToRateCard: true,
-  oneTimeReason: "",
-  discountType: "" as "" | "percentage" | "fixed",
-  discountValue: "",
-};
-
-function findBestServiceRate(
-  rateItems: TenantAdminTaskOptions["rateItems"],
-  serviceId: string,
-  clientId: string,
-  effectiveOn: string,
-) {
-  return (
-    rateItems.find(
-      (rate) =>
-        rate.serviceId === serviceId &&
-        rate.clientId === clientId &&
-        isRateEffectiveOn(rate, effectiveOn),
-    ) ??
-    rateItems.find(
-      (rate) =>
-        rate.serviceId === serviceId &&
-        !rate.clientId &&
-        isRateEffectiveOn(rate, effectiveOn),
-    )
-  );
-}
-
-function isRateEffectiveOn(
-  rate: TenantAdminTaskOptions["rateItems"][number],
-  effectiveOn: string,
-) {
-  return rate.effectiveFrom <= effectiveOn && (!rate.effectiveTo || effectiveOn <= rate.effectiveTo);
-}
-
-function taskRateEffectiveOn(plannedDueAt: string): string {
-  if (plannedDueAt) return plannedDueAt.slice(0, 10);
-  const now = new Date();
-  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60_000);
-  return local.toISOString().slice(0, 10);
 }
 
 export function calculateTaskBillingPreview(
@@ -776,581 +415,6 @@ export function calculateTaskBillingPreview(
 
 function roundMoney(value: number) {
   return Math.round(value * 100) / 100;
-}
-
-function TenantAdminCreateTaskAction({
-  initialClientId,
-  onCreated,
-}: {
-  initialClientId?: string;
-  onCreated: () => void;
-}) {
-  const queryClient = useQueryClient();
-  const [open, setOpen] = useState(false);
-  const [clientId, setClientId] = useState(initialClientId ?? "");
-  const [input, setInput] = useState(emptyTenantTaskInput);
-  const [isSaving, setIsSaving] = useState(false);
-  const optionsQuery = useQuery({
-    queryKey: ["tenant-admin-task-options"],
-    queryFn: listTenantAdminTaskOptions,
-  });
-  const refetchTaskOptions = optionsQuery.refetch;
-  const options: TenantAdminTaskOptions = optionsQuery.data ?? {
-    clients: [],
-    services: [],
-    employees: [],
-    workGroups: [],
-    rateItems: [],
-    countries: [],
-  };
-  useEffect(() => {
-    if (open) void refetchTaskOptions();
-  }, [open, refetchTaskOptions]);
-  const isLoadingOptions = optionsQuery.isPending;
-  useEffect(() => setClientId(initialClientId ?? ""), [initialClientId]);
-  const rateEffectiveOn = taskRateEffectiveOn(input.plannedDueAt);
-  const selectedRate = useMemo(() => {
-    const matchingRate = options.rateItems.find(
-      (rate) =>
-        rate.id === input.rateCardItemId &&
-        rate.serviceId === input.serviceId &&
-        (!rate.clientId || rate.clientId === clientId) &&
-        isRateEffectiveOn(rate, rateEffectiveOn),
-    );
-    return matchingRate ?? findBestServiceRate(options.rateItems, input.serviceId, clientId, rateEffectiveOn);
-  }, [clientId, input.rateCardItemId, input.serviceId, options.rateItems, rateEffectiveOn]);
-  const quantity = 1;
-  const unitRate = selectedRate?.rateAmount ?? 0;
-  const estimatedAmount = quantity * unitRate;
-  const billingPreview = calculateTaskBillingPreview(
-    estimatedAmount,
-    input.discountType,
-    input.discountValue,
-  );
-  const estimateCurrency = selectedRate?.currencyCode ?? input.currencyCode;
-  const safeCurrency = /^[A-Z]{3}$/.test(estimateCurrency) ? estimateCurrency : "INR";
-  const selectedCountry = options.countries.find((country) => country.countryCode === input.countryCode);
-  const money = new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: safeCurrency,
-    maximumFractionDigits: 2,
-  });
-  const toggleEmployee = (employeeId: string) => {
-    setInput((current) => ({
-      ...current,
-      employeeIds: current.employeeIds.includes(employeeId)
-        ? current.employeeIds.filter((id) => id !== employeeId)
-        : [...current.employeeIds, employeeId],
-    }));
-  };
-  const selectServiceRate = (serviceId: string) => {
-    const rate = findBestServiceRate(options.rateItems, serviceId, clientId, rateEffectiveOn);
-    setInput((current) => ({
-      ...current,
-      serviceId,
-      rateCardItemId: rate?.id ?? "",
-      taskType: rate?.taskType ?? current.taskType,
-      unitType: rate?.unitType ?? current.unitType,
-      rateAmount: rate ? String(rate.rateAmount) : current.rateAmount,
-      currencyCode: rate?.currencyCode ?? current.currencyCode,
-    }));
-  };
-  useEffect(() => {
-    if (!clientId || !input.serviceId || input.rateCardItemId) return;
-    const rate = findBestServiceRate(options.rateItems, input.serviceId, clientId, rateEffectiveOn);
-    if (!rate) return;
-    setInput((current) => ({
-      ...current,
-      rateCardItemId: rate.id,
-      taskType: rate.taskType,
-      unitType: rate.unitType,
-      rateAmount: String(rate.rateAmount),
-      currencyCode: rate.currencyCode,
-    }));
-  }, [clientId, input.rateCardItemId, input.serviceId, options.rateItems, rateEffectiveOn]);
-  useEffect(() => {
-    if (!open || input.countryCode || !options.countries[0]) return;
-    setInput((current) => ({ ...current, countryCode: options.countries[0]?.countryCode ?? "" }));
-  }, [input.countryCode, open, options.countries]);
-  const handleServiceCreated = async (service: TenantAdminService) => {
-    await queryClient.invalidateQueries({ queryKey: ["tenant-admin-services"] });
-    const refreshed = await refetchTaskOptions();
-    const refreshedOptions = refreshed.data;
-    const rate = refreshedOptions
-      ? findBestServiceRate(refreshedOptions.rateItems, service.id, clientId, rateEffectiveOn)
-      : undefined;
-    setInput((current) => ({
-      ...current,
-      serviceId: service.id,
-      rateCardItemId: rate?.id ?? "",
-      taskType: rate?.taskType ?? current.taskType,
-      unitType: rate?.unitType ?? current.unitType,
-      rateAmount: rate ? String(rate.rateAmount) : current.rateAmount,
-      currencyCode: rate?.currencyCode ?? current.currencyCode,
-    }));
-    if (!rate) {
-      toast.message("Service created. Its rate is not effective for the selected task date yet.");
-    }
-  };
-  const handleEmployeeCreated = (employee: TenantAdminEmployeeOption) => {
-    queryClient.setQueryData<TenantAdminTaskOptions>(["tenant-admin-task-options"], (current) => ({
-      clients: current?.clients ?? [],
-      services: current?.services ?? [],
-      workGroups: current?.workGroups ?? [],
-      rateItems: current?.rateItems ?? [],
-      countries: current?.countries ?? [],
-      employees: [...(current?.employees ?? []).filter((item) => item.id !== employee.id), employee],
-    }));
-    setInput((current) => ({
-      ...current,
-      employeeIds: current.employeeIds.includes(employee.id) ? current.employeeIds : [...current.employeeIds, employee.id],
-    }));
-  };
-  const submit = async () => {
-    if (!clientId) { toast.error("Choose Client."); return; }
-    if (!input.serviceId) { toast.error("Choose Service."); return; }
-    if (!input.countryCode) { toast.error("Choose Country calendar."); return; }
-    if (input.title.trim().length < 3) { toast.error("Enter Task title."); return; }
-    if (input.employeeIds.length === 0) { toast.error("Choose at least one employee."); return; }
-    if (!selectedRate) { toast.error("Choose a Service with an active billing rate."); return; }
-    if (input.discountType === "percentage" && Number(input.discountValue) > 100) {
-      toast.error("Percentage discount cannot exceed 100%.");
-      return;
-    }
-    setIsSaving(true);
-    try {
-      await createTenantAdminTask({
-        clientId,
-        serviceId: input.serviceId,
-        countryCode: input.countryCode,
-        title: input.title.trim(),
-        description: input.description.trim(),
-        priority: input.priority,
-        plannedDueAt: input.plannedDueAt ? new Date(input.plannedDueAt).toISOString() : undefined,
-        workGroupId: input.workGroupId || undefined,
-        employeeIds: input.employeeIds,
-        billing:
-          {
-            rateSource: "existing",
-            rateCardItemId: selectedRate?.id ?? input.rateCardItemId,
-            quantity: 1,
-            discountType: input.discountType || undefined,
-            discountValue: Number(input.discountValue || 0),
-          },
-      });
-      toast.success("Task created.");
-      setOpen(false);
-      setInput(emptyTenantTaskInput);
-      onCreated();
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Task could not be created.");
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  return (
-    <Dialog
-      open={open}
-      onOpenChange={(nextOpen) => {
-        setOpen(nextOpen);
-        if (nextOpen) setClientId(initialClientId ?? "");
-      }}
-    >
-      <DialogTrigger asChild>
-        <Button>
-          <Plus data-icon="inline-start" />
-          Create task
-        </Button>
-      </DialogTrigger>
-      <DialogContent
-        title="Create task"
-        description="Create a tenant-scoped client task."
-        className="max-h-[calc(100dvh-2rem)] max-w-2xl overflow-y-auto"
-      >
-        <div className="pr-8">
-          <h2 className="text-lg font-semibold">Create task</h2>
-          {isLoadingOptions ? (
-            <BoxBuildLoader
-              label="Loading task options"
-              className="mt-5 h-64 min-h-64"
-              variant="panel"
-            />
-          ) : (
-            <>
-          {optionsQuery.isError ? (
-            <div className="mt-2 flex items-center justify-between gap-3 rounded-[var(--radius-control)] border border-destructive/30 px-3 py-2">
-              <p className="text-sm text-destructive">Task form options could not load.</p>
-              <Button variant="outline" size="sm" onClick={() => void optionsQuery.refetch()}>
-                Retry
-              </Button>
-            </div>
-          ) : null}
-          <div className="mt-5 grid gap-4 sm:grid-cols-2">
-            <label className="text-sm font-medium sm:col-span-2">
-              Client
-              <Select
-                className="mt-1"
-                required
-                data-field-label="Client"
-                disabled={isLoadingOptions || optionsQuery.isError}
-                value={clientId}
-                onChange={(event) => {
-                  setClientId(event.target.value);
-                  setInput((current) => ({ ...current, workGroupId: "", rateCardItemId: "" }));
-                }}
-              >
-                <option value="">{isLoadingOptions ? "Loading clients..." : "Select client"}</option>
-                {options.clients.map((client) => (
-                  <option key={client.id} value={client.id}>
-                    {client.name}
-                  </option>
-                ))}
-              </Select>
-            </label>
-            <div className="text-sm font-medium">
-              <div className="flex items-center justify-between gap-2">
-                <span>Service <span data-required-marker aria-hidden="true">*</span></span>
-                <NewServiceDialog
-                  triggerLabel="Custom service"
-                  triggerSize="sm"
-                  onCreated={() => {
-                    void queryClient.invalidateQueries({ queryKey: ["tenant-admin-services"] });
-                  }}
-                  onCreatedService={handleServiceCreated}
-                />
-              </div>
-              <Select
-                className="mt-1"
-                required
-                data-field-label="Service"
-                disabled={isLoadingOptions || optionsQuery.isError}
-                value={input.serviceId}
-                onChange={(event) => selectServiceRate(event.target.value)}
-              >
-                <option value="">{isLoadingOptions ? "Loading services..." : "Select service"}</option>
-                {options.services.map((service) => (
-                  <option key={service.id} value={service.id}>
-                    {service.name}
-                  </option>
-                ))}
-              </Select>
-            </div>
-            <label className="text-sm font-medium">
-              Priority
-              <Select
-                className="mt-1"
-                required
-                data-field-label="Country calendar"
-                value={input.priority}
-                onChange={(event) =>
-                  setInput((current) => ({
-                    ...current,
-                    priority: event.target.value as CreateTenantAdminTaskInput["priority"],
-                  }))
-                }
-              >
-                <option value="normal">Normal</option>
-                <option value="high">High</option>
-                <option value="urgent">Urgent</option>
-                <option value="low">Low</option>
-              </Select>
-            </label>
-            <label className="text-sm font-medium">
-              Country calendar
-              <Select
-                className="mt-1"
-                disabled={isLoadingOptions || optionsQuery.isError}
-                value={input.countryCode}
-                onChange={(event) => setInput((current) => ({ ...current, countryCode: event.target.value }))}
-              >
-                <option value="">{isLoadingOptions ? "Loading countries..." : "Select country"}</option>
-                {options.countries.map((country) => (
-                  <option key={country.countryCode} value={country.countryCode}>
-                    {country.name}
-                  </option>
-                ))}
-              </Select>
-              {selectedCountry ? (
-                <span className="mt-1 block text-xs text-muted-foreground">
-                  Financial year: {selectedCountry.financialYearLabel} ({selectedCountry.startsOn} to {selectedCountry.endsOn})
-                </span>
-              ) : <span className="mt-1 block text-xs text-muted-foreground">Select a configured country calendar.</span>}
-            </label>
-            <label className="text-sm font-medium sm:col-span-2">
-              Task title
-              <Input
-                className="mt-1"
-                required
-                data-field-label="Task title"
-                value={input.title}
-                maxLength={200}
-                onChange={(event) => setInput((current) => ({ ...current, title: event.target.value }))}
-              />
-            </label>
-            <label className="text-sm font-medium sm:col-span-2">
-              Description
-              <textarea
-                className="mt-1 min-h-24 w-full rounded-[var(--radius-control)] border bg-input p-3 text-sm outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
-                value={input.description}
-                maxLength={2000}
-                onChange={(event) => setInput((current) => ({ ...current, description: event.target.value }))}
-              />
-            </label>
-            <label className="text-sm font-medium">
-              Due date and time
-              <Input
-                className="mt-1"
-                type="datetime-local"
-                value={input.plannedDueAt}
-                onChange={(event) => setInput((current) => ({ ...current, plannedDueAt: event.target.value }))}
-              />
-            </label>
-          </div>
-          <fieldset className="mt-5">
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-sm font-medium">Assign employees <span data-required-marker aria-hidden="true">*</span></span>
-              <NewEmployeeDialog onCreated={handleEmployeeCreated} />
-            </div>
-            <div className="mt-2 grid max-h-48 gap-2 overflow-y-auto rounded-[var(--radius-control)] border p-3 sm:grid-cols-2">
-              {options.employees.length ? (
-                options.employees.map((employee) => (
-                  <label key={employee.id} className="flex items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      className="size-4 accent-primary"
-                      disabled={isLoadingOptions || optionsQuery.isError}
-                      checked={input.employeeIds.includes(employee.id)}
-                      onChange={() => toggleEmployee(employee.id)}
-                    />
-                    <span>{employee.name}</span>
-                  </label>
-                ))
-              ) : (
-                <p className="text-sm text-muted-foreground">No active employees are available.</p>
-              )}
-            </div>
-            <p className="mt-2 text-xs text-muted-foreground">
-              Select at least one employee.
-            </p>
-          </fieldset>
-          <fieldset className="mt-5 rounded-[var(--radius-card)] border p-4">
-            <legend className="px-1 text-sm font-semibold">Billing and Rate</legend>
-            <div className="mt-3 grid gap-4 sm:grid-cols-2">
-              {selectedRate ? (
-                <dl className="grid gap-3 rounded-[var(--radius-control)] border bg-muted/30 p-3 text-sm sm:col-span-2 sm:grid-cols-3">
-                  <div>
-                    <dt className="text-muted-foreground">Task type</dt>
-                    <dd className="mt-1 font-medium">{selectedRate.taskType}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-muted-foreground">Billing unit</dt>
-                    <dd className="mt-1 font-medium capitalize">{billingUnitLabel(selectedRate.unitType)}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-muted-foreground">Unit rate</dt>
-                    <dd className="mt-1 font-medium">{formatRateMoney(selectedRate.rateAmount, selectedRate.currencyCode)}</dd>
-                  </div>
-                </dl>
-              ) : input.serviceId ? (
-                <p className="rounded-[var(--radius-control)] border px-3 py-2 text-sm text-muted-foreground sm:col-span-2">
-                  No rate is active for this task date. Choose a service rate effective on or before {rateEffectiveOn}.
-                </p>
-              ) : null}
-              <div className="text-sm">
-                <p className="text-muted-foreground">Estimated amount</p>
-                <p className="mt-1 text-lg font-semibold">{money.format(billingPreview.grossAmount)}</p>
-              </div>
-              <label className="text-sm font-medium">
-                Discount
-                <Select className="mt-1" value={input.discountType} onChange={(event) => setInput((current) => ({ ...current, discountType: event.target.value as typeof current.discountType, discountValue: event.target.value ? current.discountValue : "" }))}>
-                  <option value="">No discount</option>
-                  <option value="percentage">Percentage</option>
-                  <option value="fixed">Fixed amount</option>
-                </Select>
-              </label>
-              <label className="text-sm font-medium">
-                Discount value
-                <Input className="mt-1" type="number" min="0" max={input.discountType === "percentage" ? 100 : billingPreview.grossAmount} step="0.01" disabled={!input.discountType} value={input.discountValue} onChange={(event) => setInput((current) => ({ ...current, discountValue: event.target.value }))} />
-              </label>
-              <div className="rounded-[var(--radius-control)] border bg-primary/5 p-3 text-sm sm:col-span-2">
-                <div className="flex items-center justify-between gap-4">
-                  <span className="text-muted-foreground">Discount amount</span>
-                  <span className="font-medium">{money.format(billingPreview.discountAmount)}</span>
-                </div>
-                <div className="mt-2 flex items-center justify-between gap-4 border-t pt-2">
-                  <span className="font-semibold">Effective amount</span>
-                  <span className="text-lg font-semibold">{money.format(billingPreview.effectiveAmount)}</span>
-                </div>
-              </div>
-            </div>
-            <p className="mt-4 text-xs text-muted-foreground">
-              The selected financial year is saved with this task. Its charge becomes available in Invoices after final Tenant Admin approval.
-            </p>
-          </fieldset>
-          <div className="mt-6 flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              disabled={isSaving || isLoadingOptions || optionsQuery.isError}
-              onClick={() => void submit()}
-            >
-              {isSaving ? "Creating..." : "Create task"}
-            </Button>
-          </div>
-            </>
-          )}
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function NewEmployeeDialog({ onCreated }: { onCreated: (employee: TenantAdminEmployeeOption) => void }) {
-  const [open, setOpen] = useState(false);
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [employeeCode, setEmployeeCode] = useState("");
-  const [skills, setSkills] = useState("");
-  const [experienceLevel, setExperienceLevel] = useState("");
-  const [weeklyCapacityHours, setWeeklyCapacityHours] = useState("40");
-  const [isManager, setIsManager] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const normalizedEmail = email.trim().toLowerCase();
-  const canCheckEmail = isValidEmail(normalizedEmail);
-  const emailAvailability = useQuery({
-    queryKey: ["tenant-admin-employee-email-availability", normalizedEmail],
-    queryFn: () => getTenantAdminEmployeeEmailAvailability(normalizedEmail),
-    enabled: open && canCheckEmail,
-  });
-  const emailUnavailable = canCheckEmail && emailAvailability.data?.available === false;
-  const emailCheckPending = canCheckEmail && emailAvailability.isFetching;
-  const emailCheckFailed = canCheckEmail && emailAvailability.isError;
-  const createDisabled =
-    saving ||
-    name.trim().length < 2 ||
-    !email.trim() ||
-    password.length < 8 ||
-    !Number(weeklyCapacityHours) ||
-    emailUnavailable ||
-    emailCheckPending ||
-    emailCheckFailed;
-
-  const submit = async () => {
-    if (name.trim().length < 2) { toast.error("Enter Name."); return; }
-    if (!email.trim()) { toast.error("Enter Email."); return; }
-    if (password.length < 8) { toast.error("Password must contain at least 8 characters."); return; }
-    if (!Number(weeklyCapacityHours)) { toast.error("Enter Weekly capacity hours."); return; }
-    if (emailUnavailable) { toast.error("Enter a unique Email."); return; }
-    if (emailCheckPending) { toast.error("Email availability is still being checked."); return; }
-    if (emailCheckFailed) { toast.error("Email availability could not be checked. Try again."); return; }
-    if (createDisabled) return;
-    setSaving(true);
-    try {
-      const employee = await createTenantAdminEmployee({
-        name: name.trim(),
-        email: email.trim(),
-        password,
-        employeeCode: employeeCode.trim() || undefined,
-        isManager,
-        skills: skills.split(",").map((value) => value.trim()).filter(Boolean),
-        experienceLevel: experienceLevel ? (experienceLevel as "junior" | "mid" | "senior" | "lead") : undefined,
-        weeklyCapacityHours: Number(weeklyCapacityHours) || 40,
-      });
-      onCreated(employee);
-      setName("");
-      setEmail("");
-      setPassword("");
-      setEmployeeCode("");
-      setSkills("");
-      setExperienceLevel("");
-      setWeeklyCapacityHours("40");
-      setIsManager(false);
-      setOpen(false);
-      toast.success("Employee created and selected.");
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Employee could not be created.");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="outline" size="sm">
-          <Plus data-icon="inline-start" />
-          Create employee
-        </Button>
-      </DialogTrigger>
-      <DialogContent title="Create employee" description="Add an active employee for task assignment." className="max-w-md">
-        <div className="grid gap-4 pr-8">
-          <label className="text-sm font-medium">
-            Name
-            <Input required data-field-label="Name" className="mt-1" value={name} onChange={(event) => setName(event.target.value)} />
-          </label>
-          <label className="text-sm font-medium">
-            Email
-            <Input required data-field-label="Email" className="mt-1" type="email" value={email} onChange={(event) => setEmail(event.target.value)} />
-          </label>
-          {emailUnavailable ? <p className="-mt-3 text-sm text-danger">Email already exists.</p> : null}
-          {emailCheckFailed ? <p className="-mt-3 text-sm text-danger">Email availability could not be checked.</p> : null}
-          <label className="text-sm font-medium">
-            Password
-            <Input required data-field-label="Password" className="mt-1" type="password" value={password} minLength={8} onChange={(event) => setPassword(event.target.value)} />
-          </label>
-          <label className="text-sm font-medium">
-            Employee code
-            <Input className="mt-1" value={employeeCode} placeholder="Auto-generated if empty" onChange={(event) => setEmployeeCode(event.target.value)} />
-          </label>
-          <label className="text-sm font-medium">
-            Skills (optional)
-            <Input className="mt-1" value={skills} placeholder="GST, Payroll, Compliance" onChange={(event) => setSkills(event.target.value)} />
-          </label>
-          <label className="text-sm font-medium">
-            Level (optional)
-            <Select className="mt-1" value={experienceLevel} onChange={(event) => setExperienceLevel(event.target.value)}>
-              <option value="">Not set</option>
-              <option value="junior">Junior</option>
-              <option value="mid">Mid</option>
-              <option value="senior">Senior</option>
-              <option value="lead">Lead</option>
-            </Select>
-          </label>
-          <label className="text-sm font-medium">
-            Weekly capacity hours
-            <Input required data-field-label="Weekly capacity hours" className="mt-1" type="number" min="1" max="168" value={weeklyCapacityHours} onChange={(event) => setWeeklyCapacityHours(event.target.value)} />
-          </label>
-          <label className="flex items-center gap-2 text-sm font-medium">
-            <input type="checkbox" checked={isManager} onChange={(event) => setIsManager(event.target.checked)} />
-            Make this employee a manager
-          </label>
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setOpen(false)}>
-              Cancel
-            </Button>
-            <Button disabled={saving} onClick={() => void submit()}>
-              {saving ? "Creating..." : "Create employee"}
-            </Button>
-          </div>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function formatRateMoney(amount: number, currencyCode: string) {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: /^[A-Z]{3}$/.test(currencyCode) ? currencyCode : "INR",
-    maximumFractionDigits: 2,
-  }).format(amount);
-}
-
-function billingUnitLabel(unit: string) {
-  return unit.replace("per_", "per ");
 }
 
 function ActiveTaskTimer({ tasks }: { tasks: OperationalTask[] }) {
@@ -1405,7 +469,7 @@ function formatElapsed(milliseconds: number) {
   return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(remainingSeconds).padStart(2, "0")}`;
 }
 
-function TaskMobileList({
+export function TaskMobileList({
   tasks,
   onOpen,
 }: {
@@ -1451,60 +515,4 @@ function TaskMobileList({
       ))}
     </>
   );
-}
-
-function CreateTaskAction({ onCreate }: { onCreate: (title: string) => void }) {
-  const [open, setOpen] = useState(false);
-  const [title, setTitle] = useState("");
-  return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button>
-          <Plus data-icon="inline-start" />
-          Create task
-        </Button>
-      </DialogTrigger>
-      <DialogContent
-        title="Create task"
-        description="Creates a task for the current mock session."
-      >
-        <div className="pr-8">
-          <h2 className="font-semibold">Create task</h2>
-          <label className="mt-5 block text-sm font-medium">
-            Task title
-            <Input
-              className="mt-1"
-              required
-              data-field-label="Task title"
-              value={title}
-              onChange={(event) => setTitle(event.target.value)}
-            />
-          </label>
-          <div className="mt-6 flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              onClick={() => {
-                if (title.trim().length < 3) {
-                  toast.error("Enter Task title.");
-                  return;
-                }
-                onCreate(title.trim());
-                toast.success("Task created for this mock session.");
-                setOpen(false);
-                setTitle("");
-              }}
-            >
-              Create task
-            </Button>
-          </div>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function isValidEmail(value: string): boolean {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }

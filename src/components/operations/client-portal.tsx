@@ -76,7 +76,17 @@ export function ClientPortal({
     return <ClientRequests requests={data.requests} onChanged={() => void query.refetch()} />;
   }
   if (section === "services") {
-    return <ClientServices services={data.services} />;
+    return (
+      <div className="flex flex-col gap-[30px]">
+        <PageHeader
+          eyebrow="Client portal"
+          title="Services"
+          description="Your active services and the full tenant catalogue of services and tasks."
+        />
+        <ClientServices services={data.services} />
+        <ClientServiceCatalogueCard />
+      </div>
+    );
   }
   if (section === "profile") {
     return <ClientProfile />;
@@ -536,6 +546,80 @@ function ClientRequests({
       </label>
     </ConfirmationDialog>
     </>
+  );
+}
+
+function ClientServiceCatalogueCard() {
+  const query = useQuery({
+    queryKey: ["client-service-catalogue"],
+    queryFn: getClientServiceCatalogue,
+  });
+  const services = query.data?.services ?? [];
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Service catalogue</CardTitle>
+        <CardDescription>
+          Every service and task published by your tenant. Tick the ones you need from the Requests page.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {query.isPending ? (
+          <LoadingState label="Loading service catalogue" rows={3} />
+        ) : query.isError ? (
+          <ErrorState
+            title="Service catalogue could not load"
+            onRetry={() => void query.refetch()}
+          />
+        ) : services.length ? (
+          <ul className="flex flex-col divide-y">
+            {services.map((service) => (
+              <li key={service.serviceId} className="py-4 first:pt-0">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="font-medium">{service.name}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Estimated {formatCurrency(service.estimatedAnnualTotal, service.currencyCode)} per year
+                    </p>
+                  </div>
+                  <StatusBadge
+                    status={
+                      service.alreadyActive
+                        ? "complete"
+                        : service.alreadyRequested
+                          ? "pending"
+                          : "on-track"
+                    }
+                  />
+                </div>
+                {service.tasks.length ? (
+                  <ul className="mt-3 flex flex-col divide-y rounded-[var(--radius-control)] border">
+                    {service.tasks.map((task, index) => (
+                      <li
+                        key={`${task.taskType}-${index}`}
+                        className="flex flex-wrap items-center justify-between gap-3 px-3 py-2 text-sm"
+                      >
+                        <span className="font-medium">{task.taskType}</span>
+                        <span className="text-muted-foreground">
+                          {task.frequency.replace("_", " ")} · {formatCurrency(task.rateAmount, service.currencyCode)}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="mt-2 text-sm text-muted-foreground">No tasks are defined for this service yet.</p>
+                )}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <EmptyState
+            title="No services published"
+            description="Your tenant has not published a service catalogue yet."
+          />
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

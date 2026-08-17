@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { TasksPage } from "@/components/operations/tasks-page";
+import { TenantTasksPage } from "@/components/operations/tenant-tasks-page";
 import { FeatureBoundary } from "@/components/shared/feature-boundary";
 import { hasPermission } from "@/lib/permissions";
 import { sectionAccess } from "@/lib/route-access";
@@ -17,14 +18,17 @@ export default async function Tasks({
   const user = await getAuthenticatedWorkspaceUser(workspace);
   return (
     <FeatureBoundary role={user.role} permissions={access.permissions ?? []}>
-      <TasksPage
-        workspace={workspace}
-        canCreate={hasPermission(user.role, "task.create")}
-        canUpdate={
-          hasPermission(user.role, "task.update_status.assigned") ||
-          hasPermission(user.role, "task.create")
-        }
-      />
+      {workspace === "admin" ? (
+        <TenantTasksPage />
+      ) : (
+        <TasksPage
+          workspace={workspace}
+          canUpdate={
+            hasPermission(user.role, "task.update_status.assigned") ||
+            hasPermission(user.role, "task.create")
+          }
+        />
+      )}
     </FeatureBoundary>
   );
 }
