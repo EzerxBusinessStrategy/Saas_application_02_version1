@@ -534,7 +534,7 @@ export class TenantAdminFinanceRepository {
     await client.query(
       `with inserted as (
          insert into public.notifications (type, title, message, severity, tenant_id, actor_user_id, entity_type, entity_id, action_url, metadata, idempotency_key)
-         values ('CLIENT_INVOICE_SENT', 'Invoice sent', 'A new invoice ' || $5::text || ' is ready to view.', 'INFO', $1::uuid, $2::uuid, 'invoice', $3::uuid, '/client/invoices', jsonb_build_object('clientId', $4::uuid), 'client-invoice-sent:' || $3::uuid::text)
+         values ('CLIENT_INVOICE_SENT', 'Invoice sent', 'Invoice ' || $5::text || ' is ready. Please share your feedback on the completed work.', 'INFO', $1::uuid, $2::uuid, 'invoice', $3::uuid, '/client/invoices', jsonb_build_object('clientId', $4::uuid, 'requestFeedback', true), 'client-invoice-sent:' || $3::uuid::text)
          on conflict (idempotency_key) where idempotency_key is not null do update set id = public.notifications.id
          returning id
        )

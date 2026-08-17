@@ -39,6 +39,7 @@ type DashboardResponse = {
       currencyCode: string;
     } | null;
     openTasks: number;
+    completedTasks: number;
     outstanding: {
       amount: string;
       currencyCode: string;
@@ -257,6 +258,7 @@ export function TenantAdministrationOverview() {
   const hasFilteredRecords =
     metrics.activeClients > 0 ||
     metrics.openTasks > 0 ||
+    metrics.completedTasks > 0 ||
     Number(metrics.totalSales?.amount ?? 0) > 0 ||
     upcomingDeadlines.length > 0 ||
     recentActivity.length > 0;
@@ -308,6 +310,9 @@ export function TenantAdministrationOverview() {
     setApplied({});
   }
 
+  const openTasksHref = `/admin/open-tasks?from=${encodeURIComponent(period.from)}&to=${encodeURIComponent(period.to)}`;
+  const completedTasksHref = `/admin/completed-tasks?from=${encodeURIComponent(period.from)}&to=${encodeURIComponent(period.to)}`;
+
   const cards = [
     {
       label: "Active clients",
@@ -328,6 +333,16 @@ export function TenantAdministrationOverview() {
       value: metrics.openTasks.toString(),
       change: metrics.openTasks > 0 ? "Due or created in this period" : "None in this period",
       trend: metrics.openTasks > 0 ? ("up" as const) : ("flat" as const),
+      href: openTasksHref,
+      ariaLabel: `View ${metrics.openTasks} open tasks for this period`,
+    },
+    {
+      label: "Completed tasks",
+      value: metrics.completedTasks.toString(),
+      change: metrics.completedTasks > 0 ? "Completed in this period" : "None in this period",
+      trend: metrics.completedTasks > 0 ? ("up" as const) : ("flat" as const),
+      href: completedTasksHref,
+      ariaLabel: `View ${metrics.completedTasks} completed tasks for this period`,
     },
     {
       label: "Outstanding invoices",
@@ -420,7 +435,7 @@ export function TenantAdministrationOverview() {
       ) : null}
 
       <section
-        className="grid overflow-hidden rounded-[var(--radius-card)] border border-border bg-border sm:grid-cols-2 lg:grid-cols-4"
+        className="grid overflow-hidden rounded-[var(--radius-card)] border border-border bg-border sm:grid-cols-2 xl:grid-cols-5"
         aria-label="Tenant administration metrics"
         aria-busy={isFetching}
       >
@@ -428,6 +443,8 @@ export function TenantAdministrationOverview() {
           <MetricCard
             key={metric.label}
             metric={metric}
+            href={"href" in metric ? metric.href : undefined}
+            ariaLabel={"ariaLabel" in metric ? metric.ariaLabel : undefined}
             className="rounded-none border-y-0 border-l-0 shadow-none last:border-r-0"
           />
         ))}

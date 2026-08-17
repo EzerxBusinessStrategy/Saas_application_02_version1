@@ -9,8 +9,8 @@ export const sectionAccess: Record<
     permissions: ["task.read", "task.read.assigned"],
   },
   "task-calendar": {
-    workspaces: ["admin"],
-    permissions: ["task.read"],
+    workspaces: ["admin", "client"],
+    permissions: ["task.read", "client.read.assigned"],
   },
   employees: { workspaces: ["admin"] },
   departments: { workspaces: ["admin"], permissions: ["employee.read"] },
@@ -33,6 +33,22 @@ export const sectionAccess: Record<
   "task-review": {
     workspaces: ["admin"],
     permissions: ["task.read"],
+  },
+  "open-tasks": {
+    workspaces: ["admin"],
+    permissions: ["task.read"],
+  },
+  "completed-tasks": {
+    workspaces: ["admin"],
+    permissions: ["task.read"],
+  },
+  "feedback-log": {
+    workspaces: ["admin"],
+    permissions: ["employee.read"],
+  },
+  feedback: {
+    workspaces: ["employee"],
+    permissions: ["task.read.assigned"],
   },
   documents: {
     workspaces: ["admin", "employee"],

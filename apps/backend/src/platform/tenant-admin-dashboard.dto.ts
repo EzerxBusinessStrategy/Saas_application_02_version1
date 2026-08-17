@@ -111,6 +111,9 @@ export class TenantAdminMetricsDto {
   @ApiProperty({ type: Number })
   openTasks!: number;
 
+  @ApiProperty({ type: Number })
+  completedTasks!: number;
+
   @ApiPropertyOptional({ type: () => MoneyDto, nullable: true })
   outstanding!: MoneyDto | null;
 }
@@ -245,4 +248,93 @@ export class TenantAdminDashboardResponseDto {
 
   @ApiProperty({ type: () => [UpcomingDeadlineItemDto] })
   upcomingDeadlines!: readonly UpcomingDeadlineItemDto[];
+}
+
+export class OpenTaskAssigneeDto {
+  @ApiProperty({ type: String })
+  id!: string;
+
+  @ApiProperty({ type: String })
+  name!: string;
+
+  @ApiProperty({ type: String, format: "date-time" })
+  assignedAt!: string;
+}
+
+export class OpenTaskItemDto {
+  @ApiProperty({ type: String })
+  id!: string;
+
+  @ApiProperty({ type: String })
+  title!: string;
+
+  @ApiPropertyOptional({ type: String, nullable: true })
+  description!: string | null;
+
+  @ApiProperty({ type: String })
+  clientId!: string;
+
+  @ApiProperty({ type: String })
+  clientName!: string;
+
+  @ApiPropertyOptional({ type: String, nullable: true, description: "Latest known public IP from client portal sign-in." })
+  clientPublicIp!: string | null;
+
+  @ApiProperty({ type: String })
+  serviceId!: string;
+
+  @ApiProperty({ type: String })
+  serviceName!: string;
+
+  @ApiPropertyOptional({ type: String, nullable: true })
+  workGroupId!: string | null;
+
+  @ApiPropertyOptional({ type: String, nullable: true })
+  workGroupName!: string | null;
+
+  @ApiProperty({ type: String })
+  priority!: string;
+
+  @ApiProperty({ type: String })
+  status!: string;
+
+  @ApiProperty({ type: String })
+  slaStatus!: string;
+
+  @ApiPropertyOptional({ type: String, format: "date-time", nullable: true })
+  plannedDueAt!: string | null;
+
+  @ApiProperty({ type: String, format: "date-time" })
+  createdAt!: string;
+
+  @ApiPropertyOptional({ type: String, format: "date-time", nullable: true })
+  assignedAt!: string | null;
+
+  @ApiPropertyOptional({ type: String, format: "date-time", nullable: true })
+  completedAt!: string | null;
+
+  @ApiProperty({ type: () => [OpenTaskAssigneeDto] })
+  assignees!: readonly OpenTaskAssigneeDto[];
+}
+
+export class TenantAdminCompletedTasksResponseDto {
+  @ApiProperty({ type: () => TenantAdminDashboardPeriodDto })
+  period!: TenantAdminDashboardPeriodDto;
+
+  @ApiProperty({ type: Number })
+  total!: number;
+
+  @ApiProperty({ type: () => [OpenTaskItemDto] })
+  tasks!: readonly OpenTaskItemDto[];
+}
+
+export class TenantAdminOpenTasksResponseDto {
+  @ApiProperty({ type: () => TenantAdminDashboardPeriodDto })
+  period!: TenantAdminDashboardPeriodDto;
+
+  @ApiProperty({ type: Number })
+  total!: number;
+
+  @ApiProperty({ type: () => [OpenTaskItemDto] })
+  tasks!: readonly OpenTaskItemDto[];
 }

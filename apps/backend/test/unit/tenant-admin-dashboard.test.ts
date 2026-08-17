@@ -14,6 +14,64 @@ import type { TenantAdminRequestContext } from "../../src/platform/tenant-admin-
 const period = { from: "2026-04-01", to: "2027-03-31", source: "financial_year" as const };
 
 describe("TenantAdminDashboardService", () => {
+  it("formats open task list responses with assignee and client IP details", async () => {
+    const repository = {
+      listOpenTasks: vi.fn().mockResolvedValue({
+        period: { from: "2026-04-01", to: "2027-03-31", source: "financial_year" as const },
+        tasks: [
+          {
+            id: "task-1",
+            title: "GST return",
+            description: "Monthly filing",
+            clientId: "client-1",
+            clientName: "Acme Corp",
+            clientPublicIp: "203.0.113.10",
+            serviceId: "service-1",
+            serviceName: "GST",
+            workGroupId: null,
+            workGroupName: null,
+            priority: "high",
+            status: "in_progress",
+            slaStatus: "running",
+            plannedDueAt: new Date("2026-09-01T00:00:00.000Z"),
+            createdAt: new Date("2026-08-01T00:00:00.000Z"),
+            assignedAt: new Date("2026-08-02T00:00:00.000Z"),
+            assignees: [
+              {
+                id: "employee-1",
+                name: "Priya Sharma",
+                assignedAt: new Date("2026-08-02T00:00:00.000Z"),
+              },
+            ],
+          },
+        ],
+      }),
+    } as unknown as TenantAdminDashboardRepository;
+    const service = new TenantAdminDashboardService(repository);
+    const context: RequestContext = {
+      userId: "user-1",
+      authUserId: "auth-user-1",
+      tenantId: "tenant-1",
+      membershipId: "membership-1",
+      isPlatformAdmin: false,
+      roles: ["TENANT_ADMIN"],
+      permissions: ["task.read"],
+      requestId: "request-1",
+    };
+
+    await expect(service.listOpenTasks(context)).resolves.toMatchObject({
+      total: 1,
+      period: { from: "2026-04-01", to: "2027-03-31", source: "financial_year" },
+      tasks: [
+        {
+          id: "task-1",
+          clientPublicIp: "203.0.113.10",
+          assignees: [{ name: "Priya Sharma" }],
+        },
+      ],
+    });
+  });
+
   it("rejects platform admin and incomplete tenant contexts before querying", async () => {
     const repository = { getDashboardData: vi.fn() } as unknown as TenantAdminDashboardRepository;
     const service = new TenantAdminDashboardService(repository);
@@ -69,6 +127,7 @@ describe("TenantAdminDashboardService", () => {
           outstandingAmount: "25000.00",
           currencyCode: "INR",
           openTasks: 12,
+          completedTasks: 4,
         },
         recentActivity: [
           {
@@ -168,6 +227,7 @@ describe("TenantAdminDashboardService", () => {
           outstandingAmount: "0.00",
           currencyCode: "USD",
           openTasks: 8,
+          completedTasks: 2,
         },
         recentActivity: [],
         organisationSetup: {
@@ -207,6 +267,66 @@ describe("TenantAdminDashboardService", () => {
     expect(result.metrics.outstanding).toEqual({ amount: "0.00", currencyCode: "USD" });
     expect(result.metrics.activeClients).toBe(3);
     expect(result.metrics.openTasks).toBe(8);
+    expect(result.metrics.completedTasks).toBe(2);
+  });
+
+  it("formats completed task list responses with completion and client IP details", async () => {
+    const repository = {
+      listCompletedTasks: vi.fn().mockResolvedValue({
+        period: { from: "2026-04-01", to: "2027-03-31", source: "financial_year" as const },
+        tasks: [
+          {
+            id: "task-2",
+            title: "Annual return",
+            description: null,
+            clientId: "client-1",
+            clientName: "Acme Corp",
+            clientPublicIp: "198.51.100.4",
+            serviceId: "service-1",
+            serviceName: "Compliance",
+            workGroupId: null,
+            workGroupName: null,
+            priority: "normal",
+            status: "completed",
+            slaStatus: "met",
+            plannedDueAt: new Date("2026-08-15T00:00:00.000Z"),
+            createdAt: new Date("2026-07-01T00:00:00.000Z"),
+            assignedAt: new Date("2026-07-02T00:00:00.000Z"),
+            completedAt: new Date("2026-08-10T00:00:00.000Z"),
+            assignees: [
+              {
+                id: "employee-2",
+                name: "Rahul Mehta",
+                assignedAt: new Date("2026-07-02T00:00:00.000Z"),
+              },
+            ],
+          },
+        ],
+      }),
+    } as unknown as TenantAdminDashboardRepository;
+    const service = new TenantAdminDashboardService(repository);
+    const context: RequestContext = {
+      userId: "user-1",
+      authUserId: "auth-user-1",
+      tenantId: "tenant-1",
+      membershipId: "membership-1",
+      isPlatformAdmin: false,
+      roles: ["TENANT_ADMIN"],
+      permissions: ["task.read"],
+      requestId: "request-1",
+    };
+
+    await expect(service.listCompletedTasks(context)).resolves.toMatchObject({
+      total: 1,
+      tasks: [
+        {
+          id: "task-2",
+          clientPublicIp: "198.51.100.4",
+          completedAt: "2026-08-10T00:00:00.000Z",
+          assignees: [{ name: "Rahul Mehta" }],
+        },
+      ],
+    });
   });
 
   it("calculates period metrics from issued invoices without requiring unimplemented credit note tables", async () => {
@@ -229,6 +349,7 @@ describe("TenantAdminDashboardService", () => {
               total_sales: "1000.00",
               collected: "400.00",
               open_tasks: 3,
+              completed_tasks: 1,
             },
           ],
         };
@@ -254,10 +375,12 @@ describe("TenantAdminDashboardService", () => {
     expect(queries.join("\n")).toContain("i.tenant_id = $1");
     expect(queries.join("\n")).toContain("i.issued_on between $2::date and $3::date");
     expect(queries.join("\n")).toContain("t.tenant_id = $1");
+    expect(queries.join("\n")).toContain("t.status = 'completed'");
     expect(queries.join("\n")).not.toContain("i.financial_year_id = $2");
     expect(result.totalSalesAmount).toBe("1000.00");
     expect(result.collectedAmount).toBe("400.00");
     expect(result.outstandingAmount).toBe("600.00");
+    expect(result.completedTasks).toBe(1);
   });
 
   it("reads traceable recent activity without login events", async () => {

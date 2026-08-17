@@ -4,10 +4,13 @@ import { requireTenantAdminContext } from "./tenant-admin-context";
 import {
   TenantAdminDashboardQuery,
   TenantAdminDashboardResponseDto,
+  TenantAdminCompletedTasksResponseDto,
+  TenantAdminOpenTasksResponseDto,
   TenantProfileDto,
   UpdateTenantProfileRequest,
 } from "./tenant-admin-dashboard.dto";
-import { TenantAdminDashboardRepository } from "./tenant-admin-dashboard.repository";
+import { TenantAdminDashboardRepository, OpenTaskResult } from "./tenant-admin-dashboard.repository";
+import { DashboardPeriod } from "./tenant-admin-dashboard.period";
 
 @Injectable()
 export class TenantAdminDashboardService {
@@ -57,6 +60,7 @@ export class TenantAdminDashboardService {
               }
             : null,
         openTasks: data.metrics.openTasks,
+        completedTasks: data.metrics.completedTasks,
         outstanding:
           data.metrics.outstandingAmount !== null
             ? {
@@ -92,6 +96,24 @@ export class TenantAdminDashboardService {
     };
   }
 
+  async listOpenTasks(
+    context: RequestContext,
+    query: TenantAdminDashboardQuery = {},
+  ): Promise<TenantAdminOpenTasksResponseDto> {
+    const tenantContext = requireTenantAdminContext(context);
+    const data = await this.repository.listOpenTasks(tenantContext, query);
+    return mapPeriodTaskListResponse(data.period, data.tasks);
+  }
+
+  async listCompletedTasks(
+    context: RequestContext,
+    query: TenantAdminDashboardQuery = {},
+  ): Promise<TenantAdminCompletedTasksResponseDto> {
+    const tenantContext = requireTenantAdminContext(context);
+    const data = await this.repository.listCompletedTasks(tenantContext, query);
+    return mapPeriodTaskListResponse(data.period, data.tasks);
+  }
+
   async getTenantProfile(context: RequestContext): Promise<TenantProfileDto> {
     return this.repository.getTenantProfile(requireTenantAdminContext(context));
   }
@@ -113,6 +135,41 @@ const activityLabels: Record<string, string> = {
 
 function humaniseActivity(action: string): string {
   return activityLabels[action] ?? action.toLowerCase().replaceAll("_", " ");
+}
+
+function mapPeriodTaskListResponse(period: DashboardPeriod, tasks: readonly OpenTaskResult[]) {
+  return {
+    period: {
+      from: period.from,
+      to: period.to,
+      source: period.source === "upcoming_year" ? ("last_30_days" as const) : period.source,
+    },
+    total: tasks.length,
+    tasks: tasks.map((task) => ({
+      id: task.id,
+      title: task.title,
+      description: task.description,
+      clientId: task.clientId,
+      clientName: task.clientName,
+      clientPublicIp: task.clientPublicIp,
+      serviceId: task.serviceId,
+      serviceName: task.serviceName,
+      workGroupId: task.workGroupId,
+      workGroupName: task.workGroupName,
+      priority: task.priority,
+      status: task.status,
+      slaStatus: task.slaStatus,
+      plannedDueAt: task.plannedDueAt?.toISOString() ?? null,
+      createdAt: task.createdAt.toISOString(),
+      assignedAt: task.assignedAt?.toISOString() ?? null,
+      completedAt: task.completedAt?.toISOString() ?? null,
+      assignees: task.assignees.map((assignee) => ({
+        id: assignee.id,
+        name: assignee.name,
+        assignedAt: assignee.assignedAt.toISOString(),
+      })),
+    })),
+  };
 }
 
 function mapOrganisationSetup(row: {

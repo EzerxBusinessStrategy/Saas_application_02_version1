@@ -95,6 +95,12 @@ const common: NavigationItem[] = [
         permissions: ["audit_log.read"],
       },
       {
+        label: "Feedback log", labelKey: "Navigation.feedbackLog",
+        href: "/feedback-log",
+        icon: Award,
+        permissions: ["employee.read"],
+      },
+      {
         label: "Managers", labelKey: "Navigation.managers",
         href: "/managers",
         icon: Users,
@@ -148,6 +154,7 @@ const tenantAdminOnlyItems = new Set([
   "Settings",
   "Employee Performance",
   "Task review",
+  "Feedback log",
 ]);
 const platformOnlyItems = new Set([
   "Tenant list",
@@ -159,6 +166,7 @@ const platformOnlyItems = new Set([
 const employeeNavigation: NavigationItem[] = [
   { label: "Dashboard", labelKey: "Navigation.dashboard", href: "", icon: LayoutDashboard },
   { label: "My tasks", labelKey: "Navigation.myTasks", href: "/tasks", icon: CheckSquare },
+  { label: "My feedback", labelKey: "Navigation.myFeedback", href: "/feedback", icon: Award },
   { label: "Documents", labelKey: "Navigation.documents", href: "/documents", icon: FileText },
   { label: "Profile", labelKey: "Navigation.profile", href: "/profile", icon: Users },
 ];
@@ -171,6 +179,7 @@ const employeeManagerNavigation: NavigationItem[] = [
 
 const clientNavigation: NavigationItem[] = [
   { label: "Dashboard", labelKey: "Navigation.dashboard", href: "", icon: LayoutDashboard },
+  { label: "Calendar", labelKey: "Navigation.calendar", href: "/task-calendar", icon: CalendarDays },
   { label: "Active services", labelKey: "Navigation.activeServices", href: "/services", icon: Handshake },
   { label: "Deliverables", labelKey: "Navigation.deliverables", href: "/deliverables", icon: FileText },
   { label: "Requests", labelKey: "Navigation.requests", href: "/requests", icon: ClipboardList },

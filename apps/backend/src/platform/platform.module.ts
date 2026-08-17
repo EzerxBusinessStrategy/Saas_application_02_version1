@@ -5,6 +5,16 @@ import { ClientPortalNotificationsController } from "./client-portal-notificatio
 import { ClientPortalDeliverablesController } from "./client-portal-deliverables.controller";
 import { ClientPortalDeliverablesRepository } from "./client-portal-deliverables.repository";
 import { ClientPortalDeliverablesService } from "./client-portal-deliverables.service";
+import { ClientPortalTaskCalendarController } from "./client-portal-task-calendar.controller";
+import { ClientPortalTaskCalendarRepository } from "./client-portal-task-calendar.repository";
+import { ClientPortalTaskCalendarService } from "./client-portal-task-calendar.service";
+import {
+  ClientPortalTaskFeedbackController,
+  EmployeeTaskFeedbackController,
+  TenantAdminTaskFeedbackController,
+} from "./task-feedback.controller";
+import { TaskFeedbackRepository } from "./task-feedback.repository";
+import { TaskFeedbackService } from "./task-feedback.service";
 import { ClientPortalDashboardController } from "./client-portal-dashboard.controller";
 import { ClientPortalDashboardRepository } from "./client-portal-dashboard.repository";
 import { ClientPortalDashboardService } from "./client-portal-dashboard.service";
@@ -103,6 +113,8 @@ import { TaskNotificationOutboxWorker } from "./task-notification-outbox.worker"
     SuperAdminNotificationsController,
     SuperAdminPlatformConfigurationController,
     ClientPortalDashboardController,
+    ClientPortalTaskCalendarController,
+    ClientPortalTaskFeedbackController,
     ClientPortalServiceCommentsController,
     ClientPortalDeliverablesController,
     ClientPortalNotificationsController,
@@ -115,11 +127,13 @@ import { TaskNotificationOutboxWorker } from "./task-notification-outbox.worker"
     EmployeeNotificationsController,
     EmployeeProfileController,
     EmployeeTasksController,
+    EmployeeTaskFeedbackController,
     TenantAdminDashboardController,
     TenantAdminClientServiceActivationController,
     TenantAdminServiceRequestsController,
     TenantAdminClientsController,
     TenantAdminEmployeePerformanceController,
+    TenantAdminTaskFeedbackController,
     TenantAdminFinanceController,
     TenantAdminNotificationsController,
     TenantAdminServicesController,
@@ -142,6 +156,10 @@ import { TaskNotificationOutboxWorker } from "./task-notification-outbox.worker"
     SuperAdminPlatformConfigurationService,
     ClientPortalDashboardRepository,
     ClientPortalDashboardService,
+    ClientPortalTaskCalendarRepository,
+    ClientPortalTaskCalendarService,
+    TaskFeedbackRepository,
+    TaskFeedbackService,
     ClientPortalServiceCommentsRepository,
     ClientPortalServiceCommentsService,
     ClientPortalDeliverablesRepository,

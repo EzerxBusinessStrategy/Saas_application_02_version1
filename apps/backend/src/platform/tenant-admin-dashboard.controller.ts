@@ -18,6 +18,8 @@ import { ZodValidationPipe } from "../common/validation/zod-validation.pipe";
 import {
   TenantAdminDashboardQuery,
   TenantAdminDashboardResponseDto,
+  TenantAdminCompletedTasksResponseDto,
+  TenantAdminOpenTasksResponseDto,
   TenantProfileDto,
   tenantAdminDashboardQuerySchema,
   updateTenantProfileSchema,
@@ -46,6 +48,36 @@ export class TenantAdminDashboardController {
     @Query(new ZodValidationPipe(tenantAdminDashboardQuerySchema)) query: TenantAdminDashboardQuery,
   ): Promise<TenantAdminDashboardResponseDto> {
     return this.service.getDashboard(context, query);
+  }
+
+  @Get("open-tasks")
+  @RequirePermissions("task.read")
+  @ApiOperation({
+    summary: "List open tenant tasks for the dashboard period, including client portal IP and assignee details.",
+  })
+  @ApiOkResponse({ type: TenantAdminOpenTasksResponseDto })
+  @ApiUnauthorizedResponse({ type: ApiErrorResponseDto })
+  @ApiForbiddenResponse({ type: ApiErrorResponseDto })
+  listOpenTasks(
+    @CurrentRequestContext() context: RequestContext,
+    @Query(new ZodValidationPipe(tenantAdminDashboardQuerySchema)) query: TenantAdminDashboardQuery,
+  ): Promise<TenantAdminOpenTasksResponseDto> {
+    return this.service.listOpenTasks(context, query);
+  }
+
+  @Get("completed-tasks")
+  @RequirePermissions("task.read")
+  @ApiOperation({
+    summary: "List completed tenant tasks for the dashboard period, including client portal IP and assignee details.",
+  })
+  @ApiOkResponse({ type: TenantAdminCompletedTasksResponseDto })
+  @ApiUnauthorizedResponse({ type: ApiErrorResponseDto })
+  @ApiForbiddenResponse({ type: ApiErrorResponseDto })
+  listCompletedTasks(
+    @CurrentRequestContext() context: RequestContext,
+    @Query(new ZodValidationPipe(tenantAdminDashboardQuerySchema)) query: TenantAdminDashboardQuery,
+  ): Promise<TenantAdminCompletedTasksResponseDto> {
+    return this.service.listCompletedTasks(context, query);
   }
 
   @Get("profile")

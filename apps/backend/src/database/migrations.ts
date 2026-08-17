@@ -77,6 +77,7 @@ export const migrationNames = [
   "0068_client_service_comments.sql",
   "0069_engagement_service_discount.sql",
   "0070_tenant_documents_optional_client.sql",
+  "0071_client_task_feedback.sql",
 ] as const;
 
 export async function runMigrations(

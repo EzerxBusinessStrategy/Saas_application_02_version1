@@ -22,6 +22,7 @@ import { LiveWorldClock } from "@/components/app-shell/live-world-clock";
 import { LanguageSelector } from "@/components/app-shell/language-selector";
 import { NotificationMenu } from "@/components/app-shell/notification-menu";
 import { PendingActionIndicator } from "@/components/app-shell/pending-action-indicator";
+import { ClientTaskFeedbackPrompt } from "@/components/operations/client-task-feedback-prompt";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { UserMenu } from "@/components/app-shell/user-menu";
 import { BoxBuildLoader } from "@/components/shared/box-build-loader";
@@ -428,6 +429,7 @@ export function WorkspaceShell({
       data-sidebar={sidebarCollapsed ? "collapsed" : "expanded"}
     >
       <PendingActionIndicator suppressed={pathname.endsWith("/tenant-password")} />
+      {workspace === "client" && user.role === "CLIENT_USER" ? <ClientTaskFeedbackPrompt /> : null}
       {isRefreshing ? (
         <div className="fixed inset-0 z-[70] bg-background/85 backdrop-blur-sm">
           <BoxBuildLoader className="min-h-dvh" label="Updating workspace..." />

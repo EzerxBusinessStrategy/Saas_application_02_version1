@@ -302,4 +302,23 @@ describe("database migrations", () => {
     expect(sql).not.toContain("drop table");
     expect(sql).not.toMatch(/alter table [^\n]+ drop column/i);
   });
+
+  test("persists client task feedback with tenant-scoped uniqueness and ratings constraints", () => {
+    expect(migrationNames).toContain("0071_client_task_feedback.sql");
+    expect(migrationNames.indexOf("0071_client_task_feedback.sql")).toBeGreaterThan(
+      migrationNames.indexOf("0070_tenant_documents_optional_client.sql"),
+    );
+
+    const sql = readFileSync(
+      resolve(__dirname, "../../drizzle/migrations/0071_client_task_feedback.sql"),
+      "utf8",
+    );
+
+    expect(sql).toContain("create table public.client_task_feedback");
+    expect(sql).toContain("client_task_feedback_task_unique");
+    expect(sql).toContain("task_rating between 1 and 5");
+    expect(sql).toContain("employee_rating between 1 and 5");
+    expect(sql).toContain("force row level security");
+    expect(sql).not.toContain("drop table");
+  });
 });

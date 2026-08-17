@@ -30,6 +30,7 @@ export type DashboardMetricsResult = {
   readonly outstandingAmount: string | null;
   readonly currencyCode: string;
   readonly openTasks: number;
+  readonly completedTasks: number;
 };
 
 export type RecentActivityResult = {
@@ -63,6 +64,33 @@ export type UpcomingDeadlineResult = {
   readonly status: string;
   readonly workGroupName: string | null;
   readonly assigneeCount: number;
+};
+
+export type OpenTaskAssigneeResult = {
+  readonly id: string;
+  readonly name: string;
+  readonly assignedAt: Date;
+};
+
+export type OpenTaskResult = {
+  readonly id: string;
+  readonly title: string;
+  readonly description: string | null;
+  readonly clientId: string;
+  readonly clientName: string;
+  readonly clientPublicIp: string | null;
+  readonly serviceId: string;
+  readonly serviceName: string;
+  readonly workGroupId: string | null;
+  readonly workGroupName: string | null;
+  readonly priority: string;
+  readonly status: string;
+  readonly slaStatus: string;
+  readonly plannedDueAt: Date | null;
+  readonly createdAt: Date;
+  readonly assignedAt: Date | null;
+  readonly completedAt: Date | null;
+  readonly assignees: readonly OpenTaskAssigneeResult[];
 };
 
 export type TenantAdminDashboardData = {
@@ -113,6 +141,58 @@ export class TenantAdminDashboardRepository {
         organisationSetup,
         upcomingDeadlines,
       };
+    });
+  }
+
+  async listOpenTasks(
+    context: TenantAdminRequestContext,
+    query: TenantAdminDashboardQuery = {},
+  ): Promise<{ readonly period: DashboardPeriod; readonly tasks: readonly OpenTaskResult[] }> {
+    if (!this.pool) throw databaseNotConfigured();
+
+    return withDatabaseTransaction(this.pool, context, async (_tx, client) => {
+      const tenantId = context.tenantId;
+      await client.query("select set_config('app.tenant_id', $1, true)", [tenantId]);
+
+      const tenant = await this.getTenantInfo(client, tenantId);
+      const financialYear = await this.getCurrentFinancialYear(client, tenantId);
+      const today = await this.getCurrentDate(client);
+      const period = resolveTenantDashboardPeriod({
+        from: query.from,
+        to: query.to,
+        financialYear,
+        today,
+      });
+      const timezone = tenant.timezone || "UTC";
+      const tasks = await this.getOpenTasks(client, tenantId, period, timezone);
+
+      return { period, tasks };
+    });
+  }
+
+  async listCompletedTasks(
+    context: TenantAdminRequestContext,
+    query: TenantAdminDashboardQuery = {},
+  ): Promise<{ readonly period: DashboardPeriod; readonly tasks: readonly OpenTaskResult[] }> {
+    if (!this.pool) throw databaseNotConfigured();
+
+    return withDatabaseTransaction(this.pool, context, async (_tx, client) => {
+      const tenantId = context.tenantId;
+      await client.query("select set_config('app.tenant_id', $1, true)", [tenantId]);
+
+      const tenant = await this.getTenantInfo(client, tenantId);
+      const financialYear = await this.getCurrentFinancialYear(client, tenantId);
+      const today = await this.getCurrentDate(client);
+      const period = resolveTenantDashboardPeriod({
+        from: query.from,
+        to: query.to,
+        financialYear,
+        today,
+      });
+      const timezone = tenant.timezone || "UTC";
+      const tasks = await this.getCompletedTasks(client, tenantId, period, timezone);
+
+      return { period, tasks };
     });
   }
 
@@ -314,7 +394,18 @@ export class TenantAdminDashboardRepository {
               (t.planned_due_at at time zone $4)::date,
               (t.created_at at time zone $4)::date
             ) between $2::date and $3::date
-        ) as open_tasks;
+        ) as open_tasks,
+        (
+          select count(*)::int
+          from public.tasks t
+          where t.tenant_id = $1
+            and t.status = 'completed'
+            and coalesce(
+              (t.actual_completed_at at time zone $4)::date,
+              (t.planned_due_at at time zone $4)::date,
+              (t.created_at at time zone $4)::date
+            ) between $2::date and $3::date
+        ) as completed_tasks;
     `;
 
     const result = await client.query<{
@@ -322,6 +413,7 @@ export class TenantAdminDashboardRepository {
       total_sales: string | number | null;
       collected: string | number | null;
       open_tasks: number;
+      completed_tasks: number;
     }>(query, [tenantId, period.from, period.to, timezone]);
 
     const row = result.rows[0];
@@ -336,6 +428,7 @@ export class TenantAdminDashboardRepository {
       outstandingAmount: rawOutstanding.toFixed(2),
       currencyCode,
       openTasks: Number(row?.open_tasks ?? 0),
+      completedTasks: Number(row?.completed_tasks ?? 0),
     };
   }
 
@@ -530,6 +623,339 @@ export class TenantAdminDashboardRepository {
       status: row.status,
       workGroupName: row.work_group_name,
       assigneeCount: Number(row.assigned_employee_count),
+    }));
+  }
+
+  private async getOpenTasks(
+    client: PoolClient,
+    tenantId: string,
+    period: DashboardPeriod,
+    timezone: string,
+  ): Promise<readonly OpenTaskResult[]> {
+    const result = await client.query<{
+      id: string;
+      title: string;
+      description: string | null;
+      client_id: string;
+      client_name: string;
+      client_public_ip: string | null;
+      service_id: string;
+      service_name: string;
+      work_group_id: string | null;
+      work_group_name: string | null;
+      priority: string;
+      status: string;
+      sla_status: string;
+      planned_due_at: Date | null;
+      created_at: Date;
+      assigned_at: Date | null;
+      assignees: Array<{ id: string; name: string; assignedAt: string }> | null;
+    }>(
+      `
+        select
+          t.id::text,
+          t.title,
+          t.description,
+          t.client_id::text,
+          c.display_name as client_name,
+          client_ip.client_public_ip,
+          t.service_id::text,
+          s.name as service_name,
+          t.work_group_id::text,
+          wg.name as work_group_name,
+          t.priority,
+          t.status,
+          t.sla_status,
+          t.planned_due_at,
+          t.created_at,
+          min(ta.assigned_at) filter (where ta.id is not null) as assigned_at,
+          coalesce(
+            jsonb_agg(
+              distinct jsonb_build_object(
+                'id', e.id::text,
+                'name', coalesce(tm.display_name, e.employee_code),
+                'assignedAt', ta.assigned_at
+              )
+            ) filter (where e.id is not null),
+            '[]'::jsonb
+          ) as assignees
+        from public.tasks t
+        join public.clients c
+          on c.id = t.client_id
+         and c.tenant_id = t.tenant_id
+        join public.services s
+          on s.id = t.service_id
+         and s.tenant_id = t.tenant_id
+        left join public.work_groups wg
+          on wg.id = t.work_group_id
+         and wg.tenant_id = t.tenant_id
+        left join public.task_assignments ta
+          on ta.task_id = t.id
+         and ta.tenant_id = t.tenant_id
+         and ta.status = 'active'
+        left join public.employees e
+          on e.id = ta.employee_id
+         and e.tenant_id = ta.tenant_id
+         and e.employment_status = 'active'
+        left join public.tenant_memberships tm
+          on tm.id = e.membership_id
+         and tm.tenant_id = e.tenant_id
+        left join lateral (
+          select coalesce(
+            (
+              select host(sess.ip_address)::text
+              from public.client_portal_accounts cpa
+              join authn.credentials cred
+                on cred.client_account_id = cpa.id
+               and cred.portal_type = 'CLIENT'
+              join authn.sessions sess
+                on sess.credential_id = cred.id
+               and sess.portal_type = 'CLIENT'
+               and sess.ip_address is not null
+              where cpa.tenant_id = t.tenant_id
+                and cpa.client_id = t.client_id
+                and cpa.status = 'active'
+              order by coalesce(sess.last_seen_at, sess.created_at) desc
+              limit 1
+            ),
+            (
+              select host(lae.ip_address)::text
+              from public.client_portal_accounts cpa
+              join authn.credentials cred
+                on cred.client_account_id = cpa.id
+               and cred.portal_type = 'CLIENT'
+              join authn.login_audit_events lae
+                on lae.credential_id = cred.id
+               and lae.portal_type = 'CLIENT'
+               and lae.outcome = 'SUCCESS'
+               and lae.ip_address is not null
+              where cpa.tenant_id = t.tenant_id
+                and cpa.client_id = t.client_id
+                and cpa.status = 'active'
+              order by lae.created_at desc
+              limit 1
+            )
+          ) as client_public_ip
+        ) client_ip on true
+        where t.tenant_id = $1
+          and t.status not in ('completed', 'cancelled')
+          and coalesce(
+            (t.planned_due_at at time zone $4)::date,
+            (t.created_at at time zone $4)::date
+          ) between $2::date and $3::date
+        group by
+          t.id,
+          t.title,
+          t.description,
+          t.client_id,
+          c.display_name,
+          client_ip.client_public_ip,
+          t.service_id,
+          s.name,
+          t.work_group_id,
+          wg.name,
+          t.priority,
+          t.status,
+          t.sla_status,
+          t.planned_due_at,
+          t.created_at
+        order by coalesce(t.planned_due_at, t.created_at) asc, t.title asc
+        limit 1000
+      `,
+      [tenantId, period.from, period.to, timezone],
+    );
+
+    return result.rows.map((row) => ({
+      id: row.id,
+      title: row.title,
+      description: row.description,
+      clientId: row.client_id,
+      clientName: row.client_name,
+      clientPublicIp: row.client_public_ip,
+      serviceId: row.service_id,
+      serviceName: row.service_name,
+      workGroupId: row.work_group_id,
+      workGroupName: row.work_group_name,
+      priority: row.priority,
+      status: row.status,
+      slaStatus: row.sla_status,
+      plannedDueAt: row.planned_due_at,
+      createdAt: row.created_at,
+      assignedAt: row.assigned_at,
+      completedAt: null,
+      assignees: (row.assignees ?? []).map((assignee) => ({
+        id: assignee.id,
+        name: assignee.name,
+        assignedAt: new Date(assignee.assignedAt),
+      })),
+    }));
+  }
+
+  private async getCompletedTasks(
+    client: PoolClient,
+    tenantId: string,
+    period: DashboardPeriod,
+    timezone: string,
+  ): Promise<readonly OpenTaskResult[]> {
+    const result = await client.query<{
+      id: string;
+      title: string;
+      description: string | null;
+      client_id: string;
+      client_name: string;
+      client_public_ip: string | null;
+      service_id: string;
+      service_name: string;
+      work_group_id: string | null;
+      work_group_name: string | null;
+      priority: string;
+      status: string;
+      sla_status: string;
+      planned_due_at: Date | null;
+      created_at: Date;
+      assigned_at: Date | null;
+      completed_at: Date | null;
+      assignees: Array<{ id: string; name: string; assignedAt: string }> | null;
+    }>(
+      `
+        select
+          t.id::text,
+          t.title,
+          t.description,
+          t.client_id::text,
+          c.display_name as client_name,
+          client_ip.client_public_ip,
+          t.service_id::text,
+          s.name as service_name,
+          t.work_group_id::text,
+          wg.name as work_group_name,
+          t.priority,
+          t.status,
+          t.sla_status,
+          t.planned_due_at,
+          t.created_at,
+          min(ta.assigned_at) filter (where ta.id is not null) as assigned_at,
+          t.actual_completed_at as completed_at,
+          coalesce(
+            jsonb_agg(
+              distinct jsonb_build_object(
+                'id', e.id::text,
+                'name', coalesce(tm.display_name, e.employee_code),
+                'assignedAt', ta.assigned_at
+              )
+            ) filter (where e.id is not null),
+            '[]'::jsonb
+          ) as assignees
+        from public.tasks t
+        join public.clients c
+          on c.id = t.client_id
+         and c.tenant_id = t.tenant_id
+        join public.services s
+          on s.id = t.service_id
+         and s.tenant_id = t.tenant_id
+        left join public.work_groups wg
+          on wg.id = t.work_group_id
+         and wg.tenant_id = t.tenant_id
+        left join public.task_assignments ta
+          on ta.task_id = t.id
+         and ta.tenant_id = t.tenant_id
+         and ta.status not in ('removed', 'cancelled')
+        left join public.employees e
+          on e.id = ta.employee_id
+         and e.tenant_id = ta.tenant_id
+        left join public.tenant_memberships tm
+          on tm.id = e.membership_id
+         and tm.tenant_id = e.tenant_id
+        left join lateral (
+          select coalesce(
+            (
+              select host(sess.ip_address)::text
+              from public.client_portal_accounts cpa
+              join authn.credentials cred
+                on cred.client_account_id = cpa.id
+               and cred.portal_type = 'CLIENT'
+              join authn.sessions sess
+                on sess.credential_id = cred.id
+               and sess.portal_type = 'CLIENT'
+               and sess.ip_address is not null
+              where cpa.tenant_id = t.tenant_id
+                and cpa.client_id = t.client_id
+                and cpa.status = 'active'
+              order by coalesce(sess.last_seen_at, sess.created_at) desc
+              limit 1
+            ),
+            (
+              select host(lae.ip_address)::text
+              from public.client_portal_accounts cpa
+              join authn.credentials cred
+                on cred.client_account_id = cpa.id
+               and cred.portal_type = 'CLIENT'
+              join authn.login_audit_events lae
+                on lae.credential_id = cred.id
+               and lae.portal_type = 'CLIENT'
+               and lae.outcome = 'SUCCESS'
+               and lae.ip_address is not null
+              where cpa.tenant_id = t.tenant_id
+                and cpa.client_id = t.client_id
+                and cpa.status = 'active'
+              order by lae.created_at desc
+              limit 1
+            )
+          ) as client_public_ip
+        ) client_ip on true
+        where t.tenant_id = $1
+          and t.status = 'completed'
+          and coalesce(
+            (t.actual_completed_at at time zone $4)::date,
+            (t.planned_due_at at time zone $4)::date,
+            (t.created_at at time zone $4)::date
+          ) between $2::date and $3::date
+        group by
+          t.id,
+          t.title,
+          t.description,
+          t.client_id,
+          c.display_name,
+          client_ip.client_public_ip,
+          t.service_id,
+          s.name,
+          t.work_group_id,
+          wg.name,
+          t.priority,
+          t.status,
+          t.sla_status,
+          t.planned_due_at,
+          t.created_at,
+          t.actual_completed_at
+        order by coalesce(t.actual_completed_at, t.planned_due_at, t.created_at) desc, t.title asc
+        limit 1000
+      `,
+      [tenantId, period.from, period.to, timezone],
+    );
+
+    return result.rows.map((row) => ({
+      id: row.id,
+      title: row.title,
+      description: row.description,
+      clientId: row.client_id,
+      clientName: row.client_name,
+      clientPublicIp: row.client_public_ip,
+      serviceId: row.service_id,
+      serviceName: row.service_name,
+      workGroupId: row.work_group_id,
+      workGroupName: row.work_group_name,
+      priority: row.priority,
+      status: row.status,
+      slaStatus: row.sla_status,
+      plannedDueAt: row.planned_due_at,
+      createdAt: row.created_at,
+      assignedAt: row.assigned_at,
+      completedAt: row.completed_at,
+      assignees: (row.assignees ?? []).map((assignee) => ({
+        id: assignee.id,
+        name: assignee.name,
+        assignedAt: new Date(assignee.assignedAt),
+      })),
     }));
   }
 
