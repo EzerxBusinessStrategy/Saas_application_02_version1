@@ -242,4 +242,28 @@ describe("database migrations", () => {
     expect(sql).not.toContain("drop table public.engagements");
     expect(sql).not.toMatch(/alter table public\.tasks\s+drop/i);
   });
+
+  test("adds client service comments without rewriting existing records", () => {
+    expect(migrationNames).toContain("0068_client_service_comments.sql");
+    expect(migrationNames.indexOf("0068_client_service_comments.sql")).toBeGreaterThan(
+      migrationNames.indexOf("0067_client_service_requests.sql"),
+    );
+
+    const sql = readFileSync(
+      resolve(__dirname, "../../drizzle/migrations/0068_client_service_comments.sql"),
+      "utf8",
+    );
+
+    expect(sql).toContain("create table public.client_service_comments");
+    expect(sql).toContain("client_service_comments_idempotency_unique");
+    expect(sql).toContain("foreign key (tenant_id, client_id)");
+    expect(sql).toContain("foreign key (tenant_id, service_id)");
+    expect(sql).toContain("enable row level security");
+    expect(sql).toContain("force row level security");
+    expect(sql).toContain("grant select, insert on public.client_service_comments to app_runtime");
+    expect(sql).not.toContain("drop table public.tasks");
+    expect(sql).not.toContain("drop table public.clients");
+    expect(sql).not.toContain("drop table public.services");
+    expect(sql).not.toContain("drop table public.engagements");
+  });
 });

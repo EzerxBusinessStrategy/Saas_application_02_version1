@@ -5,6 +5,8 @@ export class ClientPortalDashboardServiceTaskDto {
   @ApiProperty({ type: String }) title!: string;
   @ApiProperty({ type: String }) status!: string;
   @ApiPropertyOptional({ type: String, nullable: true }) plannedDueAt!: string | null;
+  @ApiProperty({ type: Number }) rateAmount!: number;
+  @ApiProperty({ type: String }) currencyCode!: string;
 }
 
 export class ClientPortalDashboardServiceDto {
@@ -19,6 +21,7 @@ export class ClientPortalDashboardServiceDto {
   @ApiProperty({ type: Number }) progressPercent!: number;
   @ApiPropertyOptional({ type: String, nullable: true }) assignedEmployeeName!: string | null;
   @ApiPropertyOptional({ type: Number, nullable: true }) estimatedTotal!: number | null;
+  @ApiProperty({ type: Number }) totalDue!: number;
   @ApiPropertyOptional({ type: String, nullable: true }) currencyCode!: string | null;
   @ApiProperty({ type: () => ClientPortalDashboardServiceTaskDto, isArray: true })
   tasks!: readonly ClientPortalDashboardServiceTaskDto[];

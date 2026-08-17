@@ -102,3 +102,7 @@ Design status: Pending Figma verification.
   listing every tenant-published service with its blueprint tasks, frequency,
   and rates. Reuses Card, StatusBadge, EmptyState, ErrorState, and
   LoadingState. Figma MCP was not used.
+- Client Active services now lists every taken task with its price, a task
+  total, outstanding total due, and a comment field. Comments notify Tenant
+  Admins and Owners with the client name. Reuses Card, StatusBadge, Button,
+  and the existing textarea pattern. Figma MCP was not used.

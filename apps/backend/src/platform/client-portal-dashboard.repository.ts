@@ -17,6 +17,8 @@ type ServiceTaskJson = {
   title: string;
   status: string;
   plannedDueAt: string | Date | null;
+  rateAmount?: number | string;
+  currencyCode?: string;
 };
 
 type ServiceRow = {
@@ -30,6 +32,7 @@ type ServiceRow = {
   total_tasks: string;
   assigned_employee_name: string | null;
   estimated_total: string | null;
+  total_due: string;
   currency_code: string | null;
   tasks: readonly ServiceTaskJson[] | string;
 };
@@ -224,6 +227,10 @@ export class ClientPortalDashboardRepository {
           coalesce(sum(service_scope.total_tasks), 0)::text as total_tasks,
           max(assigned.assigned_employee_name) as assigned_employee_name,
           max(assigned.estimated_total) as estimated_total,
+          (
+            coalesce((array_agg(service_tasks.uninvoiced_due))[1], 0)
+            + coalesce((array_agg(service_invoices.invoice_due))[1], 0)
+          )::text as total_due,
           max(assigned.currency_code) as currency_code,
           coalesce((array_agg(service_tasks.tasks))[1], '[]'::json) as tasks
         from service_scope
@@ -258,21 +265,76 @@ export class ClientPortalDashboardRepository {
           select coalesce(
             json_agg(
               json_build_object(
-                'id', t.id::text,
-                'title', t.title,
-                'status', t.status,
-                'plannedDueAt', t.planned_due_at
+                'id', priced.id::text,
+                'title', priced.title,
+                'status', priced.status,
+                'plannedDueAt', priced.planned_due_at,
+                'rateAmount', priced.rate_amount,
+                'currencyCode', priced.currency_code
               )
-              order by t.planned_due_at nulls last, t.title
+              order by priced.planned_due_at nulls last, priced.title
             ),
             '[]'::json
-          ) as tasks
-          from public.tasks t
-          where t.tenant_id = $1
-            and t.client_id = $2
-            and t.service_id = s.id
-            and t.status <> 'cancelled'
+          ) as tasks,
+          coalesce(sum(priced.uninvoiced_amount), 0) as uninvoiced_due
+          from (
+            select
+              t.id,
+              t.title,
+              t.status,
+              t.planned_due_at,
+              coalesce(
+                sum(bte.gross_amount) filter (where bte.id is not null),
+                max(rci.rate_amount),
+                0
+              ) as rate_amount,
+              coalesce(
+                max(nullif(bte.currency_code, '')) filter (where bte.id is not null),
+                'INR'
+              ) as currency_code,
+              coalesce(sum(
+                case
+                  when bte.id is null then 0
+                  when bte.status = 'invoiced' then 0
+                  else coalesce(bte.net_amount, bte.gross_amount, 0)
+                end
+              ), 0) as uninvoiced_amount
+            from public.tasks t
+            left join public.billable_task_entries bte
+              on bte.task_id = t.id
+             and bte.tenant_id = t.tenant_id
+             and bte.status <> 'cancelled'
+            left join public.rate_card_items rci
+              on rci.tenant_id = t.tenant_id
+             and rci.id = coalesce(t.rate_card_item_id, bte.rate_card_item_id)
+            where t.tenant_id = $1
+              and t.client_id = $2
+              and t.service_id = s.id
+              and t.status <> 'cancelled'
+            group by t.id, t.title, t.status, t.planned_due_at
+          ) priced
         ) service_tasks on true
+        left join lateral (
+          select coalesce(sum(greatest(i.total_amount - coalesce(paid.paid_amount, 0), 0)), 0) as invoice_due
+          from public.invoices i
+          join public.invoice_items ii
+            on ii.invoice_id = i.id
+           and ii.tenant_id = i.tenant_id
+          join public.tasks t
+            on t.id = ii.task_id
+           and t.tenant_id = ii.tenant_id
+          left join lateral (
+            select coalesce(sum(p.amount), 0) as paid_amount
+            from public.payments p
+            where p.invoice_id = i.id
+              and p.tenant_id = i.tenant_id
+              and p.status = 'successful'
+          ) paid on true
+          where i.tenant_id = $1
+            and i.client_id = $2
+            and t.service_id = s.id
+            and i.status not in ('draft', 'cancelled', 'void')
+        ) service_invoices on true
         group by s.id, s.name
         order by lower(coalesce(min(service_scope.engagement_name), s.name)) asc
       `,

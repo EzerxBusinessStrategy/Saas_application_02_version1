@@ -1051,6 +1051,34 @@ export const clientServiceRequestItems = pgTable(
   }),
 );
 
+export const clientServiceComments = pgTable(
+  "client_service_comments",
+  {
+    id: uuid("id").default(sql`gen_random_uuid()`).primaryKey(),
+    tenantId: uuid("tenant_id").notNull(),
+    clientId: uuid("client_id").notNull(),
+    serviceId: uuid("service_id").notNull(),
+    body: text("body").notNull(),
+    createdByUserId: uuid("created_by_user_id").notNull(),
+    idempotencyKey: text("idempotency_key").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    tenantIdUnique: uniqueIndex("client_service_comments_tenant_id_id_uidx").on(table.tenantId, table.id),
+    idempotencyUnique: uniqueIndex("client_service_comments_idempotency_unique").on(
+      table.tenantId,
+      table.idempotencyKey,
+    ),
+    tenantClientServiceIndex: index("client_service_comments_tenant_client_service_idx").on(
+      table.tenantId,
+      table.clientId,
+      table.serviceId,
+      table.createdAt,
+      table.id,
+    ),
+  }),
+);
+
 export const payments = pgTable(
   "payments",
   {

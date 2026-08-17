@@ -7,5 +7,8 @@ test("client dashboard queries use the authenticated account's business client s
 
   expect(source).toContain("resolveClientPortalScope");
   expect(source).toContain("context.clientId");
+  expect(source).toContain("rateAmount");
+  expect(source).toContain("total_due");
+  expect(source).toContain("rci.rate_amount");
   expect(source).not.toContain("context.clientAccountId");
 });

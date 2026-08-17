@@ -6,6 +6,7 @@ describe("client portal notification idempotency", () => {
   test.each([
     "client-portal-requests.repository.ts",
     "client-portal-deliverables.repository.ts",
+    "client-portal-service-comments.repository.ts",
   ])("matches the partial notification idempotency index in %s", (fileName) => {
     const source = readFileSync(resolve(__dirname, `../../src/platform/${fileName}`), "utf8");
 

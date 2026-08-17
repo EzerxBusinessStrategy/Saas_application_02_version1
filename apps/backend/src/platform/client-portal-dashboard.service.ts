@@ -37,6 +37,7 @@ export class ClientPortalDashboardService {
           progressPercent: totalTasks === 0 ? 0 : Math.round((completedTasks / totalTasks) * 100),
           assignedEmployeeName: service.assigned_employee_name,
           estimatedTotal: service.estimated_total == null ? null : Number(service.estimated_total),
+          totalDue: Number(service.total_due),
           currencyCode: service.currency_code,
           tasks: parseServiceTasks(service.tasks),
         };
@@ -77,12 +78,18 @@ function parseServiceTasks(value: unknown): ClientPortalDashboardServiceTaskDto[
     const title = typeof record.title === "string" ? record.title : "";
     const status = typeof record.status === "string" ? record.status : "";
     if (!id || !title) return [];
+    const currencyCode =
+      typeof record.currencyCode === "string" && /^[A-Z]{3}$/.test(record.currencyCode)
+        ? record.currencyCode
+        : "INR";
     return [
       {
         id,
         title,
         status,
         plannedDueAt: toIsoDateTime(record.plannedDueAt),
+        rateAmount: Number(record.rateAmount ?? 0),
+        currencyCode,
       },
     ];
   });

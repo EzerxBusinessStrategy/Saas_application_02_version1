@@ -19,6 +19,7 @@ const clientPortalDashboardSchema = z.object({
       progressPercent: z.number().min(0).max(100).optional().default(0),
       assignedEmployeeName: z.string().nullable().optional().default(null),
       estimatedTotal: z.number().nullable().optional().default(null),
+      totalDue: z.number().optional().default(0),
       currencyCode: z.string().nullable().optional().default(null),
       tasks: z
         .array(
@@ -27,6 +28,8 @@ const clientPortalDashboardSchema = z.object({
             title: z.string(),
             status: z.string(),
             plannedDueAt: z.string().datetime().nullable(),
+            rateAmount: z.number().optional().default(0),
+            currencyCode: z.string().optional().default("INR"),
           }),
         )
         .optional()

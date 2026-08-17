@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ListChecks } from "lucide-react";
 import { toast } from "sonner";
 import { getClientPortalDashboard } from "@/features/client-portal/api/client-portal-dashboard-api";
+import { createClientServiceComment } from "@/features/client-portal/api/client-portal-service-comments-api";
 import {
   decideClientPortalDeliverable,
   getClientPortalDeliverableDownloadUrl,
@@ -190,7 +191,6 @@ function ClientServices({
   services: Awaited<ReturnType<typeof getClientPortalDashboard>>["services"];
   compact?: boolean;
 }) {
-  const [expandedId, setExpandedId] = useState<string | null>(null);
   return (
     <Card>
       <CardHeader>
@@ -199,15 +199,16 @@ function ClientServices({
           Active services
         </CardTitle>
         <CardDescription>
-          Live engagement and task status for your client account.
+          Tasks taken for your client account, with each task price and the amount due.
+          Design status: Pending Figma verification.
         </CardDescription>
       </CardHeader>
       <CardContent>
         {services.length ? (
           <ul className="flex flex-col divide-y">
             {services.map((service) => {
-              const expanded = expandedId === service.id;
               const currency = service.currencyCode ?? "INR";
+              const taskTotal = service.tasks.reduce((sum, task) => sum + task.rateAmount, 0);
               return (
                 <li key={service.id} className="py-4 first:pt-0">
                   <div className="flex items-start justify-between gap-3">
@@ -247,33 +248,39 @@ function ClientServices({
                       ? ` · ${formatCurrency(service.estimatedTotal, currency)}`
                       : ""}
                   </p>
-                  {!compact && service.tasks.length ? (
-                    <div className="mt-3">
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setExpandedId(expanded ? null : service.id)}
-                      >
-                        {expanded ? "Hide tasks" : "View tasks"}
-                      </Button>
-                      {expanded ? (
-                        <ul className="mt-3 flex flex-col divide-y rounded-[var(--radius-control)] border">
-                          {service.tasks.map((task) => (
-                            <li key={task.id} className="flex items-start justify-between gap-3 px-3 py-2 text-sm">
-                              <div>
-                                <p className="font-medium">{task.title}</p>
-                                <p className="mt-1 text-muted-foreground">
-                                  {task.plannedDueAt ? formatDate(task.plannedDueAt) : "No due date"}
-                                </p>
-                              </div>
-                              <StatusBadge status={mapTaskStatus(task.status)} />
-                            </li>
-                          ))}
-                        </ul>
-                      ) : null}
-                    </div>
-                  ) : null}
+                  {service.tasks.length ? (
+                    <ul className="mt-3 flex flex-col divide-y rounded-[var(--radius-control)] border">
+                      {service.tasks.map((task) => (
+                        <li key={task.id} className="flex items-start justify-between gap-3 px-3 py-2 text-sm">
+                          <div>
+                            <p className="font-medium">{task.title}</p>
+                            <p className="mt-1 text-muted-foreground">
+                              {task.plannedDueAt ? formatDate(task.plannedDueAt) : "No due date"}
+                            </p>
+                          </div>
+                          <div className="flex flex-col items-end gap-1">
+                            <span className="font-medium">
+                              {formatCurrency(task.rateAmount, task.currencyCode || currency)}
+                            </span>
+                            <StatusBadge status={mapTaskStatus(task.status)} />
+                          </div>
+                        </li>
+                      ))}
+                      <li className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
+                        <span className="font-medium">Task total</span>
+                        <span className="font-medium">{formatCurrency(taskTotal, currency)}</span>
+                      </li>
+                      <li className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
+                        <span className="font-medium">Total due</span>
+                        <span className="font-medium">{formatCurrency(service.totalDue, currency)}</span>
+                      </li>
+                    </ul>
+                  ) : (
+                    <p className="mt-3 text-sm text-muted-foreground">
+                      No tasks have been created for this service yet.
+                    </p>
+                  )}
+                  <ActiveServiceCommentForm serviceId={service.id} serviceName={service.serviceName} />
                 </li>
               );
             })}
@@ -291,6 +298,61 @@ function ClientServices({
         ) : null}
       </CardContent>
     </Card>
+  );
+}
+
+function ActiveServiceCommentForm({
+  serviceId,
+  serviceName,
+}: {
+  serviceId: string;
+  serviceName: string;
+}) {
+  const queryClient = useQueryClient();
+  const [body, setBody] = useState("");
+  const mutation = useMutation({
+    mutationFn: () =>
+      createClientServiceComment(serviceId, {
+        idempotencyKey: crypto.randomUUID(),
+        body: body.trim(),
+      }),
+    onSuccess: () => {
+      setBody("");
+      toast.success("Comment sent to the tenant.");
+      void queryClient.invalidateQueries({ queryKey: ["client-portal-dashboard"] });
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : "Comment could not be sent.");
+    },
+  });
+  const canSend = body.trim().length >= 2 && !mutation.isPending;
+
+  return (
+    <form
+      className="mt-4 grid gap-2"
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (!canSend) return;
+        mutation.mutate();
+      }}
+    >
+      <label className="text-sm font-medium">
+        Comment
+        <textarea
+          className="mt-1 min-h-24 w-full rounded-[var(--radius-control)] border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          value={body}
+          maxLength={2000}
+          aria-label={`Comment on ${serviceName}`}
+          placeholder="Send a note to the tenant about this service."
+          onChange={(event) => setBody(event.target.value)}
+        />
+      </label>
+      <div className="flex justify-end">
+        <Button type="submit" size="sm" disabled={!canSend}>
+          {mutation.isPending ? "Sending..." : "Send comment"}
+        </Button>
+      </div>
+    </form>
   );
 }
 

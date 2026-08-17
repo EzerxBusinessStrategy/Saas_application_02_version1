@@ -8,6 +8,9 @@ import { ClientPortalDeliverablesService } from "./client-portal-deliverables.se
 import { ClientPortalDashboardController } from "./client-portal-dashboard.controller";
 import { ClientPortalDashboardRepository } from "./client-portal-dashboard.repository";
 import { ClientPortalDashboardService } from "./client-portal-dashboard.service";
+import { ClientPortalServiceCommentsController } from "./client-portal-service-comments.controller";
+import { ClientPortalServiceCommentsRepository } from "./client-portal-service-comments.repository";
+import { ClientPortalServiceCommentsService } from "./client-portal-service-comments.service";
 import { ClientPortalNotificationsRepository } from "./client-portal-notifications.repository";
 import { ClientPortalNotificationsService } from "./client-portal-notifications.service";
 import { ClientPortalProfileController } from "./client-portal-profile.controller";
@@ -100,6 +103,7 @@ import { TaskNotificationOutboxWorker } from "./task-notification-outbox.worker"
     SuperAdminNotificationsController,
     SuperAdminPlatformConfigurationController,
     ClientPortalDashboardController,
+    ClientPortalServiceCommentsController,
     ClientPortalDeliverablesController,
     ClientPortalNotificationsController,
     ClientPortalProfileController,
@@ -138,6 +142,8 @@ import { TaskNotificationOutboxWorker } from "./task-notification-outbox.worker"
     SuperAdminPlatformConfigurationService,
     ClientPortalDashboardRepository,
     ClientPortalDashboardService,
+    ClientPortalServiceCommentsRepository,
+    ClientPortalServiceCommentsService,
     ClientPortalDeliverablesRepository,
     ClientPortalDeliverablesService,
     ClientPortalNotificationsRepository,
