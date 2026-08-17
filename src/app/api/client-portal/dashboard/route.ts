@@ -1,8 +1,8 @@
 import { proxyClientPortalBackend } from "@/lib/server/client-portal-backend-proxy";
 
-export async function GET() {
+export async function GET(request: Request) {
   return proxyClientPortalBackend({
-    path: "/client-portal/dashboard",
+    path: `/client-portal/dashboard${new URL(request.url).search}`,
     unavailableMessage: "Client dashboard service unavailable.",
   });
 }

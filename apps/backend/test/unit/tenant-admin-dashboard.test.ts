@@ -2,7 +2,10 @@ import { describe, expect, it, vi } from "vitest";
 import type { Pool } from "pg";
 import { RequestContext } from "../../src/auth/request-context";
 import { tenantAdminDashboardQuerySchema } from "../../src/platform/tenant-admin-dashboard.dto";
-import { resolveTenantDashboardPeriod } from "../../src/platform/tenant-admin-dashboard.period";
+import {
+  resolveClientDashboardPeriod,
+  resolveTenantDashboardPeriod,
+} from "../../src/platform/tenant-admin-dashboard.period";
 import { TenantAdminDashboardService } from "../../src/platform/tenant-admin-dashboard.service";
 import type { DashboardMetricsResult } from "../../src/platform/tenant-admin-dashboard.repository";
 import { TenantAdminDashboardRepository } from "../../src/platform/tenant-admin-dashboard.repository";
@@ -454,5 +457,25 @@ describe("tenant dashboard date range", () => {
     expect(tenantAdminDashboardQuerySchema.safeParse({ from: "2026-08-01", to: "2026-08-16" }).success).toBe(true);
     expect(tenantAdminDashboardQuerySchema.safeParse({ from: "2020-01-01", to: "2023-01-02" }).success).toBe(false);
     expect(tenantAdminDashboardQuerySchema.safeParse({ from: "2014-12-31", to: "2015-01-31" }).success).toBe(false);
+  });
+});
+
+describe("client dashboard date range", () => {
+  it("defaults to the current month through the next year so future installments stay visible", () => {
+    expect(
+      resolveClientDashboardPeriod({
+        today: "2026-08-17",
+      }),
+    ).toEqual({ from: "2026-08-01", to: "2027-08-18", source: "upcoming_year" });
+  });
+
+  it("lets an explicit query range override the default upcoming year", () => {
+    expect(
+      resolveClientDashboardPeriod({
+        from: "2026-09-01",
+        to: "2026-09-30",
+        today: "2026-08-17",
+      }),
+    ).toEqual({ from: "2026-09-01", to: "2026-09-30", source: "query" });
   });
 });

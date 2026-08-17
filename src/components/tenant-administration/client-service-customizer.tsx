@@ -46,30 +46,24 @@ export function ClientServiceCustomizer({
         </div>
         <p className="text-sm font-medium">{formatMoney(estimated, currencyCode)}</p>
       </div>
-      <div className="mt-4 overflow-x-auto">
-        <table className="min-w-full text-sm">
-          <thead className="text-left text-xs uppercase text-muted-foreground">
-            <tr>
-              <th className="py-2 pr-3 font-medium">Include</th>
-              <th className="py-2 pr-3 font-medium">Task</th>
-              <th className="py-2 pr-3 font-medium">Frequency</th>
-              <th className="py-2 pr-3 font-medium">Due</th>
-              <th className="py-2 font-medium">Price</th>
-            </tr>
-          </thead>
-          <tbody>
-            {tasks.map((task, index) => (
-              <tr key={`${task.taskType}-${index}`} className="border-t align-top">
-                <td className="py-3 pr-3">
+      <ul className="mt-4 flex flex-col gap-3">
+        {tasks.map((task, index) => (
+          <li key={`${task.taskType}-${index}`} className="rounded-[var(--radius-control)] border p-3">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="flex items-end gap-3 sm:col-span-2">
+                <label className="flex h-10 shrink-0 items-center gap-2 text-sm font-medium">
                   <input
                     type="checkbox"
                     checked={task.enabled}
                     aria-label={`Include ${task.title || task.taskType}`}
                     onChange={(event) => update(onChange, tasks, index, { enabled: event.target.checked })}
                   />
-                </td>
-                <td className="py-3 pr-3">
-                    <Input
+                  <span>Include</span>
+                </label>
+                <label className="min-w-0 flex-1 text-sm font-medium">
+                  Task
+                  <Input
+                    className="mt-1"
                     value={task.title || task.taskType}
                     onChange={(event) =>
                       update(
@@ -82,42 +76,48 @@ export function ClientServiceCustomizer({
                       )
                     }
                   />
-                </td>
-                <td className="py-3 pr-3">
-                  <Select
-                    value={task.frequency}
-                    onChange={(event) =>
-                      update(onChange, tasks, index, { frequency: event.target.value as ClientServiceDraftTask["frequency"] })
-                    }
-                  >
-                    <option value="monthly">Monthly</option>
-                    <option value="quarterly">Quarterly</option>
-                    <option value="annually">Yearly</option>
-                    <option value="one_time">One-time</option>
-                  </Select>
-                </td>
-                <td className="py-3 pr-3 min-w-40">
-                  <DueRuleFields
-                    frequency={task.frequency}
-                    dueRule={task.dueRule}
-                    onChange={(dueRule) => update(onChange, tasks, index, { dueRule })}
-                  />
-                </td>
-                <td className="py-3">
-                  <label className="sr-only">Price for {task.taskType}</label>
-                  <Input
-                    min="0"
-                    step="0.01"
-                    type="number"
-                    value={task.rateAmount}
-                    onChange={(event) => update(onChange, tasks, index, { rateAmount: Number(event.target.value) })}
-                  />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+                </label>
+              </div>
+              <label className="min-w-0 text-sm font-medium">
+                Frequency
+                <Select
+                  className="mt-1"
+                  aria-label={`Frequency for ${task.title || task.taskType}`}
+                  value={task.frequency}
+                  onChange={(event) =>
+                    update(onChange, tasks, index, {
+                      frequency: event.target.value as ClientServiceDraftTask["frequency"],
+                    })
+                  }
+                >
+                  <option value="monthly">Monthly</option>
+                  <option value="quarterly">Quarterly</option>
+                  <option value="annually">Yearly</option>
+                  <option value="one_time">One-time</option>
+                </Select>
+              </label>
+              <div className="min-w-0">
+                <DueRuleFields
+                  frequency={task.frequency}
+                  dueRule={task.dueRule}
+                  onChange={(dueRule) => update(onChange, tasks, index, { dueRule })}
+                />
+              </div>
+              <label className="min-w-0 text-sm font-medium">
+                Price
+                <Input
+                  className="mt-1"
+                  min="0"
+                  step="0.01"
+                  type="number"
+                  value={Number.isFinite(task.rateAmount) ? task.rateAmount : 0}
+                  onChange={(event) => update(onChange, tasks, index, { rateAmount: Number(event.target.value) })}
+                />
+              </label>
+            </div>
+          </li>
+        ))}
+      </ul>
       <Button
         type="button"
         variant="outline"

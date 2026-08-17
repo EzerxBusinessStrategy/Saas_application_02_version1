@@ -1,10 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ListChecks } from "lucide-react";
 import { toast } from "sonner";
-import { getClientPortalDashboard } from "@/features/client-portal/api/client-portal-dashboard-api";
+import {
+  getClientPortalDashboard,
+  type ClientPortalDashboard,
+} from "@/features/client-portal/api/client-portal-dashboard-api";
+import { formatDiscountPercent, formatMonthLabel, summarizeClientServiceSchedule, taskYearMonth } from "@/features/client-portal/client-service-pricing";
 import { createClientServiceComment } from "@/features/client-portal/api/client-portal-service-comments-api";
 import {
   decideClientPortalDeliverable,
@@ -25,12 +29,14 @@ import {
 } from "@/features/client-portal/api/client-portal-profile-api";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ErrorState } from "@/components/shared/error-state";
+import { FilterToolbar } from "@/components/shared/filter-toolbar";
 import { LoadingState } from "@/components/shared/loading-state";
 import { ConfirmationDialog } from "@/components/shared/confirmation-dialog";
 import { MetricCard } from "@/components/shared/metric-card";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
 import {
   Card,
   CardContent,
@@ -41,22 +47,41 @@ import {
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 
+const CLIENT_DASHBOARD_MAX_SPAN_DAYS = 731;
+const CLIENT_DASHBOARD_MAX_FUTURE_DAYS = 366;
+
+type ClientDashboardPreset = "custom" | "this_month" | "last_30_days" | "upcoming_year";
+
 export function ClientPortal({
   section = "overview",
 }: {
   section?: "overview" | "services" | "requests" | "profile" | "deliverables" | "invoices";
 }) {
+  const [applied, setApplied] = useState<{ from?: string; to?: string }>({});
+  const [draftFrom, setDraftFrom] = useState<string | null>(null);
+  const [draftTo, setDraftTo] = useState<string | null>(null);
+  const [preset, setPreset] = useState<ClientDashboardPreset>("custom");
+  const needsDashboard = section !== "profile" && section !== "deliverables";
   const query = useQuery({
-    queryKey: ["client-portal-dashboard"],
-    queryFn: getClientPortalDashboard,
+    queryKey: ["client-portal-dashboard", applied.from ?? "", applied.to ?? ""],
+    queryFn: () => getClientPortalDashboard({ from: applied.from, to: applied.to }),
+    enabled: needsDashboard,
+    placeholderData: keepPreviousData,
     refetchInterval: 10_000,
     refetchOnWindowFocus: "always",
   });
 
-  if (query.isPending) {
+  if (section === "deliverables") {
+    return <ClientDeliverables />;
+  }
+  if (section === "profile") {
+    return <ClientProfile />;
+  }
+
+  if (query.isPending && !query.data) {
     return <LoadingState label="Loading client portal" rows={4} />;
   }
-  if (query.isError) {
+  if (query.isError && !query.data) {
     return (
       <ErrorState
         title="Client portal could not load"
@@ -66,15 +91,136 @@ export function ClientPortal({
   }
 
   const data = query.data;
-
-  if (section === "deliverables") {
-    return <ClientDeliverables />;
+  if (!data) {
+    return <LoadingState label="Loading client portal" rows={4} />;
   }
+
+  const period = data.period;
+  const fromValue = draftFrom ?? period.from;
+  const toValue = draftTo ?? period.to;
+  const incompleteRange = Boolean(fromValue) !== Boolean(toValue);
+  const invertedRange = Boolean(fromValue && toValue && fromValue > toValue);
+  const oversizedRange = Boolean(
+    fromValue && toValue && isoDateDiffDays(fromValue, toValue) > CLIENT_DASHBOARD_MAX_SPAN_DAYS,
+  );
+  const invalidRange = incompleteRange || invertedRange || oversizedRange;
+  const filtersDirty = fromValue !== period.from || toValue !== period.to;
+  const selectValue: ClientDashboardPreset =
+    draftFrom === null && draftTo === null
+      ? period.source === "query"
+        ? "custom"
+        : period.source
+      : preset;
+  const periodDescription = `Showing ${formatLocalIsoDate(period.from)} – ${formatLocalIsoDate(period.to)} (${periodSourceLabel(period.source)}). Design status: Pending Figma verification.`;
+
+  function applyRange(from: string, to: string, nextPreset: ClientDashboardPreset) {
+    if (!from || !to || from > to || isoDateDiffDays(from, to) > CLIENT_DASHBOARD_MAX_SPAN_DAYS) {
+      return;
+    }
+    setDraftFrom(from);
+    setDraftTo(to);
+    setPreset(nextPreset);
+    setApplied({ from, to });
+  }
+
+  function applyDraft() {
+    applyRange(fromValue, toValue, "custom");
+  }
+
+  function applyPreset(next: ClientDashboardPreset) {
+    switch (next) {
+      case "custom":
+        setPreset("custom");
+        return;
+      case "last_30_days": {
+        const today = toLocalIsoDate(new Date());
+        applyRange(addLocalIsoDays(today, -29), today, "last_30_days");
+        return;
+      }
+      case "this_month": {
+        const today = toLocalIsoDate(new Date());
+        const monthStart = `${today.slice(0, 8)}01`;
+        const monthEndDate = new Date(Number(today.slice(0, 4)), Number(today.slice(5, 7)), 0);
+        applyRange(monthStart, toLocalIsoDate(monthEndDate), "this_month");
+        return;
+      }
+      case "upcoming_year": {
+        const today = toLocalIsoDate(new Date());
+        applyRange(
+          `${today.slice(0, 8)}01`,
+          addLocalIsoDays(today, CLIENT_DASHBOARD_MAX_FUTURE_DAYS),
+          "upcoming_year",
+        );
+        return;
+      }
+      default: {
+        const exhaustive: never = next;
+        return exhaustive;
+      }
+    }
+  }
+
+  function resetPeriod() {
+    setDraftFrom(null);
+    setDraftTo(null);
+    setPreset("custom");
+    setApplied({});
+  }
+
+  const periodFilter = (
+    <ClientPortalPeriodFilter
+      fromValue={fromValue}
+      toValue={toValue}
+      selectValue={selectValue}
+      invalidRange={invalidRange}
+      incompleteRange={incompleteRange}
+      invertedRange={invertedRange}
+      filtersDirty={filtersDirty}
+      isFetching={query.isFetching}
+      activeFilterCount={applied.from && applied.to ? 1 : 0}
+      onFromChange={(value) => {
+        setPreset("custom");
+        setDraftFrom(value);
+      }}
+      onToChange={(value) => {
+        setPreset("custom");
+        setDraftTo(value);
+      }}
+      onPresetChange={applyPreset}
+      onApply={applyDraft}
+      onClear={resetPeriod}
+    />
+  );
+
   if (section === "invoices") {
-    return <ClientInvoices invoices={data.invoices} />;
+    return (
+      <div className="flex flex-col gap-[30px]">
+        <PageHeader
+          eyebrow="Client portal"
+          title="Invoices"
+          description={periodDescription}
+        />
+        {periodFilter}
+        <ClientInvoices invoices={data.invoices} />
+      </div>
+    );
   }
   if (section === "requests") {
-    return <ClientRequests requests={data.requests} onChanged={() => void query.refetch()} />;
+    return (
+      <div className="flex flex-col gap-[30px]">
+        <PageHeader
+          eyebrow="Client portal"
+          title="Requests"
+          description={periodDescription}
+        />
+        {periodFilter}
+        <ClientRequests
+          requests={data.requests}
+          period={period}
+          onChanged={() => void query.refetch()}
+        />
+      </div>
+    );
   }
   if (section === "services") {
     return (
@@ -82,15 +228,12 @@ export function ClientPortal({
         <PageHeader
           eyebrow="Client portal"
           title="Services"
-          description="Your active services and the full tenant catalogue of services and tasks."
+          description={periodDescription}
         />
+        {periodFilter}
         <ClientServices services={data.services} />
-        <ClientServiceCatalogueCard />
       </div>
     );
-  }
-  if (section === "profile") {
-    return <ClientProfile />;
   }
 
   const currency = new Intl.NumberFormat("en-IN", {
@@ -104,14 +247,18 @@ export function ClientPortal({
       <PageHeader
         eyebrow="Client portal"
         title="Service overview"
-        description="Your active services, requests, and invoices."
+        description={periodDescription}
       />
+      {periodFilter}
       <section
-        className="grid overflow-hidden rounded-[var(--radius-card)] border border-border bg-border md:grid-cols-3"
+        className="grid overflow-hidden rounded-[var(--radius-card)] border border-border bg-border sm:grid-cols-2 lg:grid-cols-5"
         aria-label="Client service metrics"
+        aria-busy={query.isFetching}
       >
         {[
           { label: "Active services", value: String(data.activeServices) },
+          { label: "Pending tasks", value: String(data.pendingTasks) },
+          { label: "Completed tasks", value: String(data.completedTasks) },
           { label: "Open requests", value: String(data.openRequests) },
           {
             label: "Outstanding invoices",
@@ -127,7 +274,7 @@ export function ClientPortal({
       </section>
       <section className="grid gap-[30px] lg:grid-cols-2">
         <ClientServices services={data.services} compact />
-        <ClientRequests requests={data.requests} compact />
+        <ClientRequests requests={data.requests} period={period} compact />
       </section>
     </div>
   );
@@ -139,48 +286,41 @@ function ClientInvoices({
   invoices: Awaited<ReturnType<typeof getClientPortalDashboard>>["invoices"];
 }) {
   return (
-    <div className="flex flex-col gap-[30px]">
-      <PageHeader
-        eyebrow="Client portal"
-        title="Invoices"
-        description="Invoices issued by your tenant for this client account."
-      />
-      <Card>
-        <CardContent className="pt-[30px]">
-          {invoices.length ? (
-            <ul className="flex flex-col divide-y">
-              {invoices.map((invoice) => (
-                <li key={invoice.id} className="flex flex-wrap items-center justify-between gap-4 py-4 first:pt-0">
-                  <div>
-                    <p className="font-medium">{invoice.invoiceNumber}</p>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      {invoice.taskTitle ?? "Invoice"} · Issued {invoice.issuedOn}
-                    </p>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      {formatCurrency(invoice.totalAmount, invoice.currencyCode)} · Outstanding {formatCurrency(invoice.outstandingAmount, invoice.currencyCode)}
-                    </p>
-                  </div>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => void getClientPortalInvoiceDownloadUrl(invoice.id)
-                      .then((url) => window.open(url, "_blank", "noopener,noreferrer"))
-                      .catch((error) => toast.error(error instanceof Error ? error.message : "Invoice download could not be started."))}
-                  >
-                    Download invoice
-                  </Button>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <EmptyState
-              title="No invoices"
-              description="Issued invoices for this client account will appear here."
-            />
-          )}
-        </CardContent>
-      </Card>
-    </div>
+    <Card>
+      <CardContent className="pt-[30px]">
+        {invoices.length ? (
+          <ul className="flex flex-col divide-y">
+            {invoices.map((invoice) => (
+              <li key={invoice.id} className="flex flex-wrap items-center justify-between gap-4 py-4 first:pt-0">
+                <div>
+                  <p className="font-medium">{invoice.invoiceNumber}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {invoice.taskTitle ?? "Invoice"} · Issued {invoice.issuedOn}
+                  </p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {formatCurrency(invoice.totalAmount, invoice.currencyCode)} · Outstanding {formatCurrency(invoice.outstandingAmount, invoice.currencyCode)}
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => void getClientPortalInvoiceDownloadUrl(invoice.id)
+                    .then((url) => window.open(url, "_blank", "noopener,noreferrer"))
+                    .catch((error) => toast.error(error instanceof Error ? error.message : "Invoice download could not be started."))}
+                >
+                  Download invoice
+                </Button>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <EmptyState
+            title="No invoices"
+            description="Issued invoices for this client account will appear here."
+          />
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -199,7 +339,7 @@ function ClientServices({
           Active services
         </CardTitle>
         <CardDescription>
-          Tasks taken for your client account, with each task price and the amount due.
+          Each month shows its price so you can see what to pay this month, next month, and in total.
           Design status: Pending Figma verification.
         </CardDescription>
       </CardHeader>
@@ -208,7 +348,7 @@ function ClientServices({
           <ul className="flex flex-col divide-y">
             {services.map((service) => {
               const currency = service.currencyCode ?? "INR";
-              const taskTotal = service.tasks.reduce((sum, task) => sum + task.rateAmount, 0);
+              const schedule = summarizeClientServiceSchedule(service.tasks);
               return (
                 <li key={service.id} className="py-4 first:pt-0">
                   <div className="flex items-start justify-between gap-3">
@@ -222,11 +362,6 @@ function ClientServices({
                       status={service.status === "active" ? "on-track" : "pending"}
                     />
                   </div>
-                  {service.assignedEmployeeName ? (
-                    <p className="mt-2 text-sm text-muted-foreground">
-                      {service.assignedEmployeeName} · responsible person
-                    </p>
-                  ) : null}
                   <p className="mt-2 text-sm text-muted-foreground">
                     {service.completedTasks}/{service.totalTasks} tasks completed
                     {service.openTasks > 0 ? ` · ${service.openTasks} open` : ""}
@@ -240,40 +375,60 @@ function ClientServices({
                       <div className="h-full bg-primary" style={{ width: `${service.progressPercent}%` }} />
                     </div>
                   </div>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    {service.nextDueAt
-                      ? `Next due ${formatDate(service.nextDueAt)}`
-                      : "No upcoming due date"}
-                    {service.estimatedTotal != null
-                      ? ` · ${formatCurrency(service.estimatedTotal, currency)}`
-                      : ""}
-                  </p>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    <p className="text-sm">
+                      <span className="text-muted-foreground">This month due ({formatMonthLabel(schedule.thisMonthKey)})</span>
+                      <span className="mt-1 block font-medium">{formatCurrency(schedule.thisMonthDue, currency)}</span>
+                    </p>
+                    <p className="text-sm">
+                      <span className="text-muted-foreground">Next month due ({formatMonthLabel(schedule.nextMonthKey)})</span>
+                      <span className="mt-1 block font-medium">{formatCurrency(schedule.nextMonthDue, currency)}</span>
+                    </p>
+                  </div>
                   {service.tasks.length ? (
                     <ul className="mt-3 flex flex-col divide-y rounded-[var(--radius-control)] border">
-                      {service.tasks.map((task) => (
-                        <li key={task.id} className="flex items-start justify-between gap-3 px-3 py-2 text-sm">
-                          <div>
-                            <p className="font-medium">{task.title}</p>
-                            <p className="mt-1 text-muted-foreground">
-                              {task.plannedDueAt ? formatDate(task.plannedDueAt) : "No due date"}
-                            </p>
-                          </div>
-                          <div className="flex flex-col items-end gap-1">
-                            <span className="font-medium">
-                              {formatCurrency(task.rateAmount, task.currencyCode || currency)}
-                            </span>
-                            <StatusBadge status={mapTaskStatus(task.status)} />
-                          </div>
-                        </li>
-                      ))}
+                      {service.tasks.map((task) => {
+                        const yearMonth = taskYearMonth(task.plannedDueAt);
+                        const monthHint =
+                          yearMonth === schedule.thisMonthKey
+                            ? "This month"
+                            : yearMonth === schedule.nextMonthKey
+                              ? "Next month"
+                              : null;
+                        return (
+                          <li key={task.id} className="flex items-start justify-between gap-3 px-3 py-2 text-sm">
+                            <div>
+                              <p className="font-medium">{task.title}</p>
+                              <p className="mt-1 text-muted-foreground">
+                                {task.plannedDueAt ? formatDate(task.plannedDueAt) : "No due date"}
+                                {monthHint ? ` · ${monthHint}` : ""}
+                              </p>
+                            </div>
+                            <div className="flex flex-col items-end gap-1">
+                              <span className="font-medium">
+                                {formatCurrency(task.rateAmount, task.currencyCode || currency)}
+                              </span>
+                              <StatusBadge status={mapTaskStatus(task.status)} />
+                            </div>
+                          </li>
+                        );
+                      })}
                       <li className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
-                        <span className="font-medium">Task total</span>
-                        <span className="font-medium">{formatCurrency(taskTotal, currency)}</span>
+                        <span className="font-medium">Total task amount</span>
+                        <span className="font-medium">{formatCurrency(schedule.taskTotal, currency)}</span>
                       </li>
-                      <li className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
-                        <span className="font-medium">Total due</span>
-                        <span className="font-medium">{formatCurrency(service.totalDue, currency)}</span>
-                      </li>
+                      {schedule.discountAmount > 0 ? (
+                        <>
+                          <li className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
+                            <span>Discount ({formatDiscountPercent(schedule.discountPercent)})</span>
+                            <span>−{formatCurrency(schedule.discountAmount, currency)}</span>
+                          </li>
+                          <li className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
+                            <span className="font-medium">Amount due</span>
+                            <span className="font-medium">{formatCurrency(schedule.amountDue, currency)}</span>
+                          </li>
+                        </>
+                      ) : null}
                     </ul>
                   ) : (
                     <p className="mt-3 text-sm text-muted-foreground">
@@ -288,7 +443,7 @@ function ClientServices({
         ) : (
             <EmptyState
               title="No active services"
-              description="Tick services from Requests. After the tenant accepts and allots the responsible person, they appear here with dates and prices."
+              description="Tick services from Requests. After the tenant accepts, they appear here with dates and prices."
             />
         )}
         {!compact && services.length ? (
@@ -360,10 +515,12 @@ function ClientRequests({
   requests,
   compact = false,
   onChanged,
+  period,
 }: {
   requests: Awaited<ReturnType<typeof getClientPortalDashboard>>["requests"];
   compact?: boolean;
   onChanged?: () => void;
+  period: ClientPortalDashboard["period"];
 }) {
   const [open, setOpen] = useState(false);
   const [commentOpen, setCommentOpen] = useState(false);
@@ -404,6 +561,10 @@ function ClientRequests({
           .filter((request) => !(requestQuery.data ?? []).some((item) => item.id === request.id))
           .map((request) => ({ ...request, comment: undefined as string | undefined })),
       ];
+  const visible = listed.filter((item) => {
+    const day = item.submittedAt.slice(0, 10);
+    return day >= period.from && day <= period.to;
+  });
   const canSend =
     (selected.length > 0 && selected.every((service) => (drafts[service.serviceId] ?? []).some((task) => task.enabled))) ||
     title.trim().length >= 2;
@@ -446,7 +607,7 @@ function ClientRequests({
           })),
         })),
       });
-      toast.success("Request sent. The tenant will allot the responsible person before work is created.");
+      toast.success("Request sent. The tenant will accept it before work is created.");
       setCommentOpen(false);
       setOpen(false);
       setSelectedIds([]);
@@ -477,9 +638,9 @@ function ClientRequests({
         </div>
       </CardHeader>
       <CardContent>
-        {listed.length ? (
+        {visible.length ? (
           <ul className="flex flex-col divide-y">
-            {listed.map((request) => (
+            {visible.map((request) => (
               <li key={request.id} className="py-4 first:pt-0">
                 <div className="flex items-start justify-between gap-3">
                   <div>
@@ -523,8 +684,15 @@ function ClientRequests({
       <DialogContent
         title="Request services"
         description="Choose from the tenant service list. You can change tasks, dates, and prices before sending. Design status: Pending Figma verification."
+        className="max-h-[90vh] w-[min(42rem,calc(100vw-2rem))] max-w-2xl overflow-y-auto"
       >
-        <div className="grid max-h-[70vh] gap-5 overflow-y-auto pr-8">
+        <div className="grid min-w-0 gap-5 pr-8">
+          <div>
+            <h2 className="text-lg font-semibold">Request services</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Choose from the tenant service list. You can change tasks, dates, and prices before sending.
+            </p>
+          </div>
           {catalogueQuery.isError ? (
             <p className="rounded-[var(--radius-control)] border border-destructive/30 p-3 text-sm text-destructive">
               The service catalogue could not load.
@@ -608,80 +776,6 @@ function ClientRequests({
       </label>
     </ConfirmationDialog>
     </>
-  );
-}
-
-function ClientServiceCatalogueCard() {
-  const query = useQuery({
-    queryKey: ["client-service-catalogue"],
-    queryFn: getClientServiceCatalogue,
-  });
-  const services = query.data?.services ?? [];
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Service catalogue</CardTitle>
-        <CardDescription>
-          Every service and task published by your tenant. Tick the ones you need from the Requests page.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        {query.isPending ? (
-          <LoadingState label="Loading service catalogue" rows={3} />
-        ) : query.isError ? (
-          <ErrorState
-            title="Service catalogue could not load"
-            onRetry={() => void query.refetch()}
-          />
-        ) : services.length ? (
-          <ul className="flex flex-col divide-y">
-            {services.map((service) => (
-              <li key={service.serviceId} className="py-4 first:pt-0">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <p className="font-medium">{service.name}</p>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      Estimated {formatCurrency(service.estimatedAnnualTotal, service.currencyCode)} per year
-                    </p>
-                  </div>
-                  <StatusBadge
-                    status={
-                      service.alreadyActive
-                        ? "complete"
-                        : service.alreadyRequested
-                          ? "pending"
-                          : "on-track"
-                    }
-                  />
-                </div>
-                {service.tasks.length ? (
-                  <ul className="mt-3 flex flex-col divide-y rounded-[var(--radius-control)] border">
-                    {service.tasks.map((task, index) => (
-                      <li
-                        key={`${task.taskType}-${index}`}
-                        className="flex flex-wrap items-center justify-between gap-3 px-3 py-2 text-sm"
-                      >
-                        <span className="font-medium">{task.taskType}</span>
-                        <span className="text-muted-foreground">
-                          {task.frequency.replace("_", " ")} · {formatCurrency(task.rateAmount, service.currencyCode)}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="mt-2 text-sm text-muted-foreground">No tasks are defined for this service yet.</p>
-                )}
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <EmptyState
-            title="No services published"
-            description="Your tenant has not published a service catalogue yet."
-          />
-        )}
-      </CardContent>
-    </Card>
   );
 }
 
@@ -1050,4 +1144,137 @@ function mapRequestStatus(status: string) {
     return "on-track";
   }
   return "pending";
+}
+
+function ClientPortalPeriodFilter({
+  fromValue,
+  toValue,
+  selectValue,
+  invalidRange,
+  incompleteRange,
+  invertedRange,
+  filtersDirty,
+  isFetching,
+  activeFilterCount,
+  onFromChange,
+  onToChange,
+  onPresetChange,
+  onApply,
+  onClear,
+}: {
+  fromValue: string;
+  toValue: string;
+  selectValue: ClientDashboardPreset;
+  invalidRange: boolean;
+  incompleteRange: boolean;
+  invertedRange: boolean;
+  filtersDirty: boolean;
+  isFetching: boolean;
+  activeFilterCount: number;
+  onFromChange: (value: string) => void;
+  onToChange: (value: string) => void;
+  onPresetChange: (value: ClientDashboardPreset) => void;
+  onApply: () => void;
+  onClear: () => void;
+}) {
+  return (
+    <FilterToolbar
+      activeFilterCount={activeFilterCount}
+      onClear={onClear}
+      trailing={
+        <Button type="button" disabled={!filtersDirty || invalidRange || isFetching} onClick={onApply}>
+          Apply dates
+        </Button>
+      }
+    >
+      <label className="text-sm font-medium">
+        Period
+        <Select
+          className="mt-1"
+          aria-label="Dashboard date preset"
+          value={selectValue}
+          onChange={(event) => onPresetChange(event.target.value as ClientDashboardPreset)}
+        >
+          <option value="custom">Custom range</option>
+          <option value="this_month">This month</option>
+          <option value="last_30_days">Last 30 days</option>
+          <option value="upcoming_year">Next 12 months</option>
+        </Select>
+      </label>
+      <label className="text-sm font-medium">
+        From
+        <Input
+          className="mt-1"
+          type="date"
+          aria-label="Dashboard from date"
+          value={fromValue}
+          onChange={(event) => onFromChange(event.target.value)}
+        />
+      </label>
+      <label className="text-sm font-medium">
+        To
+        <Input
+          className="mt-1"
+          type="date"
+          aria-label="Dashboard to date"
+          value={toValue}
+          onChange={(event) => onToChange(event.target.value)}
+        />
+      </label>
+      {invalidRange ? (
+        <p className="text-sm text-muted-foreground sm:col-span-2 xl:col-span-1">
+          {incompleteRange
+            ? "Choose both a start and end date."
+            : invertedRange
+              ? "The end date must be on or after the start date."
+              : "The range cannot exceed 731 days."}
+        </p>
+      ) : null}
+    </FilterToolbar>
+  );
+}
+
+function formatLocalIsoDate(isoDate: string) {
+  const [year, month, day] = isoDate.split("-").map(Number);
+  if (!year || !month || !day) return isoDate;
+  return new Intl.DateTimeFormat(undefined, {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(new Date(year, month - 1, day));
+}
+
+function toLocalIsoDate(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function addLocalIsoDays(isoDate: string, days: number) {
+  const [year, month, day] = isoDate.split("-").map(Number);
+  const date = new Date(year, (month ?? 1) - 1, day ?? 1);
+  date.setDate(date.getDate() + days);
+  return toLocalIsoDate(date);
+}
+
+function isoDateDiffDays(from: string, to: string) {
+  const start = Date.parse(`${from}T00:00:00.000Z`);
+  const end = Date.parse(`${to}T00:00:00.000Z`);
+  return Math.round((end - start) / 86_400_000);
+}
+
+function periodSourceLabel(source: ClientPortalDashboard["period"]["source"]) {
+  switch (source) {
+    case "last_30_days":
+      return "last 30 days";
+    case "upcoming_year":
+      return "next 12 months";
+    case "query":
+      return "selected dates";
+    default: {
+      const exhaustive: never = source;
+      return exhaustive;
+    }
+  }
 }

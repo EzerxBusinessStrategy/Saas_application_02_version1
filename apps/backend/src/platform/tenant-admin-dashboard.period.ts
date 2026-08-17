@@ -3,7 +3,7 @@ export const DASHBOARD_MAX_SPAN_DAYS = 731;
 export const DASHBOARD_MAX_FUTURE_DAYS = 366;
 export const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
-export type DashboardPeriodSource = "query" | "financial_year" | "last_30_days";
+export type DashboardPeriodSource = "query" | "financial_year" | "last_30_days" | "upcoming_year";
 
 export type DashboardPeriod = {
   readonly from: string;
@@ -47,5 +47,24 @@ export function resolveTenantDashboardPeriod(input: {
     from: addIsoDateDays(input.today, -29),
     to: input.today,
     source: "last_30_days",
+  };
+}
+
+export function startOfUtcMonth(isoDate: string): string {
+  return `${isoDate.slice(0, 8)}01`;
+}
+
+export function resolveClientDashboardPeriod(input: {
+  readonly from?: string;
+  readonly to?: string;
+  readonly today: string;
+}): DashboardPeriod {
+  if (input.from && input.to) {
+    return { from: input.from, to: input.to, source: "query" };
+  }
+  return {
+    from: startOfUtcMonth(input.today),
+    to: addIsoDateDays(input.today, DASHBOARD_MAX_FUTURE_DAYS),
+    source: "upcoming_year",
   };
 }

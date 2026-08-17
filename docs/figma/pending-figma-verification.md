@@ -79,10 +79,21 @@ Design status: Pending Figma verification.
   dates. Figma MCP was not used.
 - Client request send now opens ConfirmationDialog for a required comment. Tenant
   Service requests show that comment with the request. Figma MCP was not used.
+- The client Request services dialog stacks each booklet task (include, name,
+  frequency, due, price) using the same labelled field pattern as the service
+  blueprint editor, so values stay readable in the dialog. Figma MCP was not used.
 
+## Client portal date filter and catalogue requests
 
 Design status: Pending Figma verification.
 
+- Client portal overview, Active services, Requests, and Invoices include a
+  date-range filter (presets and custom From/To) that reuses PageHeader,
+  FilterToolbar, Input, Select, and Button. Metrics, services, requests, and
+  invoices load from the client-scoped dashboard API for the selected dates.
+  Pending and completed task counts come from that client's tasks in the same
+  range. Open requests only count work still waiting (not leftover submitted
+  requests after the service was activated). Figma MCP was not used.
 - Client portal tick-and-send Requests and Tenant Admin Service requests
   reuse PageHeader, Card, Dialog, Button, ClientServiceCustomizer, and
   ServiceEmployeeSelector. Figma MCP was not used. They are inferred
@@ -98,11 +109,11 @@ Design status: Pending Figma verification.
   and the separate Service requests page were removed; the old route redirects
   to Tasks. Reuses PageHeader, ResponsiveTabs, Card, DataTable, Dialog,
   StatusBadge, and TaskDetailsDrawer. Figma MCP was not used.
-- The client portal Services page adds a read-only Service catalogue card
-  listing every tenant-published service with its blueprint tasks, frequency,
-  and rates. Reuses Card, StatusBadge, EmptyState, ErrorState, and
-  LoadingState. Figma MCP was not used.
-- Client Active services now lists every taken task with its price, a task
-  total, outstanding total due, and a comment field. Comments notify Tenant
-  Admins and Owners with the client name. Reuses Card, StatusBadge, Button,
-  and the existing textarea pattern. Figma MCP was not used.
+- Client Active services lists every taken month with its price. This month
+  due and next month due are the remaining open installments for those months.
+  Total task amount is the sum of listed prices. Any billing discount is shown
+  separately with the discount percent, then Amount due. Assigned employees are
+  not shown to clients. The Service catalogue card was removed from this page
+  because clients already tick services from Requests. Comments notify Tenant
+  Admins and Owners with the client name. Reuses Card, StatusBadge, Button, and
+  the existing textarea pattern. Figma MCP was not used.

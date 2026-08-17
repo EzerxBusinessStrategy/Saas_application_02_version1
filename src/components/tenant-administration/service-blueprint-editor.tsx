@@ -259,10 +259,9 @@ export function DueRuleFields({
 }) {
   if (frequency === "one_time") {
     return (
-      <label className="text-sm font-medium">
-        Due date
+      <label className="grid gap-1">
+        <span className="text-sm font-medium">Due date</span>
         <Input
-          className="mt-1"
           type="date"
           value={dueRule.date ?? ""}
           onChange={(event) => onChange({ type: "fixed_month_day", date: event.target.value })}
@@ -272,11 +271,10 @@ export function DueRuleFields({
   }
   if (frequency === "annually") {
     return (
-      <div className="grid grid-cols-2 gap-3">
-        <label className="text-sm font-medium">
-          Due month
+      <div className="grid min-w-0 grid-cols-2 gap-3">
+        <label className="grid gap-1">
+          <span className="text-sm font-medium">Due month</span>
           <Input
-            className="mt-1"
             max={12}
             min={1}
             type="number"
@@ -284,10 +282,9 @@ export function DueRuleFields({
             onChange={(event) => onChange({ type: "fixed_month_day", month: Number(event.target.value), day: dueRule.day ?? 31 })}
           />
         </label>
-        <label className="text-sm font-medium">
-          Due day
+        <label className="grid gap-1">
+          <span className="text-sm font-medium">Due day</span>
           <Input
-            className="mt-1"
             max={31}
             min={1}
             type="number"
@@ -299,10 +296,9 @@ export function DueRuleFields({
     );
   }
   return (
-    <label className="text-sm font-medium">
-      Due day of month
+    <label className="grid gap-1">
+      <span className="text-sm font-medium">Due day of month</span>
       <Input
-        className="mt-1"
         max={31}
         min={1}
         type="number"

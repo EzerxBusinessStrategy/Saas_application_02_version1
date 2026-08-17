@@ -1,4 +1,11 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
+import {
+  tenantAdminDashboardQuerySchema,
+  type TenantAdminDashboardQuery,
+} from "./tenant-admin-dashboard.dto";
+
+export const clientPortalDashboardQuerySchema = tenantAdminDashboardQuerySchema;
+export type ClientPortalDashboardQuery = TenantAdminDashboardQuery;
 
 export class ClientPortalDashboardServiceTaskDto {
   @ApiProperty({ type: String }) id!: string;
@@ -6,6 +13,9 @@ export class ClientPortalDashboardServiceTaskDto {
   @ApiProperty({ type: String }) status!: string;
   @ApiPropertyOptional({ type: String, nullable: true }) plannedDueAt!: string | null;
   @ApiProperty({ type: Number }) rateAmount!: number;
+  @ApiProperty({ type: Number }) discountAmount!: number;
+  @ApiPropertyOptional({ type: String, nullable: true }) discountType!: string | null;
+  @ApiPropertyOptional({ type: Number, nullable: true }) discountValue!: number | null;
   @ApiProperty({ type: String }) currencyCode!: string;
 }
 
@@ -21,6 +31,10 @@ export class ClientPortalDashboardServiceDto {
   @ApiProperty({ type: Number }) progressPercent!: number;
   @ApiPropertyOptional({ type: String, nullable: true }) assignedEmployeeName!: string | null;
   @ApiPropertyOptional({ type: Number, nullable: true }) estimatedTotal!: number | null;
+  @ApiProperty({ type: Number }) taskTotal!: number;
+  @ApiProperty({ type: Number }) discountAmount!: number;
+  @ApiProperty({ type: Number }) discountPercent!: number;
+  @ApiProperty({ type: Number }) amountDue!: number;
   @ApiProperty({ type: Number }) totalDue!: number;
   @ApiPropertyOptional({ type: String, nullable: true }) currencyCode!: string | null;
   @ApiProperty({ type: () => ClientPortalDashboardServiceTaskDto, isArray: true })
@@ -51,8 +65,23 @@ export class ClientPortalDashboardInvoiceDto {
   @ApiProperty({ type: Number }) outstandingAmount!: number;
 }
 
+export class ClientPortalDashboardPeriodDto {
+  @ApiProperty({ type: String, format: "date", example: "2026-08-01" })
+  from!: string;
+
+  @ApiProperty({ type: String, format: "date", example: "2027-08-17" })
+  to!: string;
+
+  @ApiProperty({ enum: ["query", "last_30_days", "upcoming_year"] })
+  source!: "query" | "last_30_days" | "upcoming_year";
+}
+
 export class ClientPortalDashboardResponseDto {
+  @ApiProperty({ type: () => ClientPortalDashboardPeriodDto })
+  period!: ClientPortalDashboardPeriodDto;
   @ApiProperty({ type: Number }) activeServices!: number;
+  @ApiProperty({ type: Number }) pendingTasks!: number;
+  @ApiProperty({ type: Number }) completedTasks!: number;
   @ApiProperty({ type: Number }) openRequests!: number;
   @ApiProperty({ type: Number }) outstandingInvoices!: number;
   @ApiProperty({ type: String }) currencyCode!: string;

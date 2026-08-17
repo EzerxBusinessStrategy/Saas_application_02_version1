@@ -33,7 +33,7 @@ export class TenantAdminDashboardService {
       period: {
         from: data.period.from,
         to: data.period.to,
-        source: data.period.source,
+        source: data.period.source === "upcoming_year" ? "last_30_days" : data.period.source,
       },
       financialYear: data.financialYear
         ? {

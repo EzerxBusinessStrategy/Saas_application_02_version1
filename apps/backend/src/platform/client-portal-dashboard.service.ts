@@ -2,10 +2,13 @@ import { Inject, Injectable } from "@nestjs/common";
 import { RequestContext } from "../auth/request-context";
 import { requireClientPortalContext } from "./client-portal-context";
 import {
+  ClientPortalDashboardQuery,
   ClientPortalDashboardResponseDto,
   ClientPortalDashboardServiceTaskDto,
 } from "./client-portal-dashboard.dto";
 import { ClientPortalDashboardRepository } from "./client-portal-dashboard.repository";
+import { summarizeClientServicePricing } from "./client-service-pricing";
+import { resolveClientDashboardPeriod, utcTodayIso } from "./tenant-admin-dashboard.period";
 
 @Injectable()
 export class ClientPortalDashboardService {
@@ -14,17 +17,35 @@ export class ClientPortalDashboardService {
     private readonly repository: ClientPortalDashboardRepository,
   ) {}
 
-  async read(context: RequestContext): Promise<ClientPortalDashboardResponseDto> {
+  async read(
+    context: RequestContext,
+    query: ClientPortalDashboardQuery = {},
+  ): Promise<ClientPortalDashboardResponseDto> {
     const scoped = requireClientPortalContext(context);
-    const data = await this.repository.read(scoped);
+    const period = resolveClientDashboardPeriod({
+      from: query.from,
+      to: query.to,
+      today: utcTodayIso(),
+    });
+    const data = await this.repository.read(scoped, period);
+    const periodSource = period.source === "financial_year" ? "upcoming_year" : period.source;
     return {
+      period: {
+        from: period.from,
+        to: period.to,
+        source: periodSource,
+      },
       activeServices: Number(data.summary.active_services),
+      pendingTasks: Number(data.summary.pending_tasks),
+      completedTasks: Number(data.summary.completed_tasks),
       openRequests: Number(data.summary.open_requests),
       outstandingInvoices: Number(data.summary.outstanding_invoices),
       currencyCode: data.summary.currency_code,
       services: data.services.map((service) => {
         const completedTasks = Number(service.completed_tasks);
         const totalTasks = Number(service.total_tasks);
+        const tasks = parseServiceTasks(service.tasks);
+        const pricing = summarizeClientServicePricing(tasks);
         return {
           id: service.id,
           engagementName: service.engagement_name,
@@ -37,9 +58,13 @@ export class ClientPortalDashboardService {
           progressPercent: totalTasks === 0 ? 0 : Math.round((completedTasks / totalTasks) * 100),
           assignedEmployeeName: service.assigned_employee_name,
           estimatedTotal: service.estimated_total == null ? null : Number(service.estimated_total),
-          totalDue: Number(service.total_due),
+          taskTotal: pricing.taskTotal,
+          discountAmount: pricing.discountAmount,
+          discountPercent: pricing.discountPercent,
+          amountDue: pricing.amountDue,
+          totalDue: pricing.amountDue,
           currencyCode: service.currency_code,
-          tasks: parseServiceTasks(service.tasks),
+          tasks,
         };
       }),
       requests: data.requests.map((request) => ({
@@ -88,11 +113,20 @@ function parseServiceTasks(value: unknown): ClientPortalDashboardServiceTaskDto[
         title,
         status,
         plannedDueAt: toIsoDateTime(record.plannedDueAt),
-        rateAmount: Number(record.rateAmount ?? 0),
+        rateAmount: toFiniteNumber(record.rateAmount) ?? 0,
+        discountAmount: toFiniteNumber(record.discountAmount) ?? 0,
+        discountType: typeof record.discountType === "string" ? record.discountType : null,
+        discountValue: toFiniteNumber(record.discountValue),
         currencyCode,
       },
     ];
   });
+}
+
+function toFiniteNumber(value: unknown): number | null {
+  if (value == null || value === "") return null;
+  const amount = Number(value);
+  return Number.isFinite(amount) ? amount : null;
 }
 
 function toIsoDateTime(value: unknown): string | null {

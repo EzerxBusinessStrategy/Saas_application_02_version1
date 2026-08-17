@@ -4,9 +4,12 @@ import { databaseNotConfigured } from "../auth/auth-errors";
 import { DATABASE_POOL } from "../database/database.tokens";
 import { withDatabaseTransaction } from "../database/transaction-context";
 import { ClientPortalRequestContext, ClientPortalScope, resolveClientPortalScope } from "./client-portal-context";
+import type { DashboardPeriod } from "./tenant-admin-dashboard.period";
 
 type SummaryRow = {
   active_services: string;
+  pending_tasks: string;
+  completed_tasks: string;
   open_requests: string;
   outstanding_invoices: string;
   currency_code: string;
@@ -18,6 +21,9 @@ type ServiceTaskJson = {
   status: string;
   plannedDueAt: string | Date | null;
   rateAmount?: number | string;
+  discountAmount?: number | string;
+  discountType?: string | null;
+  discountValue?: number | string | null;
   currencyCode?: string;
 };
 
@@ -32,6 +38,8 @@ type ServiceRow = {
   total_tasks: string;
   assigned_employee_name: string | null;
   estimated_total: string | null;
+  task_total: string;
+  discount_total: string;
   total_due: string;
   currency_code: string | null;
   tasks: readonly ServiceTaskJson[] | string;
@@ -65,16 +73,20 @@ type InvoiceRow = {
 export class ClientPortalDashboardRepository {
   constructor(@Inject(DATABASE_POOL) private readonly pool: Pool | null) {}
 
-  async read(context: ClientPortalRequestContext) {
+  async read(context: ClientPortalRequestContext, period: DashboardPeriod) {
     return this.withContext(context, async (client, scope) => ({
-      summary: await this.getSummary(client, scope),
-      services: await this.getServices(client, scope),
-      requests: await this.getRequests(client, scope),
-      invoices: await this.getInvoices(client, scope),
+      summary: await this.getSummary(client, scope, period),
+      services: await this.getServices(client, scope, period),
+      requests: await this.getRequests(client, scope, period),
+      invoices: await this.getInvoices(client, scope, period),
     }));
   }
 
-  private async getSummary(client: PoolClient, context: ClientPortalScope): Promise<SummaryRow> {
+  private async getSummary(
+    client: PoolClient,
+    context: ClientPortalScope,
+    period: DashboardPeriod,
+  ): Promise<SummaryRow> {
     const result = await client.query<SummaryRow>(
       `
         with invoice_balances as (
@@ -90,6 +102,7 @@ export class ClientPortalDashboardRepository {
           where i.tenant_id = $1
             and i.client_id = $2
             and i.status not in ('draft', 'cancelled', 'void')
+            and i.issued_on between $3::date and $4::date
           group by i.id, i.total_amount, i.status
         ),
         visible_services as (
@@ -98,6 +111,14 @@ export class ClientPortalDashboardRepository {
           where e.tenant_id = $1
             and e.client_id = $2
             and e.status = 'active'
+            and not exists (
+              select 1
+              from public.tasks t
+              where t.tenant_id = e.tenant_id
+                and t.client_id = e.client_id
+                and t.service_id = e.service_id
+                and t.status <> 'cancelled'
+            )
           union
           select coalesce(t.service_id, rci.service_id)
           from public.tasks t
@@ -111,6 +132,7 @@ export class ClientPortalDashboardRepository {
             and t.client_id = $2
             and t.status <> 'cancelled'
             and coalesce(t.service_id, rci.service_id) is not null
+            and coalesce(t.planned_due_at::date, t.created_at::date) between $3::date and $4::date
         )
         select
           (
@@ -118,19 +140,46 @@ export class ClientPortalDashboardRepository {
             from visible_services
           ) as active_services,
           (
+            select count(*)::text
+            from public.tasks t
+            where t.tenant_id = $1
+              and t.client_id = $2
+              and t.status not in ('completed', 'cancelled')
+              and coalesce(t.planned_due_at::date, t.created_at::date) between $3::date and $4::date
+          ) as pending_tasks,
+          (
+            select count(*)::text
+            from public.tasks t
+            where t.tenant_id = $1
+              and t.client_id = $2
+              and t.status = 'completed'
+              and coalesce(t.planned_due_at::date, t.created_at::date) between $3::date and $4::date
+          ) as completed_tasks,
+          (
             select (
               (
                 select count(*)
                 from public.client_task_requests ctr
                 where ctr.tenant_id = $1
                   and ctr.client_id = $2
-                  and ctr.status not in ('completed', 'cancelled', 'resolved')
+                  and ctr.status in ('submitted', 'under_review')
+                  and ctr.submitted_at::date between $3::date and $4::date
+                  and not exists (
+                    select 1
+                    from public.engagements e
+                    where e.tenant_id = ctr.tenant_id
+                      and e.client_id = ctr.client_id
+                      and e.service_id = ctr.service_id
+                      and e.status = 'active'
+                      and e.start_date >= ctr.submitted_at::date
+                  )
               ) + (
                 select count(*)
                 from public.client_service_requests csr
                 where csr.tenant_id = $1
                   and csr.client_id = $2
                   and csr.status = 'submitted'
+                  and csr.submitted_at::date between $3::date and $4::date
               )
             )::text
           ) as open_requests,
@@ -146,17 +195,23 @@ export class ClientPortalDashboardRepository {
         from public.tenants t
         where t.id = $1
       `,
-      [context.tenantId, context.clientId],
+      [context.tenantId, context.clientId, period.from, period.to],
     );
     return result.rows[0] ?? {
       active_services: "0",
+      pending_tasks: "0",
+      completed_tasks: "0",
       open_requests: "0",
       outstanding_invoices: "0",
       currency_code: "INR",
     };
   }
 
-  private async getServices(client: PoolClient, context: ClientPortalScope): Promise<readonly ServiceRow[]> {
+  private async getServices(
+    client: PoolClient,
+    context: ClientPortalScope,
+    period: DashboardPeriod,
+  ): Promise<readonly ServiceRow[]> {
     const result = await client.query<ServiceRow>(
       `
         with service_scope as (
@@ -186,6 +241,7 @@ export class ClientPortalDashboardRepository {
             and t.client_id = $2
             and t.status <> 'cancelled'
             and coalesce(t.service_id, rci.service_id) is not null
+            and coalesce(t.planned_due_at::date, t.created_at::date) between $3::date and $4::date
           group by coalesce(t.service_id, rci.service_id)
 
           union
@@ -227,10 +283,9 @@ export class ClientPortalDashboardRepository {
           coalesce(sum(service_scope.total_tasks), 0)::text as total_tasks,
           max(assigned.assigned_employee_name) as assigned_employee_name,
           max(assigned.estimated_total) as estimated_total,
-          (
-            coalesce((array_agg(service_tasks.uninvoiced_due))[1], 0)
-            + coalesce((array_agg(service_invoices.invoice_due))[1], 0)
-          )::text as total_due,
+          coalesce((array_agg(service_tasks.task_total))[1], 0)::text as task_total,
+          coalesce((array_agg(service_tasks.discount_total))[1], 0)::text as discount_total,
+          coalesce((array_agg(service_tasks.amount_due))[1], 0)::text as total_due,
           max(assigned.currency_code) as currency_code,
           coalesce((array_agg(service_tasks.tasks))[1], '[]'::json) as tasks
         from service_scope
@@ -270,13 +325,18 @@ export class ClientPortalDashboardRepository {
                 'status', priced.status,
                 'plannedDueAt', priced.planned_due_at,
                 'rateAmount', priced.rate_amount,
+                'discountAmount', priced.discount_amount,
+                'discountType', priced.discount_type,
+                'discountValue', priced.discount_value,
                 'currencyCode', priced.currency_code
               )
               order by priced.planned_due_at nulls last, priced.title
             ),
             '[]'::json
           ) as tasks,
-          coalesce(sum(priced.uninvoiced_amount), 0) as uninvoiced_due
+          coalesce(sum(priced.rate_amount), 0) as task_total,
+          coalesce(sum(priced.discount_amount), 0) as discount_total,
+          greatest(coalesce(sum(priced.rate_amount), 0) - coalesce(sum(priced.discount_amount), 0), 0) as amount_due
           from (
             select
               t.id,
@@ -284,21 +344,17 @@ export class ClientPortalDashboardRepository {
               t.status,
               t.planned_due_at,
               coalesce(
-                sum(bte.gross_amount) filter (where bte.id is not null),
+                max(bte.gross_amount) filter (where bte.id is not null),
                 max(rci.rate_amount),
                 0
               ) as rate_amount,
+              coalesce(max(bte.discount_amount) filter (where bte.id is not null), 0) as discount_amount,
+              max(bte.discount_type) filter (where bte.id is not null) as discount_type,
+              max(bte.discount_value) filter (where bte.id is not null) as discount_value,
               coalesce(
                 max(nullif(bte.currency_code, '')) filter (where bte.id is not null),
                 'INR'
-              ) as currency_code,
-              coalesce(sum(
-                case
-                  when bte.id is null then 0
-                  when bte.status = 'invoiced' then 0
-                  else coalesce(bte.net_amount, bte.gross_amount, 0)
-                end
-              ), 0) as uninvoiced_amount
+              ) as currency_code
             from public.tasks t
             left join public.billable_task_entries bte
               on bte.task_id = t.id
@@ -311,39 +367,23 @@ export class ClientPortalDashboardRepository {
               and t.client_id = $2
               and t.service_id = s.id
               and t.status <> 'cancelled'
+              and coalesce(t.planned_due_at::date, t.created_at::date) between $3::date and $4::date
             group by t.id, t.title, t.status, t.planned_due_at
           ) priced
         ) service_tasks on true
-        left join lateral (
-          select coalesce(sum(greatest(i.total_amount - coalesce(paid.paid_amount, 0), 0)), 0) as invoice_due
-          from public.invoices i
-          join public.invoice_items ii
-            on ii.invoice_id = i.id
-           and ii.tenant_id = i.tenant_id
-          join public.tasks t
-            on t.id = ii.task_id
-           and t.tenant_id = ii.tenant_id
-          left join lateral (
-            select coalesce(sum(p.amount), 0) as paid_amount
-            from public.payments p
-            where p.invoice_id = i.id
-              and p.tenant_id = i.tenant_id
-              and p.status = 'successful'
-          ) paid on true
-          where i.tenant_id = $1
-            and i.client_id = $2
-            and t.service_id = s.id
-            and i.status not in ('draft', 'cancelled', 'void')
-        ) service_invoices on true
         group by s.id, s.name
         order by lower(coalesce(min(service_scope.engagement_name), s.name)) asc
       `,
-      [context.tenantId, context.clientId],
+      [context.tenantId, context.clientId, period.from, period.to],
     );
     return result.rows;
   }
 
-  private async getRequests(client: PoolClient, context: ClientPortalScope): Promise<readonly RequestRow[]> {
+  private async getRequests(
+    client: PoolClient,
+    context: ClientPortalScope,
+    period: DashboardPeriod,
+  ): Promise<readonly RequestRow[]> {
     const result = await client.query<RequestRow>(
       `
         select * from (
@@ -362,6 +402,19 @@ export class ClientPortalDashboardRepository {
            and s.tenant_id = ctr.tenant_id
           where ctr.tenant_id = $1
             and ctr.client_id = $2
+            and ctr.submitted_at::date between $3::date and $4::date
+            and not (
+              ctr.status in ('submitted', 'under_review')
+              and exists (
+                select 1
+                from public.engagements e
+                where e.tenant_id = ctr.tenant_id
+                  and e.client_id = ctr.client_id
+                  and e.service_id = ctr.service_id
+                  and e.status = 'active'
+                  and e.start_date >= ctr.submitted_at::date
+              )
+            )
           union all
           select
             csr.id::text,
@@ -383,16 +436,21 @@ export class ClientPortalDashboardRepository {
           from public.client_service_requests csr
           where csr.tenant_id = $1
             and csr.client_id = $2
+            and csr.submitted_at::date between $3::date and $4::date
         ) requests
         order by updated_at desc, id desc
         limit 8
       `,
-      [context.tenantId, context.clientId],
+      [context.tenantId, context.clientId, period.from, period.to],
     );
     return result.rows;
   }
 
-  private async getInvoices(client: PoolClient, context: ClientPortalScope): Promise<readonly InvoiceRow[]> {
+  private async getInvoices(
+    client: PoolClient,
+    context: ClientPortalScope,
+    period: DashboardPeriod,
+  ): Promise<readonly InvoiceRow[]> {
     const result = await client.query<InvoiceRow>(
       `
         select
@@ -419,11 +477,12 @@ export class ClientPortalDashboardRepository {
         where i.tenant_id = $1
           and i.client_id = $2
           and i.status not in ('draft', 'cancelled', 'void')
+          and i.issued_on between $3::date and $4::date
         group by i.id, i.invoice_number, task_item.task_title, i.status, i.issued_on, i.due_on, i.currency_code, i.total_amount
         order by i.issued_on desc, i.created_at desc
         limit 8
       `,
-      [context.tenantId, context.clientId],
+      [context.tenantId, context.clientId, period.from, period.to],
     );
     return result.rows;
   }

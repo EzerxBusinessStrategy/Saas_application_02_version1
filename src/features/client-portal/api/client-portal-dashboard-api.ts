@@ -2,7 +2,14 @@ import { z } from "zod";
 import { redirectToLoginOnUnauthorized } from "@/lib/client/silent-auth-redirect";
 
 const clientPortalDashboardSchema = z.object({
+  period: z.object({
+    from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    source: z.enum(["query", "last_30_days", "upcoming_year"]),
+  }),
   activeServices: z.number(),
+  pendingTasks: z.number(),
+  completedTasks: z.number(),
   openRequests: z.number(),
   outstandingInvoices: z.number(),
   currencyCode: z.string().length(3),
@@ -19,6 +26,10 @@ const clientPortalDashboardSchema = z.object({
       progressPercent: z.number().min(0).max(100).optional().default(0),
       assignedEmployeeName: z.string().nullable().optional().default(null),
       estimatedTotal: z.number().nullable().optional().default(null),
+      taskTotal: z.number().optional().default(0),
+      discountAmount: z.number().optional().default(0),
+      discountPercent: z.number().optional().default(0),
+      amountDue: z.number().optional().default(0),
       totalDue: z.number().optional().default(0),
       currencyCode: z.string().nullable().optional().default(null),
       tasks: z
@@ -29,6 +40,9 @@ const clientPortalDashboardSchema = z.object({
             status: z.string(),
             plannedDueAt: z.string().datetime().nullable(),
             rateAmount: z.number().optional().default(0),
+            discountAmount: z.number().optional().default(0),
+            discountType: z.string().nullable().optional().default(null),
+            discountValue: z.number().nullable().optional().default(null),
             currencyCode: z.string().optional().default("INR"),
           }),
         )
@@ -66,8 +80,17 @@ const clientPortalDashboardSchema = z.object({
 
 export type ClientPortalDashboard = z.infer<typeof clientPortalDashboardSchema>;
 
-export async function getClientPortalDashboard(): Promise<ClientPortalDashboard> {
-  const response = await fetch("/api/client-portal/dashboard", {
+export async function getClientPortalDashboard(options?: {
+  from?: string;
+  to?: string;
+}): Promise<ClientPortalDashboard> {
+  const params = new URLSearchParams();
+  if (options?.from && options.to) {
+    params.set("from", options.from);
+    params.set("to", options.to);
+  }
+  const suffix = params.toString() ? `?${params.toString()}` : "";
+  const response = await fetch(`/api/client-portal/dashboard${suffix}`, {
     cache: "no-store",
   });
   await redirectToLoginOnUnauthorized(response);

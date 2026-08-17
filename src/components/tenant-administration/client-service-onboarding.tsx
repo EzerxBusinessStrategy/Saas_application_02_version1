@@ -155,9 +155,9 @@ export function ClientServiceOnboarding({
       <DialogContent
         title={`Configure services for ${clientName}`}
         description="Select services, customize the booklet for this client, assign a responsible employee, then activate to generate tasks."
-        className="max-h-[90vh] max-w-3xl overflow-y-auto"
+        className="max-h-[90vh] w-[min(42rem,calc(100vw-2rem))] max-w-2xl overflow-y-auto"
       >
-        <div>
+        <div className="min-w-0 pr-8">
           <h2 className="text-lg font-semibold">Configure services</h2>
           <p className="mt-1 text-sm text-muted-foreground">
             {clientName} · Step {step} of 4 · {stepLabel[step]}
