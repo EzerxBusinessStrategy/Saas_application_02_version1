@@ -59,5 +59,6 @@ describe("EmployeeTasksRepository", () => {
     expect(notificationValues).toContain("task-submitted-manager-review:submission-2");
     expect(notificationValues).toContain("task-submitted-tenant-review:submission-2");
     expect(notificationValues).toContain("/admin/task-review?task=task-1");
+    expect(notificationValues).toContain("/employee/task-reviews?task=task-1");
   });
 });

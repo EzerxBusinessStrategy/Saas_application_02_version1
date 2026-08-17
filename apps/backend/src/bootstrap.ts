@@ -1,6 +1,7 @@
 import "reflect-metadata";
 import { NestFactory } from "@nestjs/core";
 import { FastifyAdapter, NestFastifyApplication } from "@nestjs/platform-fastify";
+import { IoAdapter } from "@nestjs/platform-socket.io";
 import helmet from "@fastify/helmet";
 import { IncomingMessage } from "node:http";
 import { AppModule } from "./app.module";
@@ -27,6 +28,7 @@ export async function createBackendApp(config: AppConfig): Promise<NestFastifyAp
   });
 
   app.enableCors(createCorsOptions(config));
+  app.useWebSocketAdapter(new IoAdapter(app));
   app.setGlobalPrefix(config.apiBasePath.replace(/^\//, ""));
   app.enableShutdownHooks();
   setupOpenApi(app, config);

@@ -183,7 +183,7 @@ export class EmployeeTasksRepository {
         type: "TASK_SUBMITTED_FOR_MANAGER_REVIEW",
         title: "Task ready for review",
         message: `An employee submitted "${task.title}" for your review.`,
-        actionUrl: "/employee/task-reviews",
+        actionUrl: `/employee/task-reviews?task=${taskId}`,
         eventKey: `task-submitted-manager-review:${submissionId}`,
       });
       await publishTaskWorkflowNotification(client, {

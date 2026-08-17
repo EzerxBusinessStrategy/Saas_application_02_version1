@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useState, useEffect, type ReactNode } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { format, parseISO } from "date-fns";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -329,6 +330,7 @@ function EmployeeManagerAssignTaskPage() {
 }
 
 function EmployeeManagerTaskReviewsPage() {
+  const searchParams = useSearchParams();
   const queryClient = useQueryClient();
   const [returnTaskId, setReturnTaskId] = useState<string | null>(null);
   const [returnRemarks, setReturnRemarks] = useState("");
@@ -354,6 +356,39 @@ function EmployeeManagerTaskReviewsPage() {
     },
     onError: (error) => toast.error(error instanceof Error ? error.message : "The review decision could not be saved."),
   });
+
+  useEffect(() => {
+    const taskId = searchParams.get("task");
+    if (!taskId || selectedTask?.id === taskId || !query.data?.length) return;
+    const match = query.data.find((task) => task.id === taskId);
+    if (!match) return;
+    setSelectedTask({
+      id: match.id,
+      tenantId: "authenticated",
+      clientId: match.id,
+      client: match.clientName,
+      engagement: "Submitted work",
+      workGroup: "Assigned work group",
+      managerId: "current",
+      manager: "Current manager",
+      assigneeId: match.id,
+      assignee: match.employeeName,
+      title: match.title,
+      description: match.taskComment ?? "No submission comment.",
+      priority: "medium",
+      complexity: "standard",
+      status: match.submissionStatus === "returned" ? "rejected" : match.status === "completed" ? "done" : "review",
+      sla: "on-track",
+      dueDate: `Submitted ${format(parseISO(match.submittedAt), "d MMM, p")}`,
+      checklist: [],
+      dependencyIds: [],
+      attachmentCount: 0,
+      commentCount: 0,
+      reviewStatus: match.submissionStatus === "returned" ? "changes-requested" : match.status === "completed" ? "approved" : "pending",
+      approvalStatus: match.status === "completed" ? "approved" : "pending",
+      blocked: match.submissionStatus === "returned",
+    });
+  }, [query.data, searchParams, selectedTask?.id]);
   if (query.isPending) return <LoadingState label="Loading task reviews" rows={4} />;
   if (query.isError) return <ErrorState title="Task reviews could not load" onRetry={() => void query.refetch()} />;
   const returnTask = query.data.find((task) => task.id === returnTaskId) ?? null;

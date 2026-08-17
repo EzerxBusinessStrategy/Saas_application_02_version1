@@ -220,8 +220,9 @@ function TenantAdminNotificationMenu({ open, userEmail }: { open?: boolean; user
     queryFn: () => getTenantAdminNotifications({ status: "ALL", limit: 20 }),
     initialData: () => readNotificationCache("admin", userEmail),
     staleTime: 48 * 60 * 60 * 1000,
-    refetchOnMount: false,
-    refetchOnWindowFocus: false,
+    refetchInterval: 15_000,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
   });
   const data = query.data;
   const items = data?.items ?? [];
@@ -353,8 +354,9 @@ function EmployeeNotificationMenu({ open, userEmail }: { open?: boolean; userEma
     queryFn: getEmployeeNotifications,
     initialData: () => readNotificationCache("employee", userEmail),
     staleTime: 48 * 60 * 60 * 1000,
-    refetchOnMount: false,
-    refetchOnWindowFocus: false,
+    refetchInterval: 15_000,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
   });
   const data = query.data;
   const items = data?.items ?? [];

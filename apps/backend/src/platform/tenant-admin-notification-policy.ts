@@ -15,6 +15,8 @@ export const tenantAdminNotificationTypes = [
   "TASK_CANCELLED",
   "TASK_APPROVAL_PENDING",
   "TASK_AWAITING_TENANT_APPROVAL",
+  "TASK_SUBMITTED_FOR_TENANT_REVIEW",
+  "TASK_REVIEW_CLOSED_BY_MANAGER",
   "TASK_REJECTED",
   "TASK_SENT_BACK",
   "SLA_AT_RISK",
@@ -49,3 +51,19 @@ export const tenantAdminNotificationTypes = [
 ] as const;
 
 export const tenantAdminNotificationTypeList: readonly string[] = tenantAdminNotificationTypes;
+
+export function isTenantAdminNotificationType(type: string): boolean {
+  return tenantAdminNotificationTypeList.includes(type);
+}
+
+/** Task workflow notifications published to tenant admins and delivered on the tenant-admin Socket.IO namespace. */
+export const taskWorkflowTenantAdminDeliveryTypes = [
+  "TASK_AWAITING_TENANT_APPROVAL",
+  "TASK_SUBMITTED_FOR_TENANT_REVIEW",
+  "TASK_REVIEW_CLOSED_BY_MANAGER",
+  "INVOICE_READY_TO_GENERATE",
+] as const;
+
+export function isTaskWorkflowTenantAdminDeliveryType(type: string): boolean {
+  return (taskWorkflowTenantAdminDeliveryTypes as readonly string[]).includes(type);
+}

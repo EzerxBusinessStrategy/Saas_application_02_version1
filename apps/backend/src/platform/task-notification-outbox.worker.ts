@@ -4,6 +4,7 @@ import { DATABASE_POOL } from "../database/database.tokens";
 import { NotificationItemDto } from "./super-admin-notifications.dto";
 import { EmployeeNotificationsGateway } from "./employee-notifications.gateway";
 import { TenantAdminNotificationsGateway } from "./tenant-admin-notifications.gateway";
+import { isTaskWorkflowTenantAdminDeliveryType } from "./tenant-admin-notification-policy";
 
 const POLL_INTERVAL_MS = 500;
 const BATCH_SIZE = 50;
@@ -103,7 +104,7 @@ export class TaskNotificationOutboxWorker implements OnApplicationBootstrap, OnA
           createdAt: recipient.created_at.toISOString(),
           readAt: recipient.read_at?.toISOString() ?? null,
         };
-        connectedSockets += isTenantAdminNotification(recipient.notification_type)
+        connectedSockets += isTaskWorkflowTenantAdminDeliveryType(recipient.notification_type)
           ? this.tenantAdminGateway?.emitNewNotification(recipient.recipient_user_id, event.tenant_id, item) ?? 0
           : this.gateway.emitNewNotification(recipient.recipient_user_id, event.tenant_id, item);
       }
@@ -122,13 +123,4 @@ export class TaskNotificationOutboxWorker implements OnApplicationBootstrap, OnA
       return { recipients: 0, connectedSockets: 0 };
     }
   }
-}
-
-function isTenantAdminNotification(type: string): boolean {
-  return [
-    "TASK_AWAITING_TENANT_APPROVAL",
-    "TASK_SUBMITTED_FOR_TENANT_REVIEW",
-    "TASK_REVIEW_CLOSED_BY_MANAGER",
-    "INVOICE_READY_TO_GENERATE",
-  ].includes(type);
 }
