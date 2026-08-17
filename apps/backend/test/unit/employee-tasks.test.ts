@@ -58,5 +58,6 @@ describe("EmployeeTasksRepository", () => {
       .flatMap((call) => call.values);
     expect(notificationValues).toContain("task-submitted-manager-review:submission-2");
     expect(notificationValues).toContain("task-submitted-tenant-review:submission-2");
+    expect(notificationValues).toContain("/admin/task-review?task=task-1");
   });
 });

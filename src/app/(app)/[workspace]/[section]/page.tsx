@@ -67,6 +67,9 @@ export default async function Section({
   const workspace = normalizeAppWorkspace(rawWorkspace);
   if (!workspace) notFound();
   if (section === "login") notFound();
+  if (section === "task-reviews" && workspace === "admin") {
+    redirect(`/${workspace}/task-review`);
+  }
   const access = sectionAccess[section];
   if (access && !access.workspaces.includes(workspace)) notFound();
   const user = await getAuthenticatedWorkspaceUser(workspace);

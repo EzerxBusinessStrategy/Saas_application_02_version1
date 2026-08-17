@@ -77,7 +77,7 @@ describe("task workflow notification persistence", () => {
       type: "TASK_SUBMITTED_FOR_TENANT_REVIEW",
       title: "Task ready for review",
       message: "Review the task.",
-      actionUrl: "/admin/tasks?task=task-1",
+      actionUrl: "/admin/task-review?task=task-1",
       eventKey: "task-submitted-tenant-review:task-1",
     });
 

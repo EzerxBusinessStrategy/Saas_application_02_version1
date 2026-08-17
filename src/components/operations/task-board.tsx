@@ -173,6 +173,8 @@ export function TaskBoard({
   onResume,
   canDragTask,
   allowedDropStatuses,
+  visibleStatuses,
+  showBoardOnMobile = false,
 }: {
   tasks: OperationalTask[];
   onStatusChange: (id: string, status: OperationalTask["status"]) => void;
@@ -181,6 +183,8 @@ export function TaskBoard({
   onResume?: (task: OperationalTask) => void;
   canDragTask?: (task: OperationalTask) => boolean;
   allowedDropStatuses?: readonly OperationalTask["status"][];
+  visibleStatuses?: readonly OperationalTask["status"][];
+  showBoardOnMobile?: boolean;
 }) {
   const [now, setNow] = React.useState(() => Date.now());
   const sensors = useSensors(
@@ -193,8 +197,12 @@ export function TaskBoard({
     return () => window.clearInterval(interval);
   }, [tasks]);
 
+  const visibleColumns = columns.filter(
+    (column) => !visibleStatuses || visibleStatuses.includes(column.value),
+  );
+
   const onDragEnd = (event: DragEndEvent) => {
-    const status = columns.find(
+    const status = visibleColumns.find(
       (column) => column.value === event.over?.id,
     )?.value;
     if (
@@ -207,8 +215,17 @@ export function TaskBoard({
 
   return (
     <DndContext sensors={sensors} onDragEnd={onDragEnd}>
-      <div className="hidden gap-[30px] overflow-x-auto pb-2 lg:grid lg:grid-cols-5">
-        {columns.map((column) => (
+      <div
+        className={
+          showBoardOnMobile
+            ? "grid gap-[30px] overflow-x-auto pb-2"
+            : "hidden gap-[30px] overflow-x-auto pb-2 lg:grid"
+        }
+        style={{
+          gridTemplateColumns: `repeat(${visibleColumns.length}, minmax(15rem, 1fr))`,
+        }}
+      >
+        {visibleColumns.map((column) => (
           <BoardColumn
             key={column.value}
             status={column.value}

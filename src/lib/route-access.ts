@@ -30,6 +30,10 @@ export const sectionAccess: Record<
     workspaces: ["employee"],
     permissions: ["work_log.review.assigned_group"],
   },
+  "task-review": {
+    workspaces: ["admin"],
+    permissions: ["task.read"],
+  },
   documents: {
     workspaces: ["admin", "employee"],
     permissions: ["document.read"],

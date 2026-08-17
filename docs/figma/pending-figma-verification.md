@@ -103,12 +103,13 @@ Design status: Pending Figma verification.
 
 Design status: Pending Figma verification.
 
-- The Tenant Admin Tasks section now shows the client service-request inbox
-  (accept opens the employee allotment dialog, reject requires a remark) plus
-  a Submitted-for-review tab for final task approval. The Create task action
-  and the separate Service requests page were removed; the old route redirects
-  to Tasks. Reuses PageHeader, ResponsiveTabs, Card, DataTable, Dialog,
-  StatusBadge, and TaskDetailsDrawer. Figma MCP was not used.
+- The Tenant Admin Task request section shows the client service-request inbox
+  (accept opens the employee allotment dialog, reject requires a remark).
+  Employee-submitted work is a separate Task review page under People & Teams,
+  with the same TaskBoard drag targets as manager review (Returned and Done).
+  Legacy `/admin/tasks?task=` notification links redirect to Task review.
+  Reuses PageHeader, Card, DataTable, Dialog, StatusBadge, TaskBoard, and
+  TaskDetailsDrawer. Figma MCP was not used.
 - Client Active services lists every taken month with its price. This month
   due and next month due are the remaining open installments for those months.
   Total task amount is the sum of listed prices. A discount row appears only

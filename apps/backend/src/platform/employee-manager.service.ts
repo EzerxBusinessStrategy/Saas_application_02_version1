@@ -300,7 +300,7 @@ export class EmployeeManagerService {
           type: "TASK_REVIEW_CLOSED_BY_MANAGER",
           title: "Task returned by manager",
           message: `Manager returned "${taskTitle}" for changes. This task is no longer awaiting review.`,
-          actionUrl: `/admin/tasks?task=${taskId}`,
+          actionUrl: `/admin/task-review?task=${taskId}`,
           eventKey: `tenant-review-returned-by-manager:${row.id}`,
         });
       }

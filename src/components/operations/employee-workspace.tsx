@@ -390,6 +390,8 @@ function EmployeeManagerTaskReviewsPage() {
         <TaskBoard
           tasks={boardTasks}
           onOpen={setSelectedTask}
+          showBoardOnMobile
+          visibleStatuses={["review", "rejected", "done"]}
           canDragTask={(task) => !mutation.isPending && task.status === "review"}
           allowedDropStatuses={["rejected", "done"]}
           onStatusChange={(taskId, status) => {

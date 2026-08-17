@@ -147,6 +147,7 @@ const tenantAdminOnlyItems = new Set([
   "Managers",
   "Settings",
   "Employee Performance",
+  "Task review",
 ]);
 const platformOnlyItems = new Set([
   "Tenant list",
@@ -220,6 +221,13 @@ if (tenantTasksItem) {
     label: "Task request",
     labelKey: "Navigation.taskRequest",
   });
+  tenantAdminItemsByLabel.set("Task review", {
+    ...tenantTasksItem,
+    label: "Task review",
+    labelKey: "Navigation.taskReview",
+    href: "/task-review",
+    icon: ClipboardList,
+  });
 }
 
 const tenantAdminItem = (label: string) => tenantAdminItemsByLabel.get(label);
@@ -239,6 +247,7 @@ const tenantAdminNavigation = [
   tenantAdminGroup("People & Teams", Users, [
     "Departments",
     "Employees",
+    "Task review",
     "Managers",
     "Employee Performance",
   ]),

@@ -195,7 +195,7 @@ export class EmployeeTasksRepository {
         type: "TASK_SUBMITTED_FOR_TENANT_REVIEW",
         title: "Task ready for review",
         message: `An employee submitted "${task.title}" for review.`,
-        actionUrl: `/admin/tasks?task=${taskId}`,
+        actionUrl: `/admin/task-review?task=${taskId}`,
         eventKey: `task-submitted-tenant-review:${submissionId}`,
       });
       return task;

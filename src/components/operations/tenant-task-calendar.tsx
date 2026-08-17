@@ -18,6 +18,10 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { CalendarDays, ChevronLeft, ChevronRight, RefreshCw } from "lucide-react";
 import { listTenantAdminTasks, type TenantAdminTask } from "@/features/operations/api/operations-api";
+import {
+  isTenantAdminTaskAwaitingReview,
+  tenantTaskReviewHref,
+} from "@/features/operations/tenant-admin-task-map";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ErrorState } from "@/components/shared/error-state";
 import { LoadingState } from "@/components/shared/loading-state";
@@ -157,7 +161,7 @@ function CalendarDay({ day, month, tasks }: { day: Date; month: Date; tasks: Cal
 
 function CalendarTaskItem({ task }: { task: CalendarTask }) {
   return (
-    <Link href={`/admin/tasks?task=${encodeURIComponent(task.id)}`} className="block rounded-md border bg-background px-2 py-1.5 transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+    <Link href={calendarTaskHref(task)} className="block rounded-md border bg-background px-2 py-1.5 transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
       <p className="truncate text-xs font-medium text-foreground">{task.title}</p>
       <p className="truncate text-[11px] text-muted-foreground">{task.clientName}</p>
       <p className="truncate text-[11px] text-muted-foreground">{assigneeLabel(task)}</p>
@@ -168,7 +172,7 @@ function CalendarTaskItem({ task }: { task: CalendarTask }) {
 
 function MobileCalendarTask({ task }: { task: CalendarTask }) {
   return (
-    <Link href={`/admin/tasks?task=${encodeURIComponent(task.id)}`} className="flex items-start gap-3 px-4 py-4 transition-colors hover:bg-muted/50">
+    <Link href={calendarTaskHref(task)} className="flex items-start gap-3 px-4 py-4 transition-colors hover:bg-muted/50">
       <time className="flex w-11 shrink-0 flex-col text-center"><span className="text-xs text-muted-foreground">{format(task.dueDate, "EEE")}</span><span className="text-xl font-semibold leading-6">{format(task.dueDate, "d")}</span></time>
       <div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{task.title}</p><p className="mt-1 truncate text-xs text-muted-foreground">{task.clientName} · {assigneeLabel(task)}</p></div>
       <Badge tone={taskStatusTone(task.status)}>{taskStatusLabel(task.status)}</Badge>
@@ -185,6 +189,12 @@ function calendarDays(month: Date) {
     start: startOfWeek(startOfMonth(month), { weekStartsOn: 0 }),
     end: endOfWeek(endOfMonth(month), { weekStartsOn: 0 }),
   });
+}
+
+function calendarTaskHref(task: CalendarTask) {
+  return isTenantAdminTaskAwaitingReview(task)
+    ? tenantTaskReviewHref(task.id)
+    : "/admin/task-calendar";
 }
 
 function assigneeLabel(task: TenantAdminTask) {
