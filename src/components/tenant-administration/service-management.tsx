@@ -108,11 +108,13 @@ function ServiceTable({
           {services.map((service) => {
             const rates = service.rates.length ? service.rates : [null];
             return rates.map((rate, index) => (
-              <tr key={rate?.id ?? service.id}>
-                <td className="px-4 py-3">
-                  <p className="font-medium">{service.name}</p>
-                  <p className="text-xs text-muted-foreground">{service.code}</p>
-                </td>
+              <tr key={rate?.id ?? `${service.id}-${index}`}>
+                {index === 0 ? (
+                  <td className="px-4 py-3 align-top" rowSpan={rates.length}>
+                    <p className="font-medium">{service.name}</p>
+                    <p className="text-xs text-muted-foreground">{service.code}</p>
+                  </td>
+                ) : null}
                 <td className="px-4 py-3">
                   <p className="font-medium">{rate?.taskType?.trim() || "No task"}</p>
                 </td>
@@ -123,14 +125,18 @@ function ServiceTable({
                 <td className="px-4 py-3 text-muted-foreground">{rate?.clientName ?? "Tenant default"}</td>
                 <td className="px-4 py-3">{rate ? billingUnitLabel(rate.unitType) : "-"}</td>
                 <td className="px-4 py-3">{rate?.tasksUsingRate ?? 0}</td>
-                <td className="px-4 py-3 capitalize">{service.status}</td>
-                <td className="px-4 py-3">
-                  {index === 0 ? (
+                {index === 0 ? (
+                  <td className="px-4 py-3 align-top capitalize" rowSpan={rates.length}>
+                    {service.status}
+                  </td>
+                ) : null}
+                {index === 0 ? (
+                  <td className="px-4 py-3 align-top" rowSpan={rates.length}>
                     <Button type="button" size="sm" variant="outline" onClick={() => onManageTasks({ id: service.id, name: service.name })}>
                       Manage tasks
                     </Button>
-                  ) : null}
-                </td>
+                  </td>
+                ) : null}
               </tr>
             ));
           })}
