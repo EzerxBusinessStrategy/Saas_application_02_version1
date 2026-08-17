@@ -171,6 +171,7 @@ export const documentUploadInputSchema = sharedDocumentSchema
     shareReason: true,
   })
   .partial({
+    clientId: true,
     engagement: true,
     task: true,
     recipientEmployeeIds: true,

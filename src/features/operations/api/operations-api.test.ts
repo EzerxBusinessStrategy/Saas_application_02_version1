@@ -56,6 +56,84 @@ test("uploads the original file bytes to the signed storage URL before creating 
   });
 });
 
+test("uploads an employee-only document without a related client", async () => {
+  const file = new File(["internal note"], "note.pdf", { type: "application/pdf" });
+  const fetchMock = vi.spyOn(globalThis, "fetch")
+    .mockResolvedValueOnce(new Response(JSON.stringify({
+      storageKey: "tenants/tenant-1/internal/tenant/request-2.pdf",
+      signedUrl: "https://storage.example.test/upload",
+    }), { status: 201, headers: { "content-type": "application/json" } }))
+    .mockResolvedValueOnce(new Response(null, { status: 200 }))
+    .mockResolvedValueOnce(new Response(JSON.stringify({
+      id: "document-2",
+      clientId: null,
+      client: "Not linked",
+      title: "Internal note",
+      fileName: file.name,
+      fileType: "PDF",
+      sizeBytes: file.size,
+      category: "supporting",
+      uploadedBy: "Tenant Admin",
+      updatedOn: "2026-08-17T00:00:00.000Z",
+      status: "active",
+      clientDecisionStatus: "pending",
+      clientDecisionAt: null,
+      clientDecisionBy: null,
+      clientDecisionComment: null,
+      shareReason: "For employee review.",
+    }), { status: 201, headers: { "content-type": "application/json" } }));
+
+  await createSharedDocument("admin", {
+    title: "Internal note",
+    fileName: file.name,
+    fileType: "PDF",
+    sizeBytes: file.size,
+    category: "supporting",
+    recipientEmployeeIds: ["employee-1"],
+    recipientClientIds: [],
+    shareReason: "For employee review.",
+    file,
+  });
+
+  expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).not.toHaveProperty("clientId");
+  expect(JSON.parse(String(fetchMock.mock.calls[2]?.[1]?.body))).toMatchObject({
+    recipientEmployeeIds: ["employee-1"],
+  });
+  expect(JSON.parse(String(fetchMock.mock.calls[2]?.[1]?.body))).not.toHaveProperty("clientId");
+});
+
+test("lists tenant documents that are not linked to a client", async () => {
+  vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response(JSON.stringify({
+    documents: [{
+      id: "document-internal",
+      clientId: null,
+      client: "Not linked",
+      title: "Employee handbook",
+      fileName: "handbook.pdf",
+      fileType: "PDF",
+      sizeBytes: 1000,
+      category: "supporting",
+      uploadedBy: "Tenant Admin",
+      updatedOn: "2026-08-17T10:39:19.706Z",
+      status: "active",
+      clientDecisionStatus: "pending",
+      clientDecisionAt: null,
+      clientDecisionBy: null,
+      clientDecisionComment: null,
+      shareReason: null,
+    }],
+  }), { status: 200, headers: { "content-type": "application/json" } }));
+
+  await expect(listSharedDocuments("admin")).resolves.toEqual([
+    expect.objectContaining({
+      id: "document-internal",
+      clientId: "",
+      client: "Not linked",
+      recipientClientIds: [],
+    }),
+  ]);
+});
+
 test("lists tenant documents when an invoice PDF is stored with category invoice", async () => {
   vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response(JSON.stringify({
     documents: [{

@@ -166,7 +166,7 @@ const emailAvailabilitySchema = z.object({
 });
 const tenantFinanceDocumentSchema = z.object({
   id: z.string(),
-  clientId: z.string(),
+  clientId: z.string().nullable().optional(),
   client: z.string(),
   title: z.string(),
   fileName: z.string(),
@@ -196,7 +196,7 @@ const employeeDocumentOptionsSchema = z.object({
 });
 const employeeDocumentSchema = z.object({
   id: z.string(),
-  clientId: z.string(),
+  clientId: z.string().nullable().optional(),
   client: z.string(),
   title: z.string(),
   fileName: z.string(),
@@ -412,6 +412,8 @@ export async function listSharedDocuments(workspace: Workspace) {
       return tenantFinanceDocumentsResponseSchema.parse(await parseJsonResponse(response)).documents.map((document): SharedDocument => ({
         ...document,
         tenantId: "tenant",
+        clientId: document.clientId ?? "",
+        client: document.client || "Not linked",
         engagement: null,
         task: null,
       uploadedByRole: "admin",
@@ -419,7 +421,7 @@ export async function listSharedDocuments(workspace: Workspace) {
         recipientEmployeeIds: [],
         recipientManagerIds: [],
         recipientTenantAdminIds: [],
-        recipientClientIds: [document.clientId],
+        recipientClientIds: document.clientId ? [document.clientId] : [],
         tenantAdminVisible: true,
         shareReason: document.shareReason ?? null,
         activity: [{ id: `${document.id}-created`, action: "Created", actor: document.uploadedBy, at: document.updatedOn }],
@@ -463,6 +465,8 @@ function mapEmployeeDocument(document: z.infer<typeof employeeDocumentSchema>): 
   return sharedDocumentSchema.parse({
     ...document,
     tenantId: "tenant",
+    clientId: document.clientId ?? "",
+    client: document.client || "Not linked",
     engagement: null,
     task: null,
     uploadedByRole: "employee",
@@ -541,18 +545,19 @@ export async function createSharedDocument(
   input: DocumentUploadWithFileInput,
 ): Promise<SharedDocument> {
   const value = documentUploadInputSchema.parse(input);
+  const relatedClientId = value.clientId?.trim() || undefined;
   const idempotencyKey = crypto.randomUUID();
   const uploaded = await uploadPrivateDocumentFile(
     workspace === "admin" ? "/api/tenant-admin/finance/documents" : "/api/employee/documents",
     input.file,
-    { clientId: value.clientId, fileName: value.fileName, sizeBytes: value.sizeBytes, idempotencyKey },
+    { clientId: relatedClientId, fileName: value.fileName, sizeBytes: value.sizeBytes, idempotencyKey },
   );
   if (workspace === "admin") {
     const response = await fetch("/api/tenant-admin/finance/documents", {
       method: "POST",
       headers: { "content-type": "application/json", "idempotency-key": idempotencyKey },
       body: JSON.stringify({
-        clientId: value.clientId,
+        ...(relatedClientId ? { clientId: relatedClientId } : {}),
         title: value.title,
         fileName: value.fileName,
         fileType: value.fileType,
@@ -569,6 +574,8 @@ export async function createSharedDocument(
       return {
         ...document,
         tenantId: "tenant",
+        clientId: document.clientId ?? relatedClientId ?? "",
+        client: document.client || "Not linked",
         engagement: value.engagement ?? null,
         task: value.task ?? null,
       uploadedByRole: "admin",
@@ -576,7 +583,7 @@ export async function createSharedDocument(
         recipientEmployeeIds: value.recipientEmployeeIds ?? [],
         recipientManagerIds: value.recipientManagerIds ?? [],
         recipientTenantAdminIds: value.recipientTenantAdminIds ?? [],
-        recipientClientIds: value.recipientClientIds ?? [value.clientId],
+        recipientClientIds: value.recipientClientIds ?? (document.clientId ? [document.clientId] : relatedClientId ? [relatedClientId] : []),
         tenantAdminVisible: true,
         shareReason: document.shareReason ?? value.shareReason ?? null,
         activity: [{ id: `${document.id}-created`, action: "Created", actor: document.uploadedBy, at: document.updatedOn }],
@@ -666,13 +673,19 @@ export async function getPrivateDocumentDownloadUrl(workspace: "admin" | "employ
 async function uploadPrivateDocumentFile(
   endpoint: string,
   file: File,
-  metadata: { clientId: string; fileName: string; sizeBytes: number; idempotencyKey: string },
+  metadata: { clientId?: string; fileName: string; sizeBytes: number; idempotencyKey: string },
 ): Promise<{ storageKey: string; contentType: string }> {
   const contentType = file.type || inferContentType(file.name);
   const response = await fetch(`${endpoint}/upload-url`, {
     method: "POST",
     headers: { "content-type": "application/json", "idempotency-key": metadata.idempotencyKey },
-    body: JSON.stringify({ ...metadata, contentType }),
+    body: JSON.stringify({
+      fileName: metadata.fileName,
+      sizeBytes: metadata.sizeBytes,
+      idempotencyKey: metadata.idempotencyKey,
+      contentType,
+      ...(metadata.clientId ? { clientId: metadata.clientId } : {}),
+    }),
   });
   const upload = z.object({ storageKey: z.string(), signedUrl: z.string().url() }).parse(await parseJsonResponse(response));
   const storageResponse = await fetch(upload.signedUrl, {

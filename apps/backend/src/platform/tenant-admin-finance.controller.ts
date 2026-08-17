@@ -59,7 +59,7 @@ export class TenantAdminFinanceController {
 
   @Post("documents/upload-url")
   @RequirePermissions("document.publish")
-  @ApiOperation({ summary: "Authorize a private document upload for one tenant client." })
+  @ApiOperation({ summary: "Authorize a private document upload for the tenant." })
   @ApiOkResponse({ type: DocumentUploadUrlDto })
   createDocumentUploadUrl(
     @CurrentRequestContext() context: RequestContext,

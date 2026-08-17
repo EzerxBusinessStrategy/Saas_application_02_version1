@@ -12,7 +12,7 @@ export type EmployeeDocumentOptionRow = { id: string; name: string; email: strin
 type EmployeeDocumentTaskOptionRow = { id: string; clientId: string; title: string };
 export type EmployeeDocumentRow = {
   id: string;
-  client_id: string;
+  client_id: string | null;
   client: string;
   title: string;
   file_name: string;
@@ -237,7 +237,7 @@ export class EmployeeDocumentsRepository {
   private async getDocuments(client: PoolClient, tenantId: string, membershipId: string): Promise<readonly EmployeeDocumentRow[]> {
     const result = await client.query<EmployeeDocumentRow>(
       `
-        select d.id::text, d.client_id::text, c.display_name as client, d.title, d.file_name, d.file_type,
+        select d.id::text, d.client_id::text, coalesce(c.display_name, 'Not linked') as client, d.title, d.file_name, d.file_type,
                d.size_bytes, d.category, coalesce(owner.display_name, 'System') as uploaded_by,
                coalesce(d.created_by::text, '') as uploaded_by_id, d.updated_at::text as updated_on, d.status,
                coalesce(d.metadata->>'clientDecisionStatus', 'pending') as client_decision_status,
@@ -248,7 +248,7 @@ export class EmployeeDocumentsRepository {
                coalesce(array_remove(array_agg(distinct tdr.recipient_membership_id::text) filter (where tdr.recipient_role = 'TENANT_ADMIN'), null), '{}'::text[]) as recipient_tenant_admin_ids,
                coalesce(array_remove(array_agg(distinct tdr.recipient_membership_id::text) filter (where tdr.recipient_role = 'MANAGER'), null), '{}'::text[]) as recipient_manager_ids
         from public.tenant_documents d
-        join public.clients c on c.id = d.client_id and c.tenant_id = d.tenant_id
+        left join public.clients c on c.id = d.client_id and c.tenant_id = d.tenant_id
         left join public.tenant_memberships owner on owner.id = d.created_by and owner.tenant_id = d.tenant_id
         left join public.tenant_document_recipients tdr on tdr.tenant_id = d.tenant_id and tdr.document_id = d.id
         where d.tenant_id = $1

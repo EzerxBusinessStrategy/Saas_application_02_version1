@@ -36,6 +36,17 @@ export function documentStorageBucket(portal: DocumentStoragePortal): string {
   return bucketForPortal[portal];
 }
 
+export function tenantDocumentObjectPrefix(input: {
+  tenantId: string;
+  clientId?: string;
+  portal: DocumentStoragePortal;
+}): string {
+  const portal = input.portal.toLowerCase();
+  return input.clientId
+    ? `tenants/${input.tenantId}/clients/${input.clientId}/${portal}/`
+    : `tenants/${input.tenantId}/internal/${portal}/`;
+}
+
 @Injectable()
 export class TenantDocumentStorageService {
   private readonly client: SupabaseClient | null;
@@ -55,7 +66,7 @@ export class TenantDocumentStorageService {
 
   async createSignedUploadUrl(input: {
     tenantId: string;
-    clientId: string;
+    clientId?: string;
     portal: DocumentStoragePortal;
     fileName: string;
     contentType: string;
@@ -67,8 +78,15 @@ export class TenantDocumentStorageService {
     const extension = extensionFor(input.fileName);
     const operationId = input.operationId ?? randomUUID();
     assertUuid(operationId, "DOCUMENT_OPERATION_INVALID", "The upload operation is invalid. Start the upload again.");
+    if (input.clientId) {
+      assertUuid(input.clientId, "CLIENT_NOT_AVAILABLE", "Select an available client.");
+    }
     const storageBucket = documentStorageBucket(input.portal);
-    const storageKey = `tenants/${input.tenantId}/clients/${input.clientId}/${input.portal.toLowerCase()}/${operationId}.${extension}`;
+    const storageKey = `${tenantDocumentObjectPrefix({
+      tenantId: input.tenantId,
+      clientId: input.clientId,
+      portal: input.portal,
+    })}${operationId}.${extension}`;
     const { data, error } = await client.storage
       .from(storageBucket)
       .createSignedUploadUrl(storageKey, { upsert: false });
@@ -83,7 +101,7 @@ export class TenantDocumentStorageService {
 
   async verifyUploadedFile(input: {
     tenantId: string;
-    clientId: string;
+    clientId?: string;
     portal: DocumentStoragePortal;
     storageKey: string;
     fileName: string;
@@ -91,9 +109,18 @@ export class TenantDocumentStorageService {
     sizeBytes: number;
   }): Promise<StoredDocumentObject> {
     this.assertFileMetadata(input.fileName, input.contentType, input.sizeBytes);
-    const expectedPrefix = `tenants/${input.tenantId}/clients/${input.clientId}/${input.portal.toLowerCase()}/`;
+    const expectedPrefix = tenantDocumentObjectPrefix({
+      tenantId: input.tenantId,
+      clientId: input.clientId,
+      portal: input.portal,
+    });
     if (!input.storageKey.startsWith(expectedPrefix)) {
-      throw new BadRequestException({ code: "DOCUMENT_STORAGE_KEY_INVALID", message: "The uploaded file does not match the selected client." });
+      throw new BadRequestException({
+        code: "DOCUMENT_STORAGE_KEY_INVALID",
+        message: input.clientId
+          ? "The uploaded file does not match the selected client."
+          : "The uploaded file does not match this tenant document.",
+      });
     }
     const storageBucket = documentStorageBucket(input.portal);
     const { data, error } = await this.requireClient().storage.from(storageBucket).download(input.storageKey);

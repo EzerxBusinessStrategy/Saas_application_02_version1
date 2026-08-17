@@ -64,7 +64,7 @@ export class EmployeeDocumentOptionsDto {
 
 export class EmployeeDocumentDto {
   @ApiProperty({ type: String }) id!: string;
-  @ApiProperty({ type: String }) clientId!: string;
+  @ApiPropertyOptional({ type: String, nullable: true }) clientId!: string | null;
   @ApiProperty({ type: String }) client!: string;
   @ApiProperty({ type: String }) title!: string;
   @ApiProperty({ type: String }) fileName!: string;

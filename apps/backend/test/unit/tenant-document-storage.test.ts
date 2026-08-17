@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { TenantDocumentStorageService } from "../../src/platform/tenant-document-storage.service";
+import { TenantDocumentStorageService, tenantDocumentObjectPrefix } from "../../src/platform/tenant-document-storage.service";
 
 describe("TenantDocumentStorageService", () => {
   it("does not initialize Supabase Auth for the server-only storage client", () => {
@@ -23,5 +23,17 @@ describe("TenantDocumentStorageService", () => {
       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       128,
     )).not.toThrow();
+  });
+
+  it("stores tenant documents under a client prefix or an internal prefix", () => {
+    expect(tenantDocumentObjectPrefix({
+      tenantId: "tenant-1",
+      clientId: "client-1",
+      portal: "TENANT",
+    })).toBe("tenants/tenant-1/clients/client-1/tenant/");
+    expect(tenantDocumentObjectPrefix({
+      tenantId: "tenant-1",
+      portal: "TENANT",
+    })).toBe("tenants/tenant-1/internal/tenant/");
   });
 });

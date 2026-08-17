@@ -9,7 +9,7 @@ import type { StoredDocumentObject } from "./tenant-document-storage.service";
 
 export type TenantDocumentRow = {
   readonly id: string;
-  readonly clientId: string;
+  readonly clientId: string | null;
   readonly client: string;
   readonly title: string;
   readonly fileName: string;
@@ -77,7 +77,9 @@ export class TenantAdminFinanceRepository {
 
   async createDocument(context: TenantAdminRequestContext, input: CreateTenantDocumentRequest, storageBucket: string): Promise<TenantDocumentRow> {
     return this.withContext(context, async (client) => {
-      await this.assertClient(client, context.tenantId, input.clientId);
+      if (input.clientId) {
+        await this.assertClient(client, context.tenantId, input.clientId);
+      }
       const result = await client.query<{ id: string }>(
         `
           insert into public.tenant_documents (
@@ -109,7 +111,7 @@ export class TenantAdminFinanceRepository {
             $11,
             jsonb_build_object(
               'clientDecisionStatus', 'pending',
-              'clientVisible', true,
+              'clientVisible', $14::boolean,
               'shareReason', $13::text
             ),
             $12
@@ -117,7 +119,7 @@ export class TenantAdminFinanceRepository {
           on conflict (tenant_id, created_by, idempotency_key) where idempotency_key is not null do nothing
           returning id::text
         `,
-        [context.tenantId, input.clientId, input.title, input.fileName, input.fileType, input.sizeBytes, input.category, storageBucket, input.storageKey, input.contentType, input.idempotencyKey ?? null, context.membershipId, input.shareReason ?? ""],
+        [context.tenantId, input.clientId ?? null, input.title, input.fileName, input.fileType, input.sizeBytes, input.category, storageBucket, input.storageKey, input.contentType, input.idempotencyKey ?? null, context.membershipId, input.shareReason ?? "", Boolean(input.clientId)],
       ).catch((error: unknown) => {
         if (isUndefinedTable(error)) {
           throw new ConflictException({
@@ -151,9 +153,11 @@ export class TenantAdminFinanceRepository {
       }
       await client.query(
         "select audit.write_audit_event('DOCUMENT_CREATED', 'document', $1::uuid, 'succeeded', null, $2::jsonb)",
-        [id, JSON.stringify({ clientId: input.clientId, title: input.title, employeeRecipientCount: employeeRecipientMembershipIds.length })],
+        [id, JSON.stringify({ clientId: input.clientId ?? null, title: input.title, employeeRecipientCount: employeeRecipientMembershipIds.length })],
       );
-      await this.notifyClientDeliverableShared(client, context, id, input.clientId, input.title);
+      if (input.clientId) {
+        await this.notifyClientDeliverableShared(client, context, id, input.clientId, input.title);
+      }
       return this.getDocumentOrThrow(client, context.tenantId, id, context.membershipId);
     });
   }
@@ -376,10 +380,10 @@ export class TenantAdminFinanceRepository {
 
   private async getDocuments(client: PoolClient, tenantId: string, clientId?: string, membershipId?: string): Promise<readonly TenantDocumentRow[]> {
     const result = await client.query<{
-      id: string; client_id: string; client: string; title: string; file_name: string; file_type: string; size_bytes: number; category: string; storage_key: string | null; uploaded_by: string; updated_on: string; status: "active" | "archived"; client_decision_status: "pending" | "approved" | "rejected"; client_decision_at: string | null; client_decision_by: string | null; client_decision_comment: string | null; share_reason: string | null;
+      id: string; client_id: string | null; client: string; title: string; file_name: string; file_type: string; size_bytes: number; category: string; storage_key: string | null; uploaded_by: string; updated_on: string; status: "active" | "archived"; client_decision_status: "pending" | "approved" | "rejected"; client_decision_at: string | null; client_decision_by: string | null; client_decision_comment: string | null; share_reason: string | null;
     }>(
       `
-        select d.id::text, d.client_id::text, c.display_name as client, d.title, d.file_name, d.file_type, d.storage_key,
+        select d.id::text, d.client_id::text, coalesce(c.display_name, 'Not linked') as client, d.title, d.file_name, d.file_type, d.storage_key,
                d.size_bytes, d.category, coalesce(tm.display_name, 'System') as uploaded_by,
                d.updated_at::text as updated_on, d.status,
                coalesce(d.metadata->>'clientDecisionStatus', 'pending') as client_decision_status,
@@ -388,7 +392,7 @@ export class TenantAdminFinanceRepository {
                d.metadata->>'clientDecisionComment' as client_decision_comment,
                nullif(d.metadata->>'shareReason', '') as share_reason
         from public.tenant_documents d
-        join public.clients c on c.id = d.client_id and c.tenant_id = d.tenant_id
+        left join public.clients c on c.id = d.client_id and c.tenant_id = d.tenant_id
         left join public.tenant_memberships tm on tm.id = d.created_by and tm.tenant_id = d.tenant_id
         where d.tenant_id = $1
           and ($2::uuid is null or d.client_id = $2)

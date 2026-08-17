@@ -4,7 +4,7 @@ import { z } from "zod";
 const optionalUuid = z.preprocess((value) => (value === "" ? undefined : value), z.string().uuid().optional());
 
 export const createTenantDocumentSchema = z.object({
-  clientId: z.string().uuid(),
+  clientId: optionalUuid,
   title: z.string().trim().min(2).max(160),
   fileName: z.string().trim().min(1).max(260),
   fileType: z.string().trim().min(1).max(24),
@@ -15,11 +15,28 @@ export const createTenantDocumentSchema = z.object({
   idempotencyKey: z.string().uuid().optional(),
   recipientEmployeeIds: z.array(z.string().uuid()).default([]),
   shareReason: z.string().trim().max(1000).optional().default(""),
+}).superRefine((value, ctx) => {
+  const hasClient = Boolean(value.clientId);
+  const hasEmployee = (value.recipientEmployeeIds?.length ?? 0) > 0;
+  if (value.category === "agreement" && !hasClient) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["clientId"],
+      message: "Select a related client for this agreement.",
+    });
+  }
+  if (!hasClient && !hasEmployee) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["clientId"],
+      message: "Select a client or an employee.",
+    });
+  }
 });
 export type CreateTenantDocumentRequest = z.infer<typeof createTenantDocumentSchema>;
 
 export const createTenantDocumentUploadUrlSchema = z.object({
-  clientId: z.string().uuid(),
+  clientId: optionalUuid,
   fileName: z.string().trim().min(1).max(260),
   contentType: z.string().trim().min(1).max(160),
   sizeBytes: z.coerce.number().int().positive().max(20 * 1024 * 1024),
@@ -78,7 +95,7 @@ export type ListTenantFinanceQuery = z.infer<typeof listTenantFinanceQuerySchema
 
 export class TenantDocumentDto {
   @ApiProperty({ type: String }) id!: string;
-  @ApiProperty({ type: String }) clientId!: string;
+  @ApiPropertyOptional({ type: String, nullable: true }) clientId!: string | null;
   @ApiProperty({ type: String }) client!: string;
   @ApiProperty({ type: String }) title!: string;
   @ApiProperty({ type: String }) fileName!: string;

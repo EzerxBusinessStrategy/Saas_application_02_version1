@@ -31,7 +31,7 @@ export class TenantAdminFinanceService {
     return this.repository.createDocument(scoped, input, object.storageBucket);
   }
 
-  async createDocumentUploadUrl(context: RequestContext, input: { clientId: string; fileName: string; contentType: string; sizeBytes: number; idempotencyKey?: string }) {
+  async createDocumentUploadUrl(context: RequestContext, input: { clientId?: string; fileName: string; contentType: string; sizeBytes: number; idempotencyKey?: string }) {
     const scoped = requireTenantAdminContext(context);
     return this.storage.createSignedUploadUrl({ tenantId: scoped.tenantId, portal: "TENANT", ...input, operationId: input.idempotencyKey });
   }

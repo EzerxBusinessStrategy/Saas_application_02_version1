@@ -285,4 +285,21 @@ describe("database migrations", () => {
     expect(sql).not.toContain("drop table");
     expect(sql).not.toMatch(/alter table [^\n]+ drop column/i);
   });
+
+  test("makes tenant document client_id optional without dropping columns", () => {
+    expect(migrationNames).toContain("0070_tenant_documents_optional_client.sql");
+    expect(migrationNames.indexOf("0070_tenant_documents_optional_client.sql")).toBeGreaterThan(
+      migrationNames.indexOf("0069_engagement_service_discount.sql"),
+    );
+
+    const sql = readFileSync(
+      resolve(__dirname, "../../drizzle/migrations/0070_tenant_documents_optional_client.sql"),
+      "utf8",
+    );
+
+    expect(sql).toContain("alter table public.tenant_documents");
+    expect(sql).toContain("alter column client_id drop not null");
+    expect(sql).not.toContain("drop table");
+    expect(sql).not.toMatch(/alter table [^\n]+ drop column/i);
+  });
 });

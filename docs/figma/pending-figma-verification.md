@@ -121,3 +121,12 @@ Design status: Pending Figma verification.
   because clients already tick services from Requests. Comments notify Tenant
   Admins and Owners with the client name. Reuses Card, StatusBadge, Button, and
   the existing textarea pattern. Figma MCP was not used.
+
+## Optional related client on Tenant Admin document upload
+
+Design status: Pending Figma verification.
+
+- The Tenant Admin Upload document dialog lets a file go to a client, an
+  employee, or both. Related client is optional for ordinary documents and
+  still required for agreements. Reuses Dialog, Input, Select, and Button.
+  Figma MCP was not used.

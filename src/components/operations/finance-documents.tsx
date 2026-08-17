@@ -101,7 +101,7 @@ function DocumentsWorkspace({ workspace, fixedCategory }: { workspace: Extract<W
   ];
   const canUpload = workspace === "admin" || workspace === "employee";
   return <div className="flex flex-col gap-[30px]">
-    <PageHeader eyebrow="Operations" title={fixedCategory === "agreement" ? "Agreements" : "Documents"} description={fixedCategory === "agreement" ? "Upload agreements and send them to the selected client." : "Upload, organise and securely share operational documents with authorised users."} actions={canUpload ? <Button onClick={() => setUploadOpen(true)}><Upload data-icon="inline-start" />{fixedCategory === "agreement" ? "Upload agreement" : "Upload document"}</Button> : undefined} />
+    <PageHeader eyebrow="Operations" title={fixedCategory === "agreement" ? "Agreements" : "Documents"} description={fixedCategory === "agreement" ? "Upload agreements and send them to the selected client." : "Upload a document and send it to a client, an employee, or both."} actions={canUpload ? <Button onClick={() => setUploadOpen(true)}><Upload data-icon="inline-start" />{fixedCategory === "agreement" ? "Upload agreement" : "Upload document"}</Button> : undefined} />
     <MetricStrip metrics={[{ label: "All documents", value: String(documents?.length ?? 0) }, { label: "Shared with me", value: String(documents?.filter((item) => item.uploadedByRole !== workspace).length ?? 0) }, { label: "Client documents", value: String(documents?.filter((item) => item.recipientClientIds.length).length ?? 0) }]} />
     <FilterToolbar search={{ value: search, onChange: setSearch, label: "Search documents", placeholder: "Search document name, client, category or uploader" }} activeFilterCount={Number(Boolean(category))} onClear={() => setCategory("")}>
       {!fixedCategory ? <label className="flex flex-col gap-1 text-sm font-medium">Category<Select value={category} onChange={(event) => setCategory(event.target.value)}><option value="">All categories</option>{categories.map((item) => <option key={item} value={item}>{item.replaceAll("-", " ")}</option>)}</Select></label> : null}
@@ -274,21 +274,25 @@ function DocumentUploadDialog({ workspace, clients, adminOptions, fixedCategory,
   const [employeeId, setEmployeeId] = useState("");
   const [shareReason, setShareReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const eligibleClients = clients;
+  const selectedCategory = fixedCategory ?? category;
+  const isAgreement = selectedCategory === "agreement";
+  const canSubmit = Boolean(file && title.trim() && !submitting && (isAgreement ? clientId : clientId || employeeId));
   const submit = async () => {
-    if (!file || !title.trim() || !clientId) return;
+    if (!file || !title.trim()) return;
+    if (isAgreement && !clientId) return;
+    if (!isAgreement && !clientId && !employeeId) return;
     setSubmitting(true);
     try {
       onCreated(await createSharedDocument(workspace, {
-        clientId,
+        ...(clientId ? { clientId } : {}),
         file,
         title: title.trim(),
         fileName: file.name,
         fileType: file.name.split(".").pop()?.toUpperCase() ?? "FILE",
         sizeBytes: file.size,
-        category: fixedCategory ?? category,
+        category: selectedCategory,
         recipientEmployeeIds: employeeId ? [employeeId] : [],
-        recipientClientIds: fixedCategory === "agreement" ? [clientId] : [],
+        recipientClientIds: clientId ? [clientId] : [],
         shareReason,
       }));
     } catch (error) {
@@ -297,7 +301,36 @@ function DocumentUploadDialog({ workspace, clients, adminOptions, fixedCategory,
       setSubmitting(false);
     }
   };
-  return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent title="Upload document" description="Choose document metadata and authorised recipients." className="max-h-[calc(100vh-2rem)] max-w-2xl overflow-y-auto"><div className="pr-8"><h2 className="text-xl font-semibold">Upload document</h2><div className="mt-6 grid gap-4 sm:grid-cols-2"><FileField file={file} onFile={setFile} /><label className="flex flex-col gap-1 text-sm font-medium">Document title<Input value={title} maxLength={120} onChange={(event) => setTitle(event.target.value)} /></label><label className="flex flex-col gap-1 text-sm font-medium">Category<Select value={category} onChange={(event) => setCategory(event.target.value as typeof category)}>{categories.map((item) => <option key={item} value={item}>{item.replaceAll("-", " ")}</option>)}</Select></label><label className="flex flex-col gap-1 text-sm font-medium">Related client<Select value={clientId} onChange={(event) => setClientId(event.target.value)}><option value="">Select client</option>{eligibleClients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}</Select></label>{workspace === "admin" ? <label className="flex flex-col gap-1 text-sm font-medium">Send to employee<Select value={employeeId} onChange={(event) => setEmployeeId(event.target.value)}><option value="">Select employee</option>{adminOptions?.employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.name}</option>)}</Select></label> : null}{workspace === "admin" ? <label className="flex flex-col gap-1 text-sm font-medium">Why sent<Input value={shareReason} maxLength={1000} onChange={(event) => setShareReason(event.target.value)} /></label> : null}</div><div className="mt-7 flex justify-end gap-2"><Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button><Button disabled={!file || !title.trim() || !clientId || submitting} onClick={() => void submit()}>{submitting ? "Preparing..." : "Upload document"}</Button></div></div></DialogContent></Dialog>;
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent
+        title="Upload document"
+        description={isAgreement ? "Choose the client who should receive this agreement." : "Send this file to a client, an employee, or both."}
+        className="max-h-[calc(100vh-2rem)] max-w-2xl overflow-y-auto"
+      >
+        <div className="pr-8">
+          <h2 className="text-xl font-semibold">{isAgreement ? "Upload agreement" : "Upload document"}</h2>
+          <p className="mt-2 text-sm text-muted-foreground">
+            {isAgreement
+              ? "Agreements stay linked to a client. You can also send a copy to an employee."
+              : "Related client and employee are both optional, but you must choose at least one."}
+          </p>
+          <div className="mt-6 grid gap-4 sm:grid-cols-2">
+            <FileField file={file} onFile={setFile} />
+            <label className="flex flex-col gap-1 text-sm font-medium">Document title<Input value={title} maxLength={120} onChange={(event) => setTitle(event.target.value)} /></label>
+            <label className="flex flex-col gap-1 text-sm font-medium">Category<Select value={category} onChange={(event) => setCategory(event.target.value as typeof category)}>{categories.map((item) => <option key={item} value={item}>{item.replaceAll("-", " ")}</option>)}</Select></label>
+            <label className="flex flex-col gap-1 text-sm font-medium">{isAgreement ? "Related client" : "Related client (optional)"}<Select value={clientId} onChange={(event) => setClientId(event.target.value)}><option value="">{isAgreement ? "Select client" : "No related client"}</option>{clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}</Select></label>
+            {workspace === "admin" ? <label className="flex flex-col gap-1 text-sm font-medium">Send to employee (optional)<Select value={employeeId} onChange={(event) => setEmployeeId(event.target.value)}><option value="">No employee</option>{adminOptions?.employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.name}</option>)}</Select></label> : null}
+            {workspace === "admin" ? <label className="flex flex-col gap-1 text-sm font-medium">Why sent<Input value={shareReason} maxLength={1000} onChange={(event) => setShareReason(event.target.value)} /></label> : null}
+          </div>
+          <div className="mt-7 flex justify-end gap-2">
+            <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+            <Button disabled={!canSubmit} onClick={() => void submit()}>{submitting ? "Preparing..." : isAgreement ? "Upload agreement" : "Upload document"}</Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
 }
 
 function InvoiceUploadDialog({ workspace, clients, open, onOpenChange, onCreated }: { workspace: "admin"; clients: Array<{ id: string; name: string }>; open: boolean; onOpenChange: (open: boolean) => void; onCreated: (invoice: SharedInvoice) => void }) {
