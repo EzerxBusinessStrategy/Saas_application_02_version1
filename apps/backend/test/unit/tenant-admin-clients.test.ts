@@ -29,6 +29,53 @@ describe("TenantAdminClientsRepository", () => {
     expect(sql).toContain("e.tenant_id = wg.tenant_id");
   });
 
+  it("loads client tasks with active assignee names and tenant-scoped assignments", async () => {
+    const queries: string[] = [];
+    type QueryClient = {
+      query(sqlText: string, values: readonly unknown[]): Promise<{ rows: Array<Record<string, unknown>> }>;
+    };
+    const client: QueryClient = {
+      query: vi.fn(async (sqlText: string, values: readonly unknown[]) => {
+        queries.push(sqlText);
+        expect(values).toEqual(["tenant-1", "client-1"]);
+        return {
+          rows: [
+            {
+              id: "task-1",
+              title: "demo (2027-03)",
+              status: "assigned",
+              priority: "normal",
+              plannedDueAt: new Date("2027-03-11T00:00:00.000Z"),
+              assignees: [{ id: "emp-1", name: "Priya Sen" }],
+            },
+          ],
+        };
+      }),
+    };
+    const repository = new TenantAdminClientsRepository(null);
+    const getTasks = (
+      repository as unknown as {
+        getTasks(client: QueryClient, tenantId: string, clientId: string): Promise<unknown[]>;
+      }
+    ).getTasks.bind(repository);
+
+    await expect(getTasks(client, "tenant-1", "client-1")).resolves.toEqual([
+      {
+        id: "task-1",
+        title: "demo (2027-03)",
+        status: "assigned",
+        priority: "normal",
+        plannedDueAt: "2027-03-11T00:00:00.000Z",
+        assigneeName: "Priya Sen",
+      },
+    ]);
+    const sql = queries.join("\n");
+    expect(sql).toContain("where t.tenant_id = $1 and t.client_id = $2");
+    expect(sql).toContain("public.task_assignments ta");
+    expect(sql).toContain("ta.tenant_id = t.tenant_id");
+    expect(sql).toContain("ta.status = 'active'");
+  });
+
   it("creates a tenant-scoped client with a lowercase generated code when the client ID is empty", async () => {
     const queries: string[] = [];
     const params: unknown[][] = [];

@@ -1,6 +1,7 @@
 "use client";
 
 import { Select } from "@/components/ui/select";
+import { cn } from "@/lib/utils";
 import type { ServiceOnboardingAssignee } from "@/features/administration/api/service-onboarding-api";
 
 export function ServiceEmployeeSelector({
@@ -9,22 +10,28 @@ export function ServiceEmployeeSelector({
   value,
   isLoading,
   onChange,
+  showHeading = true,
+  className,
 }: {
   serviceName: string;
   employees: readonly ServiceOnboardingAssignee[];
   value: string;
   isLoading: boolean;
   onChange: (employeeId: string) => void;
+  showHeading?: boolean;
+  className?: string;
 }) {
   const selected = employees.find((employee) => employee.employeeId === value);
   const highLoad = selected ? selected.activeTasks >= 12 : false;
   return (
-    <section className="rounded-[var(--radius-control)] border p-4">
-      <h3 className="font-medium">{serviceName}</h3>
-      <p className="mt-1 text-sm text-muted-foreground">Who will take care of this service for the client?</p>
-      <label className="mt-4 block text-sm font-medium">
+    <section className={cn("rounded-[var(--radius-control)] border p-4", className)}>
+      {showHeading ? <h3 className="font-medium">{serviceName}</h3> : null}
+      <p className={cn("text-sm text-muted-foreground", showHeading && "mt-1")}>
+        Who will take care of this service for the client?
+      </p>
+      <label className="mt-4 flex flex-col gap-1.5 text-sm font-medium">
         Responsible person
-        <Select className="mt-1" value={value} disabled={isLoading || !employees.length} onChange={(event) => onChange(event.target.value)}>
+        <Select value={value} disabled={isLoading || !employees.length} onChange={(event) => onChange(event.target.value)}>
           <option value="">{isLoading ? "Loading employees…" : "Select an employee"}</option>
           {employees.map((employee) => (
             <option key={employee.employeeId} value={employee.employeeId}>
@@ -37,7 +44,7 @@ export function ServiceEmployeeSelector({
         </Select>
       </label>
       {selected ? (
-        <p className="mt-2 text-sm text-muted-foreground">
+        <p className="mt-3 text-sm text-muted-foreground">
           {selected.departmentName ? `${selected.departmentName} department. ` : ""}
           {selected.serviceCapable ? "Mapped to this service." : "Not mapped to this service; still available because no specialist is set."}{" "}
           {selected.activeTasks} open tasks, {selected.weeklyCapacityHours}h weekly capacity.

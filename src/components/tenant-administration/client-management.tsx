@@ -55,6 +55,7 @@ import {
 } from "@/features/operations/api/operations-api";
 import { ClientServiceOnboarding } from "@/components/tenant-administration/client-service-onboarding";
 import { readFormDraft } from "@/lib/client/form-draft-store";
+import { formatIndiaTimestamp } from "@/lib/india-time";
 import {
   clientCreateInputSchema,
   clientContactInputSchema,
@@ -72,7 +73,6 @@ const formatMoney = (amount: number, currencyCode: string) =>
     currency: currencyCode,
     maximumFractionDigits: 0,
   }).format(amount);
-const billingUnitLabel = (value: string) => value.replace("per_", "per ");
 const date = new Intl.DateTimeFormat("en-US", {
   month: "short",
   day: "numeric",
@@ -82,7 +82,6 @@ const date = new Intl.DateTimeFormat("en-US", {
 const clientTabs = [
   { value: "overview", label: "Overview" },
   { value: "contacts", label: "Contacts" },
-  { value: "engagements", label: "Service engagements" },
   { value: "tasks", label: "Tasks" },
   { value: "billing", label: "Billing" },
   { value: "agreements", label: "Agreements" },
@@ -207,7 +206,7 @@ export function ClientDirectory() {
     await queryClient.invalidateQueries({ queryKey: ["clients"] });
     setCreateOpen(false);
     toast.success("Client created.");
-    router.push(`/admin/clients/${client.id}?tab=engagements&configureServices=1`);
+    router.push(`/admin/clients/${client.id}?configureServices=1`);
   };
   const setParams = (updates: Record<string, string>) => {
     const next = new URLSearchParams(searchParams);
@@ -390,7 +389,7 @@ export function ClientDirectory() {
       <PageHeader
         eyebrow="Tenant Admin"
         title="Clients"
-        description="Manage client delivery context, contacts, service engagements, and due work."
+        description="Manage client delivery context, contacts, tasks, billing, and due work."
         actions={
           <Button onClick={() => setCreateOpen(true)}>
             <Plus className="size-4" aria-hidden="true" />
@@ -1101,71 +1100,6 @@ export function ClientDetail({ clientId }: { clientId: string }) {
           )}
         </CardContent>
       </Card>
-    ) : tab === "engagements" ? (
-      <Card>
-        <CardHeader>
-          <CardTitle>Service engagements</CardTitle>
-          <CardDescription>
-            Progress, service scope, SLA, people, and milestones for the
-            selected client.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {client.engagements.length ? (
-            <div className="grid gap-5">
-              {client.engagements.map((engagement) => (
-                <article
-                  key={recordText(engagement, "id")}
-                  className="border-b pb-5 last:border-0 last:pb-0"
-                >
-                  <div className="flex flex-col justify-between gap-3 sm:flex-row">
-                    <div>
-                      <p className="font-medium">{recordText(engagement, "name")}</p>
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        {engagement.code} · {engagement.service} ·{" "}
-                        {engagement.billingModel}
-                      </p>
-                    </div>
-                    <div className="flex gap-2">
-                      <StatusBadge status={engagement.status} />
-                      <StatusBadge status={engagement.slaStatus} />
-                    </div>
-                  </div>
-                  <div className="mt-4 grid gap-3 text-sm sm:grid-cols-3">
-                    <p>{engagement.manager} · manager</p>
-                    <p>
-                      {engagement.employees} employees · {engagement.openTasks}{" "}
-                      open tasks
-                    </p>
-                    <p>
-                      {engagement.startDate} to {engagement.endDate}
-                    </p>
-                  </div>
-                  <div className="mt-4">
-                    <ProgressRow
-                      label="Engagement milestone progress"
-                      value={engagement.progress}
-                    />
-                    <p className="mt-2 text-xs text-muted-foreground">
-                      Milestones: {engagement.milestones.join(" · ")}
-                    </p>
-                  </div>
-                </article>
-              ))}
-            </div>
-          ) : (
-            <div className="flex flex-col items-center gap-4">
-              <EmptyState
-                title="No service engagements"
-                description="Configure the services this client purchased. Tasks are created only after you activate."
-              />
-              <Button type="button" onClick={() => setConfigureOpen(true)}>
-                Configure services
-              </Button>
-            </div>
-          )}
-        </CardContent>
-      </Card>
     ) : tab === "tasks" ? (
       <Card>
         <CardHeader>
@@ -1177,13 +1111,19 @@ export function ClientDetail({ clientId }: { clientId: string }) {
         <CardContent>
           {client.tasks.length ? (
             <ul className="flex flex-col divide-y">
-              {client.tasks.map((task) => (
+              {client.tasks.map((task) => {
+                const dueAt = recordText(task, "plannedDueAt");
+                const dueLabel = dueAt ? formatIndiaTimestamp(dueAt) : "";
+                return (
                 <li key={recordText(task, "id")} className="py-4 first:pt-0">
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                     <div>
                       <p className="font-medium">{recordText(task, "title")}</p>
                       <p className="mt-1 text-sm text-muted-foreground">
-                        Due {recordText(task, "plannedDueAt", "No due date")}
+                        Due {dueLabel || "No due date"}
+                      </p>
+                      <p className="mt-1 text-sm">
+                        Assigned to {recordText(task, "assigneeName", "Unassigned")}
                       </p>
                     </div>
                     <div className="flex gap-2">
@@ -1196,7 +1136,8 @@ export function ClientDetail({ clientId }: { clientId: string }) {
                     </div>
                   </div>
                 </li>
-              ))}
+                );
+              })}
             </ul>
           ) : (
             <EmptyState
@@ -1211,7 +1152,7 @@ export function ClientDetail({ clientId }: { clientId: string }) {
         <CardHeader>
           <CardTitle>Billing</CardTitle>
           <CardDescription>
-            Billing visibility is role- and server-permission dependent.
+            Revenue is successful payments collected for this client. Outstanding is the unpaid balance on issued invoices. Task rates are not added into these totals.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -1221,71 +1162,15 @@ export function ClientDetail({ clientId }: { clientId: string }) {
               <p className="mt-1 text-lg font-semibold">
                 {formatMoney(client.revenueAmount, client.currencyCode)}
               </p>
+              <p className="mt-1 text-xs text-muted-foreground">Successful payments</p>
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Outstanding</p>
               <p className="mt-1 text-lg font-semibold">
                 {formatMoney(client.outstandingAmount, client.currencyCode)}
               </p>
+              <p className="mt-1 text-xs text-muted-foreground">Unpaid invoice balance</p>
             </div>
-          </div>
-          <div className="mb-6">
-            <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-              <div>
-                <p className="font-medium">Rate Card</p>
-                <p className="text-sm text-muted-foreground">
-                  Active reusable rates and task-only archived rates for this client.
-                </p>
-              </div>
-            </div>
-            {client.rateItems.length ? (
-              <div className="overflow-x-auto border">
-                <table className="min-w-full divide-y text-sm">
-                  <thead className="bg-muted/40 text-left text-xs uppercase text-muted-foreground">
-                    <tr>
-                      <th className="px-4 py-3 font-medium">Service</th>
-                      <th className="px-4 py-3 font-medium">Task type</th>
-                      <th className="px-4 py-3 font-medium">Unit</th>
-                      <th className="px-4 py-3 font-medium">Rate</th>
-                      <th className="px-4 py-3 font-medium">Effective</th>
-                      <th className="px-4 py-3 font-medium">Status</th>
-                      <th className="px-4 py-3 font-medium">Tasks</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y">
-                    {client.rateItems.map((rate) => (
-                      <tr key={rate.id}>
-                        <td className="px-4 py-3">{rate.service}</td>
-                        <td className="px-4 py-3">
-                          <p className="font-medium">{rate.taskType}</p>
-                          <p className="text-xs text-muted-foreground">{rate.rateCardName}</p>
-                        </td>
-                        <td className="px-4 py-3 capitalize">{billingUnitLabel(rate.billingUnit)}</td>
-                        <td className="px-4 py-3 font-medium">
-                          {formatMoney(rate.rateAmount, rate.currencyCode)}
-                          {rate.taxCode ? (
-                            <span className="ml-1 text-xs text-muted-foreground">+ {rate.taxCode}</span>
-                          ) : null}
-                        </td>
-                        <td className="px-4 py-3 text-muted-foreground">
-                          {date.format(new Date(rate.effectiveFrom))}
-                          {rate.effectiveTo ? ` - ${date.format(new Date(rate.effectiveTo))}` : ""}
-                        </td>
-                        <td className="px-4 py-3">
-                          <StatusBadge status={rate.status} />
-                        </td>
-                        <td className="px-4 py-3">{rate.tasksUsingRate}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <EmptyState
-                title="No rate-card items"
-                description="Rates created from the task form will appear here."
-              />
-            )}
           </div>
           {client.invoices.length ? (
             <ul className="flex flex-col divide-y">
@@ -1312,7 +1197,12 @@ export function ClientDetail({ clientId }: { clientId: string }) {
                 </li>
               ))}
             </ul>
-          ) : null}
+          ) : (
+            <EmptyState
+              title="No invoices"
+              description="Issued invoices for this client will appear here. Outstanding stays at zero until an invoice is issued."
+            />
+          )}
         </CardContent>
       </Card>
     ) : tab === "agreements" ? (

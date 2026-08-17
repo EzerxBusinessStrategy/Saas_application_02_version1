@@ -676,17 +676,57 @@ export class TenantAdminClientsRepository {
   }
 
   private async getTasks(client: PoolClient, tenantId: string, clientId: string) {
-    const result = await client.query(
+    const result = await client.query<{
+      id: string;
+      title: string;
+      status: string;
+      priority: string;
+      plannedDueAt: Date | string | null;
+      assignees: unknown;
+    }>(
       `
-        select id::text, title, status, priority, planned_due_at as "plannedDueAt"
-        from public.tasks
-        where tenant_id = $1 and client_id = $2
-        order by coalesce(planned_due_at, created_at) desc
+        select
+          t.id::text,
+          t.title,
+          t.status,
+          t.priority,
+          t.planned_due_at as "plannedDueAt",
+          coalesce(
+            jsonb_agg(
+              distinct jsonb_build_object(
+                'id', e.id::text,
+                'name', coalesce(tm.display_name, e.employee_code)
+              )
+            ) filter (where e.id is not null),
+            '[]'::jsonb
+          ) as assignees
+        from public.tasks t
+        left join public.task_assignments ta
+          on ta.task_id = t.id
+         and ta.tenant_id = t.tenant_id
+         and ta.status = 'active'
+        left join public.employees e
+          on e.id = ta.employee_id
+         and e.tenant_id = ta.tenant_id
+         and e.employment_status = 'active'
+        left join public.tenant_memberships tm
+          on tm.id = e.membership_id
+         and tm.tenant_id = e.tenant_id
+        where t.tenant_id = $1 and t.client_id = $2
+        group by t.id, t.title, t.status, t.priority, t.planned_due_at, t.created_at
+        order by coalesce(t.planned_due_at, t.created_at) desc
         limit 20
       `,
       [tenantId, clientId],
     );
-    return result.rows;
+    return result.rows.map((row) => ({
+      id: row.id,
+      title: row.title,
+      status: row.status,
+      priority: row.priority,
+      plannedDueAt: toIsoDateTime(row.plannedDueAt),
+      assigneeName: assigneeLabel(row.assignees),
+    }));
   }
 
   private async getInvoices(client: PoolClient, tenantId: string, clientId: string) {
@@ -798,4 +838,31 @@ function normalizeClientCode(code: string): string {
 
 function isUniqueViolation(error: unknown): boolean {
   return typeof error === "object" && error !== null && "code" in error && error.code === "23505";
+}
+
+function toIsoDateTime(value: Date | string | null): string | null {
+  if (!value) return null;
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+
+function assigneeLabel(assignees: unknown): string {
+  const rows = parseAssigneeRows(assignees);
+  const names = rows.flatMap((item) => {
+    if (!item || typeof item !== "object" || !("name" in item)) return [];
+    const name = typeof item.name === "string" ? item.name.trim() : "";
+    return name ? [name] : [];
+  });
+  return names.length ? names.join(", ") : "Unassigned";
+}
+
+function parseAssigneeRows(assignees: unknown): readonly unknown[] {
+  if (Array.isArray(assignees)) return assignees;
+  if (typeof assignees !== "string" || !assignees.trim()) return [];
+  try {
+    const parsed: unknown = JSON.parse(assignees);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
 }

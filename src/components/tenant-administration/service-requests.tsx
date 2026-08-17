@@ -227,91 +227,103 @@ function RequestReviewDialog({
             ? `${request.clientName} · ${request.kind === "custom" ? "Custom request" : "Catalogue request"}`
             : "Review the client request."
         }
+        className="max-h-[90vh] w-[min(42rem,calc(100vw-2rem))] max-w-2xl overflow-y-auto"
       >
         {request ? (
-          <div className="grid max-h-[70vh] gap-5 overflow-y-auto pr-8">
-            <section className="rounded-[var(--radius-control)] border bg-muted/30 p-4">
-              <h3 className="text-sm font-medium">Client comment</h3>
-              <p className="mt-2 whitespace-pre-wrap text-sm">
-                {request.description.trim() || "No comment was added."}
-              </p>
-            </section>
-            {request.kind === "custom" ? (
-              <p className="text-sm text-muted-foreground">
-                Custom requests do not create tasks. Accept to record the review, then use Configure services if you later map this to a catalogue service.
-              </p>
-            ) : (
-              request.services.map((service, index) => (
-                <div key={service.serviceId} className="grid gap-4">
-                  <section className="rounded-[var(--radius-control)] border p-4">
+          <div className="min-w-0 pr-10">
+            <h2 className="text-lg font-semibold">{request.title}</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {request.clientName} · {request.kind === "custom" ? "Custom request" : "Catalogue request"}
+            </p>
+            <div className="mt-5 space-y-5">
+              <section className="rounded-[var(--radius-control)] border bg-muted/30 p-4">
+                <h3 className="text-sm font-medium">Client comment</h3>
+                <p className="mt-2 whitespace-pre-wrap text-sm">
+                  {request.description.trim() || "No comment was added."}
+                </p>
+              </section>
+              {request.kind === "custom" ? (
+                <p className="text-sm text-muted-foreground">
+                  Custom requests do not create tasks. Accept to record the review, then use Configure services if you later map this to a catalogue service.
+                </p>
+              ) : (
+                request.services.map((service, index) => (
+                  <section key={service.serviceId} className="rounded-[var(--radius-control)] border p-4">
                     <div className="flex items-start justify-between gap-3">
                       <h3 className="font-medium">{service.serviceName}</h3>
-                      <p className="text-sm font-medium">{formatMoney(service.estimatedTotal, request.currencyCode)}</p>
+                      <p className="shrink-0 text-sm font-medium">
+                        {formatMoney(service.estimatedTotal, request.currencyCode)}
+                      </p>
                     </div>
                     <ul className="mt-3 flex flex-col divide-y text-sm">
                       {service.tasks.map((task, taskIndex) => (
-                        <li key={`${task.taskType}-${taskIndex}`} className="flex justify-between gap-3 py-2">
+                        <li key={`${task.taskType}-${taskIndex}`} className="flex justify-between gap-3 py-2 first:pt-0 last:pb-0">
                           <span>{task.title || task.taskType}</span>
-                          <span className="text-muted-foreground">
+                          <span className="shrink-0 text-muted-foreground">
                             {task.frequency} · {formatMoney(task.rateAmount, request.currencyCode)}
                           </span>
                         </li>
                       ))}
                     </ul>
+                    {request.status === "submitted" ? (
+                      <div className="mt-4 border-t pt-4">
+                        <ServiceEmployeeSelector
+                          className="border-0 p-0"
+                          showHeading={false}
+                          serviceName={service.serviceName}
+                          employees={assigneeQueries[index]?.data ?? []}
+                          isLoading={assigneeQueries[index]?.isPending ?? false}
+                          value={assignments[service.serviceId] ?? ""}
+                          onChange={(employeeId) =>
+                            setAssignments((current) => ({ ...current, [service.serviceId]: employeeId }))
+                          }
+                        />
+                      </div>
+                    ) : null}
                   </section>
-                  {request.status === "submitted" ? (
-                    <ServiceEmployeeSelector
-                      serviceName={service.serviceName}
-                      employees={assigneeQueries[index]?.data ?? []}
-                      isLoading={assigneeQueries[index]?.isPending ?? false}
-                      value={assignments[service.serviceId] ?? ""}
-                      onChange={(employeeId) =>
-                        setAssignments((current) => ({ ...current, [service.serviceId]: employeeId }))
-                      }
-                    />
+                ))
+              )}
+              {request.status === "submitted" ? (
+                <div className="grid gap-5">
+                  {request.kind === "catalogue" ? (
+                    <label className="flex flex-col gap-1.5 text-sm font-medium">
+                      Discount (%)
+                      <Input
+                        type="number"
+                        inputMode="decimal"
+                        min={0}
+                        max={100}
+                        step="0.01"
+                        placeholder="No discount"
+                        value={discountInput}
+                        onChange={(event) => setDiscountInput(event.target.value)}
+                      />
+                      <span className="text-xs font-normal text-muted-foreground">
+                        Optional. Applied to each accepted service&apos;s task total and shown to the client.
+                      </span>
+                    </label>
                   ) : null}
-                </div>
-              ))
-            )}
-            {request.status === "submitted" ? (
-              <>
-                {request.kind === "catalogue" ? (
-                  <label className="text-sm font-medium">
-                    Discount (%)
-                    <Input
-                      className="mt-1"
-                      type="number"
-                      inputMode="decimal"
-                      min={0}
-                      max={100}
-                      step="0.01"
-                      placeholder="No discount"
-                      value={discountInput}
-                      onChange={(event) => setDiscountInput(event.target.value)}
-                    />
-                    <span className="mt-1 block text-xs font-normal text-muted-foreground">
-                      Optional. Applied to each accepted service&apos;s task total and shown to the client.
-                    </span>
+                  <label className="flex flex-col gap-1.5 text-sm font-medium">
+                    Remarks
+                    <Input value={remarks} onChange={(event) => setRemarks(event.target.value)} />
                   </label>
-                ) : null}
-                <label className="text-sm font-medium">
-                  Remarks
-                  <Input className="mt-1" value={remarks} onChange={(event) => setRemarks(event.target.value)} />
-                </label>
-                <div className="flex justify-end gap-2">
-                  <Button type="button" variant="outline" disabled={saving} onClick={() => void reject()}>
-                    Reject
-                  </Button>
-                  <Button type="button" disabled={saving || !canAccept} onClick={() => void accept()}>
-                    {saving ? "Saving…" : request.kind === "custom" ? "Accept request" : "Accept and activate"}
-                  </Button>
                 </div>
-              </>
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                {request.status} {request.reviewRemarks ? `· ${request.reviewRemarks}` : ""}
-              </p>
-            )}
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  {request.status} {request.reviewRemarks ? `· ${request.reviewRemarks}` : ""}
+                </p>
+              )}
+            </div>
+            {request.status === "submitted" ? (
+              <div className="mt-6 flex justify-end gap-2">
+                <Button type="button" variant="outline" disabled={saving} onClick={() => void reject()}>
+                  Reject
+                </Button>
+                <Button type="button" disabled={saving || !canAccept} onClick={() => void accept()}>
+                  {saving ? "Saving…" : request.kind === "custom" ? "Accept request" : "Accept and activate"}
+                </Button>
+              </div>
+            ) : null}
           </div>
         ) : null}
       </DialogContent>
