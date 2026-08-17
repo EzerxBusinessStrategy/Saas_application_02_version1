@@ -2,7 +2,7 @@
 
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { CalendarClock, CheckCircle2, RefreshCw, ShieldAlert } from "lucide-react";
+import { CalendarClock, CheckCircle2, ClipboardList, IndianRupee, RefreshCw, ShieldAlert, Users, Wallet } from "lucide-react";
 import { EmptyState } from "@/components/shared/empty-state";
 import { FilterToolbar } from "@/components/shared/filter-toolbar";
 import { MetricCard } from "@/components/shared/metric-card";
@@ -319,6 +319,7 @@ export function TenantAdministrationOverview() {
       value: metrics.activeClients.toString(),
       change: metrics.activeClients > 0 ? "With work or billing in this period" : "None in this period",
       trend: metrics.activeClients > 0 ? ("up" as const) : ("flat" as const),
+      icon: Users,
     },
     {
       label: "Total sales",
@@ -327,6 +328,7 @@ export function TenantAdministrationOverview() {
         : "Not available",
       change: "Invoices issued in this period",
       trend: metrics.totalSales && Number(metrics.totalSales.amount) > 0 ? ("up" as const) : ("flat" as const),
+      icon: IndianRupee,
     },
     {
       label: "Open tasks",
@@ -335,6 +337,7 @@ export function TenantAdministrationOverview() {
       trend: metrics.openTasks > 0 ? ("up" as const) : ("flat" as const),
       href: openTasksHref,
       ariaLabel: `View ${metrics.openTasks} open tasks for this period`,
+      icon: ClipboardList,
     },
     {
       label: "Completed tasks",
@@ -343,6 +346,7 @@ export function TenantAdministrationOverview() {
       trend: metrics.completedTasks > 0 ? ("up" as const) : ("flat" as const),
       href: completedTasksHref,
       ariaLabel: `View ${metrics.completedTasks} completed tasks for this period`,
+      icon: CheckCircle2,
     },
     {
       label: "Outstanding invoices",
@@ -351,6 +355,7 @@ export function TenantAdministrationOverview() {
         : "Not available",
       change: metrics.outstanding && Number(metrics.outstanding.amount) > 0 ? "Unpaid in this period" : "0 outstanding",
       trend: metrics.outstanding && Number(metrics.outstanding.amount) > 0 ? ("down" as const) : ("flat" as const),
+      icon: Wallet,
     },
   ];
 
@@ -435,17 +440,19 @@ export function TenantAdministrationOverview() {
       ) : null}
 
       <section
-        className="grid overflow-hidden rounded-[var(--radius-card)] border border-border bg-border sm:grid-cols-2 xl:grid-cols-5"
+        className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5"
         aria-label="Tenant administration metrics"
         aria-busy={isFetching}
       >
-        {cards.map((metric) => (
+        {cards.map((metric, index) => (
           <MetricCard
             key={metric.label}
             metric={metric}
+            icon={metric.icon}
+            variant="elevated"
+            animationIndex={index}
             href={"href" in metric ? metric.href : undefined}
             ariaLabel={"ariaLabel" in metric ? metric.ariaLabel : undefined}
-            className="rounded-none border-y-0 border-l-0 shadow-none last:border-r-0"
           />
         ))}
       </section>

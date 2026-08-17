@@ -26,8 +26,9 @@ type FeedbackRow = {
   employee_name: string;
   client_id: string;
   client_name: string;
-  task_rating: number;
-  employee_rating: number;
+  task_rating: number | null;
+  employee_rating: number | null;
+  status: "submitted" | "expired";
   created_at: Date;
 };
 
@@ -39,6 +40,7 @@ export class TaskFeedbackRepository {
     context: ClientPortalRequestContext,
   ): Promise<readonly PendingTaskFeedbackItemDto[]> {
     return this.withClientScope(context, async (client, scope) => {
+      await this.expireUnanswered(client);
       const result = await client.query<{
         task_id: string;
         task_title: string;
@@ -47,6 +49,8 @@ export class TaskFeedbackRepository {
         employee_id: string;
         employee_name: string;
         invoice_sent_at: Date;
+        completed_at: Date;
+        expires_at: Date;
       }>(
         `
           select distinct on (t.id)
@@ -56,7 +60,9 @@ export class TaskFeedbackRepository {
             i.invoice_number,
             e.id::text as employee_id,
             coalesce(tm.display_name, e.employee_code) as employee_name,
-            coalesce(i.finalized_at, i.updated_at) as invoice_sent_at
+            coalesce(i.finalized_at, i.updated_at) as invoice_sent_at,
+            coalesce(t.actual_completed_at, t.updated_at) as completed_at,
+            coalesce(t.actual_completed_at, t.updated_at) + interval '60 days' as expires_at
           from public.invoices i
           join public.invoice_items ii
             on ii.tenant_id = i.tenant_id
@@ -81,7 +87,9 @@ export class TaskFeedbackRepository {
             and i.client_id = $2
             and i.status not in ('draft', 'cancelled', 'void')
             and i.finalized_at is not null
+            and t.status = 'completed'
             and ctf.id is null
+            and coalesce(t.actual_completed_at, t.updated_at) + interval '60 days' > now()
           order by t.id, ta.updated_at desc, i.finalized_at desc
         `,
         [scope.tenantId, scope.clientId],
@@ -95,6 +103,8 @@ export class TaskFeedbackRepository {
         employeeId: row.employee_id,
         employeeName: row.employee_name,
         invoiceSentAt: row.invoice_sent_at.toISOString(),
+        completedAt: row.completed_at.toISOString(),
+        expiresAt: row.expires_at.toISOString(),
       }));
     });
   }
@@ -108,6 +118,8 @@ export class TaskFeedbackRepository {
       if (existing) {
         return { ...existing, replayed: true };
       }
+
+      await this.expireUnanswered(client);
 
       const pending = await client.query<{
         task_id: string;
@@ -149,7 +161,9 @@ export class TaskFeedbackRepository {
             and i.id = $4
             and i.status not in ('draft', 'cancelled', 'void')
             and i.finalized_at is not null
+            and t.status = 'completed'
             and ctf.id is null
+            and coalesce(t.actual_completed_at, t.updated_at) + interval '60 days' > now()
           order by t.id, ta.updated_at desc
           limit 1
         `,
@@ -162,9 +176,9 @@ export class TaskFeedbackRepository {
         `
           insert into public.client_task_feedback (
             tenant_id, client_id, task_id, invoice_id, employee_id,
-            task_rating, employee_rating, submitted_by_user_id, idempotency_key
+            task_rating, employee_rating, submitted_by_user_id, idempotency_key, status
           )
-          values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+          values ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'submitted')
           on conflict (tenant_id, idempotency_key) do nothing
           returning id::text, created_at
         `,
@@ -234,6 +248,7 @@ export class TaskFeedbackRepository {
     total: number;
   }> {
     return this.withTenantContext(context, async (client) => {
+      await this.expireUnanswered(client);
       const rows = await this.queryFeedbackRows(client, context.tenantId);
       return {
         items: rows.map(mapFeedbackLogItem),
@@ -248,6 +263,7 @@ export class TaskFeedbackRepository {
   }> {
     if (!this.pool) throw databaseNotConfigured();
     return withDatabaseTransaction(this.pool, context, async (_tx, client) => {
+      await this.expireUnanswered(client);
       const employee = await this.getEmployee(client, context);
       const rows = await this.queryFeedbackRows(client, context.tenantId, employee.id);
       return {
@@ -275,6 +291,7 @@ export class TaskFeedbackRepository {
           c.display_name as client_name,
           ctf.task_rating,
           ctf.employee_rating,
+          coalesce(ctf.status, 'submitted') as status,
           ctf.created_at
         from public.client_task_feedback ctf
         join public.tasks t
@@ -496,6 +513,13 @@ export class TaskFeedbackRepository {
     return employee;
   }
 
+  private async expireUnanswered(client: PoolClient): Promise<void> {
+    await client.query("select private.expire_unanswered_client_task_feedback()").catch((error: unknown) => {
+      if (isUndefinedFunction(error) || isUndefinedTable(error)) return;
+      throw error;
+    });
+  }
+
   private async withClientScope<T>(
     context: ClientPortalRequestContext,
     work: (client: PoolClient, scope: ClientPortalScope) => Promise<T>,
@@ -527,6 +551,15 @@ function mapFeedbackLogItem(row: FeedbackRow): TaskFeedbackLogItemDto {
     employeeName: row.employee_name,
     taskRating: row.task_rating,
     employeeRating: row.employee_rating,
+    status: row.status,
     createdAt: row.created_at.toISOString(),
   };
+}
+
+function isUndefinedTable(error: unknown): boolean {
+  return typeof error === "object" && error !== null && "code" in error && error.code === "42P01";
+}
+
+function isUndefinedFunction(error: unknown): boolean {
+  return typeof error === "object" && error !== null && "code" in error && error.code === "42883";
 }

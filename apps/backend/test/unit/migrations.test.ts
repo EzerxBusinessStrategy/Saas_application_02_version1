@@ -321,4 +321,21 @@ describe("database migrations", () => {
     expect(sql).toContain("force row level security");
     expect(sql).not.toContain("drop table");
   });
+
+  test("expires unanswered client task feedback after 60 days without dropping data", () => {
+    expect(migrationNames).toContain("0072_client_task_feedback_expiry.sql");
+    expect(migrationNames.indexOf("0072_client_task_feedback_expiry.sql")).toBeGreaterThan(
+      migrationNames.indexOf("0071_client_task_feedback.sql"),
+    );
+
+    const sql = readFileSync(
+      resolve(__dirname, "../../drizzle/migrations/0072_client_task_feedback_expiry.sql"),
+      "utf8",
+    );
+
+    expect(sql).toContain("interval '60 days'");
+    expect(sql).toContain("expire_unanswered_client_task_feedback");
+    expect(sql).toContain("status = 'expired'");
+    expect(sql).not.toContain("drop table");
+  });
 });

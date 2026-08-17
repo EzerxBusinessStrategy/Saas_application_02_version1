@@ -32,6 +32,12 @@ export class PendingTaskFeedbackItemDto {
 
   @ApiProperty()
   invoiceSentAt!: string;
+
+  @ApiProperty()
+  completedAt!: string;
+
+  @ApiProperty()
+  expiresAt!: string;
 }
 
 export class PendingTaskFeedbackResponseDto {
@@ -93,11 +99,14 @@ export class TaskFeedbackLogItemDto {
   @ApiProperty()
   employeeName!: string;
 
-  @ApiProperty()
-  taskRating!: number;
+  @ApiProperty({ nullable: true, type: Number })
+  taskRating!: number | null;
 
-  @ApiProperty()
-  employeeRating!: number;
+  @ApiProperty({ nullable: true, type: Number })
+  employeeRating!: number | null;
+
+  @ApiProperty({ enum: ["submitted", "expired"] })
+  status!: "submitted" | "expired";
 
   @ApiProperty()
   createdAt!: string;

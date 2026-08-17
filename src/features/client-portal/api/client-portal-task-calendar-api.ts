@@ -10,7 +10,7 @@ const taskSchema = z.object({
   id: z.string(),
   title: z.string(),
   status: z.string(),
-  plannedDueAt: z.string().datetime(),
+  plannedDueAt: z.string(),
   serviceName: z.string(),
   assignees: z.array(assigneeSchema),
 });

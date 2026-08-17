@@ -259,6 +259,7 @@ const tenantAdminNavigation = [
     "Task review",
     "Managers",
     "Employee Performance",
+    "Feedback log",
   ]),
   tenantAdminGroup("Clients", Building2, [
     "Clients",

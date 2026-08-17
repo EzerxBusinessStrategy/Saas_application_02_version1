@@ -83,11 +83,14 @@ export class ClientPortalTaskCalendarRepository {
         left join public.employees e
           on e.id = ta.employee_id
          and e.tenant_id = ta.tenant_id
+        left join public.tenant_memberships tm
+          on tm.id = e.membership_id
+         and tm.tenant_id = e.tenant_id
         where t.tenant_id = $1
           and t.client_id = $2
           and t.status <> 'cancelled'
           and t.planned_due_at is not null
-          and (t.planned_due_at at time zone $5)::date between $3::date and $4::date
+          and ((t.planned_due_at at time zone $5)::date between $3::date and $4::date)
         group by
           t.id,
           t.title,

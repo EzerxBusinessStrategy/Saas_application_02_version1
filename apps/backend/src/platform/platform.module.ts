@@ -15,6 +15,7 @@ import {
 } from "./task-feedback.controller";
 import { TaskFeedbackRepository } from "./task-feedback.repository";
 import { TaskFeedbackService } from "./task-feedback.service";
+import { TaskFeedbackExpiryWorker } from "./task-feedback-expiry.worker";
 import { ClientPortalDashboardController } from "./client-portal-dashboard.controller";
 import { ClientPortalDashboardRepository } from "./client-portal-dashboard.repository";
 import { ClientPortalDashboardService } from "./client-portal-dashboard.service";
@@ -160,6 +161,7 @@ import { TaskNotificationOutboxWorker } from "./task-notification-outbox.worker"
     ClientPortalTaskCalendarService,
     TaskFeedbackRepository,
     TaskFeedbackService,
+    TaskFeedbackExpiryWorker,
     ClientPortalServiceCommentsRepository,
     ClientPortalServiceCommentsService,
     ClientPortalDeliverablesRepository,

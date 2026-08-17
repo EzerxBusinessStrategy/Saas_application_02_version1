@@ -27,6 +27,7 @@ test("client task calendar queries use the authenticated account's business clie
   expect(source).toContain("scope.clientId");
   expect(source).toContain("t.planned_due_at is not null");
   expect(source).toContain("ta.status not in ('removed', 'cancelled')");
+  expect(source).toContain("left join public.tenant_memberships tm");
   expect(source).not.toContain("context.clientAccountId");
 });
 
