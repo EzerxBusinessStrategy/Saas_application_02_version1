@@ -13,11 +13,15 @@ import {
   Users,
   Wallet,
 } from "lucide-react";
-import { DashboardGreetingBanner } from "@/components/shared/dashboard-greeting-banner";
 import { EmptyState } from "@/components/shared/empty-state";
 import { FilterToolbar } from "@/components/shared/filter-toolbar";
-import { MetricCard } from "@/components/shared/metric-card";
+import { PageHeader } from "@/components/shared/page-header";
 import { OrganisationSetupFloat } from "@/components/tenant-administration/organisation-setup-float";
+import {
+  DashboardKpiSection,
+  ExecutiveKpiCard,
+  TenantDashboardKpiSkeleton,
+} from "@/components/tenant-administration/tenant-dashboard-kpi";
 import { TenantDashboardCalendarWidget } from "@/components/tenant-administration/tenant-dashboard-calendar-widget";
 import { Button } from "@/components/ui/button";
 import {
@@ -30,7 +34,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { listTenantAdminTaskOptions } from "@/features/operations/api/operations-api";
-import { formatDashboardMonthLabel } from "@/lib/dashboard-greeting";
+import { formatDashboardMoney } from "@/lib/dashboard-money";
+import { getTimeOfDayGreeting } from "@/lib/dashboard-greeting";
 
 type DashboardResponse = {
   tenant: {
@@ -102,17 +107,22 @@ type DashboardResponse = {
   };
 };
 
-function formatMoney(amount: string, currencyCode: string): string {
-  const num = Number(amount) || 0;
-  try {
-    return new Intl.NumberFormat(undefined, {
-      style: "currency",
-      currency: currencyCode,
-      maximumFractionDigits: 2,
-    }).format(num);
-  } catch {
-    return `${currencyCode} ${num.toFixed(2)}`;
-  }
+function formatUpdatedAt(date: Date): string {
+  return new Intl.DateTimeFormat(undefined, {
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
+function countDueThisWeek(
+  deadlines: DashboardResponse["upcomingDeadlines"],
+): number {
+  const now = Date.now();
+  const weekAhead = now + 7 * 86_400_000;
+  return deadlines.filter((item) => {
+    const due = new Date(item.dueAt).getTime();
+    return due >= now && due <= weekAhead;
+  }).length;
 }
 
 function formatDateTime(dateStr: string): string {
@@ -390,76 +400,84 @@ export function TenantAdministrationOverview() {
   const openTasksHref = `/admin/open-tasks?from=${encodeURIComponent(period.from)}&to=${encodeURIComponent(period.to)}`;
   const completedTasksHref = `/admin/completed-tasks?from=${encodeURIComponent(period.from)}&to=${encodeURIComponent(period.to)}`;
   const overdueTasksHref = openTasksHref;
-  const greetingSubtitle = `${formatDashboardMonthLabel()} · ${periodLabel} · ${metrics.openTasks + metrics.completedTasks} tasks · ${metrics.openTasks} open · ${metrics.overdueTasks ?? 0} overdue`;
+  const dueThisWeek = countDueThisWeek(upcomingDeadlines);
+  const salesMoney = metrics.totalSales
+    ? formatDashboardMoney(metrics.totalSales.amount, metrics.totalSales.currencyCode || currency)
+    : null;
+  const outstandingMoney = metrics.outstanding
+    ? formatDashboardMoney(metrics.outstanding.amount, metrics.outstanding.currencyCode || currency)
+    : null;
+  const outstandingAmount = Number(metrics.outstanding?.amount ?? 0);
+  const salesAmount = Number(metrics.totalSales?.amount ?? 0);
 
-  const cards = [
-    {
-      label: "Open tasks",
-      value: metrics.openTasks.toString(),
-      change: metrics.openTasks > 0 ? "Due or created in this period" : "None in this period",
-      trend: metrics.openTasks > 0 ? ("up" as const) : ("flat" as const),
-      href: openTasksHref,
-      ariaLabel: `View ${metrics.openTasks} open tasks for this period`,
-      icon: ClipboardList,
-    },
-    {
-      label: "Completed tasks",
-      value: metrics.completedTasks.toString(),
-      change: metrics.completedTasks > 0 ? "Completed in this period" : "None in this period",
-      trend: metrics.completedTasks > 0 ? ("up" as const) : ("flat" as const),
-      href: completedTasksHref,
-      ariaLabel: `View ${metrics.completedTasks} completed tasks for this period`,
-      icon: CheckCircle2,
-    },
-    {
-      label: "Overdue tasks",
-      value: String(metrics.overdueTasks ?? 0),
-      change: metrics.overdueTasks > 0 ? "Past due and still open" : "None overdue",
-      trend: metrics.overdueTasks > 0 ? ("down" as const) : ("flat" as const),
-      href: overdueTasksHref,
-      ariaLabel: `View ${metrics.overdueTasks} overdue tasks`,
-      icon: AlertCircle,
-    },
-    {
-      label: "Active clients",
-      value: metrics.activeClients.toString(),
-      change: metrics.activeClients > 0 ? "With work or billing in this period" : "None in this period",
-      trend: metrics.activeClients > 0 ? ("up" as const) : ("flat" as const),
-      icon: Users,
-    },
-    {
-      label: "Total sales",
-      value: metrics.totalSales
-        ? formatMoney(metrics.totalSales.amount, metrics.totalSales.currencyCode || currency)
-        : "Not available",
-      change: "Invoices issued in this period",
-      trend: metrics.totalSales && Number(metrics.totalSales.amount) > 0 ? ("up" as const) : ("flat" as const),
-      icon: IndianRupee,
-    },
-    {
-      label: "Outstanding invoices",
-      value: metrics.outstanding
-        ? formatMoney(metrics.outstanding.amount, metrics.outstanding.currencyCode || currency)
-        : "Not available",
-      change: metrics.outstanding && Number(metrics.outstanding.amount) > 0 ? "Unpaid in this period" : "0 outstanding",
-      trend: metrics.outstanding && Number(metrics.outstanding.amount) > 0 ? ("down" as const) : ("flat" as const),
-      icon: Wallet,
-    },
-  ];
+  function applyEmployeeFilter(nextEmployeeId: string) {
+    setDraftEmployeeId(nextEmployeeId);
+    if (invalidRange) return;
+    setApplied({
+      from: fromValue,
+      to: toValue,
+      clientId: clientValue || undefined,
+      employeeId: nextEmployeeId || undefined,
+    });
+  }
 
   return (
-    <div className="relative flex flex-col gap-[30px]">
+    <div className="relative flex flex-col gap-8">
       {!setupComplete ? <OrganisationSetupFloat organisationSetup={organisationSetup} /> : null}
 
-      <DashboardGreetingBanner
-        userName={profileName}
-        organizationName={tenant.name}
-        subtitle={greetingSubtitle}
+      <PageHeader
+        eyebrow={`${getTimeOfDayGreeting()}, ${profileName.trim().split(/\s+/)[0] || profileName}`}
+        title="Dashboard"
+        description="Monitor tasks, clients and business performance."
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="sr-only" htmlFor="dashboard-period-preset">
+              Dashboard period
+            </label>
+            <Select
+              id="dashboard-period-preset"
+              className="min-w-[11rem]"
+              aria-label="Dashboard period"
+              value={selectValue}
+              onChange={(event) => applyPreset(event.target.value as DashboardPreset)}
+            >
+              <option value="last_30_days">Last 30 days</option>
+              <option value="this_month">This month</option>
+              <option value="financial_year" disabled={!financialYear}>
+                Current financial year
+              </option>
+              <option value="custom">Custom range</option>
+            </Select>
+            <label className="sr-only" htmlFor="dashboard-employee-filter">
+              Dashboard employee filter
+            </label>
+            <Select
+              id="dashboard-employee-filter"
+              className="min-w-[11rem]"
+              aria-label="Filter dashboard by employee"
+              value={employeeValue}
+              onChange={(event) => applyEmployeeFilter(event.target.value)}
+            >
+              <option value="">All employees</option>
+              {(filterOptionsQuery.data?.employees ?? [])
+                .filter((employee) => employee.employmentStatus === "active")
+                .map((employee) => (
+                  <option key={employee.id} value={employee.id}>
+                    {employee.name}
+                  </option>
+                ))}
+            </Select>
+            <span className="text-xs text-muted-foreground">
+              {isFetching ? "Updating…" : `Updated ${formatUpdatedAt(new Date())}`}
+            </span>
+          </div>
+        }
       />
 
       <FilterToolbar
         activeFilterCount={activeFilterCount}
         onClear={resetPeriod}
+        filterGridClassName="grid gap-3 sm:grid-cols-2 xl:grid-cols-5"
         trailing={
           <Button type="button" disabled={!filtersDirty || invalidRange || isFetching} onClick={applyDraft}>
             Apply filters
@@ -467,7 +485,7 @@ export function TenantAdministrationOverview() {
         }
       >
         <label className="text-sm font-medium">
-          Period
+          Period preset
           <Select
             className="mt-1"
             aria-label="Dashboard date preset"
@@ -559,23 +577,85 @@ export function TenantAdministrationOverview() {
         </div>
       ) : null}
 
-      <section
-        className="grid items-stretch gap-4 sm:grid-cols-2 lg:grid-cols-3"
-        aria-label="Tenant administration metrics"
-        aria-busy={isFetching}
-      >
-        {cards.map((metric, index) => (
-          <MetricCard
-            key={metric.label}
-            metric={metric}
-            icon={metric.icon}
-            variant="elevated"
-            animationIndex={index}
-            href={"href" in metric ? metric.href : undefined}
-            ariaLabel={"ariaLabel" in metric ? metric.ariaLabel : undefined}
+      <div className="flex flex-col gap-8" aria-label="Tenant administration metrics" aria-busy={isFetching}>
+        <DashboardKpiSection title="Task overview">
+          <ExecutiveKpiCard
+            label="Open tasks"
+            value={metrics.openTasks.toString()}
+            trend={metrics.openTasks > 0 ? `In ${periodLabel}` : "None in this period"}
+            trendDirection={metrics.openTasks > 0 ? "up" : "flat"}
+            detail={dueThisWeek > 0 ? `${dueThisWeek} due this week` : undefined}
+            icon={ClipboardList}
+            tone="info"
+            href={openTasksHref}
+            ariaLabel={`View ${metrics.openTasks} open tasks for this period`}
           />
-        ))}
-      </section>
+          <ExecutiveKpiCard
+            label="Completed tasks"
+            value={metrics.completedTasks.toString()}
+            trend={metrics.completedTasks > 0 ? `In ${periodLabel}` : "None in this period"}
+            trendDirection={metrics.completedTasks > 0 ? "up" : "flat"}
+            icon={CheckCircle2}
+            tone="success"
+            href={completedTasksHref}
+            ariaLabel={`View ${metrics.completedTasks} completed tasks for this period`}
+          />
+          <ExecutiveKpiCard
+            label="Overdue tasks"
+            value={String(metrics.overdueTasks ?? 0)}
+            trend={metrics.overdueTasks > 0 ? "Past due and still open" : "Nothing overdue"}
+            trendDirection={metrics.overdueTasks > 0 ? "down" : "neutral"}
+            icon={AlertCircle}
+            tone={metrics.overdueTasks > 0 ? "danger" : "success"}
+            href={overdueTasksHref}
+            ariaLabel={`View ${metrics.overdueTasks} overdue tasks`}
+          />
+        </DashboardKpiSection>
+
+        <DashboardKpiSection title="Business overview">
+          <ExecutiveKpiCard
+            label="Active clients"
+            value={metrics.activeClients.toString()}
+            trend={
+              metrics.activeClients > 0
+                ? `${metrics.activeClients} active in ${periodLabel}`
+                : "None in this period"
+            }
+            trendDirection={metrics.activeClients > 0 ? "up" : "flat"}
+            icon={Users}
+            tone="neutral"
+          />
+          <ExecutiveKpiCard
+            label="Total sales"
+            value={salesMoney?.display ?? "Not available"}
+            valueTitle={salesMoney && salesMoney.display !== salesMoney.exact ? salesMoney.exact : undefined}
+            trend={salesAmount > 0 ? `Invoiced in ${periodLabel}` : "No sales in this period"}
+            trendDirection={salesAmount > 0 ? "up" : "flat"}
+            icon={IndianRupee}
+            tone="neutral"
+          />
+          <ExecutiveKpiCard
+            label="Outstanding"
+            value={outstandingMoney?.display ?? "Not available"}
+            valueTitle={
+              outstandingMoney && outstandingMoney.display !== outstandingMoney.exact
+                ? outstandingMoney.exact
+                : undefined
+            }
+            trend={
+              outstandingAmount > 0
+                ? "Awaiting payment in this period"
+                : salesAmount > 0
+                  ? "Fully collected in this period"
+                  : "No outstanding balance"
+            }
+            trendDirection={outstandingAmount > 0 ? "down" : "neutral"}
+            detail={outstandingAmount > 0 ? "Unpaid invoice balance" : undefined}
+            icon={Wallet}
+            tone={outstandingAmount > 0 ? "warning" : "success"}
+          />
+        </DashboardKpiSection>
+      </div>
       {!hasFilteredRecords ? (
         <EmptyState
           title="No matching records in this date range"
@@ -662,10 +742,11 @@ export function TenantAdministrationOverview() {
 
 function TenantOverviewSkeleton() {
   return (
-    <div className="flex flex-col gap-[30px]" aria-busy="true">
-      <div className="h-16 w-1/3 animate-pulse rounded bg-muted" />
-      <div className="grid h-36 grid-cols-2 gap-4 rounded bg-muted lg:grid-cols-5 animate-pulse" />
-      <div className="grid h-48 grid-cols-2 gap-4 rounded bg-muted animate-pulse" />
+    <div className="flex flex-col gap-8" aria-busy="true">
+      <div className="h-24 animate-pulse rounded-[14px] bg-muted" />
+      <div className="h-16 animate-pulse rounded-[14px] bg-muted" />
+      <TenantDashboardKpiSkeleton />
+      <div className="h-48 animate-pulse rounded-[14px] bg-muted" />
     </div>
   );
 }
