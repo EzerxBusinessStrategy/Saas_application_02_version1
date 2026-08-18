@@ -19,7 +19,11 @@ export class TenantAdminNotificationsService {
   ) {}
 
   async list(context: RequestContext, query: SuperAdminNotificationsQuery): Promise<NotificationsResponseDto> {
-    const rows = await this.repository.list(requireTenantAdminContext(context), query.status, query.limit);
+    const rows = await this.repository.list(
+      requireTenantAdminContext(context),
+      query.status ?? "ALL",
+      query.limit ?? 20,
+    );
     return {
       unreadCount: rows.unreadCount,
       items: rows.items.map(mapNotification),

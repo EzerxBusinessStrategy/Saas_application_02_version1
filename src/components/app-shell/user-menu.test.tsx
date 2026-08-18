@@ -24,10 +24,7 @@ test("shows identity, email, profile actions, and a sign-out action", async () =
     "href",
     "/super-admin/account",
   );
-  expect(screen.getByRole("menuitem", { name: "Account settings" })).toHaveAttribute(
-    "href",
-    "/super-admin/account",
-  );
+  expect(screen.queryByRole("menuitem", { name: "Account settings" })).not.toBeInTheDocument();
   expect(screen.queryByRole("menuitem", { name: "Billing" })).not.toBeInTheDocument();
   expect(screen.queryByRole("menuitem", { name: "Tenant settings" })).not.toBeInTheDocument();
   expect(screen.getByRole("menuitem", { name: "Sign out" })).not.toHaveAttribute("href");

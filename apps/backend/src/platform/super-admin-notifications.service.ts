@@ -20,7 +20,11 @@ export class SuperAdminNotificationsService {
 
   async list(context: RequestContext, query: SuperAdminNotificationsQuery): Promise<NotificationsResponseDto> {
     assertSuperAdminContext(context);
-    const rows = await this.repository.list(context, query);
+    const rows = await this.repository.list(context, {
+      ...query,
+      status: query.status ?? "ALL",
+      limit: query.limit ?? 20,
+    });
     return {
       unreadCount: rows.unreadCount,
       items: rows.items.map(mapNotification),

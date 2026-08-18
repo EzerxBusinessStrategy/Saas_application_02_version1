@@ -40,7 +40,15 @@ import type {
   SuperAdminNotificationsResponse,
 } from "@/types/super-admin-notifications";
 
+const BELL_NOTIFICATION_LIMIT = 20;
+const recentBellQuery = { status: "ALL" as const, limit: BELL_NOTIFICATION_LIMIT };
 const clientPortalNotificationsQueryKey = ["client-portal-notifications", "recent"] as const;
+const recentListQueryOptions = {
+  staleTime: 15_000,
+  refetchInterval: 15_000,
+  refetchOnMount: "always" as const,
+  refetchOnWindowFocus: true,
+};
 
 const superAdminSoundPreferenceKey = "super-admin-notification-sound-enabled";
 const tenantAdminSoundPreferenceKey = "tenant-admin-notification-sound-enabled";
@@ -67,10 +75,23 @@ export function NotificationMenu({
   if (workspace === "client") {
     return <ClientPortalNotificationMenu open={open} />;
   }
-  if (workspace === "employee") {
-    return <EmployeeNotificationMenu open={open} userEmail={userEmail} />;
+  if (workspace === "employee" || workspace === "manager") {
+    return (
+      <EmployeeNotificationMenu
+        open={open}
+        userEmail={userEmail}
+        defaultHref={workspace === "manager" ? "/manager" : "/employee"}
+      />
+    );
   }
   return null;
+}
+
+function useRefetchNotificationsOnOpen(open: boolean | undefined, queryClient: QueryClient, queryKey: QueryKey) {
+  useEffect(() => {
+    if (!open) return;
+    void queryClient.invalidateQueries({ queryKey });
+  }, [open, queryClient, queryKey]);
 }
 
 function SuperAdminNotificationMenu({ open, userEmail }: { open?: boolean; userEmail: string }) {
@@ -84,15 +105,14 @@ function SuperAdminNotificationMenu({ open, userEmail }: { open?: boolean; userE
   const [soundEnabled, setSoundEnabled] = useState(true);
   const query = useQuery({
     queryKey: notificationQueryKey,
-    queryFn: () => getSuperAdminNotifications({ status: "ALL", limit: 20 }),
+    queryFn: () => getSuperAdminNotifications(recentBellQuery),
     initialData: () => readNotificationCache("super-admin", userEmail),
-    staleTime: 48 * 60 * 60 * 1000,
-    refetchOnMount: false,
-    refetchOnWindowFocus: false,
+    ...recentListQueryOptions,
   });
   const data = query.data;
-  const items = data?.items ?? [];
+  const items = (data?.items ?? []).slice(0, BELL_NOTIFICATION_LIMIT);
   const unreadCount = data?.unreadCount ?? 0;
+  useRefetchNotificationsOnOpen(open, queryClient, notificationQueryKey);
 
   const markRead = useMutation(
     optimisticReadMutation(queryClient, notificationQueryKey, markSuperAdminNotificationRead),
@@ -150,7 +170,12 @@ function SuperAdminNotificationMenu({ open, userEmail }: { open?: boolean; userE
   };
 
   return (
-    <DropdownMenu open={open}>
+    <DropdownMenu
+      open={open}
+      onOpenChange={(next) => {
+        if (next) void queryClient.invalidateQueries({ queryKey: notificationQueryKey });
+      }}
+    >
       <DropdownMenuTrigger asChild>
         <NotificationTriggerButton unreadCount={unreadCount} />
       </DropdownMenuTrigger>
@@ -203,16 +228,14 @@ function TenantAdminNotificationMenu({ open, userEmail }: { open?: boolean; user
 
   const query = useQuery({
     queryKey: notificationQueryKey,
-    queryFn: () => getTenantAdminNotifications({ status: "ALL", limit: 20 }),
+    queryFn: () => getTenantAdminNotifications(recentBellQuery),
     initialData: () => readNotificationCache("admin", userEmail),
-    staleTime: 48 * 60 * 60 * 1000,
-    refetchInterval: 15_000,
-    refetchOnMount: "always",
-    refetchOnWindowFocus: true,
+    ...recentListQueryOptions,
   });
   const data = query.data;
-  const items = data?.items ?? [];
+  const items = (data?.items ?? []).slice(0, BELL_NOTIFICATION_LIMIT);
   const unreadCount = data?.unreadCount ?? 0;
+  useRefetchNotificationsOnOpen(open, queryClient, notificationQueryKey);
 
   const markRead = useMutation(
     optimisticReadMutation(queryClient, notificationQueryKey, markTenantAdminNotificationRead),
@@ -272,7 +295,12 @@ function TenantAdminNotificationMenu({ open, userEmail }: { open?: boolean; user
   };
 
   return (
-    <DropdownMenu open={open}>
+    <DropdownMenu
+      open={open}
+      onOpenChange={(next) => {
+        if (next) void queryClient.invalidateQueries({ queryKey: notificationQueryKey });
+      }}
+    >
       <DropdownMenuTrigger asChild>
         <NotificationTriggerButton unreadCount={unreadCount} />
       </DropdownMenuTrigger>
@@ -313,7 +341,15 @@ function TenantAdminNotificationMenu({ open, userEmail }: { open?: boolean; user
   );
 }
 
-function EmployeeNotificationMenu({ open, userEmail }: { open?: boolean; userEmail: string }) {
+function EmployeeNotificationMenu({
+  open,
+  userEmail,
+  defaultHref,
+}: {
+  open?: boolean;
+  userEmail: string;
+  defaultHref: string;
+}) {
   const queryClient = useQueryClient();
   const notificationQueryKey = useMemo(
     () => scopedNotificationQueryKey("employee", userEmail),
@@ -322,16 +358,14 @@ function EmployeeNotificationMenu({ open, userEmail }: { open?: boolean; userEma
   const processedIds = useRef(new Set<string>());
   const query = useQuery({
     queryKey: notificationQueryKey,
-    queryFn: getEmployeeNotifications,
+    queryFn: () => getEmployeeNotifications(recentBellQuery),
     initialData: () => readNotificationCache("employee", userEmail),
-    staleTime: 48 * 60 * 60 * 1000,
-    refetchInterval: 15_000,
-    refetchOnMount: "always",
-    refetchOnWindowFocus: true,
+    ...recentListQueryOptions,
   });
   const data = query.data;
-  const items = data?.items ?? [];
+  const items = (data?.items ?? []).slice(0, BELL_NOTIFICATION_LIMIT);
   const unreadCount = data?.unreadCount ?? 0;
+  useRefetchNotificationsOnOpen(open, queryClient, notificationQueryKey);
   const markRead = useMutation(
     optimisticReadMutation(queryClient, notificationQueryKey, markEmployeeNotificationRead),
   );
@@ -368,7 +402,12 @@ function EmployeeNotificationMenu({ open, userEmail }: { open?: boolean; userEma
   useEffect(() => { if (data) writeNotificationCache("employee", userEmail, data); }, [data, userEmail]);
 
   return (
-    <DropdownMenu open={open}>
+    <DropdownMenu
+      open={open}
+      onOpenChange={(next) => {
+        if (next) void queryClient.invalidateQueries({ queryKey: notificationQueryKey });
+      }}
+    >
       <DropdownMenuTrigger asChild>
         <NotificationTriggerButton unreadCount={unreadCount} />
       </DropdownMenuTrigger>
@@ -381,23 +420,30 @@ function EmployeeNotificationMenu({ open, userEmail }: { open?: boolean; userEma
         {query.isLoading ? <NotificationLoading /> : null}
         {query.isError && !data ? <NotificationError /> : null}
         {!query.isLoading && !(query.isError && !data) && !items.length ? <div className="px-3 py-5 text-sm text-muted-foreground">You&apos;re all caught up.</div> : null}
-        {!query.isLoading && !(query.isError && !data) && items.length ? <NotificationList items={items} onRead={(id) => markRead.mutate(id)} defaultHref="/employee" /> : null}
+        {!query.isLoading && !(query.isError && !data) && items.length ? <NotificationList items={items} onRead={(id) => markRead.mutate(id)} defaultHref={defaultHref} /> : null}
       </DropdownMenuContent>
     </DropdownMenu>
   );
 }
 
 function ClientPortalNotificationMenu({ open }: { open?: boolean }) {
+  const queryClient = useQueryClient();
   const query = useQuery({
     queryKey: clientPortalNotificationsQueryKey,
-    queryFn: getClientPortalNotifications,
-    refetchOnWindowFocus: true,
+    queryFn: () => getClientPortalNotifications(recentBellQuery),
+    ...recentListQueryOptions,
   });
-  const items = query.data?.items ?? [];
+  useRefetchNotificationsOnOpen(open, queryClient, clientPortalNotificationsQueryKey);
+  const items = (query.data?.items ?? []).slice(0, BELL_NOTIFICATION_LIMIT);
   const unreadCount = query.data?.unreadCount ?? 0;
 
   return (
-    <DropdownMenu open={open}>
+    <DropdownMenu
+      open={open}
+      onOpenChange={(next) => {
+        if (next) void queryClient.invalidateQueries({ queryKey: clientPortalNotificationsQueryKey });
+      }}
+    >
       <DropdownMenuTrigger asChild>
         <NotificationTriggerButton unreadCount={unreadCount} />
       </DropdownMenuTrigger>

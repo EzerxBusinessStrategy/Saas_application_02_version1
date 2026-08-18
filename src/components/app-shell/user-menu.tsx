@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { Building2, ChevronDown, LogOut, Settings, UserRound } from "lucide-react";
+import { ChevronDown, LogOut, UserRound } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -160,20 +160,6 @@ export function UserMenu({
             Profile
           </Link>
         </DropdownMenuItem>
-        <DropdownMenuItem asChild>
-          <Link href={accountHref}>
-            <Settings className="size-4 text-muted-foreground" aria-hidden="true" />
-            Account settings
-          </Link>
-        </DropdownMenuItem>
-        {workspace === "admin" ? (
-          <DropdownMenuItem asChild>
-            <Link href={accountHref}>
-              <Building2 className="size-4 text-muted-foreground" aria-hidden="true" />
-              Tenant settings
-            </Link>
-          </DropdownMenuItem>
-        ) : null}
         <DropdownMenuSeparator />
         <DropdownMenuItem
           disabled={signingOut}

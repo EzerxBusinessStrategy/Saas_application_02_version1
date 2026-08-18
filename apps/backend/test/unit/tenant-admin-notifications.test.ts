@@ -61,7 +61,8 @@ describe("TenantAdminNotificationsService", () => {
       requestId: "req-2",
     };
 
-    const listResult = await service.list(tenantAdminContext, { status: "ALL", limit: 20 });
+    const listResult = await service.list(tenantAdminContext, {});
+    expect(repository.list).toHaveBeenCalledWith(tenantAdminContext, "ALL", 20);
     expect(listResult.unreadCount).toBe(1);
     expect(listResult.items[0].title).toBe("New Task Assigned");
 

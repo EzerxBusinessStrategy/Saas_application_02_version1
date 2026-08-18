@@ -1,7 +1,14 @@
 import type { SuperAdminNotificationsResponse } from "@/types/super-admin-notifications";
 
-export async function getEmployeeNotifications(): Promise<SuperAdminNotificationsResponse> {
-  const response = await fetch("/api/employee/notifications?status=ALL&limit=20", { cache: "no-store" });
+export async function getEmployeeNotifications({
+  status = "ALL",
+  limit = 20,
+}: {
+  status?: "ALL" | "UNREAD" | "READ";
+  limit?: number;
+} = {}): Promise<SuperAdminNotificationsResponse> {
+  const query = new URLSearchParams({ status, limit: String(limit) });
+  const response = await fetch(`/api/employee/notifications?${query.toString()}`, { cache: "no-store" });
   if (!response.ok) throw new Error("Employee notifications could not load.");
   return (await response.json()) as SuperAdminNotificationsResponse;
 }
