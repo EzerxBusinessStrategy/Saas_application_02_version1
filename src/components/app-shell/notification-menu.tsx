@@ -14,6 +14,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { HeaderUtilityButton } from "@/components/app-shell/header-utility-button";
 import { Button } from "@/components/ui/button";
 import {
   getSuperAdminNotifications,
@@ -151,22 +152,7 @@ function SuperAdminNotificationMenu({ open, userEmail }: { open?: boolean; userE
   return (
     <DropdownMenu open={open}>
       <DropdownMenuTrigger asChild>
-        <Button
-          variant="ghost"
-          size="sm"
-          aria-label={unreadCount ? `Notifications, ${unreadCount} unread` : "Notifications"}
-          className="relative size-10 p-0"
-        >
-          <Bell className="size-[18px]" aria-hidden="true" />
-          {unreadCount ? (
-            <span
-              className="super-admin-notification-signal absolute right-1 top-1 grid size-4 place-items-center rounded-full bg-danger text-[10px] font-semibold text-destructive-foreground"
-              aria-hidden="true"
-            >
-              {unreadCount > 99 ? "99+" : unreadCount}
-            </span>
-          ) : null}
-        </Button>
+        <NotificationTriggerButton unreadCount={unreadCount} />
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"
@@ -288,22 +274,7 @@ function TenantAdminNotificationMenu({ open, userEmail }: { open?: boolean; user
   return (
     <DropdownMenu open={open}>
       <DropdownMenuTrigger asChild>
-        <Button
-          variant="ghost"
-          size="sm"
-          aria-label={unreadCount ? `Notifications, ${unreadCount} unread` : "Notifications"}
-          className="relative size-10 p-0"
-        >
-          <Bell className="size-[18px]" aria-hidden="true" />
-          {unreadCount ? (
-            <span
-              className="tenant-admin-notification-signal absolute right-1 top-1 grid size-4 place-items-center rounded-full bg-danger text-[10px] font-semibold text-destructive-foreground"
-              aria-hidden="true"
-            >
-              {unreadCount > 99 ? "99+" : unreadCount}
-            </span>
-          ) : null}
-        </Button>
+        <NotificationTriggerButton unreadCount={unreadCount} />
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"
@@ -399,10 +370,7 @@ function EmployeeNotificationMenu({ open, userEmail }: { open?: boolean; userEma
   return (
     <DropdownMenu open={open}>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="sm" aria-label={unreadCount ? `Notifications, ${unreadCount} unread` : "Notifications"} className="relative size-10 p-0">
-          <Bell className="size-[18px]" aria-hidden="true" />
-          {unreadCount ? <span className="absolute right-1 top-1 grid size-4 place-items-center rounded-full bg-danger text-[10px] font-semibold text-destructive-foreground" aria-hidden="true">{unreadCount > 99 ? "99+" : unreadCount}</span> : null}
-        </Button>
+        <NotificationTriggerButton unreadCount={unreadCount} />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-[min(24rem,calc(100vw-2rem))] max-md:!fixed max-md:!inset-x-4 max-md:!bottom-4 max-md:!top-auto">
         <div className="flex items-center justify-between gap-2 px-3 py-2">
@@ -431,22 +399,7 @@ function ClientPortalNotificationMenu({ open }: { open?: boolean }) {
   return (
     <DropdownMenu open={open}>
       <DropdownMenuTrigger asChild>
-        <Button
-          variant="ghost"
-          size="sm"
-          aria-label={unreadCount ? `Notifications, ${unreadCount} unread` : "Notifications"}
-          className="relative size-10 p-0"
-        >
-          <Bell className="size-[18px]" aria-hidden="true" />
-          {unreadCount ? (
-            <span
-              className="absolute right-1 top-1 grid size-4 place-items-center rounded-full bg-danger text-[10px] font-semibold text-destructive-foreground"
-              aria-hidden="true"
-            >
-              {unreadCount > 99 ? "99+" : unreadCount}
-            </span>
-          ) : null}
-        </Button>
+        <NotificationTriggerButton unreadCount={unreadCount} />
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"
@@ -468,6 +421,23 @@ function ClientPortalNotificationMenu({ open }: { open?: boolean }) {
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+function NotificationTriggerButton({ unreadCount }: { unreadCount: number }) {
+  return (
+    <HeaderUtilityButton
+      aria-label={unreadCount ? `Notifications, ${unreadCount} unread` : "Notifications"}
+      title="Notifications"
+    >
+      <Bell className="size-[18px]" aria-hidden="true" />
+      {unreadCount ? (
+        <span
+          className="absolute right-2.5 top-2.5 size-2 rounded-full bg-danger ring-2 ring-background"
+          aria-hidden="true"
+        />
+      ) : null}
+    </HeaderUtilityButton>
   );
 }
 

@@ -1,6 +1,7 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
 import { UserMenu } from "@/components/app-shell/user-menu";
+
 test("shows a profile skeleton until the authenticated profile is available", () => {
   vi.stubGlobal("fetch", vi.fn(() => new Promise(() => undefined)));
   render(<UserMenu workspace="super-admin" open />);
@@ -8,7 +9,7 @@ test("shows a profile skeleton until the authenticated profile is available", ()
   expect(screen.queryByText("Jordan Lee")).not.toBeInTheDocument();
 });
 
-test("shows identity, email, profile preferences, and a sign-out action", async () => {
+test("shows identity, email, profile actions, and a sign-out action", async () => {
   vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
     ok: true,
     json: vi.fn().mockResolvedValue({
@@ -19,14 +20,17 @@ test("shows identity, email, profile preferences, and a sign-out action", async 
   render(<UserMenu workspace="super-admin" open />);
   expect(await screen.findAllByText("Platform Administrator")).toHaveLength(2);
   expect(screen.getByText("admin@example.com")).toBeInTheDocument();
-  expect(
-    screen.getByRole("menuitem", { name: "Profile and preferences" }),
-  ).toHaveAttribute("href", "/super-admin/account");
-  expect(screen.queryByRole("menuitem", { name: "Billing" })).not.toBeInTheDocument();
-  expect(screen.queryByRole("menuitem", { name: "Account settings" })).not.toBeInTheDocument();
-  expect(screen.getByRole("menuitem", { name: "Sign out" })).not.toHaveAttribute(
+  expect(screen.getByRole("menuitem", { name: "Profile" })).toHaveAttribute(
     "href",
+    "/super-admin/account",
   );
+  expect(screen.getByRole("menuitem", { name: "Account settings" })).toHaveAttribute(
+    "href",
+    "/super-admin/account",
+  );
+  expect(screen.queryByRole("menuitem", { name: "Billing" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("menuitem", { name: "Tenant settings" })).not.toBeInTheDocument();
+  expect(screen.getByRole("menuitem", { name: "Sign out" })).not.toHaveAttribute("href");
 });
 
 afterEach(() => {
@@ -48,7 +52,7 @@ test("uses the authenticated portal profile when it is available", async () => {
 
   expect(await screen.findAllByText("Aindrilaa Das")).toHaveLength(2);
   expect(screen.getByText("aindrilaa@example.com")).toBeInTheDocument();
-  expect(screen.getAllByText("Employee")).toHaveLength(2);
+  expect(screen.getAllByText("Employee")).toHaveLength(1);
   expect(fetchMock).toHaveBeenCalledWith(
     "/api/me?portal=employee",
     expect.objectContaining({ cache: "no-store" }),

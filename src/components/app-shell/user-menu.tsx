@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { ChevronDown, ChevronRight, LogOut, UserRound } from "lucide-react";
+import { Building2, ChevronDown, LogOut, Settings, UserRound } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -116,74 +116,77 @@ export function UserMenu({
     return <UserMenuSkeleton />;
   }
 
+  const accountHref = accountHrefByWorkspace[workspace];
+
   return (
     <DropdownMenu open={open}>
       <DropdownMenuTrigger asChild>
         <button
-          className="group flex h-[58px] min-w-[52px] max-w-[min(18rem,48vw)] items-center gap-3 rounded-[18px] border border-violet-100/80 bg-gradient-to-r from-[#eef2ff] via-[#f8f7ff] to-[#fff2f6] px-2.5 text-left shadow-[0_4px_18px_rgb(30_41_59/0.06)] transition-[border-color,box-shadow,transform] duration-200 hover:-translate-y-px hover:border-violet-200 hover:shadow-[0_8px_28px_rgb(76_29_149/0.10)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/40 motion-reduce:transform-none"
+          className="group flex h-12 min-w-[52px] max-w-[11.875rem] items-center gap-2.5 rounded-xl border border-border/80 bg-background px-2.5 text-left shadow-none transition-[background-color,border-color,box-shadow] duration-200 hover:border-border hover:bg-muted/40 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           aria-label={`Open user menu for ${identity.name}`}
           title={`Open user menu for ${identity.name}`}
         >
-          <span className="grid size-9 shrink-0 place-items-center rounded-full bg-gradient-to-br from-violet-500 to-indigo-600 text-xs font-semibold text-white shadow-[0_4px_12px_rgb(99_102_241/0.25)]">
+          <span className="grid size-9 shrink-0 place-items-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
             {identity.initials}
           </span>
-          <span className="hidden min-w-0 flex-1 sm:block">
-            <span
-              className="block truncate text-[13px] font-semibold leading-5 text-slate-900"
-              title={identity.name}
-            >
-              {identity.name}
-            </span>
-            <span className="block truncate text-[11px] font-medium text-slate-500">
-              {identity.role}
-            </span>
+          <span
+            className="hidden min-w-0 flex-1 truncate text-sm font-medium text-foreground sm:block"
+            title={identity.name}
+          >
+            {identity.name}
           </span>
           <ChevronDown
-            className="size-4 shrink-0 text-slate-600 transition-transform duration-200 group-data-[state=open]:rotate-180 motion-reduce:transition-none"
+            className="size-4 shrink-0 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180 motion-reduce:transition-none"
             aria-hidden="true"
           />
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent
-        align="end"
-        sideOffset={10}
-        className="relative w-60 overflow-visible rounded-[14px] border-slate-200/80 bg-white p-2 shadow-[0_18px_50px_rgb(15_23_42/0.14)] data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2"
-      >
-        <span className="absolute -top-[6px] right-7 size-3 rotate-45 border-l border-t border-slate-200/80 bg-white" aria-hidden="true" />
-        <span className="absolute left-3 right-3 top-0 h-0.5 rounded-full bg-gradient-to-r from-indigo-500 via-violet-500 to-fuchsia-400" aria-hidden="true" />
-        <div className="flex items-center gap-3 px-2.5 pb-3 pt-3">
-          <span className="grid size-10 shrink-0 place-items-center rounded-full bg-gradient-to-br from-violet-500 to-indigo-600 text-xs font-semibold text-white shadow-sm">
-            {identity.initials}
-          </span>
-          <div className="min-w-0">
-            <DropdownMenuLabel className="truncate p-0 text-[13px] font-semibold text-slate-900" title={identity.name}>
-              {identity.name}
-            </DropdownMenuLabel>
-            <p className="text-[11px] font-medium text-slate-500">{identity.role}</p>
-            {identity.email ? <p className="mt-0.5 truncate text-[10px] text-slate-400" title={identity.email}>{identity.email}</p> : null}
-          </div>
+      <DropdownMenuContent align="end" sideOffset={8} className="w-56">
+        <div className="px-2 py-2">
+          <DropdownMenuLabel className="truncate p-0 text-sm font-semibold text-foreground" title={identity.name}>
+            {identity.name}
+          </DropdownMenuLabel>
+          <p className="text-xs text-muted-foreground">{identity.role}</p>
+          {identity.email ? (
+            <p className="mt-0.5 truncate text-xs text-muted-foreground" title={identity.email}>
+              {identity.email}
+            </p>
+          ) : null}
         </div>
-        <DropdownMenuSeparator className="my-1 h-px bg-slate-100" />
-        <DropdownMenuItem asChild className="group/item gap-2.5 rounded-lg px-2.5 py-2.5 text-[12px] font-medium text-slate-700 data-[highlighted]:bg-violet-50/70 data-[highlighted]:text-slate-900">
-          <Link href={accountHrefByWorkspace[workspace]}>
-            <UserRound className="size-[15px] text-slate-500" aria-hidden="true" />
-            <span className="flex-1">Profile and preferences</span>
-            <ChevronRight className="size-3.5 text-slate-400 transition-transform group-hover/item:translate-x-0.5" aria-hidden="true" />
+        <DropdownMenuSeparator />
+        <DropdownMenuItem asChild>
+          <Link href={accountHref}>
+            <UserRound className="size-4 text-muted-foreground" aria-hidden="true" />
+            Profile
           </Link>
         </DropdownMenuItem>
-        <DropdownMenuSeparator className="my-1 h-px bg-slate-100" />
+        <DropdownMenuItem asChild>
+          <Link href={accountHref}>
+            <Settings className="size-4 text-muted-foreground" aria-hidden="true" />
+            Account settings
+          </Link>
+        </DropdownMenuItem>
+        {workspace === "admin" ? (
+          <DropdownMenuItem asChild>
+            <Link href={accountHref}>
+              <Building2 className="size-4 text-muted-foreground" aria-hidden="true" />
+              Tenant settings
+            </Link>
+          </DropdownMenuItem>
+        ) : null}
+        <DropdownMenuSeparator />
         <DropdownMenuItem
           disabled={signingOut}
           onSelect={(event) => {
             event.preventDefault();
             void signOut();
           }}
-          className="mt-1 gap-2.5 rounded-lg px-2.5 py-2.5 text-[12px] font-medium text-red-500 data-[highlighted]:bg-red-50 data-[highlighted]:text-red-600"
+          className="text-destructive focus:text-destructive"
         >
-            <LogOut className="size-[15px]" aria-hidden="true" />
-            <span>{signingOut ? "Signing out..." : "Sign out"}</span>
+          <LogOut className="size-4" aria-hidden="true" />
+          <span>{signingOut ? "Signing out..." : "Sign out"}</span>
         </DropdownMenuItem>
-        {signOutError ? <p className="px-2.5 pb-1 text-xs text-red-600">{signOutError}</p> : null}
+        {signOutError ? <p className="px-2 pb-1 text-xs text-destructive">{signOutError}</p> : null}
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -191,12 +194,13 @@ export function UserMenu({
 
 function UserMenuSkeleton() {
   return (
-    <div className="flex h-[58px] min-w-[52px] max-w-[min(18rem,48vw)] items-center gap-3 rounded-[18px] border border-violet-100/80 bg-gradient-to-r from-[#eef2ff] via-[#f8f7ff] to-[#fff2f6] px-2.5 shadow-[0_4px_18px_rgb(30_41_59/0.06)]" aria-label="Loading account profile" role="status">
-      <span className="size-9 shrink-0 animate-pulse rounded-full bg-violet-200/80" />
-      <span className="hidden min-w-0 flex-1 space-y-1.5 sm:block">
-        <span className="block h-3.5 w-24 animate-pulse rounded bg-slate-200" />
-        <span className="block h-2.5 w-16 animate-pulse rounded bg-slate-200" />
-      </span>
+    <div
+      className="flex h-12 min-w-[52px] max-w-[11.875rem] items-center gap-2.5 rounded-xl border border-border/80 bg-background px-2.5"
+      aria-label="Loading account profile"
+      role="status"
+    >
+      <span className="size-9 shrink-0 animate-pulse rounded-full bg-muted" />
+      <span className="hidden h-4 w-24 animate-pulse rounded bg-muted sm:block" />
       <span className="size-4 shrink-0" aria-hidden="true" />
     </div>
   );

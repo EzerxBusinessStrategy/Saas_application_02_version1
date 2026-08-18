@@ -18,6 +18,7 @@ import { Breadcrumbs } from "@/components/shared/breadcrumbs";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { CommandMenu } from "@/components/app-shell/command-menu";
+import { HeaderUtilityButton } from "@/components/app-shell/header-utility-button";
 import { LiveWorldClock } from "@/components/app-shell/live-world-clock";
 import { LanguageSelector } from "@/components/app-shell/language-selector";
 import { NotificationMenu } from "@/components/app-shell/notification-menu";
@@ -488,38 +489,31 @@ export function WorkspaceShell({
               />
             </div>
           </div>
-          <div className="flex shrink-0 items-center gap-1 sm:gap-2">
+          <div className="flex shrink-0 items-center gap-2">
             <LiveWorldClock preferences={user.preferences} />
             <LanguageSelector timezone={user.preferences?.timezone ?? timezones[0].timezone} />
-            <Button
-              variant="ghost"
-              size="sm"
-              className="size-10 p-0"
+            <HeaderUtilityButton
               aria-label={t("Common.update")}
               title={t("Common.update")}
               disabled={isRefreshing}
               onClick={() => void updateWorkspace()}
             >
               <RefreshCw className="size-[18px]" aria-hidden="true" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="size-10 p-0"
+            </HeaderUtilityButton>
+            <HeaderUtilityButton
               aria-label={t("CommandMenu.searchNavigation")}
               title={t("Common.search")}
               onClick={() => setCommandMenuOpen(true)}
             >
               <Search className="size-[18px]" aria-hidden="true" />
-              <kbd className="hidden">
-                ⌘K
-              </kbd>
-            </Button>
-            <ThemeToggle />
-            {workspace !== "client" ? (
-              <NotificationMenu workspace={workspace} userEmail={user.email} />
-            ) : null}
-            <UserMenu workspace={workspace} />
+            </HeaderUtilityButton>
+            <div className="flex items-center gap-2 pl-0.5 sm:pl-1">
+              <ThemeToggle />
+              {workspace !== "client" ? (
+                <NotificationMenu workspace={workspace} userEmail={user.email} />
+              ) : null}
+              <UserMenu workspace={workspace} />
+            </div>
           </div>
         </header>
         <main
