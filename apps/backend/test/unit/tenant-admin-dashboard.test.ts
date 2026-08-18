@@ -525,6 +525,7 @@ describe("TenantAdminDashboardService", () => {
           tenantId: string,
           period: { from: string; to: string; source: "query" | "financial_year" | "last_30_days" },
           timezone: string,
+          scopeFilters: { clientId?: string; employeeId?: string },
         ): Promise<unknown[]>;
       }
     ).getUpcomingDeadlines.bind(repository);

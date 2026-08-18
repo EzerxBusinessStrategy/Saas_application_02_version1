@@ -95,7 +95,10 @@ export function TaskCalendarEventCard({
         <button
           type="button"
           className={className}
-          onClick={() => onSelect(task)}
+          onClick={(event) => {
+            event.stopPropagation();
+            onSelect(task);
+          }}
         >
           {body}
         </button>

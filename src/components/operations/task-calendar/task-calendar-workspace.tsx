@@ -145,7 +145,6 @@ export function TaskCalendarWorkspace({
 
   function selectDay(day: Date) {
     setSelectedDay(day);
-    if (view === "month") setFocusDate(startOfMonth(day));
   }
 
   function movePeriod(direction: "prev" | "next") {
@@ -609,12 +608,13 @@ function MonthDayCell({
   return (
     <div
       className={cn(
-        "border-b border-r align-top",
+        "relative isolate border-b border-r align-top transition-[background-color,box-shadow] duration-200 ease-out motion-reduce:transition-none",
         compact ? "min-h-[4.25rem] p-1" : "min-h-[5.5rem] p-1.5",
-        !currentMonth && "bg-muted/15 text-muted-foreground",
-        highlightColumn && !today && "bg-primary/[0.03]",
+        !currentMonth && !selected && "bg-muted/15 text-muted-foreground",
+        highlightColumn && !today && !selected && "bg-primary/[0.03]",
         today && "bg-primary/5",
-        selected && "bg-primary/10 ring-1 ring-inset ring-primary/40",
+        selected && "z-[1] bg-primary/10 shadow-[inset_0_0_0_2px_var(--primary)]",
+        !selected && "hover:bg-muted/30",
       )}
     >
       <button
@@ -623,11 +623,12 @@ function MonthDayCell({
         aria-pressed={selected}
         aria-current={today ? "date" : undefined}
         onClick={() => onSelectDay(day)}
-        className="flex w-full items-center justify-between gap-1 rounded-sm text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      >
+        className="absolute inset-0 z-0 cursor-pointer rounded-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+      />
+      <div className="pointer-events-none relative z-10 flex items-center justify-between gap-1">
         <span
           className={cn(
-            "inline-flex items-center justify-center rounded-full font-semibold",
+            "inline-flex items-center justify-center rounded-full font-semibold transition-colors duration-200 motion-reduce:transition-none",
             compact ? "size-5 text-[11px]" : "size-6 text-xs",
             today && "bg-primary text-primary-foreground",
           )}
@@ -639,11 +640,13 @@ function MonthDayCell({
             {compact ? tasks.length : `${tasks.length} tasks`}
           </span>
         ) : null}
-      </button>
+      </div>
       {compact || !today ? null : (
-        <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">Today</p>
+        <p className="pointer-events-none relative z-10 mt-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
+          Today
+        </p>
       )}
-      <div className="mt-1 flex flex-col gap-1">
+      <div className="relative z-10 mt-1 flex flex-col gap-1">
         {visible.map((task) => (
           <TaskCalendarEventCard
             key={task.id}
