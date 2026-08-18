@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useId, useRef, useState, type RefObject } from "react";
+import { createPortal } from "react-dom";
 import { format } from "date-fns";
 import Link from "next/link";
 import {
@@ -33,24 +35,26 @@ export function TaskCalendarEventCard({
   const accent = taskAccent(task);
   const assignee = primaryAssigneeLabel(task);
   const highPriority = task.priority === "high" || task.priority === "urgent";
+  const triggerRef = useRef<HTMLDivElement>(null);
+  const [hoverOpen, setHoverOpen] = useState(false);
 
   const body = (
-    <>
-      <div className="min-w-0 flex-1">
-        <div className="flex items-start gap-1.5">
-          <p className={cn("truncate font-medium text-foreground", compact ? "text-[11px]" : "text-xs")}>
-            {task.title}
-          </p>
-          {highPriority ? (
-            <span className="shrink-0 text-[10px] font-semibold uppercase text-amber-600 dark:text-amber-400">
-              !
-            </span>
-          ) : null}
-        </div>
-        <p className={cn("truncate text-muted-foreground", compact ? "text-[10px]" : "text-[11px]")}>
-          {task.clientName}
+    <div className="min-w-0 flex-1">
+      <div className="flex items-start gap-1.5">
+        <p className={cn("truncate font-medium text-foreground", compact ? "text-[11px]" : "text-xs")}>
+          {task.title}
         </p>
-        <p className={cn("truncate text-muted-foreground", compact ? "text-[10px]" : "text-[11px]")}>
+        {highPriority ? (
+          <span className="shrink-0 text-[10px] font-semibold uppercase text-amber-600 dark:text-amber-400">
+            !
+          </span>
+        ) : null}
+      </div>
+      <p className={cn("truncate text-muted-foreground", compact ? "text-[10px]" : "text-[11px]")}>
+        {task.clientName}
+      </p>
+      {compact ? null : (
+        <p className="truncate text-[11px] text-muted-foreground">
           <span className="inline-flex items-center gap-1">
             <span className="inline-flex size-4 items-center justify-center rounded-full bg-muted text-[9px] font-semibold">
               {assigneeInitials(assignee)}
@@ -58,50 +62,133 @@ export function TaskCalendarEventCard({
             {assignee}
           </span>
         </p>
-      </div>
-
-      <div className="pointer-events-none absolute left-full top-0 z-20 ml-2 hidden w-56 rounded-md border bg-popover p-3 text-popover-foreground shadow-md group-hover/event:block">
-        <p className="text-sm font-semibold">{task.title}</p>
-        <div className="my-2 h-px bg-border" />
-        <p className="text-xs text-muted-foreground">{task.clientName}</p>
-        <dl className="mt-3 space-y-2 text-xs">
-          <div>
-            <dt className="text-muted-foreground">Due</dt>
-            <dd className="font-medium">{format(task.dueDate, "d MMM, h:mm a")}</dd>
-          </div>
-          <div>
-            <dt className="text-muted-foreground">Assigned</dt>
-            <dd className="font-medium">{assignee}</dd>
-          </div>
-          <div>
-            <dt className="text-muted-foreground">Status</dt>
-            <dd className="font-medium">{humanise(task.status)}</dd>
-          </div>
-        </dl>
-        <p className="mt-3 text-xs font-medium text-primary">Open task →</p>
-      </div>
-    </>
+      )}
+    </div>
   );
 
   const className = cn(
-    "group/event relative w-full rounded-md border border-border/70 border-l-[3px] bg-background text-left transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+    "relative w-full rounded-md border border-border/70 border-l-[3px] bg-background text-left transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
     taskAccentClass(accent),
     compact ? "px-1.5 py-1" : "px-2 py-1.5",
     selected && "border-primary/40 bg-primary/5 ring-1 ring-primary/20",
   );
 
+  const hoverProps = {
+    onMouseEnter: () => setHoverOpen(true),
+    onMouseLeave: () => setHoverOpen(false),
+    onFocus: () => setHoverOpen(true),
+    onBlur: () => setHoverOpen(false),
+  };
+
+  const preview = (
+    <TaskEventHoverPreview
+      task={task}
+      assignee={assignee}
+      open={hoverOpen}
+      anchorRef={triggerRef}
+    />
+  );
+
   if (onSelect) {
     return (
-      <button type="button" className={className} onClick={() => onSelect(task)}>
-        {body}
-      </button>
+      <div ref={triggerRef} className="w-full" {...hoverProps}>
+        <button
+          type="button"
+          className={className}
+          onClick={() => onSelect(task)}
+        >
+          {body}
+        </button>
+        {preview}
+      </div>
     );
   }
 
   return (
-    <Link href={taskOpenHref(task)} className={cn(className, "block")}>
-      {body}
-    </Link>
+    <div ref={triggerRef} className="w-full" {...hoverProps}>
+      <Link href={taskOpenHref(task)} className={cn(className, "block")}>
+        {body}
+      </Link>
+      {preview}
+    </div>
+  );
+}
+
+function TaskEventHoverPreview({
+  task,
+  assignee,
+  open,
+  anchorRef,
+}: {
+  task: CalendarTask;
+  assignee: string;
+  open: boolean;
+  anchorRef: RefObject<HTMLDivElement | null>;
+}) {
+  const previewId = useId();
+  const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
+
+  useEffect(() => {
+    if (!open) {
+      setPosition(null);
+      return;
+    }
+
+    const updatePosition = () => {
+      const anchor = anchorRef.current;
+      if (!anchor) return;
+      const rect = anchor.getBoundingClientRect();
+      const previewWidth = 240;
+      const gap = 8;
+      const viewportPadding = 12;
+      const fitsRight = rect.right + gap + previewWidth <= window.innerWidth - viewportPadding;
+      const left = fitsRight
+        ? rect.right + gap
+        : Math.max(viewportPadding, rect.left - previewWidth - gap);
+      const top = Math.min(
+        Math.max(viewportPadding, rect.top),
+        window.innerHeight - viewportPadding - 180,
+      );
+      setPosition({ top, left });
+    };
+
+    updatePosition();
+    window.addEventListener("scroll", updatePosition, true);
+    window.addEventListener("resize", updatePosition);
+    return () => {
+      window.removeEventListener("scroll", updatePosition, true);
+      window.removeEventListener("resize", updatePosition);
+    };
+  }, [anchorRef, open]);
+
+  if (!open || !position || typeof document === "undefined") return null;
+
+  return createPortal(
+    <div
+      id={previewId}
+      role="tooltip"
+      className="pointer-events-none fixed z-50 w-60 rounded-lg border border-border bg-popover p-3 text-popover-foreground shadow-[var(--shadow-card)]"
+      style={{ top: position.top, left: position.left }}
+    >
+      <p className="text-sm font-semibold">{task.title}</p>
+      <p className="mt-1 text-xs text-muted-foreground">{task.clientName}</p>
+      <div className="my-2 h-px bg-border" />
+      <dl className="flex flex-col gap-2 text-xs">
+        <div>
+          <dt className="text-muted-foreground">Due</dt>
+          <dd className="font-medium">{format(task.dueDate, "d MMM, h:mm a")}</dd>
+        </div>
+        <div>
+          <dt className="text-muted-foreground">Assigned</dt>
+          <dd className="font-medium">{assignee}</dd>
+        </div>
+        <div>
+          <dt className="text-muted-foreground">Status</dt>
+          <dd className="font-medium">{humanise(task.status)}</dd>
+        </div>
+      </dl>
+    </div>,
+    document.body,
   );
 }
 

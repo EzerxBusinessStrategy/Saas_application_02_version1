@@ -7,6 +7,7 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { StatusBadge } from "@/components/shared/status-badge";
+import { DatePicker } from "@/components/shared/date-picker";
 import type { OperationalTask, WorkLog } from "@/types/operations";
 import type { TaskReviewDetail } from "@/features/operations/api/operations-api";
 
@@ -286,14 +287,12 @@ export function TaskDetailsDrawer({
               </label>
               <label className="text-sm font-medium">
                 Due date
-                <Input
+                <DatePicker
                   className="mt-1"
-                  type="date"
                   value={task.dueDate}
                   disabled={!canManageAssignment}
-                  onChange={(event) =>
-                    onUpdate({ ...task, dueDate: event.target.value })
-                  }
+                  onChange={(value) => onUpdate({ ...task, dueDate: value })}
+                  aria-label="Due date"
                 />
               </label>
               <label className="text-sm font-medium">

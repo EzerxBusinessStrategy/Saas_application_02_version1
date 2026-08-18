@@ -8,6 +8,7 @@ import {
   createTenantAdminService,
   getTenantAdminServiceAllocations,
   listTenantAdminServices,
+  setTenantAdminServiceStatus,
   setTenantAdminServiceTaskStatus,
   type CreateTenantAdminServiceInput,
   type TenantAdminService,
@@ -31,6 +32,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/shared/date-picker";
 import { Select } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
@@ -65,7 +67,7 @@ export function TenantServiceDirectory() {
   const [updatingRateItemId, setUpdatingRateItemId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
-  const [scopeFilter, setScopeFilter] = useState("");
+  const [updatingServiceId, setUpdatingServiceId] = useState<string | null>(null);
   const query = useQuery({
     queryKey: ["tenant-admin-services"],
     queryFn: listTenantAdminServices,
@@ -76,10 +78,6 @@ export function TenantServiceDirectory() {
     const needle = search.trim().toLowerCase();
     return services.filter((service) => {
       if (statusFilter && service.status !== statusFilter) return false;
-      const tenantRates = tenantDefaultRates(service);
-      const clientRates = service.rates.filter((rate) => rate.clientName);
-      if (scopeFilter === "tenant_default" && tenantRates.length === 0) return false;
-      if (scopeFilter === "client" && clientRates.length === 0) return false;
       if (!needle) return true;
       const haystack = [
         service.name,
@@ -91,7 +89,7 @@ export function TenantServiceDirectory() {
         .toLowerCase();
       return haystack.includes(needle);
     });
-  }, [query.data, search, statusFilter, scopeFilter]);
+  }, [query.data, search, statusFilter]);
 
   const toggleExpanded = (serviceId: string) => {
     setExpandedServiceIds((current) => {
@@ -104,6 +102,24 @@ export function TenantServiceDirectory() {
 
   const openBlueprint = (service: { id: string; name: string }) => {
     setBlueprintService(service);
+  };
+
+  const setServiceStatus = async (serviceId: string, status: "active" | "inactive") => {
+    setUpdatingServiceId(serviceId);
+    try {
+      const result = await setTenantAdminServiceStatus({ serviceId, status });
+      toast.success(
+        result.status === "inactive"
+          ? `"${result.name}" is disabled and hidden from the client service request form.`
+          : `"${result.name}" is enabled and visible in the client service request form.`,
+      );
+      await queryClient.invalidateQueries({ queryKey: ["tenant-admin-services"] });
+      void queryClient.invalidateQueries({ queryKey: ["tenant-admin-task-options"] });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "The service status could not be updated.");
+    } finally {
+      setUpdatingServiceId(null);
+    }
   };
 
   const setTaskStatus = async (serviceId: string, rateItemId: string, status: "active" | "inactive") => {
@@ -145,18 +161,17 @@ export function TenantServiceDirectory() {
       <Card>
         <CardContent className="flex flex-col gap-5 pt-[30px]">
           <FilterToolbar
-            filterGridClassName="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
+            filterGridClassName="grid gap-3 sm:grid-cols-2"
             search={{
               value: search,
               onChange: setSearch,
               label: "Search services",
               placeholder: "Search services...",
             }}
-            activeFilterCount={Number(Boolean(statusFilter)) + Number(Boolean(scopeFilter))}
+            activeFilterCount={Number(Boolean(statusFilter))}
             onClear={() => {
               setSearch("");
               setStatusFilter("");
-              setScopeFilter("");
             }}
           >
             <label className="flex flex-col gap-1 text-sm font-medium">
@@ -169,18 +184,6 @@ export function TenantServiceDirectory() {
                 <option value="">All statuses</option>
                 <option value="active">Active</option>
                 <option value="inactive">Inactive</option>
-              </Select>
-            </label>
-            <label className="flex flex-col gap-1 text-sm font-medium">
-              Scope
-              <Select
-                aria-label="Filter pricing scope"
-                value={scopeFilter}
-                onChange={(event) => setScopeFilter(event.target.value)}
-              >
-                <option value="">All scopes</option>
-                <option value="tenant_default">Tenant default</option>
-                <option value="client">Client-specific</option>
               </Select>
             </label>
           </FilterToolbar>
@@ -197,10 +200,12 @@ export function TenantServiceDirectory() {
                 <ServiceHierarchyList
                   services={filteredServices}
                   expandedServiceIds={expandedServiceIds}
+                  updatingServiceId={updatingServiceId}
                   updatingRateItemId={updatingRateItemId}
                   onToggleExpanded={toggleExpanded}
                   onManageService={openBlueprint}
                   onShowDetails={setDetailsTarget}
+                  onSetServiceStatus={setServiceStatus}
                   onSetTaskStatus={setTaskStatus}
                 />
               </>
@@ -234,18 +239,22 @@ export function TenantServiceDirectory() {
 function ServiceHierarchyList({
   services,
   expandedServiceIds,
+  updatingServiceId,
   updatingRateItemId,
   onToggleExpanded,
   onManageService,
   onShowDetails,
+  onSetServiceStatus,
   onSetTaskStatus,
 }: {
   services: readonly TenantAdminService[];
   expandedServiceIds: ReadonlySet<string>;
+  updatingServiceId: string | null;
   updatingRateItemId: string | null;
   onToggleExpanded: (serviceId: string) => void;
   onManageService: (service: { id: string; name: string }) => void;
   onShowDetails: (target: ServiceDetailsTarget) => void;
+  onSetServiceStatus: (serviceId: string, status: "active" | "inactive") => Promise<void>;
   onSetTaskStatus: (serviceId: string, rateItemId: string, status: "active" | "inactive") => Promise<void>;
 }) {
   return (
@@ -255,10 +264,12 @@ function ServiceHierarchyList({
           key={service.id}
           service={service}
           expanded={expandedServiceIds.has(service.id)}
+          updatingServiceId={updatingServiceId}
           updatingRateItemId={updatingRateItemId}
           onToggleExpanded={() => onToggleExpanded(service.id)}
           onManageService={() => onManageService({ id: service.id, name: service.name })}
           onShowDetails={onShowDetails}
+          onSetServiceStatus={onSetServiceStatus}
           onSetTaskStatus={onSetTaskStatus}
         />
       ))}
@@ -269,18 +280,22 @@ function ServiceHierarchyList({
 function ServiceHierarchyRow({
   service,
   expanded,
+  updatingServiceId,
   updatingRateItemId,
   onToggleExpanded,
   onManageService,
   onShowDetails,
+  onSetServiceStatus,
   onSetTaskStatus,
 }: {
   service: TenantAdminService;
   expanded: boolean;
+  updatingServiceId: string | null;
   updatingRateItemId: string | null;
   onToggleExpanded: () => void;
   onManageService: () => void;
   onShowDetails: (target: ServiceDetailsTarget) => void;
+  onSetServiceStatus: (serviceId: string, status: "active" | "inactive") => Promise<void>;
   onSetTaskStatus: (serviceId: string, rateItemId: string, status: "active" | "inactive") => Promise<void>;
 }) {
   const tenantRates = tenantDefaultRates(service);
@@ -321,12 +336,17 @@ function ServiceHierarchyRow({
           </div>
           <ServiceActionsMenu
             serviceName={service.name}
+            status={service.status}
+            disabled={updatingServiceId === service.id}
             onManageService={onManageService}
             onShowDetails={() =>
               onShowDetails({
                 serviceId: service.id,
                 serviceName: service.name,
               })
+            }
+            onToggleStatus={() =>
+              void onSetServiceStatus(service.id, service.status === "active" ? "inactive" : "active")
             }
           />
         </div>
@@ -481,23 +501,45 @@ function TaskRateRow({
 
 function ServiceActionsMenu({
   serviceName,
+  status,
+  disabled,
   onManageService,
   onShowDetails,
+  onToggleStatus,
 }: {
   serviceName: string;
+  status: TenantAdminService["status"];
+  disabled: boolean;
   onManageService: () => void;
   onShowDetails: () => void;
+  onToggleStatus: () => void;
 }) {
+  const canToggle = status === "active" || status === "inactive";
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button type="button" size="sm" variant="ghost" className="px-1.5" aria-label={`Actions for ${serviceName}`}>
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          className="px-1.5"
+          aria-label={`Actions for ${serviceName}`}
+          disabled={disabled}
+        >
           <MoreVertical className="size-4" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         <DropdownMenuItem onSelect={onManageService}>Manage tasks</DropdownMenuItem>
         <DropdownMenuItem onSelect={onShowDetails}>Details</DropdownMenuItem>
+        {canToggle ? (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem disabled={disabled} onSelect={onToggleStatus}>
+              {status === "active" ? "Disable service" : "Enable service"}
+            </DropdownMenuItem>
+          </>
+        ) : null}
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -753,7 +795,7 @@ export function NewServiceDialog({
             </label>
             <label className="text-sm font-medium">
               Effective from
-              <Input className="mt-1" type="date" value={input.effectiveFrom} onChange={(event) => setInput((current) => ({ ...current, effectiveFrom: event.target.value }))} />
+              <DatePicker className="mt-1" value={input.effectiveFrom} onChange={(value) => setInput((current) => ({ ...current, effectiveFrom: value }))} aria-label="Effective from" />
             </label>
           </div>
           <div className="mt-6 flex justify-end gap-2">

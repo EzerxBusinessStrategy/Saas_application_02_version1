@@ -23,6 +23,7 @@ import {
 } from "@/features/operations/api/operations-api";
 import { listClients } from "@/features/administration/api/administration-api";
 import { createInvoicePdfUrl, downloadInvoicePdf } from "@/lib/invoice-pdf";
+import { openSignedDownloadUrl } from "@/lib/signed-download";
 import { DataTable } from "@/components/operations/data-table";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ErrorState } from "@/components/shared/error-state";
@@ -38,6 +39,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/shared/date-picker";
 import { Select } from "@/components/ui/select";
 import type { Workspace } from "@/types/domain";
 import type { SharedDocument, SharedInvoice } from "@/types/operations";
@@ -96,8 +98,11 @@ function DocumentsWorkspace({ workspace, fixedCategory }: { workspace: Extract<W
         : document.clientDecisionStatus === decisionFilter && document.agreementAccessStatus !== "expired")),
   );
   const downloadDocument = async (documentId: string) => {
-    try { window.open(await getPrivateDocumentDownloadUrl(workspace, documentId), "_blank", "noopener,noreferrer"); }
-    catch (error) { toast.error(error instanceof Error ? error.message : "Document download could not be started."); }
+    try {
+      await openSignedDownloadUrl(() => getPrivateDocumentDownloadUrl(workspace, documentId));
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Document download could not be started.");
+    }
   };
   const columns: ColumnDef<SharedDocument, unknown>[] = [
     { accessorKey: "title", header: "Document", cell: ({ row }) => <button className="text-left font-medium hover:text-primary" onClick={() => setSelected(row.original)}>{row.original.title}<span className="mt-1 block text-xs text-muted-foreground">{row.original.fileType} · {row.original.id}</span></button> },
@@ -152,8 +157,8 @@ function DocumentsWorkspace({ workspace, fixedCategory }: { workspace: Extract<W
         </>
       ) : null}
     </FilterToolbar>
-    <Card><CardContent className="pt-0"><div className="hidden md:block"><DataTable caption="Authorised documents" columns={columns} data={visible} emptyTitle={search || category ? "No documents match these filters" : "No documents yet"} emptyDescription="Upload the first document to securely share files with authorised users." /></div><div className="md:hidden">{visible.length ? visible.map((document) => <MobileEntityCard key={document.id} title={document.title} identifier={`${document.fileType} · ${document.id}`} leading={<FileText className="size-5 text-primary" />} status={<StatusBadge status="on-track" />} metadata={<><dt className="text-muted-foreground">Client</dt><dd>{document.client}</dd><dt className="text-muted-foreground">Shared with</dt><dd><RecipientSummary document={document} /></dd></>} primaryAction={<Button size="sm" variant="outline" onClick={() => setSelected(document)}>View details</Button>} />) : <EmptyState title="No documents match these filters" description="Clear filters or upload a document." />}</div></CardContent></Card>
-    <DocumentDialog document={selected} open={Boolean(selected)} onOpenChange={(open) => !open && setSelected(null)} />
+    <Card><CardContent className="pt-0"><div className="hidden md:block"><DataTable caption="Authorised documents" columns={columns} data={visible} emptyTitle={search || category ? "No documents match these filters" : "No documents yet"} emptyDescription="Upload the first document to securely share files with authorised users." /></div>    <div className="md:hidden">{visible.length ? visible.map((document) => <MobileEntityCard key={document.id} title={document.title} identifier={`${document.fileType} · ${document.id}`} leading={<FileText className="size-5 text-primary" />} status={<StatusBadge status="on-track" />} metadata={<><dt className="text-muted-foreground">Client</dt><dd>{document.client}</dd><dt className="text-muted-foreground">Shared with</dt><dd><RecipientSummary document={document} /></dd></>} primaryAction={<div className="flex gap-2"><Button size="sm" variant="outline" onClick={() => setSelected(document)}>View details</Button><Button size="sm" variant="outline" onClick={() => void downloadDocument(document.id)}><Download data-icon="inline-start" />Download</Button></div>} />) : <EmptyState title="No documents match these filters" description="Clear filters or upload a document." />}</div></CardContent></Card>
+    <DocumentDialog document={selected} open={Boolean(selected)} onOpenChange={(open) => !open && setSelected(null)} onDownload={() => selected ? void downloadDocument(selected.id) : undefined} />
     {workspace === "employee"
       ? <EmployeeDocumentUploadDialog clients={clientOptions} options={employeeOptionsQuery.data} fixedCategory={fixedCategory} open={uploadOpen} onOpenChange={setUploadOpen} onCreated={(document) => { setDocuments((current) => [document, ...(current ?? [])]); setUploadOpen(false); toast.success("Document shared."); }} />
       : <DocumentUploadDialog workspace={workspace} clients={clientOptions} adminOptions={adminTaskOptionsQuery.data} fixedCategory={fixedCategory} open={uploadOpen} onOpenChange={setUploadOpen} onCreated={(document) => { setDocuments((current) => [document, ...(current ?? [])]); setUploadOpen(false); toast.success(fixedCategory === "agreement" ? "Agreement sent to client." : "Document saved."); }} />}
@@ -283,10 +288,84 @@ function InvoiceTaskName({ taskTitle, className = "" }: { taskTitle?: string | n
   return <span className={`invoice-task-name mt-1 block text-xs text-muted-foreground ${className}`}>Task: {taskTitle}</span>;
 }
 
-function DocumentDialog({ document, open, onOpenChange }: { document: SharedDocument | null; open: boolean; onOpenChange: (open: boolean) => void }) {
+function DocumentDialog({
+  document,
+  open,
+  onOpenChange,
+  onDownload,
+}: {
+  document: SharedDocument | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onDownload: () => void;
+}) {
   const [tab, setTab] = useState("overview");
   if (!document) return null;
-  return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent title={document.title} description="Document details and authorised access." className="left-auto right-0 top-0 h-full max-h-none w-full max-w-2xl translate-x-0 translate-y-0 overflow-y-auto rounded-none"><div className="pr-8"><p className="text-sm font-medium text-primary">{document.id}</p><h2 className="mt-1 text-xl font-semibold">{document.title}</h2><ResponsiveTabs label="Document details" value={tab} onValueChange={setTab} tabs={[{ value: "overview", label: "Overview" }, { value: "access", label: "Access" }, { value: "activity", label: "Activity" }]}>{tab === "overview" ? <dl className="grid gap-4 text-sm sm:grid-cols-2"><Detail label="File" value={`${document.fileName} (${document.fileType})`} /><Detail label="Client" value={document.client} /><Detail label="Category" value={document.category} /><Detail label="Sent by" value={document.uploadedBy} /><Detail label="Sent at" value={document.updatedOn} /><Detail label="Expires on" value={document.validUntil ? new Date(document.validUntil).toLocaleString() : "Not set"} /><Detail label="Why sent" value={document.shareReason ?? "Not specified"} /><Detail label="Related service" value={document.engagement ?? "Not linked"} /><Detail label="Related task" value={document.task ?? "Not linked"} /></dl> : null}{tab === "access" ? <div className="flex flex-col gap-4"><p className="text-sm text-muted-foreground">Owner: {document.uploadedBy}. Tenant Administration oversight: {document.tenantAdminVisible ? "included" : "not required"}.</p><RecipientSummary document={document} /></div> : null}{tab === "activity" ? <ul className="flex flex-col divide-y">{document.activity.map((item) => <li key={item.id} className="py-3 first:pt-0"><p className="font-medium text-sm">{item.action}</p><p className="mt-1 text-sm text-muted-foreground">{item.actor} · {item.at}</p></li>)}</ul> : null}</ResponsiveTabs><p className="mt-6 text-sm text-muted-foreground">Preview and download require the private-storage backend. No public file URL is exposed.</p></div></DialogContent></Dialog>;
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent
+        title={document.title}
+        description="Document details and authorised access."
+        className="left-auto right-0 top-0 h-full max-h-none w-full max-w-2xl translate-x-0 translate-y-0 overflow-y-auto rounded-none"
+      >
+        <div className="pr-8">
+          <p className="text-sm font-medium text-primary">{document.id}</p>
+          <h2 className="mt-1 text-xl font-semibold">{document.title}</h2>
+          <ResponsiveTabs
+            label="Document details"
+            value={tab}
+            onValueChange={setTab}
+            tabs={[
+              { value: "overview", label: "Overview" },
+              { value: "access", label: "Access" },
+              { value: "activity", label: "Activity" },
+            ]}
+          >
+            {tab === "overview" ? (
+              <dl className="grid gap-4 text-sm sm:grid-cols-2">
+                <Detail label="File" value={`${document.fileName} (${document.fileType})`} />
+                <Detail label="Client" value={document.client} />
+                <Detail label="Category" value={document.category} />
+                <Detail label="Sent by" value={document.uploadedBy} />
+                <Detail label="Sent at" value={document.updatedOn} />
+                <Detail label="Expires on" value={document.validUntil ? new Date(document.validUntil).toLocaleString() : "Not set"} />
+                <Detail label="Why sent" value={document.shareReason ?? "Not specified"} />
+                <Detail label="Related service" value={document.engagement ?? "Not linked"} />
+                <Detail label="Related task" value={document.task ?? "Not linked"} />
+              </dl>
+            ) : null}
+            {tab === "access" ? (
+              <div className="flex flex-col gap-4">
+                <p className="text-sm text-muted-foreground">
+                  Owner: {document.uploadedBy}. Tenant Administration oversight:{" "}
+                  {document.tenantAdminVisible ? "included" : "not required"}.
+                </p>
+                <RecipientSummary document={document} />
+              </div>
+            ) : null}
+            {tab === "activity" ? (
+              <ul className="flex flex-col divide-y">
+                {document.activity.map((item) => (
+                  <li key={item.id} className="py-3 first:pt-0">
+                    <p className="text-sm font-medium">{item.action}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {item.actor} · {item.at}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </ResponsiveTabs>
+          <div className="mt-6 flex justify-end">
+            <Button variant="outline" onClick={onDownload}>
+              <Download data-icon="inline-start" />
+              Download
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
 }
 function InvoiceDialog({ invoice, open, onOpenChange, onSent }: { invoice: SharedInvoice | null; open: boolean; onOpenChange: (open: boolean) => void; onSent: () => void }) {
   const [sending, setSending] = useState(false);
@@ -333,7 +412,7 @@ function TaskInvoiceDialog({ entry, onOpenChange, onCreated }: { entry: TenantBi
   if (!entry) return null;
   const discount = discountType === "percentage" ? Math.min(entry.grossAmount, entry.grossAmount * (Number(discountValue || 0) / 100)) : discountType === "fixed" ? Math.min(entry.grossAmount, Number(discountValue || 0)) : 0;
   const submit = async () => { if (!invoiceNumber.trim() || !dueOn) return; setSaving(true); try { const invoice = await createInvoiceFromTask({ billableTaskEntryId: entry.id, invoiceNumber: invoiceNumber.trim(), issuedOn: new Date().toISOString().slice(0, 10), dueOn, discountType: discountType || undefined, discountValue: Number(discountValue || 0) }); toast.success("Invoice generated. Review and send it to the client."); onCreated(invoice); } catch (error) { toast.error(error instanceof Error ? error.message : "Invoice could not be created."); } finally { setSaving(false); } };
-  return <Dialog open onOpenChange={onOpenChange}><DialogContent title="Generate invoice" description="The final amount is calculated on the server."><div className="grid gap-4 pr-8"><p className="font-medium">{entry.taskTitle}</p><p className="text-sm text-muted-foreground">{entry.client} · {formatCurrency(entry.grossAmount, entry.currency)}</p><label className="text-sm font-medium">Invoice number<Input className="mt-1" value={invoiceNumber} onChange={(event) => setInvoiceNumber(event.target.value)} /></label><label className="text-sm font-medium">Due date<Input className="mt-1" type="date" value={dueOn} onChange={(event) => setDueOn(event.target.value)} /></label><div className="grid gap-4 sm:grid-cols-2"><label className="text-sm font-medium">Discount<Select className="mt-1" value={discountType} onChange={(event) => setDiscountType(event.target.value as typeof discountType)}><option value="">No discount</option><option value="percentage">Percentage</option><option value="fixed">Fixed amount</option></Select></label><label className="text-sm font-medium">Discount value<Input className="mt-1" type="number" min="0" max={discountType === "percentage" ? "100" : undefined} disabled={!discountType} value={discountValue} onChange={(event) => setDiscountValue(event.target.value)} /></label></div><dl className="grid grid-cols-2 gap-3 rounded-[var(--radius-control)] border p-3 text-sm"><div><dt className="text-muted-foreground">Gross amount</dt><dd className="mt-1 font-medium">{formatCurrency(entry.grossAmount, entry.currency)}</dd></div><div><dt className="text-muted-foreground">After discount</dt><dd className="mt-1 font-medium">{formatCurrency(entry.grossAmount - discount, entry.currency)}</dd></div></dl><div className="flex justify-end gap-2"><Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button><Button disabled={saving || !invoiceNumber.trim() || !dueOn} onClick={() => void submit()}>{saving ? "Generating..." : "Generate invoice"}</Button></div></div></DialogContent></Dialog>;
+  return <Dialog open onOpenChange={onOpenChange}><DialogContent title="Generate invoice" description="The final amount is calculated on the server."><div className="grid gap-4 pr-8"><p className="font-medium">{entry.taskTitle}</p><p className="text-sm text-muted-foreground">{entry.client} · {formatCurrency(entry.grossAmount, entry.currency)}</p><label className="text-sm font-medium">Invoice number<Input className="mt-1" value={invoiceNumber} onChange={(event) => setInvoiceNumber(event.target.value)} /></label><label className="text-sm font-medium">Due date<DatePicker className="mt-1" value={dueOn} onChange={setDueOn} aria-label="Due date" /></label><div className="grid gap-4 sm:grid-cols-2"><label className="text-sm font-medium">Discount<Select className="mt-1" value={discountType} onChange={(event) => setDiscountType(event.target.value as typeof discountType)}><option value="">No discount</option><option value="percentage">Percentage</option><option value="fixed">Fixed amount</option></Select></label><label className="text-sm font-medium">Discount value<Input className="mt-1" type="number" min="0" max={discountType === "percentage" ? "100" : undefined} disabled={!discountType} value={discountValue} onChange={(event) => setDiscountValue(event.target.value)} /></label></div><dl className="grid grid-cols-2 gap-3 rounded-[var(--radius-control)] border p-3 text-sm"><div><dt className="text-muted-foreground">Gross amount</dt><dd className="mt-1 font-medium">{formatCurrency(entry.grossAmount, entry.currency)}</dd></div><div><dt className="text-muted-foreground">After discount</dt><dd className="mt-1 font-medium">{formatCurrency(entry.grossAmount - discount, entry.currency)}</dd></div></dl><div className="flex justify-end gap-2"><Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button><Button disabled={saving || !invoiceNumber.trim() || !dueOn} onClick={() => void submit()}>{saving ? "Generating..." : "Generate invoice"}</Button></div></div></DialogContent></Dialog>;
 }
 
 function formatCurrency(amount: number, currency: string) { return new Intl.NumberFormat("en-IN", { style: "currency", currency: /^[A-Z]{3}$/.test(currency) ? currency : "INR", maximumFractionDigits: 2 }).format(amount); }
@@ -481,7 +560,7 @@ function DocumentUploadDialog({ workspace, clients, adminOptions, fixedCategory,
               <>
                 <label className="flex flex-col gap-1 text-sm font-medium">
                   Expiry date
-                  <Input className="mt-1" type="date" value={validUntilDate} min={new Date().toISOString().slice(0, 10)} onChange={(event) => setValidUntilDate(event.target.value)} />
+                  <DatePicker className="mt-1" value={validUntilDate} min={new Date().toISOString().slice(0, 10)} onChange={setValidUntilDate} aria-label="Expiry date" />
                 </label>
                 <label className="flex flex-col gap-1 text-sm font-medium">
                   Expiry time
@@ -503,5 +582,5 @@ function DocumentUploadDialog({ workspace, clients, adminOptions, fixedCategory,
 function InvoiceUploadDialog({ workspace, clients, open, onOpenChange, onCreated }: { workspace: "admin"; clients: Array<{ id: string; name: string }>; open: boolean; onOpenChange: (open: boolean) => void; onCreated: (invoice: SharedInvoice) => void }) {
   const [file, setFile] = useState<File | null>(null); const [number, setNumber] = useState(""); const [clientId, setClientId] = useState(""); const [issuedOn, setIssuedOn] = useState(() => new Date().toISOString().slice(0, 10)); const [dueOn, setDueOn] = useState(""); const [amount, setAmount] = useState(""); const [visibility, setVisibility] = useState<"client" | "internal">("client"); const [submitting, setSubmitting] = useState(false); const eligibleClients = clients;
   const submit = async () => { if (!file || !number || !clientId || !amount) return; setSubmitting(true); try { onCreated(await createSharedInvoice(workspace, { clientId, file, invoiceNumber: number, issuedOn, dueOn, amount: Number(amount), visibility, fileName: file.name, fileType: file.name.split(".").pop()?.toUpperCase() ?? "FILE", sizeBytes: file.size })); } catch (error) { toast.error(error instanceof Error ? error.message : "Invoice could not be prepared."); } finally { setSubmitting(false); } };
-  return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent title="Upload invoice" description="Choose invoice metadata and authorised visibility." className="max-h-[calc(100vh-2rem)] max-w-2xl overflow-y-auto"><div className="pr-8"><h2 className="text-xl font-semibold">Upload invoice</h2><div className="mt-6 grid min-w-0 gap-4 sm:grid-cols-2"><FileField file={file} onFile={setFile} /><label className="flex flex-col gap-1 text-sm font-medium">Invoice number<Input value={number} onChange={(event) => setNumber(event.target.value)} /></label><label className="flex flex-col gap-1 text-sm font-medium">Related client<Select value={clientId} onChange={(event) => setClientId(event.target.value)}><option value="">Select client</option>{eligibleClients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}</Select></label><label className="flex flex-col gap-1 text-sm font-medium">Amount (INR)<Input type="number" min="0" value={amount} onChange={(event) => setAmount(event.target.value)} /></label><label className="flex flex-col gap-1 text-sm font-medium">Invoice date<Input type="date" value={issuedOn} onChange={(event) => setIssuedOn(event.target.value)} /></label><label className="flex flex-col gap-1 text-sm font-medium">Due date<Input type="date" value={dueOn} onChange={(event) => setDueOn(event.target.value)} /></label><label className="flex flex-col gap-1 text-sm font-medium">Visibility<Select value={visibility} onChange={(event) => setVisibility(event.target.value as typeof visibility)}><option value="client">Client-visible invoice</option><option value="internal">Internal finance document</option></Select></label></div><div className="mt-7 flex justify-end gap-2"><Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button><Button disabled={!file || !number || !clientId || !amount || submitting} onClick={() => void submit()}>{submitting ? "Preparing…" : "Upload invoice"}</Button></div></div></DialogContent></Dialog>;
+  return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent title="Upload invoice" description="Choose invoice metadata and authorised visibility." className="max-h-[calc(100vh-2rem)] max-w-2xl overflow-y-auto"><div className="pr-8"><h2 className="text-xl font-semibold">Upload invoice</h2><div className="mt-6 grid min-w-0 gap-4 sm:grid-cols-2"><FileField file={file} onFile={setFile} /><label className="flex flex-col gap-1 text-sm font-medium">Invoice number<Input value={number} onChange={(event) => setNumber(event.target.value)} /></label><label className="flex flex-col gap-1 text-sm font-medium">Related client<Select value={clientId} onChange={(event) => setClientId(event.target.value)}><option value="">Select client</option>{eligibleClients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}</Select></label><label className="flex flex-col gap-1 text-sm font-medium">Amount (INR)<Input type="number" min="0" value={amount} onChange={(event) => setAmount(event.target.value)} /></label><label className="flex flex-col gap-1 text-sm font-medium">Invoice date<DatePicker value={issuedOn} onChange={setIssuedOn} aria-label="Invoice date" /></label><label className="flex flex-col gap-1 text-sm font-medium">Due date<DatePicker value={dueOn} onChange={setDueOn} aria-label="Due date" /></label><label className="flex flex-col gap-1 text-sm font-medium">Visibility<Select value={visibility} onChange={(event) => setVisibility(event.target.value as typeof visibility)}><option value="client">Client-visible invoice</option><option value="internal">Internal finance document</option></Select></label></div><div className="mt-7 flex justify-end gap-2"><Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button><Button disabled={!file || !number || !clientId || !amount || submitting} onClick={() => void submit()}>{submitting ? "Preparing…" : "Upload invoice"}</Button></div></div></DialogContent></Dialog>;
 }

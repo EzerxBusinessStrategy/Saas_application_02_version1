@@ -7,6 +7,8 @@ import {
   TenantAdminServiceCreateRequest,
   TenantAdminServiceDto,
   TenantAdminServicesResponseDto,
+  TenantAdminServiceStatusRequest,
+  TenantAdminServiceStatusResponseDto,
   TenantAdminServiceTaskStatusRequest,
   TenantAdminServiceTaskStatusResponseDto,
 } from "./tenant-admin-services.dto";
@@ -25,6 +27,14 @@ export class TenantAdminServicesService {
 
   create(context: RequestContext, input: TenantAdminServiceCreateRequest): Promise<TenantAdminServiceDto> {
     return this.repository.create(requireTenantAdminContext(context), input);
+  }
+
+  setStatus(
+    context: RequestContext,
+    serviceId: string,
+    input: TenantAdminServiceStatusRequest,
+  ): Promise<TenantAdminServiceStatusResponseDto> {
+    return this.repository.setServiceStatus(requireTenantAdminContext(context), serviceId, input.status);
   }
 
   setTaskStatus(

@@ -124,6 +124,49 @@ describe("TenantAdminServicesRepository", () => {
     expect(queries.join("\n")).not.toContain("update public.rate_card_items");
   });
 
+  it("disables a tenant catalogue service without leaking missing rows", async () => {
+    const queries: string[] = [];
+    const params: unknown[][] = [];
+    const client = {
+      query: vi.fn(async (sqlText: string, values: readonly unknown[] = []) => {
+        queries.push(sqlText);
+        params.push([...values]);
+        if (sqlText.includes("update public.services")) {
+          return { rows: [{ id: "service-1", name: "GST Filing", status: "inactive" }], rowCount: 1 };
+        }
+        return { rows: [], rowCount: 0 };
+      }),
+      release: vi.fn(),
+    };
+    const pool = { connect: vi.fn(async () => client) };
+    const repository = new TenantAdminServicesRepository(pool as never);
+
+    const result = await repository.setServiceStatus(tenantAdminContext, "service-1", "inactive");
+
+    expect(result).toEqual({ serviceId: "service-1", name: "GST Filing", status: "inactive" });
+    expect(queries.join("\n")).toContain("and status in ('active', 'inactive')");
+    expect(queries.join("\n")).toContain("SERVICE_STATUS_UPDATED");
+    expect(params).toContainEqual(["tenant-1", "service-1", "inactive"]);
+  });
+
+  it("rejects service status changes outside the tenant without leaking details", async () => {
+    const queries: string[] = [];
+    const client = {
+      query: vi.fn(async (sqlText: string) => {
+        queries.push(sqlText);
+        return { rows: [], rowCount: 0 };
+      }),
+      release: vi.fn(),
+    };
+    const pool = { connect: vi.fn(async () => client) };
+    const repository = new TenantAdminServicesRepository(pool as never);
+
+    await expect(
+      repository.setServiceStatus(tenantAdminContext, "service-other-tenant", "inactive"),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(queries.join("\n")).not.toContain("SERVICE_STATUS_UPDATED");
+  });
+
   it("lists disabled tenant-default rates and dedupes superseded inactive rows", async () => {
     const rates = [
       {

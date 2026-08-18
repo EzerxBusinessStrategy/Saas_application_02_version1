@@ -29,6 +29,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { TenantCreateLoader } from "@/components/shared/tenant-create-loader";
+import { DatePicker } from "@/components/shared/date-picker";
 
 const steps = [
   "Company details",
@@ -422,13 +423,18 @@ function CompanyStep({
           required={incorporationDateRequired}
           error={form.formState.errors.company?.incorporationDate?.message}
         >
-          <Input
-            type="date"
+          <DatePicker
             required={incorporationDateRequired}
             aria-label="Incorporation date"
             aria-invalid={Boolean(form.formState.errors.company?.incorporationDate)}
-            className={form.formState.errors.company?.incorporationDate ? "border-danger focus-visible:ring-danger" : undefined}
-            {...form.register("company.incorporationDate")}
+            className={form.formState.errors.company?.incorporationDate ? "border-danger" : undefined}
+            value={form.watch("company.incorporationDate") ?? ""}
+            onChange={(value) =>
+              void form.setValue("company.incorporationDate", value, {
+                shouldDirty: true,
+                shouldValidate: true,
+              })
+            }
           />
         </Field>
         <Field label="Company registration number">
@@ -568,14 +574,18 @@ function FinancialStep({
             required
             error={form.formState.errors.financialYear?.startsOn?.message}
           >
-            <Input
-              type="date"
+            <DatePicker
               readOnly={source === "COUNTRY_SUGGESTION_CONFIRMED"}
               required={source === "CUSTOM_CONFIRMED"}
               aria-label="Start date"
               aria-invalid={Boolean(form.formState.errors.financialYear?.startsOn)}
-              data-field-label="Start date"
-              {...form.register("financialYear.startsOn")}
+              value={form.watch("financialYear.startsOn") ?? ""}
+              onChange={(value) =>
+                void form.setValue("financialYear.startsOn", value, {
+                  shouldDirty: true,
+                  shouldValidate: true,
+                })
+              }
             />
           </Field>
           <Field
@@ -583,14 +593,18 @@ function FinancialStep({
             required
             error={form.formState.errors.financialYear?.endsOn?.message}
           >
-            <Input
-              type="date"
+            <DatePicker
               readOnly={source === "COUNTRY_SUGGESTION_CONFIRMED"}
               required={source === "CUSTOM_CONFIRMED"}
               aria-label="End date"
               aria-invalid={Boolean(form.formState.errors.financialYear?.endsOn)}
-              data-field-label="End date"
-              {...form.register("financialYear.endsOn")}
+              value={form.watch("financialYear.endsOn") ?? ""}
+              onChange={(value) =>
+                void form.setValue("financialYear.endsOn", value, {
+                  shouldDirty: true,
+                  shouldValidate: true,
+                })
+              }
             />
           </Field>
         </div>

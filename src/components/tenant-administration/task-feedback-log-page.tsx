@@ -22,7 +22,7 @@ import { SearchableFilterSelect } from "@/components/shared/searchable-filter-se
 import { StarRatingDisplay } from "@/components/shared/star-rating";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/shared/date-picker";
 import { Select } from "@/components/ui/select";
 import { formatIndiaTimestamp } from "@/lib/india-time";
 import { cn } from "@/lib/utils";
@@ -176,24 +176,22 @@ export function TenantTaskFeedbackLogPage() {
             </label>
             <label className="flex flex-col gap-1 text-sm font-medium">
               From date
-              <Input
+              <DatePicker
                 aria-label="Filter from date"
-                type="date"
                 value={from}
-                onChange={(event) => {
-                  setFrom(event.target.value);
+                onChange={(value) => {
+                  setFrom(value);
                   setPage(1);
                 }}
               />
             </label>
             <label className="flex flex-col gap-1 text-sm font-medium">
               To date
-              <Input
+              <DatePicker
                 aria-label="Filter to date"
-                type="date"
                 value={to}
-                onChange={(event) => {
-                  setTo(event.target.value);
+                onChange={(value) => {
+                  setTo(value);
                   setPage(1);
                 }}
               />

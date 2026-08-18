@@ -69,8 +69,20 @@ async function parseBody(response: Response) {
   return body;
 }
 
-export async function listTenantServiceRequests(status?: TenantServiceRequest["status"]): Promise<readonly TenantServiceRequest[]> {
-  const suffix = status ? `?status=${encodeURIComponent(status)}` : "";
+export async function listTenantServiceRequests(filters?: {
+  status?: TenantServiceRequest["status"];
+  clientId?: string;
+  employeeId?: string;
+  taskName?: string;
+  search?: string;
+}): Promise<readonly TenantServiceRequest[]> {
+  const params = new URLSearchParams();
+  if (filters?.status) params.set("status", filters.status);
+  if (filters?.clientId) params.set("clientId", filters.clientId);
+  if (filters?.employeeId) params.set("employeeId", filters.employeeId);
+  if (filters?.taskName?.trim()) params.set("taskName", filters.taskName.trim());
+  if (filters?.search?.trim()) params.set("search", filters.search.trim());
+  const suffix = params.size ? `?${params.toString()}` : "";
   const response = await fetch(`/api/tenant-admin/service-requests${suffix}`, { cache: "no-store" });
   await redirectToLoginOnUnauthorized(response);
   return z.object({ requests: z.array(requestSchema) }).parse(await parseBody(response)).requests;

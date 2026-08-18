@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
@@ -9,7 +8,6 @@ import {
   assigneeInitials,
   humanise,
   taskAccent,
-  taskOpenHref,
   type CalendarTask,
 } from "@/components/operations/task-calendar/task-calendar-utils";
 
@@ -25,7 +23,6 @@ export function TaskCalendarDetailDrawer({
   if (!task) return null;
 
   const accent = taskAccent(task);
-  const openHref = taskOpenHref(task);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -85,15 +82,6 @@ export function TaskCalendarDetailDrawer({
           {task.description ? (
             <p className="mt-4 text-sm text-muted-foreground">{task.description}</p>
           ) : null}
-
-          <div className="mt-auto flex gap-2 border-t pt-5">
-            <Link href={openHref} className="inline-flex h-10 flex-1 items-center justify-center rounded-md border px-4 text-sm font-medium">
-              Open task
-            </Link>
-            <Link href={openHref} className="inline-flex h-10 flex-1 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground">
-              Edit task
-            </Link>
-          </div>
         </div>
       </DialogContent>
     </Dialog>

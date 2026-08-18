@@ -272,6 +272,48 @@ describe("ClientServiceRequestsRepository", () => {
     expect(activation.activateInTransaction).not.toHaveBeenCalled();
     expect(accepted.status).toBe("accepted");
   });
+
+  it("lists tenant requests with client, employee, task name and request-content filters", async () => {
+    const queries: string[] = [];
+    const params: unknown[][] = [];
+    const { repository } = createRepository(async (sql, values = []) => {
+      queries.push(sql);
+      params.push([...values]);
+      if (sql.includes("from public.client_service_requests csr") && sql.includes("csr.tenant_id = $1")) {
+        return { rows: [], rowCount: 0 };
+      }
+      return { rows: [], rowCount: 0 };
+    });
+
+    await repository.listForTenant(tenantContext, {
+      status: "submitted",
+      clientId,
+      employeeId,
+      taskName: "GSTR-1",
+      search: "GST services",
+    });
+
+    const listIndex = queries.findIndex(
+      (sql) =>
+        sql.includes("from public.client_service_requests csr") &&
+        sql.includes("assigned.assigned_employee_id = $4::uuid"),
+    );
+    expect(listIndex).toBeGreaterThanOrEqual(0);
+    const sql = queries[listIndex] ?? "";
+    expect(sql).toContain("csr.tenant_id = $1");
+    expect(sql).toContain("csr.client_id = $2::uuid");
+    expect(sql).toContain("task->>'taskType'");
+    expect(sql).toContain("csr.title ilike $6");
+    expect(sql).toContain("csr.description ilike $6");
+    expect(params[listIndex]).toEqual([
+      "tenant-1",
+      clientId,
+      "submitted",
+      employeeId,
+      "%GSTR-1%",
+      "%GST services%",
+    ]);
+  });
 });
 
 function fingerprintFor(input: CreateClientServiceRequest): string {

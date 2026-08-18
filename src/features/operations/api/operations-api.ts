@@ -769,6 +769,23 @@ export async function createTenantAdminService(input: CreateTenantAdminServiceIn
   return tenantAdminServiceSchema.parse(await parseJsonResponse(response));
 }
 
+export async function setTenantAdminServiceStatus(input: {
+  serviceId: string;
+  status: "active" | "inactive";
+}): Promise<{ serviceId: string; name: string; status: "active" | "inactive" }> {
+  const response = await fetch(
+    `/api/tenant-admin/services/${encodeURIComponent(input.serviceId)}/status`,
+    {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ status: input.status }),
+    },
+  );
+  return z
+    .object({ serviceId: z.string(), name: z.string(), status: z.enum(["active", "inactive"]) })
+    .parse(await parseJsonResponse(response));
+}
+
 export async function setTenantAdminServiceTaskStatus(input: {
   serviceId: string;
   rateItemId: string;

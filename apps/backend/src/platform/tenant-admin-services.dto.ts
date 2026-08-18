@@ -18,6 +18,9 @@ export const tenantAdminServiceTaskStatusSchema = z.object({
 });
 export type TenantAdminServiceTaskStatusRequest = z.infer<typeof tenantAdminServiceTaskStatusSchema>;
 
+export const tenantAdminServiceStatusSchema = tenantAdminServiceTaskStatusSchema;
+export type TenantAdminServiceStatusRequest = TenantAdminServiceTaskStatusRequest;
+
 export class TenantAdminServiceRateDto {
   @ApiProperty({ type: String, format: "uuid" })
   id!: string;
@@ -78,6 +81,17 @@ export class TenantAdminServiceTaskStatusResponseDto {
 
   @ApiProperty({ type: String })
   taskType!: string;
+
+  @ApiProperty({ enum: ["active", "inactive"] })
+  status!: "active" | "inactive";
+}
+
+export class TenantAdminServiceStatusResponseDto {
+  @ApiProperty({ type: String, format: "uuid" })
+  serviceId!: string;
+
+  @ApiProperty({ type: String })
+  name!: string;
 
   @ApiProperty({ enum: ["active", "inactive"] })
   status!: "active" | "inactive";

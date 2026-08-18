@@ -10,6 +10,7 @@ import {
   type ClientPortalDashboard,
 } from "@/features/client-portal/api/client-portal-dashboard-api";
 import { formatDiscountPercent, formatMonthLabel, summarizeClientServiceSchedule, taskYearMonth } from "@/features/client-portal/client-service-pricing";
+import { openSignedDownloadUrl } from "@/lib/signed-download";
 import { createClientServiceComment } from "@/features/client-portal/api/client-portal-service-comments-api";
 import {
   decideClientPortalDeliverable,
@@ -48,6 +49,7 @@ import {
 } from "@/components/ui/card";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/shared/date-picker";
 import { formatDashboardMonthLabel } from "@/lib/dashboard-greeting";
 
 const CLIENT_DASHBOARD_MAX_SPAN_DAYS = 731;
@@ -330,9 +332,11 @@ function ClientInvoices({
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() => void getClientPortalInvoiceDownloadUrl(invoice.id)
-                    .then((url) => window.open(url, "_blank", "noopener,noreferrer"))
-                    .catch((error) => toast.error(error instanceof Error ? error.message : "Invoice download could not be started."))}
+                  onClick={() =>
+                    void openSignedDownloadUrl(() => getClientPortalInvoiceDownloadUrl(invoice.id)).catch((error) =>
+                      toast.error(error instanceof Error ? error.message : "Invoice download could not be started."),
+                    )
+                  }
                 >
                   Download invoice
                 </Button>
@@ -985,15 +989,14 @@ function ClientDeliverablesList({
                       variant="outline"
                       disabled={isExpiredAgreement}
                       onClick={() =>
-                        void getClientPortalDeliverableDownloadUrl(item.id)
-                          .then((url) => window.open(url, "_blank", "noopener,noreferrer"))
-                          .catch((error) =>
+                        void openSignedDownloadUrl(() => getClientPortalDeliverableDownloadUrl(item.id)).catch(
+                          (error) =>
                             toast.error(
                               error instanceof Error
                                 ? error.message
                                 : "Document download could not be started.",
                             ),
-                          )
+                        )
                       }
                     >
                       Download
@@ -1295,22 +1298,20 @@ function ClientPortalPeriodFilter({
       </label>
       <label className="text-sm font-medium">
         From
-        <Input
+        <DatePicker
           className="mt-1"
-          type="date"
           aria-label="Dashboard from date"
           value={fromValue}
-          onChange={(event) => onFromChange(event.target.value)}
+          onChange={onFromChange}
         />
       </label>
       <label className="text-sm font-medium">
         To
-        <Input
+        <DatePicker
           className="mt-1"
-          type="date"
           aria-label="Dashboard to date"
           value={toValue}
-          onChange={(event) => onToChange(event.target.value)}
+          onChange={onToChange}
         />
       </label>
       {invalidRange ? (

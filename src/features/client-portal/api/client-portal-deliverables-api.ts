@@ -60,7 +60,9 @@ async function parseBody(response: Response) {
     throw new Error(
       typeof body?.message === "string"
         ? body.message
-        : "Client deliverables request failed.",
+        : typeof body?.error?.message === "string"
+          ? body.error.message
+          : "Client deliverables request failed.",
     );
   }
   return body;

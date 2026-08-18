@@ -71,6 +71,19 @@ function isActiveItem(
   );
 }
 
+function activeParentLabel(
+  items: NavigationItem[],
+  pathname: string,
+  workspace: Workspace,
+): string | null {
+  return (
+    items.find(
+      (item) =>
+        Boolean(item.children?.length) && isActiveItem(item, pathname, workspace),
+    )?.label ?? null
+  );
+}
+
 function WorkspaceNavigation({
   items,
   pathname,
@@ -85,10 +98,14 @@ function WorkspaceNavigation({
   onNavigate?: () => void;
 }) {
   const t = useTranslations();
-  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>(
-    {},
+  const [expandedGroup, setExpandedGroup] = useState<string | null>(() =>
+    activeParentLabel(items, pathname, workspace),
   );
   const [openFlyoutGroup, setOpenFlyoutGroup] = useState<string | null>(null);
+
+  useEffect(() => {
+    setExpandedGroup(activeParentLabel(items, pathname, workspace));
+  }, [items, pathname, workspace]);
   const labelClassName = cn(
     "min-w-0 flex-1 truncate transition-[opacity,transform] duration-200 ease-out motion-reduce:transition-none",
     collapsed
@@ -131,8 +148,7 @@ function WorkspaceNavigation({
     const href =
       item.href !== undefined ? `/${workspace}${item.href}` : undefined;
     const hasChildren = Boolean(item.children?.length);
-    const expanded =
-      expandedGroups[item.label] ?? (workspace === "admin" || active);
+    const expanded = nested ? active : expandedGroup === item.label;
     const itemId = item.label.toLowerCase().replaceAll(" ", "-");
     const tooltipId = `${workspace}-${itemId}-tooltip`;
     const commonClassName = cn(
@@ -198,10 +214,9 @@ function WorkspaceNavigation({
               );
               return;
             }
-            setExpandedGroups((current) => ({
-              ...current,
-              [item.label]: !expanded,
-            }));
+            setExpandedGroup((current) =>
+              current === item.label ? null : item.label,
+            );
           }}
           onKeyDown={(event) => {
             if (event.key === "Escape") setOpenFlyoutGroup(null);

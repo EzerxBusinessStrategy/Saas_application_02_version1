@@ -22,6 +22,7 @@ import {
   ClientServiceCatalogueResponseDto,
   ClientServiceRequestDto,
   CreateClientServiceRequest,
+  ListTenantServiceRequestsQuery,
   RejectClientServiceRequest,
 } from "./client-service-requests.dto";
 import { TenantAdminRequestContext } from "./tenant-admin-context";
@@ -237,10 +238,10 @@ export class ClientServiceRequestsRepository {
 
   async listForTenant(
     context: TenantAdminRequestContext,
-    status?: ClientServiceRequestDto["status"],
+    filters: ListTenantServiceRequestsQuery,
   ): Promise<readonly ClientServiceRequestDto[]> {
     return this.withTenantAdmin(context, async (client) => {
-      const rows = await this.listRows(client, context.tenantId, { status });
+      const rows = await this.listRows(client, context.tenantId, filters);
       return Promise.all(rows.map((row) => this.mapRequest(client, context.tenantId, row, false)));
     });
   }
@@ -491,7 +492,7 @@ export class ClientServiceRequestsRepository {
   private async listRows(
     client: PoolClient,
     tenantId: string,
-    filters: { clientId?: string; status?: ClientServiceRequestDto["status"] },
+    filters: ListTenantServiceRequestsQuery,
   ): Promise<readonly RequestRow[]> {
     const result = await client.query<RequestRow>(
       `
@@ -517,10 +518,76 @@ export class ClientServiceRequestsRepository {
         where csr.tenant_id = $1
           and ($2::uuid is null or csr.client_id = $2::uuid)
           and ($3::text is null or csr.status = $3)
+          and (
+            $4::uuid is null
+            or exists (
+              select 1
+              from public.client_service_request_items assigned
+              where assigned.tenant_id = csr.tenant_id
+                and assigned.request_id = csr.id
+                and assigned.assigned_employee_id = $4::uuid
+            )
+          )
+          and (
+            $5::text is null
+            or exists (
+              select 1
+              from jsonb_array_elements(coalesce(csr.snapshot->'services', '[]'::jsonb)) svc
+              left join lateral jsonb_array_elements(coalesce(svc->'tasks', '[]'::jsonb)) task on true
+              where coalesce(task->>'title', '') ilike $5 escape '\'
+                 or coalesce(task->>'taskType', '') ilike $5 escape '\'
+            )
+            or exists (
+              select 1
+              from public.client_service_request_items item
+              left join lateral jsonb_array_elements(coalesce(item.task_snapshot->'tasks', '[]'::jsonb)) task on true
+              where item.tenant_id = csr.tenant_id
+                and item.request_id = csr.id
+                and (
+                  coalesce(task->>'title', '') ilike $5 escape '\'
+                  or coalesce(task->>'taskType', '') ilike $5 escape '\'
+                )
+            )
+          )
+          and (
+            $6::text is null
+            or csr.title ilike $6 escape '\'
+            or csr.description ilike $6 escape '\'
+            or coalesce(csr.review_remarks, '') ilike $6 escape '\'
+            or exists (
+              select 1
+              from jsonb_array_elements(coalesce(csr.snapshot->'services', '[]'::jsonb)) svc
+              left join lateral jsonb_array_elements(coalesce(svc->'tasks', '[]'::jsonb)) task on true
+              where coalesce(svc->>'serviceName', '') ilike $6 escape '\'
+                 or coalesce(task->>'title', '') ilike $6 escape '\'
+                 or coalesce(task->>'taskType', '') ilike $6 escape '\'
+            )
+            or exists (
+              select 1
+              from public.client_service_request_items item
+              left join public.services s
+                on s.tenant_id = item.tenant_id and s.id = item.service_id
+              left join lateral jsonb_array_elements(coalesce(item.task_snapshot->'tasks', '[]'::jsonb)) task on true
+              where item.tenant_id = csr.tenant_id
+                and item.request_id = csr.id
+                and (
+                  coalesce(s.name, '') ilike $6 escape '\'
+                  or coalesce(task->>'title', '') ilike $6 escape '\'
+                  or coalesce(task->>'taskType', '') ilike $6 escape '\'
+                )
+            )
+          )
         order by csr.submitted_at desc, csr.id desc
         limit 100
       `,
-      [tenantId, filters.clientId ?? null, filters.status ?? null],
+      [
+        tenantId,
+        filters.clientId ?? null,
+        filters.status ?? null,
+        filters.employeeId ?? null,
+        likePattern(filters.taskName),
+        likePattern(filters.search),
+      ],
     );
     return result.rows;
   }
@@ -920,4 +987,10 @@ function parseTasks(value: unknown): ClientServiceRequestDto["services"][number]
       },
     ];
   });
+}
+
+function likePattern(value?: string): string | null {
+  const trimmed = value?.trim() ?? "";
+  if (!trimmed) return null;
+  return `%${trimmed.replaceAll("\\", "\\\\").replaceAll("%", "\\%").replaceAll("_", "\\_")}%`;
 }

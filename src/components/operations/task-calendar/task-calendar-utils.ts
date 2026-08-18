@@ -20,8 +20,10 @@ import {
 import type { TenantAdminTask } from "@/features/operations/api/operations-api";
 import {
   isTenantAdminTaskAwaitingReview,
+  mapTenantAdminTaskFeatureStatus,
   tenantTaskReviewHref,
 } from "@/features/operations/tenant-admin-task-map";
+import type { OperationalTask } from "@/types/operations";
 
 export type CalendarView = "month" | "week" | "agenda";
 
@@ -39,20 +41,16 @@ export const weekdayLabels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] a
 
 export const visibleTasksPerDay = 3;
 
-export const taskStatusOptions = [
-  "draft",
-  "requested",
-  "open",
-  "assigned",
-  "in_progress",
-  "submitted",
-  "manager_review",
-  "returned",
-  "tenant_approval",
-  "approved",
-  "completed",
-  "cancelled",
-] as const;
+export const taskStatusOptions: ReadonlyArray<{
+  value: OperationalTask["status"];
+  label: string;
+}> = [
+  { value: "to-do", label: "To do" },
+  { value: "in-progress", label: "In progress" },
+  { value: "review", label: "Review" },
+  { value: "rejected", label: "Returned" },
+  { value: "done", label: "Done" },
+];
 
 export function calendarDays(month: Date) {
   return eachDayOfInterval({
@@ -85,7 +83,9 @@ export function filterCalendarTasks(
       return false;
     }
     if (filters.clientId && task.clientId !== filters.clientId) return false;
-    if (filters.status !== "all" && task.status !== filters.status) return false;
+    if (filters.status !== "all" && mapTenantAdminTaskFeatureStatus(task) !== filters.status) {
+      return false;
+    }
     if (filters.priority !== "all" && task.priority !== filters.priority) return false;
     if (!needle) return true;
 

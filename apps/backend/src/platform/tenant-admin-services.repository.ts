@@ -9,6 +9,7 @@ import {
   TenantAdminServiceCreateRequest,
   TenantAdminServiceDto,
   TenantAdminServiceRateDto,
+  TenantAdminServiceStatusResponseDto,
   TenantAdminServiceTaskStatusResponseDto,
 } from "./tenant-admin-services.dto";
 
@@ -96,6 +97,38 @@ export class TenantAdminServicesRepository {
         [context.tenantId],
       );
       return result.rows.map((row) => ({ ...row, rates: dedupeRates(row.rates) }));
+    });
+  }
+
+  async setServiceStatus(
+    context: TenantAdminRequestContext,
+    serviceId: string,
+    status: "active" | "inactive",
+  ): Promise<TenantAdminServiceStatusResponseDto> {
+    return this.withContext(context, async (client) => {
+      const result = await client.query<{ id: string; name: string; status: "active" | "inactive" }>(
+        `
+          update public.services
+          set status = $3, updated_at = now()
+          where tenant_id = $1
+            and id = $2
+            and status in ('active', 'inactive')
+          returning id::text, name, status
+        `,
+        [context.tenantId, serviceId, status],
+      );
+      const service = result.rows[0];
+      if (!service) {
+        throw new NotFoundException({
+          code: "SERVICE_NOT_AVAILABLE",
+          message: "Select a service from this tenant catalogue.",
+        });
+      }
+      await client.query(
+        "select audit.write_audit_event('SERVICE_STATUS_UPDATED', 'service', $1::uuid, 'succeeded', null, $2::jsonb)",
+        [serviceId, JSON.stringify({ status })],
+      );
+      return { serviceId: service.id, name: service.name, status: service.status };
     });
   }
 

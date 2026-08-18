@@ -15,14 +15,14 @@ export function TenantDashboardCalendarWidget({
 }: TenantDashboardCalendarWidgetProps) {
   return (
     <Card>
-      <CardHeader className="gap-1 border-b pb-4">
-        <CardTitle className="flex items-center gap-2">
-          <CalendarDays className="size-[18px] text-primary" aria-hidden="true" />
+      <CardHeader className="gap-0.5 border-b px-4 py-3 sm:px-5">
+        <CardTitle className="flex items-center gap-2 text-lg leading-6">
+          <CalendarDays className="size-4 text-primary" aria-hidden="true" />
           Task calendar
         </CardTitle>
-        <CardDescription>Plan and monitor client work and employee schedules.</CardDescription>
+        <CardDescription>Scheduled client work for the selected period.</CardDescription>
       </CardHeader>
-      <div className="p-4 sm:p-6">
+      <div className="p-3 sm:p-4">
         <TaskCalendarWorkspace
           variant="embedded"
           initialClientId={clientId ?? ""}

@@ -26,6 +26,7 @@ import { BoxBuildLoader } from "@/components/shared/box-build-loader";
 import { LoadingState } from "@/components/shared/loading-state";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { DatePicker } from "@/components/shared/date-picker";
 import {
   Card,
   CardContent,
@@ -317,7 +318,7 @@ function EmployeeManagerAssignTaskPage() {
           <ManagerField label="Task title"><input className={managerInputClass} value={title} onChange={(event) => setTitle(event.target.value)} /></ManagerField>
           <ManagerField label="Assign employee"><select className={managerInputClass} value={selectedEmployee} onChange={(event) => setEmployeeId(event.target.value)}>{options.employees.filter((employee) => employee.employmentStatus === "active").map((employee) => <option key={employee.id} value={employee.id}>{employee.name}</option>)}</select></ManagerField>
           <ManagerField label="Priority"><select className={managerInputClass} value={priority} onChange={(event) => setPriority(event.target.value as typeof priority)}><option value="normal">Normal</option><option value="high">High</option><option value="urgent">Urgent</option><option value="low">Low</option></select></ManagerField>
-          <ManagerField label="Due date"><input type="date" className={managerInputClass} value={dueDate} onChange={(event) => setDueDate(event.target.value)} /></ManagerField>
+          <ManagerField label="Due date"><DatePicker value={dueDate} onChange={setDueDate} aria-label="Due date" /></ManagerField>
           <label className="flex flex-col gap-1 text-sm font-medium sm:col-span-2">Description<textarea className={`${managerInputClass} min-h-28`} value={description} onChange={(event) => setDescription(event.target.value)} /></label>
           <div className="flex items-center justify-end gap-3 sm:col-span-2">
             {message ? <p className="mr-auto text-sm text-muted-foreground">{message}</p> : null}

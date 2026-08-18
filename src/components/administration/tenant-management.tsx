@@ -21,6 +21,7 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { EntityHeader } from "@/components/shared/entity-header";
 import { ErrorState } from "@/components/shared/error-state";
 import { FilterToolbar } from "@/components/shared/filter-toolbar";
+import { DatePicker } from "@/components/shared/date-picker";
 import { LoadingState } from "@/components/shared/loading-state";
 import { MobileEntityCard } from "@/components/shared/mobile-entity-card";
 import { PageHeader } from "@/components/shared/page-header";
@@ -545,13 +546,10 @@ export function TenantDirectory() {
             </label>
             <label className="flex flex-col gap-1 text-sm font-medium">
               Created after
-              <Input
+              <DatePicker
                 aria-label="Filter by created date"
-                type="date"
                 value={request.createdAfter ?? ""}
-                onChange={(event) =>
-                  setParam("createdAfter", event.target.value)
-                }
+                onChange={(value) => setParam("createdAfter", value)}
               />
             </label>
           </FilterToolbar>

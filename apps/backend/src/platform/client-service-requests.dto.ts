@@ -56,6 +56,16 @@ export type CreateClientServiceRequest = z.infer<typeof createClientServiceReque
 export const listTenantServiceRequestsQuerySchema = z
   .object({
     status: clientServiceRequestStatusSchema.optional(),
+    clientId: z.preprocess((value) => (value === "" ? undefined : value), z.string().uuid().optional()),
+    employeeId: z.preprocess((value) => (value === "" ? undefined : value), z.string().uuid().optional()),
+    taskName: z.preprocess(
+      (value) => (value === "" ? undefined : value),
+      z.string().trim().max(120).optional(),
+    ),
+    search: z.preprocess(
+      (value) => (value === "" ? undefined : value),
+      z.string().trim().max(120).optional(),
+    ),
   })
   .default({});
 export type ListTenantServiceRequestsQuery = z.infer<typeof listTenantServiceRequestsQuerySchema>;

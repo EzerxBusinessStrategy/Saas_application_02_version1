@@ -28,6 +28,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/shared/date-picker";
 import { Select } from "@/components/ui/select";
 import { MetricCard } from "@/components/shared/metric-card";
 import { PageHeader } from "@/components/shared/page-header";
@@ -531,7 +532,7 @@ function DateInput({
   return (
     <label className="text-sm font-medium">
       {label}
-      <Input className="mt-1" type="date" value={value} onChange={(event) => onChange(event.target.value)} />
+      <DatePicker className="mt-1" value={value} onChange={onChange} aria-label={label} />
     </label>
   );
 }

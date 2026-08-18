@@ -23,6 +23,7 @@ import {
   TenantDashboardKpiSkeleton,
 } from "@/components/tenant-administration/tenant-dashboard-kpi";
 import { TenantDashboardCalendarWidget } from "@/components/tenant-administration/tenant-dashboard-calendar-widget";
+import { DatePicker } from "@/components/shared/date-picker";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -31,7 +32,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { listTenantAdminTaskOptions } from "@/features/operations/api/operations-api";
 import { formatDashboardMoney } from "@/lib/dashboard-money";
@@ -502,27 +502,25 @@ export function TenantAdministrationOverview() {
         </label>
         <label className="text-sm font-medium">
           From
-          <Input
+          <DatePicker
             className="mt-1"
-            type="date"
             aria-label="Dashboard from date"
             value={fromValue}
-            onChange={(event) => {
+            onChange={(value) => {
               setPreset("custom");
-              setDraftFrom(event.target.value);
+              setDraftFrom(value);
             }}
           />
         </label>
         <label className="text-sm font-medium">
           To
-          <Input
+          <DatePicker
             className="mt-1"
-            type="date"
             aria-label="Dashboard to date"
             value={toValue}
-            onChange={(event) => {
+            onChange={(value) => {
               setPreset("custom");
-              setDraftTo(event.target.value);
+              setDraftTo(value);
             }}
           />
         </label>

@@ -10,7 +10,7 @@ import { LoadingState } from "@/components/shared/loading-state";
 import { ChartCard } from "@/components/dashboard/chart-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select } from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/shared/date-picker";
 import { Button } from "@/components/ui/button";
 import { getTenantAnalytics } from "@/features/platform/api/tenant-analytics-api";
 import type { TenantAnalyticsFilters } from "@/types/tenant-analytics";
@@ -40,8 +40,8 @@ export function TenantAnalyticsPage() {
     <Card className="super-admin-surface"><CardContent className="grid gap-4 p-[30px] md:grid-cols-4" aria-busy={query.isFetching}>
       <label className="text-sm font-medium">Tenant<Select className="mt-1" value={draftFilters.tenantId ?? ""} onChange={(event) => { setDraftFilters({ tenantId: event.target.value || undefined }); }}><option value="">All tenants</option>{data.tenants.map((tenant) => <option key={tenant.id} value={tenant.id}>{tenant.name}{tenant.status === "cancelled" ? " (Cancelled)" : ""}</option>)}</Select></label>
       <label className="text-sm font-medium">Financial year<Select className="mt-1" value={draftFilters.financialYearId ?? ""} disabled={!draftFilters.tenantId || Boolean(draftFilters.from)} onChange={(event) => { updateDraft({ financialYearId: event.target.value || undefined, from: undefined, to: undefined }); }}><option value="">Current FY{draftFilters.tenantId ? "" : " per tenant"}</option>{data.financialYears.map((year) => <option key={year.id} value={year.id}>{year.label}</option>)}</Select></label>
-      <label className="text-sm font-medium">From<Input className="mt-1" type="date" value={draftFilters.from ?? ""} onChange={(event) => updateDraft({ from: event.target.value || undefined, financialYearId: undefined })} /></label>
-      <label className="text-sm font-medium">To<Input className="mt-1" type="date" value={draftFilters.to ?? ""} onChange={(event) => updateDraft({ to: event.target.value || undefined, financialYearId: undefined })} /></label>
+      <label className="text-sm font-medium">From<DatePicker className="mt-1" value={draftFilters.from ?? ""} onChange={(value) => updateDraft({ from: value || undefined, financialYearId: undefined })} aria-label="From date" /></label>
+      <label className="text-sm font-medium">To<DatePicker className="mt-1" value={draftFilters.to ?? ""} onChange={(value) => updateDraft({ to: value || undefined, financialYearId: undefined })} aria-label="To date" /></label>
       <div className="md:col-span-4 flex items-center gap-3"><Button type="button" disabled={!filtersDirty || incompleteDateRange || invalidDateRange || query.isFetching} onClick={updateAnalytics}>Update</Button>{query.isFetching ? <AnalyticsUpdateLoader /> : incompleteDateRange || invalidDateRange ? <p className="text-sm text-muted-foreground">Choose a valid start and end date.</p> : null}</div>
     </CardContent></Card>
     <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5"><Metric label="Turnover" value={money(data.metrics.turnover, currency)} /><Metric label="Collected" value={money(data.metrics.collected, currency)} /><Metric label="Outstanding" value={money(data.metrics.outstanding, currency)} /><Metric label="Tasks completed" value={`${number.format(data.metrics.completedTasks)} / ${number.format(data.metrics.totalTasks)}`} /><Metric label="SLA compliance" value={`${data.metrics.slaCompliance}%`} /></div>

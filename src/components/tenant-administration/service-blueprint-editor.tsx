@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/shared/date-picker";
 import { Select } from "@/components/ui/select";
 import {
   getServiceBlueprint,
@@ -148,7 +149,7 @@ export function ServiceBlueprintEditor({
                 </label>
                 <label className="text-sm font-medium">
                   Effective from
-                  <Input className="mt-1" type="date" value={effectiveFrom} onChange={(event) => setEffectiveFrom(event.target.value)} />
+                  <DatePicker className="mt-1" value={effectiveFrom} onChange={setEffectiveFrom} aria-label="Effective from" />
                 </label>
               </div>
               <ul className="mt-5 flex flex-col gap-4">
@@ -261,10 +262,10 @@ export function DueRuleFields({
     return (
       <label className="grid gap-1">
         <span className="text-sm font-medium">Due date</span>
-        <Input
-          type="date"
+        <DatePicker
           value={dueRule.date ?? ""}
-          onChange={(event) => onChange({ type: "fixed_month_day", date: event.target.value })}
+          onChange={(value) => onChange({ type: "fixed_month_day", date: value })}
+          aria-label="Due date"
         />
       </label>
     );

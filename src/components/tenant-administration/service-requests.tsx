@@ -1,12 +1,14 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ServiceEmployeeSelector } from "@/components/tenant-administration/service-employee-selector";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ErrorState } from "@/components/shared/error-state";
+import { FilterToolbar } from "@/components/shared/filter-toolbar";
 import { LoadingState } from "@/components/shared/loading-state";
+import { SearchableFilterSelect } from "@/components/shared/searchable-filter-select";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,6 +16,7 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { DataTable } from "@/components/operations/data-table";
+import { listClients } from "@/features/administration/api/administration-api";
 import { listClientServiceOnboardingAssignees } from "@/features/administration/api/service-onboarding-api";
 import {
   acceptTenantServiceRequest,
@@ -21,56 +24,147 @@ import {
   rejectTenantServiceRequest,
   type TenantServiceRequest,
 } from "@/features/administration/api/tenant-service-requests-api";
+import { listTenantAdminEmployees } from "@/features/operations/api/operations-api";
 import type { ColumnDef } from "@tanstack/react-table";
 
 export function TenantServiceRequestsInbox() {
   const queryClient = useQueryClient();
   const [status, setStatus] = useState<"submitted" | "all">("submitted");
+  const [clientId, setClientId] = useState("");
+  const [employeeId, setEmployeeId] = useState("");
+  const [taskName, setTaskName] = useState("");
+  const [debouncedTaskName, setDebouncedTaskName] = useState("");
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      setDebouncedTaskName(taskName.trim());
+      setDebouncedSearch(search.trim());
+    }, 300);
+    return () => window.clearTimeout(timeout);
+  }, [taskName, search]);
+
+  const clientsQuery = useQuery({
+    queryKey: ["tenant-finance-clients", "service-requests"],
+    queryFn: () => listClients({ page: 1, pageSize: 100 }),
+  });
+  const employeesQuery = useQuery({
+    queryKey: ["tenant-admin-employees", "service-requests"],
+    queryFn: listTenantAdminEmployees,
+  });
   const query = useQuery({
-    queryKey: ["tenant-service-requests", status],
-    queryFn: () => listTenantServiceRequests(status === "all" ? undefined : "submitted"),
+    queryKey: ["tenant-service-requests", status, clientId, employeeId, debouncedTaskName, debouncedSearch],
+    queryFn: () =>
+      listTenantServiceRequests({
+        status: status === "all" ? undefined : "submitted",
+        clientId: clientId || undefined,
+        employeeId: employeeId || undefined,
+        taskName: debouncedTaskName || undefined,
+        search: debouncedSearch || undefined,
+      }),
   });
 
-  if (query.isPending) return <LoadingState label="Loading client requests" rows={5} />;
-  if (query.isError) return <ErrorState title="Client requests could not load" onRetry={() => void query.refetch()} />;
+  const clientOptions = clientsQuery.data?.items.map((client) => ({ id: client.id, name: client.name })) ?? [];
+  const employeeOptions = employeesQuery.data?.map((employee) => ({ id: employee.id, name: employee.name })) ?? [];
+  const activeFilterCount =
+    Number(status !== "submitted") +
+    Number(Boolean(clientId)) +
+    Number(Boolean(employeeId)) +
+    Number(Boolean(taskName.trim())) +
+    Number(Boolean(search.trim()));
 
-  const selected = query.data.find((request) => request.id === selectedId) ?? null;
+  const selected = query.data?.find((request) => request.id === selectedId) ?? null;
+  const hasFilters = activeFilterCount > 0;
+  const requests = query.data ?? [];
 
   return (
     <>
       <Card>
         <CardHeader>
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <CardTitle>Client requests</CardTitle>
-              <CardDescription>
-                Clients tick services from your catalogue. Accept a request and allot the responsible employee to create the scheduled tasks.
-              </CardDescription>
-            </div>
-            <Select
-              aria-label="Filter request status"
-              value={status}
-              onChange={(event) => setStatus(event.target.value === "all" ? "all" : "submitted")}
-            >
-              <option value="submitted">Waiting for review</option>
-              <option value="all">All requests</option>
-            </Select>
-          </div>
+          <CardTitle>Client requests</CardTitle>
+          <CardDescription>
+            Clients tick services from your catalogue. Accept a request and allot the responsible employee to create the scheduled tasks.
+          </CardDescription>
         </CardHeader>
-        <CardContent>
-          {query.data.length ? (
+        <CardContent className="flex flex-col gap-5">
+          <FilterToolbar
+            filterGridClassName="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"
+            search={{
+              value: search,
+              onChange: setSearch,
+              label: "Search task requests",
+              placeholder: "Search request title, comment, service or task...",
+            }}
+            activeFilterCount={activeFilterCount}
+            onClear={() => {
+              setStatus("submitted");
+              setClientId("");
+              setEmployeeId("");
+              setTaskName("");
+              setSearch("");
+            }}
+          >
+            <SearchableFilterSelect
+              label="Client"
+              ariaLabel="Filter by client name"
+              value={clientId}
+              onChange={setClientId}
+              options={clientOptions}
+              emptyLabel="All clients"
+              placeholder="Search clients..."
+            />
+            <SearchableFilterSelect
+              label="Employee"
+              ariaLabel="Filter by allotted employee"
+              value={employeeId}
+              onChange={setEmployeeId}
+              options={employeeOptions}
+              emptyLabel="All employees"
+              placeholder="Search employees..."
+            />
+            <label className="flex flex-col gap-1 text-sm font-medium">
+              Task name
+              <Input
+                aria-label="Filter by task name"
+                placeholder="Search task name..."
+                value={taskName}
+                onChange={(event) => setTaskName(event.target.value)}
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-sm font-medium">
+              Status
+              <Select
+                aria-label="Filter request status"
+                value={status}
+                onChange={(event) => setStatus(event.target.value === "all" ? "all" : "submitted")}
+              >
+                <option value="submitted">Waiting for review</option>
+                <option value="all">All requests</option>
+              </Select>
+            </label>
+          </FilterToolbar>
+          {query.isPending ? (
+            <LoadingState label="Loading client requests" rows={5} />
+          ) : query.isError ? (
+            <ErrorState title="Client requests could not load" onRetry={() => void query.refetch()} />
+          ) : requests.length ? (
             <DataTable
               caption="Client service requests"
               columns={columns(setSelectedId)}
-              data={[...query.data]}
+              data={[...requests]}
               emptyTitle="No service requests"
               emptyDescription="Client catalogue and custom requests will appear here."
             />
           ) : (
             <EmptyState
-              title={status === "submitted" ? "No requests waiting" : "No service requests"}
-              description="When a client ticks services or sends a custom request, review it here before work is created."
+              title={hasFilters ? "No requests match these filters" : status === "submitted" ? "No requests waiting" : "No service requests"}
+              description={
+                hasFilters
+                  ? "Clear search or filters to see other task requests."
+                  : "When a client ticks services or sends a custom request, review it here before work is created."
+              }
             />
           )}
         </CardContent>

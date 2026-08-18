@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useMemo, useState } from "react";
 import {
   format,
@@ -12,9 +11,7 @@ import { useQuery } from "@tanstack/react-query";
 import {
   ChevronLeft,
   ChevronRight,
-  Plus,
   RefreshCw,
-  Search,
   X,
 } from "lucide-react";
 import {
@@ -54,7 +51,6 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
@@ -154,94 +150,78 @@ export function TaskCalendarWorkspace({
   }
 
   const toolbar = (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="w-8 px-0"
-            aria-label="Previous period"
-            onClick={() => setFocusDate((current) => navigateCalendar(view, current, "prev"))}
-          >
-            <ChevronLeft className="size-4" />
-          </Button>
-          <h2 className="min-w-[10rem] text-center text-lg font-semibold tracking-tight">
-            {calendarHeading(view, focusDate)}
-          </h2>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="w-8 px-0"
-            aria-label="Next period"
-            onClick={() => setFocusDate((current) => navigateCalendar(view, current, "next"))}
-          >
-            <ChevronRight className="size-4" />
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              const today = new Date();
-              setFocusDate(view === "month" ? startOfMonth(today) : today);
-            }}
-          >
-            Today
-          </Button>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <ViewSwitch view={view} onChange={setView} />
-          {variant === "page" ? (
-            <Link
-              href="/admin/tasks"
-              className="inline-flex h-9 items-center gap-2 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground"
-            >
-              <Plus className="size-4" aria-hidden="true" />
-              New task
-            </Link>
-          ) : null}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => void tasksQuery.refetch()}
-            disabled={tasksQuery.isFetching}
-          >
-            <RefreshCw className={cn("size-4", tasksQuery.isFetching && "animate-spin")} />
-          </Button>
+    <div className="flex flex-wrap items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="size-8 p-0"
+          aria-label="Previous period"
+          onClick={() => setFocusDate((current) => navigateCalendar(view, current, "prev"))}
+        >
+          <ChevronLeft className="size-4" />
+        </Button>
+        <h2 className="min-w-[9rem] text-center text-base font-semibold tracking-tight">
+          {calendarHeading(view, focusDate)}
+        </h2>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="size-8 p-0"
+          aria-label="Next period"
+          onClick={() => setFocusDate((current) => navigateCalendar(view, current, "next"))}
+        >
+          <ChevronRight className="size-4" />
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-8"
+          onClick={() => {
+            const today = new Date();
+            setFocusDate(view === "month" ? startOfMonth(today) : today);
+          }}
+        >
+          Today
+        </Button>
+        <div className="flex flex-wrap items-center gap-1.5 text-xs">
+          <span className="sr-only">
+            {view === "week" ? "Week overview" : `${format(focusDate, "MMMM")} overview`}
+          </span>
+          <Badge tone="info">{summary.open} Open</Badge>
+          <Badge tone="success">{summary.completed} Completed</Badge>
+          <Badge tone={summary.overdue > 0 ? "danger" : "neutral"}>{summary.overdue} Overdue</Badge>
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-3 text-sm">
-        <p className="font-medium text-foreground">
-          {view === "week" ? "Week overview" : `${format(focusDate, "MMMM")} overview`}
-        </p>
-        <Badge tone="info">{summary.open} Open</Badge>
-        <Badge tone="success">{summary.completed} Completed</Badge>
-        <Badge tone={summary.overdue > 0 ? "danger" : "neutral"}>{summary.overdue} Overdue</Badge>
+      <div className="flex flex-wrap items-center gap-2">
+        <ViewSwitch view={view} onChange={setView} />
+        <Button
+          variant="outline"
+          size="sm"
+          className="size-8 p-0"
+          aria-label="Refresh calendar"
+          onClick={() => void tasksQuery.refetch()}
+          disabled={tasksQuery.isFetching}
+        >
+          <RefreshCw className={cn("size-4", tasksQuery.isFetching && "animate-spin")} />
+        </Button>
       </div>
     </div>
   );
 
   const filterBar = (
     <FilterToolbar
+      search={{
+        value: filters.search,
+        onChange: (value) => setFilters((current) => ({ ...current, search: value })),
+        label: "Search calendar tasks",
+        placeholder: "Search tasks...",
+      }}
       activeFilterCount={activeFilterCount}
       onClear={resetFilters}
-      filterGridClassName="grid gap-3 sm:grid-cols-2 xl:grid-cols-5"
+      filterGridClassName="grid gap-2 sm:grid-cols-2 xl:grid-cols-4"
     >
-      <label className="text-sm font-medium xl:col-span-2">
-        Search
-        <div className="relative mt-1">
-          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            className="pl-9"
-            placeholder="Search tasks..."
-            value={filters.search}
-            onChange={(event) => setFilters((current) => ({ ...current, search: event.target.value }))}
-            aria-label="Search calendar tasks"
-          />
-        </div>
-      </label>
       <label className="text-sm font-medium">
         Employee
         <Select
@@ -286,8 +266,8 @@ export function TaskCalendarWorkspace({
         >
           <option value="all">All statuses</option>
           {taskStatusOptions.map((status) => (
-            <option key={status} value={status}>
-              {status.replaceAll("_", " ")}
+            <option key={status.value} value={status.value}>
+              {status.label}
             </option>
           ))}
         </Select>
@@ -324,7 +304,7 @@ export function TaskCalendarWorkspace({
         ) : null}
         {filters.status !== "all" ? (
           <FilterChip
-            label={filters.status.replaceAll("_", " ")}
+            label={taskStatusOptions.find((status) => status.value === filters.status)?.label ?? filters.status}
             onRemove={() => setFilters((c) => ({ ...c, status: "all" }))}
           />
         ) : null}
@@ -375,11 +355,11 @@ export function TaskCalendarWorkspace({
   );
 
   if (variant === "embedded") {
-    return <div className="flex flex-col gap-4">{workspace}</div>;
+    return <div className="flex flex-col gap-3">{workspace}</div>;
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-3">
       <PageHeader
         eyebrow="Operations"
         title="Task calendar"
@@ -442,7 +422,7 @@ function MonthCalendarView({
               <p
                 key={weekday}
                 className={cn(
-                  "px-3 py-2 text-xs font-semibold uppercase tracking-wide",
+                  "px-2 py-1.5 text-[11px] font-semibold uppercase tracking-wide",
                   isTodayColumn ? "text-primary" : "text-muted-foreground",
                 )}
               >
@@ -492,7 +472,7 @@ function MonthDayCell({
   return (
     <div
       className={cn(
-        "min-h-[7rem] border-b border-r p-2 align-top",
+        "min-h-[5.5rem] border-b border-r p-1.5 align-top",
         !currentMonth && "bg-muted/15 text-muted-foreground",
         highlightColumn && !today && "bg-primary/[0.03]",
         today && "bg-primary/5",
@@ -501,7 +481,7 @@ function MonthDayCell({
       <div className="flex items-start justify-between gap-1">
         <span
           className={cn(
-            "inline-flex size-7 items-center justify-center rounded-full text-xs font-semibold",
+            "inline-flex size-6 items-center justify-center rounded-full text-xs font-semibold",
             today && "bg-primary text-primary-foreground",
           )}
         >
@@ -512,7 +492,7 @@ function MonthDayCell({
         ) : null}
       </div>
       {today ? <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">Today</p> : null}
-      <div className="mt-1.5 space-y-1">
+      <div className="mt-1 space-y-1">
         {visible.map((task) => (
           <TaskCalendarEventCard
             key={task.id}
@@ -549,16 +529,16 @@ function WeekCalendarView({
           {days.map((day) => {
             const today = isSameDay(day, new Date());
             return (
-              <div key={day.toISOString()} className={cn("border-r px-3 py-2", today && "bg-primary/5")}>
-                <p className={cn("text-xs font-semibold uppercase", today ? "text-primary" : "text-muted-foreground")}>
+              <div key={day.toISOString()} className={cn("border-r px-2 py-1.5", today && "bg-primary/5")}>
+                <p className={cn("text-[11px] font-semibold uppercase", today ? "text-primary" : "text-muted-foreground")}>
                   {format(day, "EEE")}
                 </p>
-                <p className={cn("text-lg font-semibold", today && "text-primary")}>{format(day, "d")}</p>
+                <p className={cn("text-base font-semibold", today && "text-primary")}>{format(day, "d")}</p>
               </div>
             );
           })}
         </div>
-        <div className="grid min-h-[18rem] grid-cols-7">
+        <div className="grid min-h-[14rem] grid-cols-7">
           {days.map((day) => {
             const dayTasks = tasksForDay(weekTasks, day).sort(
               (left, right) => left.dueDate.getTime() - right.dueDate.getTime(),
@@ -622,17 +602,17 @@ function AgendaCalendarView({
       {[...grouped.entries()].map(([key, dayTasks]) => {
         const day = dayTasks[0]!.dueDate;
         return (
-          <section key={key} className="px-4 py-4 sm:px-6">
+          <section key={key} className="px-4 py-3 sm:px-5">
             <h3 className="text-xs font-semibold tracking-[0.12em] text-muted-foreground">
               {formatAgendaHeading(day)}
             </h3>
-            <div className="mt-3 space-y-3">
+            <div className="mt-2 space-y-2">
               {dayTasks.map((task) => (
                 <button
                   key={task.id}
                   type="button"
                   onClick={() => onSelectTask(task)}
-                  className="flex w-full items-start gap-4 rounded-md border px-3 py-3 text-left transition-colors hover:bg-muted/40"
+                  className="flex w-full items-start gap-3 rounded-md border px-3 py-2 text-left transition-colors hover:bg-muted/40"
                 >
                   <time className="w-16 shrink-0 text-sm font-medium tabular-nums">
                     {formatTaskDueTime(task.dueDate)}

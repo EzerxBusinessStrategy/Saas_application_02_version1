@@ -14,6 +14,8 @@ export function HeaderUtilityButton({
         className,
       )}
       {...props}
-    />
+    >
+      {children}
+    </button>
   );
 }

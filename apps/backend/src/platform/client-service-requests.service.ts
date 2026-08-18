@@ -9,6 +9,7 @@ import {
   ClientServiceRequestDto,
   ClientServiceRequestListResponseDto,
   CreateClientServiceRequest,
+  ListTenantServiceRequestsQuery,
   RejectClientServiceRequest,
 } from "./client-service-requests.dto";
 import { ClientServiceRequestsRepository } from "./client-service-requests.repository";
@@ -39,10 +40,10 @@ export class ClientServiceRequestsService {
 
   async listForTenant(
     context: RequestContext,
-    status?: ClientServiceRequestDto["status"],
+    query: ListTenantServiceRequestsQuery,
   ): Promise<ClientServiceRequestListResponseDto> {
     return {
-      requests: await this.repository.listForTenant(requireTenantAdminContext(context), status),
+      requests: await this.repository.listForTenant(requireTenantAdminContext(context), query),
     };
   }
 

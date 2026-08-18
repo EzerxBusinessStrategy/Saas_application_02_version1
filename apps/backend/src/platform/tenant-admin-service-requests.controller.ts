@@ -37,7 +37,7 @@ export class TenantAdminServiceRequestsController {
     @CurrentRequestContext() context: RequestContext,
     @Query(new ZodValidationPipe(listTenantServiceRequestsQuerySchema)) query: ListTenantServiceRequestsQuery,
   ): Promise<ClientServiceRequestListResponseDto> {
-    return this.service.listForTenant(context, query.status);
+    return this.service.listForTenant(context, query);
   }
 
   @Get(":requestId")

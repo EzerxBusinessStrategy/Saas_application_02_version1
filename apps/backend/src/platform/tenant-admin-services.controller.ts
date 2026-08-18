@@ -11,11 +11,14 @@ import {
   tenantAdminServiceCreateSchema,
   tenantAdminServiceAllocationsQuerySchema,
   tenantAdminServiceTaskStatusSchema,
+  tenantAdminServiceStatusSchema,
   TenantAdminServiceAllocationsQuery,
   TenantAdminServiceAllocationsResponseDto,
   TenantAdminServiceCreateRequest,
   TenantAdminServiceDto,
   TenantAdminServicesResponseDto,
+  TenantAdminServiceStatusRequest,
+  TenantAdminServiceStatusResponseDto,
   TenantAdminServiceTaskStatusRequest,
   TenantAdminServiceTaskStatusResponseDto,
 } from "./tenant-admin-services.dto";
@@ -48,6 +51,18 @@ export class TenantAdminServicesController {
     @Body(new ZodValidationPipe(tenantAdminServiceCreateSchema)) body: TenantAdminServiceCreateRequest,
   ): Promise<TenantAdminServiceDto> {
     return this.service.create(context, body);
+  }
+
+  @Patch(":serviceId/status")
+  @RequirePermissions("client.update")
+  @ApiOperation({ summary: "Enable or disable a tenant-scoped catalogue service." })
+  @ApiOkResponse({ type: TenantAdminServiceStatusResponseDto })
+  setStatus(
+    @CurrentRequestContext() context: RequestContext,
+    @Param("serviceId", new ParseUUIDPipe()) serviceId: string,
+    @Body(new ZodValidationPipe(tenantAdminServiceStatusSchema)) body: TenantAdminServiceStatusRequest,
+  ): Promise<TenantAdminServiceStatusResponseDto> {
+    return this.service.setStatus(context, serviceId, body);
   }
 
   @Patch(":serviceId/rate-items/:rateItemId/status")

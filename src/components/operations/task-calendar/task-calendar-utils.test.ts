@@ -47,6 +47,39 @@ describe("task calendar utils", () => {
     expect(filtered).toHaveLength(1);
   });
 
+  it("filters by the task-board statuses used in the product", () => {
+    const assigned = { ...sampleTask({ id: "assigned", status: "assigned" }), dueDate: parseISO("2026-08-28T12:52:00.000Z") };
+    const inProgress = {
+      ...sampleTask({ id: "progress", status: "in_progress" }),
+      dueDate: parseISO("2026-08-28T12:52:00.000Z"),
+    };
+    const review = {
+      ...sampleTask({ id: "review", status: "manager_review" }),
+      dueDate: parseISO("2026-08-28T12:52:00.000Z"),
+    };
+    const returned = {
+      ...sampleTask({ id: "returned", status: "returned" }),
+      dueDate: parseISO("2026-08-28T12:52:00.000Z"),
+    };
+    const done = {
+      ...sampleTask({ id: "done", status: "completed" }),
+      dueDate: parseISO("2026-08-28T12:52:00.000Z"),
+    };
+    const tasks = [assigned, inProgress, review, returned, done];
+    const filters = {
+      search: "",
+      employeeId: "",
+      clientId: "",
+      priority: "all" as const,
+    };
+
+    expect(filterCalendarTasks(tasks, { ...filters, status: "to-do" }).map((task) => task.id)).toEqual(["assigned"]);
+    expect(filterCalendarTasks(tasks, { ...filters, status: "in-progress" }).map((task) => task.id)).toEqual(["progress"]);
+    expect(filterCalendarTasks(tasks, { ...filters, status: "review" }).map((task) => task.id)).toEqual(["review"]);
+    expect(filterCalendarTasks(tasks, { ...filters, status: "rejected" }).map((task) => task.id)).toEqual(["returned"]);
+    expect(filterCalendarTasks(tasks, { ...filters, status: "done" }).map((task) => task.id)).toEqual(["done"]);
+  });
+
   it("derives overdue accent and summary counts", () => {
     const overdueTask = {
       ...sampleTask({ status: "assigned" }),

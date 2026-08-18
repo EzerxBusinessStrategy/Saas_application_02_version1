@@ -39,7 +39,7 @@ export function mapTenantAdminTask(task: TenantAdminTask): OperationalTask {
     description: task.description ?? "No description recorded.",
     priority: mapTaskPriority(task.priority),
     complexity: "standard",
-    status: task.latestSubmissionStatus === "returned" ? "rejected" : mapTaskStatus(task.status),
+    status: mapTenantAdminTaskFeatureStatus(task),
     sla: task.slaStatus === "near_breach" || task.slaStatus === "breached" ? "at-risk" : "on-track",
     dueDate: task.plannedDueAt ? formatTaskDate(task.plannedDueAt) : "No due date",
     checklist: [],
@@ -55,6 +55,13 @@ export function mapTenantAdminTask(task: TenantAdminTask): OperationalTask {
     reviewComment: task.latestReviewRemarks,
     blocked: task.latestSubmissionStatus === "returned" || task.status === "returned",
   };
+}
+
+export function mapTenantAdminTaskFeatureStatus(
+  task: Pick<TenantAdminTask, "status" | "latestSubmissionStatus">,
+): OperationalTask["status"] {
+  if (task.latestSubmissionStatus === "returned") return "rejected";
+  return mapTaskStatus(task.status);
 }
 
 function mapTaskPriority(priority: TenantAdminTask["priority"]): OperationalTask["priority"] {
