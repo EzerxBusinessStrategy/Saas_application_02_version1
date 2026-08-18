@@ -23,6 +23,8 @@ import {
   TenantDashboardKpiSkeleton,
 } from "@/components/tenant-administration/tenant-dashboard-kpi";
 import { TenantDashboardCalendarWidget } from "@/components/tenant-administration/tenant-dashboard-calendar-widget";
+import { TenantDashboardActivity } from "@/components/tenant-administration/tenant-dashboard-activity";
+import { compactPeriodLabel } from "@/components/tenant-administration/dashboard-activity";
 import { DatePicker } from "@/components/shared/date-picker";
 import { Button } from "@/components/ui/button";
 import {
@@ -137,17 +139,6 @@ function formatDateTime(dateStr: string): string {
   } catch {
     return dateStr;
   }
-}
-
-function relativeTime(value: string): string {
-  const seconds = Math.max(0, Math.floor((Date.now() - new Date(value).getTime()) / 1000));
-  if (seconds < 60) return "Just now";
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes} min ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours} hr${hours === 1 ? "" : "s"} ago`;
-  const days = Math.floor(hours / 24);
-  return `${days} day${days === 1 ? "" : "s"} ago`;
 }
 
 function timeRemaining(value: string): string {
@@ -297,9 +288,8 @@ export function TenantAdministrationOverview() {
     );
   }
 
-  const { metrics, financialYear, financialDataAvailable, recentActivity: rawRecentActivity, tenant, organisationSetup, upcomingDeadlines, period } = data;
+  const { metrics, financialYear, financialDataAvailable, recentActivity, tenant, organisationSetup, upcomingDeadlines, period } = data;
   const currency = tenant.currencyCode || "INR";
-  const recentActivity = rawRecentActivity.map((item) => ({ ...item, action: item.label }));
   const setupComplete = organisationSetup.completed === organisationSetup.total;
   const fromValue = draftFrom ?? period.from;
   const toValue = draftTo ?? period.to;
@@ -709,30 +699,10 @@ export function TenantAdministrationOverview() {
         </Card>
       </section>
       <section>
-        <Card>
-          <CardHeader>
-            <CardTitle>Activity in this period</CardTitle>
-            <CardDescription>
-              Traceable changes between {formatLocalIsoDate(period.from)} and {formatLocalIsoDate(period.to)}.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {recentActivity.length === 0 ? (
-              <EmptyState
-                title="No activity in this period"
-                description="Tenant audit events in the selected range will appear here."
-              />
-            ) : (
-              <ol className="flex flex-col gap-4 text-sm">
-                {recentActivity.map((item) => (
-                  <li key={item.id}>
-                    <strong>{item.actor}</strong> {item.action} - {relativeTime(item.createdAt)}
-                  </li>
-                ))}
-              </ol>
-            )}
-          </CardContent>
-        </Card>
+        <TenantDashboardActivity
+          events={recentActivity}
+          periodLabel={compactPeriodLabel(period.from, period.to)}
+        />
       </section>
     </div>
   );

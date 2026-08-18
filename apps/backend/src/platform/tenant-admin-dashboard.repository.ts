@@ -528,10 +528,9 @@ export class TenantAdminDashboardRepository {
         left join public.users u on u.id = ae.actor_user_id
         where ae.tenant_id = $1
           and ae.result = 'succeeded'
-          and ae.action <> 'TENANT_ADMIN_LOGGED_IN'
           and (ae.created_at at time zone $4)::date between $2::date and $3::date
         order by ae.created_at desc
-        limit 8
+        limit 24
       `,
       [tenantId, period.from, period.to, timezone],
     );

@@ -429,9 +429,9 @@ describe("TenantAdminDashboardService", () => {
 
     expect(queries.join("\n")).toContain("ae.tenant_id = $1");
     expect(queries.join("\n")).toContain("ae.result = 'succeeded'");
-    expect(queries.join("\n")).toContain("ae.action <> 'TENANT_ADMIN_LOGGED_IN'");
+    expect(queries.join("\n")).not.toContain("ae.action <> 'TENANT_ADMIN_LOGGED_IN'");
     expect(queries.join("\n")).toContain("(ae.created_at at time zone $4)::date between $2::date and $3::date");
-    expect(queries.join("\n")).toContain("limit 8");
+    expect(queries.join("\n")).toContain("limit 24");
     expect(params[0]).toEqual(["tenant-1", period.from, period.to, "Asia/Kolkata"]);
     expect(result[0]).toMatchObject({ id: "activity-1", resourceType: "task", resourceId: "task-1" });
   });
