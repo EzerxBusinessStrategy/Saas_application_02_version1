@@ -61,6 +61,7 @@ export class TenantAdminDashboardService {
             : null,
         openTasks: data.metrics.openTasks,
         completedTasks: data.metrics.completedTasks,
+        overdueTasks: data.metrics.overdueTasks,
         outstanding:
           data.metrics.outstandingAmount !== null
             ? {

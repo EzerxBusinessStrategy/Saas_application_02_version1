@@ -13,6 +13,7 @@ export function FilterToolbar({
   activeFilterCount = 0,
   onClear,
   disabled = false,
+  filterGridClassName,
 }: {
   search?: {
     value: string;
@@ -26,10 +27,13 @@ export function FilterToolbar({
   activeFilterCount?: number;
   onClear?: () => void;
   disabled?: boolean;
+  filterGridClassName?: string;
 }) {
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const filters = children ? (
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{children}</div>
+    <div className={filterGridClassName ?? "grid gap-3 sm:grid-cols-2 xl:grid-cols-4"}>
+      {children}
+    </div>
   ) : null;
 
   return (

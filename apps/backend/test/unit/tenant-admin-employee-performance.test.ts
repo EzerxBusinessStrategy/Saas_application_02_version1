@@ -159,4 +159,77 @@ describe("TenantAdminEmployeePerformanceService", () => {
     expect(res.items[0].eligibilityReason).toBe("INSUFFICIENT_COMPLETED_TASKS");
     expect(res.items[0].rank).toBeNull();
   });
+
+  it("filters employee performance rows by name, employee code, and SLA values", async () => {
+    const repository = {
+      getPerformanceData: vi.fn().mockResolvedValue({
+        period: { from: "2026-04-01", to: "2027-03-31", label: "FY 2026-27" },
+        tenantCurrency: "INR",
+        rows: [
+          {
+            employee_id: "emp-fast",
+            employee_code: "EMP-001",
+            display_name: "Aarav Sharma",
+            role: "Tax Senior",
+            employment_status: "active",
+            clients_served: 4,
+            total_assigned_tasks: 10,
+            completed_tasks: 9,
+            open_tasks: 1,
+            overdue_tasks: 0,
+            cancelled_tasks: 0,
+            on_time_completed_tasks: 8,
+            sla_measured_tasks: 9,
+            sla_met_tasks: 8,
+            total_actual_sla_minutes: 900,
+            total_target_sla_minutes: 1800,
+            sla_minutes_array: [100, 100, 100, 100, 100, 100, 100, 100, 100],
+            attributed_revenue: 150000,
+            currency_code: "INR",
+          },
+          {
+            employee_id: "emp-slow",
+            employee_code: "EMP-002",
+            display_name: "Rahul Verma",
+            role: "Tax Executive",
+            employment_status: "active",
+            clients_served: 2,
+            total_assigned_tasks: 6,
+            completed_tasks: 4,
+            open_tasks: 2,
+            overdue_tasks: 1,
+            cancelled_tasks: 0,
+            on_time_completed_tasks: 2,
+            sla_measured_tasks: 4,
+            sla_met_tasks: 2,
+            total_actual_sla_minutes: 1200,
+            total_target_sla_minutes: 1000,
+            sla_minutes_array: [300, 300, 300, 300],
+            attributed_revenue: 50000,
+            currency_code: "INR",
+          },
+        ],
+      }),
+    } as unknown as TenantAdminEmployeePerformanceRepository;
+
+    const service = new TenantAdminEmployeePerformanceService(repository);
+    const tenantAdminContext: RequestContext = {
+      userId: "user-admin",
+      authUserId: "auth-admin",
+      tenantId: "tenant-1",
+      membershipId: "member-admin",
+      isPlatformAdmin: false,
+      roles: ["TENANT_ADMIN"],
+      permissions: ["employee.read"],
+      requestId: "req-4",
+    };
+
+    const byCode = await service.getPerformanceList(tenantAdminContext, { query: "emp-002" });
+    expect(byCode.items).toHaveLength(1);
+    expect(byCode.items[0]?.employee.name).toBe("Rahul Verma");
+
+    const bySla = await service.getPerformanceList(tenantAdminContext, { query: "100" });
+    expect(bySla.items).toHaveLength(1);
+    expect(bySla.items[0]?.employee.name).toBe("Aarav Sharma");
+  });
 });

@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronDown, ListChecks } from "lucide-react";
 import { toast } from "sonner";
+import { Badge } from "@/components/ui/badge";
 import {
   getClientPortalDashboard,
   type ClientPortalDashboard,
@@ -29,6 +30,7 @@ import {
 } from "@/features/client-portal/api/client-portal-profile-api";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ErrorState } from "@/components/shared/error-state";
+import { DashboardGreetingBanner } from "@/components/shared/dashboard-greeting-banner";
 import { FilterToolbar } from "@/components/shared/filter-toolbar";
 import { LoadingState } from "@/components/shared/loading-state";
 import { ConfirmationDialog } from "@/components/shared/confirmation-dialog";
@@ -46,11 +48,18 @@ import {
 } from "@/components/ui/card";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { formatDashboardMonthLabel } from "@/lib/dashboard-greeting";
 
 const CLIENT_DASHBOARD_MAX_SPAN_DAYS = 731;
 const CLIENT_DASHBOARD_MAX_FUTURE_DAYS = 366;
 
 type ClientDashboardPreset = "custom" | "this_month" | "last_30_days" | "upcoming_year";
+
+type AuthenticatedProfile = {
+  readonly user: {
+    readonly displayName: string;
+  };
+};
 
 export function ClientPortal({
   section = "overview",
@@ -61,7 +70,24 @@ export function ClientPortal({
   const [draftFrom, setDraftFrom] = useState<string | null>(null);
   const [draftTo, setDraftTo] = useState<string | null>(null);
   const [preset, setPreset] = useState<ClientDashboardPreset>("custom");
+  const [profileName, setProfileName] = useState("Client");
+  const [portalName, setPortalName] = useState<string | undefined>();
   const needsDashboard = section !== "profile" && section !== "deliverables";
+
+  useEffect(() => {
+    if (section !== "overview") return;
+    const controller = new AbortController();
+    void fetch("/api/me?portal=client", { cache: "no-store", signal: controller.signal })
+      .then(async (response) => (response.ok ? ((await response.json()) as AuthenticatedProfile) : null))
+      .then((response) => {
+        if (response?.user.displayName) setProfileName(response.user.displayName);
+      })
+      .catch(() => undefined);
+    void getClientPortalProfile()
+      .then((profile) => setPortalName(profile.portalName))
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, [section]);
   const query = useQuery({
     queryKey: ["client-portal-dashboard", applied.from ?? "", applied.to ?? ""],
     queryFn: () => getClientPortalDashboard({ from: applied.from, to: applied.to }),
@@ -244,10 +270,10 @@ export function ClientPortal({
 
   return (
     <div className="flex flex-col gap-[30px]">
-      <PageHeader
-        eyebrow="Client portal"
-        title="Service overview"
-        description={periodDescription}
+      <DashboardGreetingBanner
+        userName={profileName}
+        organizationName={portalName}
+        subtitle={`${formatDashboardMonthLabel()} · ${periodSourceLabel(period.source)} · ${data.pendingTasks + data.completedTasks} tasks · ${data.pendingTasks} open`}
       />
       {periodFilter}
       <section
@@ -906,7 +932,11 @@ function ClientDeliverablesList({
         <CardContent className="pt-[30px]">
           {deliverables.length ? (
             <ul className="flex flex-col divide-y">
-              {deliverables.map((item) => (
+              {deliverables.map((item) => {
+                const isExpiredAgreement =
+                  item.category === "agreement" && item.accessStatus === "expired";
+
+                return (
                 <li key={item.id} className="py-4 first:pt-0">
                   <div className="flex items-start justify-between gap-3">
                     <div>
@@ -917,6 +947,16 @@ function ClientDeliverablesList({
                       <p className="mt-1 text-sm text-muted-foreground">
                         Shared by {item.uploadedBy} · {formatDate(item.updatedOn)}
                       </p>
+                      {item.validUntil ? (
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          Expires {formatDate(item.validUntil)}
+                        </p>
+                      ) : null}
+                      {isExpiredAgreement ? (
+                        <p className="mt-2 text-sm text-destructive">
+                          This agreement has expired. Contact your tenant administrator for a renewed copy.
+                        </p>
+                      ) : null}
                       {item.clientDecisionComment ? (
                         <p className="mt-1 text-sm text-muted-foreground">
                           Comment: {item.clientDecisionComment}
@@ -924,22 +964,41 @@ function ClientDeliverablesList({
                       ) : null}
                     </div>
                     {item.category !== "invoice" ? (
-                      <StatusBadge
-                        status={
-                          item.clientDecisionStatus === "approved"
-                            ? "complete"
-                            : item.clientDecisionStatus === "rejected"
-                              ? "at-risk"
-                              : "pending"
-                        }
-                      />
+                      isExpiredAgreement ? (
+                        <Badge tone="danger">Expired</Badge>
+                      ) : (
+                        <StatusBadge
+                          status={
+                            item.clientDecisionStatus === "approved"
+                              ? "complete"
+                              : item.clientDecisionStatus === "rejected"
+                                ? "at-risk"
+                                : "pending"
+                          }
+                        />
+                      )
                     ) : null}
                   </div>
                   <div className="mt-3 flex gap-2">
-                    <Button size="sm" variant="outline" onClick={() => void getClientPortalDeliverableDownloadUrl(item.id).then((url) => window.open(url, "_blank", "noopener,noreferrer")).catch((error) => toast.error(error instanceof Error ? error.message : "Document download could not be started."))}>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={isExpiredAgreement}
+                      onClick={() =>
+                        void getClientPortalDeliverableDownloadUrl(item.id)
+                          .then((url) => window.open(url, "_blank", "noopener,noreferrer"))
+                          .catch((error) =>
+                            toast.error(
+                              error instanceof Error
+                                ? error.message
+                                : "Document download could not be started.",
+                            ),
+                          )
+                      }
+                    >
                       Download
                     </Button>
-                    {item.category !== "invoice" ? (
+                    {item.category !== "invoice" && !isExpiredAgreement ? (
                       <>
                         <Button
                           size="sm"
@@ -974,7 +1033,7 @@ function ClientDeliverablesList({
                     ) : null}
                   </div>
                 </li>
-              ))}
+              )})}
             </ul>
           ) : (
             <EmptyState

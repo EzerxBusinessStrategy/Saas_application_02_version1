@@ -360,6 +360,7 @@ export type ClientListRequest = z.infer<typeof paginationSchema> & {
   status?: Client["status"];
   service?: string;
   manager?: string;
+  employee?: string;
   revenueMin?: number;
   deadline?: "any" | "upcoming" | "none";
   sort?: "name" | "revenue" | "outstanding" | "deadline";
@@ -369,6 +370,7 @@ export type ClientListResponse = PaginatedResponse<Client> & {
   filters: {
     services: ClientOption[];
     managers: ClientOption[];
+    employees: ClientOption[];
   };
 };
 

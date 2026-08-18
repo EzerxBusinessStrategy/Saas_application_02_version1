@@ -3,12 +3,13 @@
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
-import { Plus, Users } from "lucide-react";
+import { Plus, Search, Users } from "lucide-react";
 import { toast } from "sonner";
 import { DataTable } from "@/components/operations/data-table";
 import { ErrorState } from "@/components/shared/error-state";
 import { LoadingState } from "@/components/shared/loading-state";
 import { PageHeader } from "@/components/shared/page-header";
+import { FilterToolbar } from "@/components/shared/filter-toolbar";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -32,6 +33,8 @@ export function DepartmentDirectory() {
   const [selectedDepartment, setSelectedDepartment] = useState<TenantAdminDepartment | null>(null);
   const [employeeId, setEmployeeId] = useState("");
   const [saving, setSaving] = useState(false);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
 
   const employees = useMemo(
     () => departmentsQuery.data?.employees ?? [],
@@ -50,6 +53,19 @@ export function DepartmentDirectory() {
   const availableEmployees = employees.filter(
     (employee) => employee.employmentStatus === "active" && employee.departmentId !== selectedDepartment?.id,
   );
+  const filteredDepartments = useMemo(() => {
+    const needle = search.trim().toLowerCase();
+    return (departmentsQuery.data?.departments ?? []).filter((department) => {
+      if (statusFilter !== "all" && department.status !== statusFilter) return false;
+      if (!needle) return true;
+      if (department.name.toLowerCase().includes(needle)) return true;
+      const departmentEmployees = employeesByDepartment.get(department.id) ?? [];
+      return departmentEmployees.some((employee) =>
+        [employee.name, employee.employeeCode ?? ""].join(" ").toLowerCase().includes(needle),
+      );
+    });
+  }, [departmentsQuery.data?.departments, employeesByDepartment, search, statusFilter]);
+  const activeFilterCount = (search.trim() ? 1 : 0) + (statusFilter !== "all" ? 1 : 0);
 
   const refresh = async () => {
     await Promise.all([
@@ -133,13 +149,51 @@ export function DepartmentDirectory() {
           <CardTitle>Department directory</CardTitle>
           <CardDescription>Employee counts and assignments are read directly from this tenant&apos;s workforce records.</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
+          <FilterToolbar
+            activeFilterCount={activeFilterCount}
+            onClear={() => {
+              setSearch("");
+              setStatusFilter("all");
+            }}
+          >
+            <label className="text-sm font-medium sm:col-span-2">
+              Search
+              <div className="relative mt-1">
+                <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+                <Input
+                  className="pl-9"
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Search department or employee"
+                  aria-label="Search departments and employees"
+                />
+              </div>
+            </label>
+            <label className="text-sm font-medium">
+              Status
+              <Select
+                className="mt-1"
+                value={statusFilter}
+                onChange={(event) => setStatusFilter(event.target.value as "all" | "active" | "inactive")}
+                aria-label="Filter departments by status"
+              >
+                <option value="all">All statuses</option>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </Select>
+            </label>
+          </FilterToolbar>
           <DataTable
             caption="Departments in the active tenant"
             columns={columns}
-            data={departmentsQuery.data?.departments ?? []}
-            emptyTitle="No departments yet"
-            emptyDescription="Create a department here or enter a new department while creating an employee."
+            data={filteredDepartments}
+            emptyTitle={search.trim() || statusFilter !== "all" ? "No matching departments" : "No departments yet"}
+            emptyDescription={
+              search.trim() || statusFilter !== "all"
+                ? "Try another search term or clear the filters."
+                : "Create a department here or enter a new department while creating an employee."
+            }
           />
         </CardContent>
       </Card>

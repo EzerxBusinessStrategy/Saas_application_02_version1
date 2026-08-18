@@ -3,8 +3,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
-import { Download, FileCheck2, FileText, ReceiptText, Upload, UploadCloud } from "lucide-react";
+import { Download, FileCheck2, FileText, FileWarning, Hourglass, ReceiptText, Upload, UploadCloud } from "lucide-react";
 import { toast } from "sonner";
+import { Badge } from "@/components/ui/badge";
 import {
   createSharedDocument,
   createSharedInvoice,
@@ -26,6 +27,7 @@ import { DataTable } from "@/components/operations/data-table";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ErrorState } from "@/components/shared/error-state";
 import { FilterToolbar } from "@/components/shared/filter-toolbar";
+import { SearchableFilterSelect } from "@/components/shared/searchable-filter-select";
 import { LoadingState } from "@/components/shared/loading-state";
 import { MetricCard } from "@/components/shared/metric-card";
 import { MobileEntityCard } from "@/components/shared/mobile-entity-card";
@@ -67,6 +69,8 @@ function DocumentsWorkspace({ workspace, fixedCategory }: { workspace: Extract<W
   const [error, setError] = useState(false);
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("");
+  const [clientFilter, setClientFilter] = useState("");
+  const [decisionFilter, setDecisionFilter] = useState("");
   const [selected, setSelected] = useState<SharedDocument | null>(null);
   const [uploadOpen, setUploadOpen] = useState(false);
   const clientsQuery = useQuery({ queryKey: ["tenant-finance-clients", workspace], queryFn: () => listClients({ page: 1, pageSize: 100 }), enabled: workspace === "admin" });
@@ -81,9 +85,15 @@ function DocumentsWorkspace({ workspace, fixedCategory }: { workspace: Extract<W
   useEffect(() => { void refresh(); }, [refresh]);
   if (!documents && !error) return <LoadingState label="Loading documents" rows={5} />;
   if (error) return <ErrorState title="Documents could not load" onRetry={() => void refresh()} />;
+  const agreementDocuments = (documents ?? []).filter((document) => document.category === "agreement");
   const visible = (documents ?? []).filter((document) =>
     (!search || [document.title, document.fileName, document.client, document.category, document.uploadedBy].join(" ").toLowerCase().includes(search.toLowerCase())) &&
-    (fixedCategory ? document.category === fixedCategory : !category || document.category === category),
+    (fixedCategory ? document.category === fixedCategory : !category || document.category === category) &&
+    (!clientFilter || document.clientId === clientFilter) &&
+    (!decisionFilter ||
+      (decisionFilter === "expired"
+        ? document.agreementAccessStatus === "expired"
+        : document.clientDecisionStatus === decisionFilter && document.agreementAccessStatus !== "expired")),
   );
   const downloadDocument = async (documentId: string) => {
     try { window.open(await getPrivateDocumentDownloadUrl(workspace, documentId), "_blank", "noopener,noreferrer"); }
@@ -94,7 +104,7 @@ function DocumentsWorkspace({ workspace, fixedCategory }: { workspace: Extract<W
     { accessorKey: "category", header: "Category" },
     { accessorKey: "client", header: "Client" },
       { accessorKey: "uploadedBy", header: "Uploaded by" },
-      { id: "clientDecision", header: "Client decision", cell: ({ row }) => <StatusBadge status={row.original.clientDecisionStatus === "approved" ? "complete" : row.original.clientDecisionStatus === "rejected" ? "at-risk" : "pending"} /> },
+      { id: "clientDecision", header: fixedCategory === "agreement" ? "Status" : "Client decision", cell: ({ row }) => <AgreementDecisionStatus document={row.original} /> },
       { id: "shared", header: "Shared with", cell: ({ row }) => <RecipientSummary document={row.original} /> },
     { accessorKey: "updatedOn", header: "Updated" },
     { id: "actions", header: "Actions", cell: ({ row }) => <div className="flex gap-2"><Button size="sm" variant="outline" onClick={() => setSelected(row.original)}>View details</Button><Button size="sm" variant="outline" onClick={() => void downloadDocument(row.original.id)}><Download data-icon="inline-start" />Download</Button></div> },
@@ -102,9 +112,45 @@ function DocumentsWorkspace({ workspace, fixedCategory }: { workspace: Extract<W
   const canUpload = workspace === "admin" || workspace === "employee";
   return <div className="flex flex-col gap-[30px]">
     <PageHeader eyebrow="Operations" title={fixedCategory === "agreement" ? "Agreements" : "Documents"} description={fixedCategory === "agreement" ? "Upload agreements and send them to the selected client." : "Upload a document and send it to a client, an employee, or both."} actions={canUpload ? <Button onClick={() => setUploadOpen(true)}><Upload data-icon="inline-start" />{fixedCategory === "agreement" ? "Upload agreement" : "Upload document"}</Button> : undefined} />
-    <MetricStrip metrics={[{ label: "All documents", value: String(documents?.length ?? 0) }, { label: "Shared with me", value: String(documents?.filter((item) => item.uploadedByRole !== workspace).length ?? 0) }, { label: "Client documents", value: String(documents?.filter((item) => item.recipientClientIds.length).length ?? 0) }]} />
-    <FilterToolbar search={{ value: search, onChange: setSearch, label: "Search documents", placeholder: "Search document name, client, category or uploader" }} activeFilterCount={Number(Boolean(category))} onClear={() => setCategory("")}>
+    {fixedCategory === "agreement" ? (
+      <AgreementMetricGrid documents={agreementDocuments} />
+    ) : (
+      <MetricStrip metrics={[{ label: "All documents", value: String(documents?.length ?? 0) }, { label: "Shared with me", value: String(documents?.filter((item) => item.uploadedByRole !== workspace).length ?? 0) }, { label: "Client documents", value: String(documents?.filter((item) => item.recipientClientIds.length).length ?? 0) }]} />
+    )}
+    <FilterToolbar
+      search={{ value: search, onChange: setSearch, label: "Search documents", placeholder: fixedCategory === "agreement" ? "Search agreement, client, or uploader" : "Search document name, client, category or uploader" }}
+      filterGridClassName="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
+      activeFilterCount={Number(Boolean(category)) + Number(Boolean(clientFilter)) + Number(Boolean(decisionFilter))}
+      onClear={() => {
+        setCategory("");
+        setClientFilter("");
+        setDecisionFilter("");
+      }}
+    >
       {!fixedCategory ? <label className="flex flex-col gap-1 text-sm font-medium">Category<Select value={category} onChange={(event) => setCategory(event.target.value)}><option value="">All categories</option>{categories.map((item) => <option key={item} value={item}>{item.replaceAll("-", " ")}</option>)}</Select></label> : null}
+      {fixedCategory === "agreement" && workspace === "admin" ? (
+        <>
+          <SearchableFilterSelect
+            label="Client"
+            ariaLabel="Filter agreements by client"
+            value={clientFilter}
+            onChange={setClientFilter}
+            options={clientOptions}
+            emptyLabel="All clients"
+            placeholder="Search clients..."
+          />
+          <label className="flex flex-col gap-1 text-sm font-medium">
+            Client decision
+            <Select value={decisionFilter} onChange={(event) => setDecisionFilter(event.target.value)}>
+              <option value="">All decisions</option>
+              <option value="pending">Pending review</option>
+              <option value="approved">Approved</option>
+              <option value="rejected">Rejected</option>
+              <option value="expired">Expired</option>
+            </Select>
+          </label>
+        </>
+      ) : null}
     </FilterToolbar>
     <Card><CardContent className="pt-0"><div className="hidden md:block"><DataTable caption="Authorised documents" columns={columns} data={visible} emptyTitle={search || category ? "No documents match these filters" : "No documents yet"} emptyDescription="Upload the first document to securely share files with authorised users." /></div><div className="md:hidden">{visible.length ? visible.map((document) => <MobileEntityCard key={document.id} title={document.title} identifier={`${document.fileType} · ${document.id}`} leading={<FileText className="size-5 text-primary" />} status={<StatusBadge status="on-track" />} metadata={<><dt className="text-muted-foreground">Client</dt><dd>{document.client}</dd><dt className="text-muted-foreground">Shared with</dt><dd><RecipientSummary document={document} /></dd></>} primaryAction={<Button size="sm" variant="outline" onClick={() => setSelected(document)}>View details</Button>} />) : <EmptyState title="No documents match these filters" description="Clear filters or upload a document." />}</div></CardContent></Card>
     <DocumentDialog document={selected} open={Boolean(selected)} onOpenChange={(open) => !open && setSelected(null)} />
@@ -148,16 +194,99 @@ function InvoicesWorkspace({ workspace }: { workspace: "admin" | "client" }) {
 }
 
 function MetricStrip({ metrics }: { metrics: Array<{ label: string; value: string }> }) { return <section className="grid overflow-hidden rounded-[var(--radius-card)] border border-border bg-border sm:grid-cols-3">{metrics.map((metric) => <MetricCard key={metric.label} metric={metric} className="rounded-none border-y-0 border-l-0 shadow-none last:border-r-0" />)}</section>; }
+
+function AgreementMetricGrid({ documents }: { documents: readonly SharedDocument[] }) {
+  const now = Date.now();
+  const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
+  const dueSoon = documents.filter(
+    (document) => document.clientDecisionStatus === "pending" && document.recipientClientIds.length > 0,
+  ).length;
+  const expiringSoon = documents.filter((document) => {
+    if (document.agreementAccessStatus === "expired") return false;
+    if (!document.validUntil) return false;
+    const expiry = new Date(document.validUntil).getTime();
+    return expiry >= now && expiry <= now + thirtyDaysMs;
+  }).length;
+  const expired = documents.filter((document) => document.agreementAccessStatus === "expired").length;
+
+  return (
+    <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <MetricCard
+        variant="elevated"
+        icon={FileText}
+        metric={{ label: "Total agreements", value: String(documents.length) }}
+        className="shadow-sm"
+      />
+      <MetricCard
+        variant="elevated"
+        icon={Hourglass}
+        metric={{ label: "Due soon", value: String(dueSoon), change: "Awaiting client review" }}
+        className="shadow-sm"
+      />
+      <MetricCard
+        variant="elevated"
+        icon={FileWarning}
+        metric={{ label: "Expiring soon", value: String(expiringSoon), change: "Within 30 days" }}
+        className="shadow-sm"
+      />
+      <MetricCard
+        variant="elevated"
+        icon={FileCheck2}
+        metric={{
+          label: "Expired",
+          value: String(expired),
+          change: "Past expiry date",
+        }}
+        className="shadow-sm"
+      />
+    </section>
+  );
+}
+function AgreementDecisionStatus({ document }: { document: SharedDocument }) {
+  if (document.category === "agreement" && document.agreementAccessStatus === "expired") {
+    return (
+      <div className="flex flex-col gap-1">
+        <Badge tone="danger">Expired</Badge>
+        <span className="text-xs text-muted-foreground">{document.client}</span>
+      </div>
+    );
+  }
+
+  return (
+    <StatusBadge
+      status={
+        document.clientDecisionStatus === "approved"
+          ? "complete"
+          : document.clientDecisionStatus === "rejected"
+            ? "at-risk"
+            : "pending"
+      }
+    />
+  );
+}
+function RecipientSummary({ document }: { document: SharedDocument }) {
+  if (document.category === "agreement" && document.recipientClientIds.length > 0) {
+    const clientId = document.clientId || document.recipientClientIds[0] || "";
+    return (
+      <span className="text-sm text-muted-foreground">
+        <span className="font-medium text-foreground">{document.client}</span>
+        {clientId ? <span className="mt-0.5 block font-mono text-xs">{clientId}</span> : null}
+      </span>
+    );
+  }
+
+  const groups = [["Tenant Admin", document.recipientTenantAdminIds.length], ["Employee", document.recipientEmployeeIds.length], ["Manager", document.recipientManagerIds.length], ["Client", document.recipientClientIds.length]].filter(([, count]) => Number(count));
+  return <span className="text-sm text-muted-foreground">{groups.map(([role, count]) => `${role} ${count}`).join(" · ") || "Owner only"}</span>;
+}
 function InvoiceTaskName({ taskTitle, className = "" }: { taskTitle?: string | null; className?: string }) {
   if (!taskTitle) return null;
   return <span className={`invoice-task-name mt-1 block text-xs text-muted-foreground ${className}`}>Task: {taskTitle}</span>;
 }
-function RecipientSummary({ document }: { document: SharedDocument }) { const groups = [["Tenant Admin", document.recipientTenantAdminIds.length], ["Employee", document.recipientEmployeeIds.length], ["Manager", document.recipientManagerIds.length], ["Client", document.recipientClientIds.length]].filter(([, count]) => Number(count)); return <span className="text-sm text-muted-foreground">{groups.map(([role, count]) => `${role} ${count}`).join(" · ") || "Owner only"}</span>; }
 
 function DocumentDialog({ document, open, onOpenChange }: { document: SharedDocument | null; open: boolean; onOpenChange: (open: boolean) => void }) {
   const [tab, setTab] = useState("overview");
   if (!document) return null;
-  return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent title={document.title} description="Document details and authorised access." className="left-auto right-0 top-0 h-full max-h-none w-full max-w-2xl translate-x-0 translate-y-0 overflow-y-auto rounded-none"><div className="pr-8"><p className="text-sm font-medium text-primary">{document.id}</p><h2 className="mt-1 text-xl font-semibold">{document.title}</h2><ResponsiveTabs label="Document details" value={tab} onValueChange={setTab} tabs={[{ value: "overview", label: "Overview" }, { value: "access", label: "Access" }, { value: "activity", label: "Activity" }]}>{tab === "overview" ? <dl className="grid gap-4 text-sm sm:grid-cols-2"><Detail label="File" value={`${document.fileName} (${document.fileType})`} /><Detail label="Client" value={document.client} /><Detail label="Category" value={document.category} /><Detail label="Sent by" value={document.uploadedBy} /><Detail label="Sent at" value={document.updatedOn} /><Detail label="Why sent" value={document.shareReason ?? "Not specified"} /><Detail label="Related service" value={document.engagement ?? "Not linked"} /><Detail label="Related task" value={document.task ?? "Not linked"} /></dl> : null}{tab === "access" ? <div className="flex flex-col gap-4"><p className="text-sm text-muted-foreground">Owner: {document.uploadedBy}. Tenant Administration oversight: {document.tenantAdminVisible ? "included" : "not required"}.</p><RecipientSummary document={document} /></div> : null}{tab === "activity" ? <ul className="flex flex-col divide-y">{document.activity.map((item) => <li key={item.id} className="py-3 first:pt-0"><p className="font-medium text-sm">{item.action}</p><p className="mt-1 text-sm text-muted-foreground">{item.actor} · {item.at}</p></li>)}</ul> : null}</ResponsiveTabs><p className="mt-6 text-sm text-muted-foreground">Preview and download require the private-storage backend. No public file URL is exposed.</p></div></DialogContent></Dialog>;
+  return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent title={document.title} description="Document details and authorised access." className="left-auto right-0 top-0 h-full max-h-none w-full max-w-2xl translate-x-0 translate-y-0 overflow-y-auto rounded-none"><div className="pr-8"><p className="text-sm font-medium text-primary">{document.id}</p><h2 className="mt-1 text-xl font-semibold">{document.title}</h2><ResponsiveTabs label="Document details" value={tab} onValueChange={setTab} tabs={[{ value: "overview", label: "Overview" }, { value: "access", label: "Access" }, { value: "activity", label: "Activity" }]}>{tab === "overview" ? <dl className="grid gap-4 text-sm sm:grid-cols-2"><Detail label="File" value={`${document.fileName} (${document.fileType})`} /><Detail label="Client" value={document.client} /><Detail label="Category" value={document.category} /><Detail label="Sent by" value={document.uploadedBy} /><Detail label="Sent at" value={document.updatedOn} /><Detail label="Expires on" value={document.validUntil ? new Date(document.validUntil).toLocaleString() : "Not set"} /><Detail label="Why sent" value={document.shareReason ?? "Not specified"} /><Detail label="Related service" value={document.engagement ?? "Not linked"} /><Detail label="Related task" value={document.task ?? "Not linked"} /></dl> : null}{tab === "access" ? <div className="flex flex-col gap-4"><p className="text-sm text-muted-foreground">Owner: {document.uploadedBy}. Tenant Administration oversight: {document.tenantAdminVisible ? "included" : "not required"}.</p><RecipientSummary document={document} /></div> : null}{tab === "activity" ? <ul className="flex flex-col divide-y">{document.activity.map((item) => <li key={item.id} className="py-3 first:pt-0"><p className="font-medium text-sm">{item.action}</p><p className="mt-1 text-sm text-muted-foreground">{item.actor} · {item.at}</p></li>)}</ul> : null}</ResponsiveTabs><p className="mt-6 text-sm text-muted-foreground">Preview and download require the private-storage backend. No public file URL is exposed.</p></div></DialogContent></Dialog>;
 }
 function InvoiceDialog({ invoice, open, onOpenChange, onSent }: { invoice: SharedInvoice | null; open: boolean; onOpenChange: (open: boolean) => void; onSent: () => void }) {
   const [sending, setSending] = useState(false);
@@ -208,6 +337,9 @@ function TaskInvoiceDialog({ entry, onOpenChange, onCreated }: { entry: TenantBi
 }
 
 function formatCurrency(amount: number, currency: string) { return new Intl.NumberFormat("en-IN", { style: "currency", currency: /^[A-Z]{3}$/.test(currency) ? currency : "INR", maximumFractionDigits: 2 }).format(amount); }
+function combineLocalDateTime(date: string, time: string) {
+  return new Date(`${date}T${time || "23:59"}:00`).toISOString();
+}
 function Detail({ label, value }: { label: string; value: string }) { return <div><dt className="text-muted-foreground">{label}</dt><dd className="mt-1 font-medium">{value}</dd></div>; }
 
 function FileField({ file, onFile }: { file: File | null; onFile: (file: File | null) => void }) {
@@ -288,13 +420,20 @@ function DocumentUploadDialog({ workspace, clients, adminOptions, fixedCategory,
   const [clientId, setClientId] = useState("");
   const [employeeId, setEmployeeId] = useState("");
   const [shareReason, setShareReason] = useState("");
+  const [validUntilDate, setValidUntilDate] = useState("");
+  const [validUntilTime, setValidUntilTime] = useState("23:59");
   const [submitting, setSubmitting] = useState(false);
   const selectedCategory = fixedCategory ?? category;
   const isAgreement = selectedCategory === "agreement";
-  const canSubmit = Boolean(file && title.trim() && !submitting && (isAgreement ? clientId : clientId || employeeId));
+  const canSubmit = Boolean(
+    file &&
+      title.trim() &&
+      !submitting &&
+      (isAgreement ? clientId && validUntilDate : clientId || employeeId),
+  );
   const submit = async () => {
     if (!file || !title.trim()) return;
-    if (isAgreement && !clientId) return;
+    if (isAgreement && (!clientId || !validUntilDate)) return;
     if (!isAgreement && !clientId && !employeeId) return;
     setSubmitting(true);
     try {
@@ -309,6 +448,7 @@ function DocumentUploadDialog({ workspace, clients, adminOptions, fixedCategory,
         recipientEmployeeIds: employeeId ? [employeeId] : [],
         recipientClientIds: clientId ? [clientId] : [],
         shareReason,
+        ...(isAgreement ? { validUntil: combineLocalDateTime(validUntilDate, validUntilTime) } : {}),
       }));
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Document could not be prepared.");
@@ -337,6 +477,18 @@ function DocumentUploadDialog({ workspace, clients, adminOptions, fixedCategory,
             <label className="flex flex-col gap-1 text-sm font-medium">{isAgreement ? "Related client" : "Related client (optional)"}<Select value={clientId} onChange={(event) => setClientId(event.target.value)}><option value="">{isAgreement ? "Select client" : "No related client"}</option>{clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}</Select></label>
             {workspace === "admin" ? <label className="flex flex-col gap-1 text-sm font-medium">Send to employee (optional)<Select value={employeeId} onChange={(event) => setEmployeeId(event.target.value)}><option value="">No employee</option>{adminOptions?.employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.name}</option>)}</Select></label> : null}
             {workspace === "admin" ? <label className="flex flex-col gap-1 text-sm font-medium">Why sent<Input value={shareReason} maxLength={1000} onChange={(event) => setShareReason(event.target.value)} /></label> : null}
+            {isAgreement ? (
+              <>
+                <label className="flex flex-col gap-1 text-sm font-medium">
+                  Expiry date
+                  <Input className="mt-1" type="date" value={validUntilDate} min={new Date().toISOString().slice(0, 10)} onChange={(event) => setValidUntilDate(event.target.value)} />
+                </label>
+                <label className="flex flex-col gap-1 text-sm font-medium">
+                  Expiry time
+                  <Input className="mt-1" type="time" value={validUntilTime} onChange={(event) => setValidUntilTime(event.target.value)} />
+                </label>
+              </>
+            ) : null}
           </div>
           <div className="mt-7 flex justify-end gap-2">
             <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>

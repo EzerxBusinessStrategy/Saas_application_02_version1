@@ -15,6 +15,7 @@ import {
   PendingTaskFeedbackItemDto,
   SubmitClientTaskFeedback,
   TaskFeedbackLogItemDto,
+  TaskFeedbackLogQuery,
 } from "./task-feedback.dto";
 
 type FeedbackRow = {
@@ -251,16 +252,27 @@ export class TaskFeedbackRepository {
     });
   }
 
-  async listForTenant(context: TenantAdminRequestContext): Promise<{
+  async listForTenant(
+    context: TenantAdminRequestContext,
+    query: TaskFeedbackLogQuery = { page: 1, pageSize: 25 },
+  ): Promise<{
     items: readonly TaskFeedbackLogItemDto[];
     total: number;
+    page: number;
+    pageSize: number;
+    pageCount: number;
   }> {
     return this.withTenantContext(context, async (client) => {
       await this.expireUnanswered(client);
-      const rows = await this.queryFeedbackRows(client, context.tenantId);
+      const { rows, total } = await this.queryFeedbackRows(client, context.tenantId, query);
+      const pageSize = query.pageSize ?? 25;
+      const page = query.page ?? 1;
       return {
         items: rows.map(mapFeedbackLogItem),
-        total: rows.length,
+        total,
+        page,
+        pageSize,
+        pageCount: Math.max(1, Math.ceil(total / pageSize)),
       };
     });
   }
@@ -273,10 +285,14 @@ export class TaskFeedbackRepository {
     return withDatabaseTransaction(this.pool, context, async (_tx, client) => {
       await this.expireUnanswered(client);
       const employee = await this.getEmployee(client, context);
-      const rows = await this.queryFeedbackRows(client, context.tenantId, employee.id);
+      const { rows, total } = await this.queryFeedbackRows(client, context.tenantId, {
+        page: 1,
+        pageSize: 100,
+        employeeId: employee.id,
+      });
       return {
         items: rows.map(mapFeedbackLogItem),
-        total: rows.length,
+        total,
       };
     });
   }
@@ -284,9 +300,38 @@ export class TaskFeedbackRepository {
   private async queryFeedbackRows(
     client: PoolClient,
     tenantId: string,
-    employeeId?: string,
-  ): Promise<readonly FeedbackRow[]> {
-    const result = await client.query<FeedbackRow>(
+    query: TaskFeedbackLogQuery & { employeeId?: string },
+  ): Promise<{ rows: readonly FeedbackRow[]; total: number }> {
+    const params: unknown[] = [tenantId];
+    let filterSql = "";
+
+    const scopedEmployeeId = query.employeeId ?? null;
+    if (scopedEmployeeId) {
+      params.push(scopedEmployeeId);
+      filterSql += ` and ctf.employee_id = $${params.length}`;
+    }
+    if (query.clientId) {
+      params.push(query.clientId);
+      filterSql += ` and ctf.client_id = $${params.length}`;
+    }
+    if (query.status) {
+      params.push(query.status);
+      filterSql += ` and coalesce(ctf.status, 'submitted') = $${params.length}`;
+    }
+    if (query.from) {
+      params.push(query.from);
+      filterSql += ` and ctf.created_at >= $${params.length}::date`;
+    }
+    if (query.to) {
+      params.push(query.to);
+      filterSql += ` and ctf.created_at < ($${params.length}::date + interval '1 day')`;
+    }
+
+    const pageSize = query.pageSize ?? 25;
+    const page = query.page ?? 1;
+    params.push(pageSize, (page - 1) * pageSize);
+
+    const result = await client.query<FeedbackRow & { total_count: string }>(
       `
         select
           ctf.id::text,
@@ -300,7 +345,8 @@ export class TaskFeedbackRepository {
           ctf.task_rating,
           ctf.employee_rating,
           coalesce(ctf.status, 'submitted') as status,
-          ctf.created_at
+          ctf.created_at,
+          count(*) over() as total_count
         from public.client_task_feedback ctf
         join public.tasks t
           on t.tenant_id = ctf.tenant_id
@@ -315,12 +361,16 @@ export class TaskFeedbackRepository {
           on employee_tm.tenant_id = e.tenant_id
          and employee_tm.id = e.membership_id
         where ctf.tenant_id = $1
-          and ($2::uuid is null or ctf.employee_id = $2)
+          ${filterSql}
         order by ctf.created_at desc, ctf.id desc
+        limit $${params.length - 1} offset $${params.length}
       `,
-      [tenantId, employeeId ?? null],
+      params,
     );
-    return result.rows;
+    return {
+      rows: result.rows,
+      total: Number(result.rows[0]?.total_count ?? 0),
+    };
   }
 
   private async loadByIdempotency(

@@ -2,7 +2,8 @@
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { MoreHorizontal, Plus } from "lucide-react";
 import { toast } from "sonner";
@@ -15,7 +16,8 @@ import { MobileEntityCard } from "@/components/shared/mobile-entity-card";
 import { PageHeader } from "@/components/shared/page-header";
 import { ResponsiveTabs } from "@/components/shared/responsive-tabs";
 import { StatusBadge } from "@/components/shared/status-badge";
-import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -34,10 +36,15 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   listTenantAdminEmployeeDirectory,
+  listTenantAdminTasks,
+  listTenantAdminWorkGroups,
   setTenantAdminEmployeeManager,
   type TenantAdminEmployeeOption,
+  type TenantAdminTask,
 } from "@/features/operations/api/operations-api";
+import { tenantTaskReviewHref } from "@/features/operations/tenant-admin-task-map";
 import { readFormDraft } from "@/lib/client/form-draft-store";
+import { cn } from "@/lib/utils";
 
 const employeeTabs = [
   { value: "overview", label: "Overview" },
@@ -152,17 +159,7 @@ export function EmployeeProfile({ employeeId }: { employeeId: string }) {
         </CardContent>
       </Card>
     ) : tab === "tasks" ? (
-      <Card>
-        <CardHeader>
-          <CardTitle>Current tasks</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">
-            {employee.activeTasks} active tasks. Task details remain in the
-            shared task workflow.
-          </p>
-        </CardContent>
-      </Card>
+      <EmployeeTasksPanel employee={employee} allEmployees={employeesQuery.data?.employees ?? []} />
     ) : null;
   return (
     <div className="flex flex-col gap-[30px]">
@@ -317,6 +314,151 @@ export function ManagerDirectory() {
       />
     </div>
   );
+}
+
+function EmployeeTasksPanel({
+  employee,
+  allEmployees,
+}: {
+  employee: TenantAdminEmployeeOption;
+  allEmployees: TenantAdminEmployeeOption[];
+}) {
+  const tasksQuery = useQuery({
+    queryKey: ["tenant-admin-employee-tasks", employee.id],
+    queryFn: () => listTenantAdminTasks(),
+  });
+  const workGroupsQuery = useQuery({
+    queryKey: ["tenant-admin-work-groups"],
+    queryFn: listTenantAdminWorkGroups,
+    enabled: employee.isManager,
+  });
+
+  const relevantEmployeeIds = useMemo(() => {
+    const ids = new Set<string>([employee.id]);
+    if (employee.isManager) {
+      for (const member of allEmployees) {
+        if (member.managerId === employee.id) ids.add(member.id);
+      }
+      for (const workGroup of workGroupsQuery.data ?? []) {
+        if (workGroup.managerEmployeeId !== employee.id) continue;
+        for (const member of workGroup.members) ids.add(member.id);
+      }
+    }
+    return ids;
+  }, [allEmployees, employee.id, employee.isManager, workGroupsQuery.data]);
+
+  const assignedTasks = useMemo(() => {
+    return (tasksQuery.data ?? []).filter((task) =>
+      task.assignees.some((assignee) => relevantEmployeeIds.has(assignee.id)),
+    );
+  }, [relevantEmployeeIds, tasksQuery.data]);
+
+  const columns: ColumnDef<TenantAdminTask>[] = [
+    {
+      accessorKey: "title",
+      header: "Task",
+      cell: ({ row }) => <span className="font-medium">{row.original.title}</span>,
+    },
+    { accessorKey: "clientName", header: "Client" },
+    { accessorKey: "serviceName", header: "Service" },
+    {
+      id: "assignees",
+      header: "Assigned to",
+      cell: ({ row }) =>
+        row.original.assignees.length
+          ? row.original.assignees.map((assignee) => assignee.name).join(", ")
+          : "Unassigned",
+    },
+    {
+      id: "due",
+      header: "Due",
+      cell: ({ row }) =>
+        row.original.plannedDueAt
+          ? new Intl.DateTimeFormat(undefined, {
+              day: "2-digit",
+              month: "short",
+              year: "numeric",
+            }).format(new Date(row.original.plannedDueAt))
+          : "No due date",
+    },
+    {
+      accessorKey: "priority",
+      header: "Priority",
+      cell: ({ row }) => (
+        <span className="capitalize">{row.original.priority.replaceAll("_", " ")}</span>
+      ),
+    },
+    {
+      accessorKey: "status",
+      header: "Status",
+      cell: ({ row }) => (
+        <Badge tone={taskStatusTone(row.original.status)} className="capitalize">
+          {row.original.status.replaceAll("_", " ")}
+        </Badge>
+      ),
+    },
+    {
+      id: "actions",
+      header: "",
+      cell: ({ row }) => (
+        <Link
+          href={tenantTaskReviewHref(row.original.id)}
+          className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+        >
+          Open
+        </Link>
+      ),
+    },
+  ];
+
+  if (tasksQuery.isPending) return <LoadingState label="Loading assigned tasks" rows={4} />;
+  if (tasksQuery.isError) {
+    return (
+      <ErrorState
+        title="Assigned tasks could not load"
+        onRetry={() => void tasksQuery.refetch()}
+      />
+    );
+  }
+
+  const openTasks = assignedTasks.filter((task) => !["completed", "cancelled", "approved"].includes(task.status));
+  const completedTasks = assignedTasks.filter((task) => ["completed", "approved"].includes(task.status));
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Assigned tasks</CardTitle>
+        <CardDescription>
+          {employee.isManager
+            ? `Tasks allotted to ${employee.name} and employees in their team (${openTasks.length} open, ${completedTasks.length} completed).`
+            : `Tasks allotted to ${employee.name} (${openTasks.length} open, ${completedTasks.length} completed).`}
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <DataTable
+          caption={`Tasks assigned to ${employee.name}`}
+          columns={columns}
+          data={assignedTasks}
+          emptyTitle="No assigned tasks"
+          emptyDescription={
+            employee.isManager
+              ? "Tasks assigned to this manager or their team members will appear here."
+              : "Tasks assigned to this employee will appear here."
+          }
+        />
+      </CardContent>
+    </Card>
+  );
+}
+
+function taskStatusTone(
+  status: TenantAdminTask["status"],
+): "neutral" | "info" | "warning" | "success" | "danger" {
+  if (["completed", "approved"].includes(status)) return "success";
+  if (["cancelled", "returned"].includes(status)) return "danger";
+  if (["in_progress", "manager_review", "tenant_approval"].includes(status)) return "warning";
+  if (["assigned", "open", "requested"].includes(status)) return "info";
+  return "neutral";
 }
 
 function AddManagerDialog({

@@ -1,4 +1,6 @@
 import { NotFoundException } from "@nestjs/common";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { TenantAdminServicesRepository } from "../../src/platform/tenant-admin-services.repository";
 
@@ -183,5 +185,12 @@ describe("TenantAdminServicesRepository", () => {
     expect(listed.map((rate) => rate.id)).toEqual(["rate-active", "rate-disabled"]);
     expect(listed[0]).not.toHaveProperty("updatedAt");
     expect(listed.find((rate) => rate.id === "rate-disabled")?.status).toBe("inactive");
+  });
+
+  it("loads service task allocations with tenant-scoped client and employee assignments", async () => {
+    const source = readFileSync(resolve(__dirname, "../../src/platform/tenant-admin-services.repository.ts"), "utf8");
+    expect(source).toContain("getAllocations");
+    expect(source).toContain("task_assignments ta");
+    expect(source).toContain("groupServiceAllocations");
   });
 });

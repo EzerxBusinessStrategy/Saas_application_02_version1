@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Inject, Param, ParseUUIDPipe, Patch, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Inject, Param, ParseUUIDPipe, Patch, Post, Query, UseGuards } from "@nestjs/common";
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { ActiveRequestContextGuard } from "../auth/guards/active-request-context.guard";
 import { PermissionGuard } from "../auth/guards/permission.guard";
@@ -9,7 +9,10 @@ import { RequestContext } from "../auth/request-context";
 import { ZodValidationPipe } from "../common/validation/zod-validation.pipe";
 import {
   tenantAdminServiceCreateSchema,
+  tenantAdminServiceAllocationsQuerySchema,
   tenantAdminServiceTaskStatusSchema,
+  TenantAdminServiceAllocationsQuery,
+  TenantAdminServiceAllocationsResponseDto,
   TenantAdminServiceCreateRequest,
   TenantAdminServiceDto,
   TenantAdminServicesResponseDto,
@@ -58,6 +61,18 @@ export class TenantAdminServicesController {
     @Body(new ZodValidationPipe(tenantAdminServiceTaskStatusSchema)) body: TenantAdminServiceTaskStatusRequest,
   ): Promise<TenantAdminServiceTaskStatusResponseDto> {
     return this.service.setTaskStatus(context, serviceId, rateItemId, body);
+  }
+
+  @Get(":serviceId/allocations")
+  @RequirePermissions("client.read")
+  @ApiOperation({ summary: "Return client and employee allocations for service task rates." })
+  @ApiOkResponse({ type: TenantAdminServiceAllocationsResponseDto })
+  getAllocations(
+    @CurrentRequestContext() context: RequestContext,
+    @Param("serviceId", new ParseUUIDPipe()) serviceId: string,
+    @Query(new ZodValidationPipe(tenantAdminServiceAllocationsQuerySchema)) query: TenantAdminServiceAllocationsQuery,
+  ): Promise<TenantAdminServiceAllocationsResponseDto> {
+    return this.service.getAllocations(context, serviceId, query);
   }
 }
 

@@ -37,8 +37,10 @@ test("task feedback repository scopes client queries to authenticated client", (
   expect(source).toContain("resolveClientPortalScope");
   expect(source).toContain("scope.clientId");
   expect(source).toContain("client_task_feedback");
-  expect(source).toContain("ctf.employee_id = $2");
-  expect(source).toContain("interval '60 days'");
+  expect(source).toContain("ctf.employee_id = $");
+  expect(source).toContain("ctf.client_id = $");
+  expect(source).toContain("coalesce(ctf.status, 'submitted') = $");
+  expect(source).toContain("ctf.created_at >=");
   expect(source).toContain("expire_unanswered_client_task_feedback");
   expect(source).toContain("on conflict (tenant_id, idempotency_key) do nothing");
   expect(source).toContain("submitted_by_user_id, idempotency_key");

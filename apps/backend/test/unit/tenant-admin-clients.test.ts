@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { TenantAdminClientsRepository } from "../../src/platform/tenant-admin-clients.repository";
 
@@ -172,5 +174,16 @@ describe("TenantAdminClientsRepository", () => {
     expect(sql).toContain("CLIENT_PORTAL_ACCOUNT_CREATED");
     expect(sql).toContain("CLIENT_CREATED");
     expect(params).toContainEqual(["tenant-1", "cl-101", "ABC Pvt Ltd", "ABC Pvt Ltd"]);
+  });
+
+  it("scopes client directory filters to assigned employees and employee-aware search", () => {
+    const source = readFileSync(
+      resolve(__dirname, "../../src/platform/tenant-admin-clients.repository.ts"),
+      "utf8",
+    );
+
+    expect(source).toContain("getEmployeeOptions");
+    expect(source).toContain("ta.employee_id = $7");
+    expect(source).toContain("coalesce(e.employee_code, '') ilike");
   });
 });

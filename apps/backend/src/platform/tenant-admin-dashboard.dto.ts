@@ -20,10 +20,17 @@ const optionalIsoDate = z.preprocess(
   z.string().regex(ISO_DATE_PATTERN).optional(),
 );
 
+const optionalUuid = z.preprocess(
+  (value) => (typeof value === "string" && value.trim() ? value.trim() : undefined),
+  z.string().uuid().optional(),
+);
+
 export const tenantAdminDashboardQuerySchema = z
   .object({
     from: optionalIsoDate,
     to: optionalIsoDate,
+    clientId: optionalUuid,
+    employeeId: optionalUuid,
   })
   .superRefine((value, context) => {
     if ((value.from && !value.to) || (!value.from && value.to)) {
@@ -113,6 +120,9 @@ export class TenantAdminMetricsDto {
 
   @ApiProperty({ type: Number })
   completedTasks!: number;
+
+  @ApiProperty({ type: Number })
+  overdueTasks!: number;
 
   @ApiPropertyOptional({ type: () => MoneyDto, nullable: true })
   outstanding!: MoneyDto | null;

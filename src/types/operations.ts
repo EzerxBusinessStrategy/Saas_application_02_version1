@@ -148,6 +148,8 @@ export const sharedDocumentSchema = z.object({
   recipientClientIds: z.array(z.string()),
   tenantAdminVisible: z.boolean(),
   shareReason: z.string().nullable().default(null),
+  validUntil: z.string().nullable().optional(),
+  agreementAccessStatus: z.enum(["active", "expired"]).nullable().optional(),
   activity: z.array(
     z.object({ id: z.string(), action: z.string(), actor: z.string(), at: z.string() }),
   ),
@@ -169,6 +171,7 @@ export const documentUploadInputSchema = sharedDocumentSchema
     recipientTenantAdminIds: true,
     recipientClientIds: true,
     shareReason: true,
+    validUntil: true,
   })
   .partial({
     clientId: true,
@@ -179,6 +182,7 @@ export const documentUploadInputSchema = sharedDocumentSchema
     recipientTenantAdminIds: true,
     recipientClientIds: true,
     shareReason: true,
+    validUntil: true,
   })
   .extend({ taskId: z.string().uuid().optional() });
 export type DocumentUploadInput = z.infer<typeof documentUploadInputSchema>;

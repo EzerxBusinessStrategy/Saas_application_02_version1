@@ -3,6 +3,7 @@ import { Pool, PoolClient } from "pg";
 import { databaseNotConfigured } from "../auth/auth-errors";
 import { DATABASE_POOL } from "../database/database.tokens";
 import { withDatabaseTransaction } from "../database/transaction-context";
+import { AGREEMENT_EXPIRED_MESSAGE } from "./agreement-expiry";
 import { ClientPortalRequestContext, ClientPortalScope, resolveClientPortalScope } from "./client-portal-context";
 import { DecideClientPortalDeliverableRequest } from "./client-portal-deliverables.dto";
 import type { StoredDocumentObject } from "./tenant-document-storage.service";
@@ -35,6 +36,8 @@ type ClientPortalDeliverableRow = {
   readonly client_decision_status: "pending" | "approved" | "rejected";
   readonly client_decision_at: string | null;
   readonly client_decision_comment: string | null;
+  readonly valid_until: string | null;
+  readonly access_status: "active" | "expired";
 };
 
 @Injectable()
@@ -93,6 +96,7 @@ export class ClientPortalDeliverablesRepository {
         due_on: string | null;
         currency: string | null;
         amount: number | null;
+        valid_until: string | null;
       }>(
         `
           select
@@ -118,7 +122,8 @@ export class ClientPortalDeliverablesRepository {
             i.issued_on::text,
             i.due_on::text,
             i.currency_code as currency,
-            i.total_amount as amount
+            i.total_amount as amount,
+            nullif(d.metadata->>'validUntil', '') as valid_until
           from public.tenant_documents d
           join public.clients c
             on c.tenant_id = d.tenant_id
@@ -139,6 +144,22 @@ export class ClientPortalDeliverablesRepository {
         [scope.tenantId, scope.clientId, documentId],
       );
       const document = result.rows[0];
+      if (!document) {
+        throw new ConflictException({
+          code: "DELIVERABLE_FILE_NOT_AVAILABLE",
+          message: "The file for this deliverable is not available.",
+        });
+      }
+      if (
+        document.category === "agreement" &&
+        document.valid_until &&
+        new Date(document.valid_until).getTime() <= Date.now()
+      ) {
+        throw new ConflictException({
+          code: "AGREEMENT_EXPIRED",
+          message: AGREEMENT_EXPIRED_MESSAGE,
+        });
+      }
       if (document?.storage_bucket && document.storage_key) {
         return { kind: "stored", object: { storageBucket: document.storage_bucket, storageKey: document.storage_key } };
       }
@@ -201,6 +222,20 @@ export class ClientPortalDeliverablesRepository {
     input: DecideClientPortalDeliverableRequest,
   ): Promise<ClientPortalDeliverableRow> {
     return this.withContext(context, async (client, scope) => {
+      const current = (await this.getDeliverables(client, scope)).find((item) => item.id === documentId);
+      if (!current) {
+        throw new ConflictException({
+          code: "DELIVERABLE_NOT_AVAILABLE",
+          message: "This deliverable is no longer available.",
+        });
+      }
+      if (current.access_status === "expired") {
+        throw new ConflictException({
+          code: "AGREEMENT_EXPIRED",
+          message: AGREEMENT_EXPIRED_MESSAGE,
+        });
+      }
+
       const result = await client.query<{ id: string; title: string }>(
         `
           update public.tenant_documents d
@@ -265,7 +300,15 @@ export class ClientPortalDeliverablesRepository {
           d.updated_at::text as updated_on,
           coalesce(d.metadata->>'clientDecisionStatus', 'pending') as client_decision_status,
           d.metadata->>'clientDecisionAt' as client_decision_at,
-          d.metadata->>'clientDecisionComment' as client_decision_comment
+          d.metadata->>'clientDecisionComment' as client_decision_comment,
+          nullif(d.metadata->>'validUntil', '') as valid_until,
+          case
+            when d.category = 'agreement'
+              and nullif(d.metadata->>'validUntil', '') is not null
+              and (d.metadata->>'validUntil')::timestamptz <= now()
+            then 'expired'
+            else 'active'
+          end as access_status
         from public.tenant_documents d
         left join public.tenant_memberships tm
           on tm.id = d.created_by

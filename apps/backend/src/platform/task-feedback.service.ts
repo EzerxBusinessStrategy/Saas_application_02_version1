@@ -25,10 +25,13 @@ export class TaskFeedbackService {
     return this.repository.submitForClient(requireClientPortalContext(context), input);
   }
 
-  listTenantLog(context: RequestContext): Promise<TaskFeedbackLogResponseDto> {
-    return this.repository.listForTenant(requireTenantAdminContext(context)).then((result) => ({
+  listTenantLog(context: RequestContext, query: TaskFeedbackLogQuery): Promise<TaskFeedbackLogResponseDto> {
+    return this.repository.listForTenant(requireTenantAdminContext(context), query).then((result) => ({
       items: [...result.items],
       total: result.total,
+      page: result.page,
+      pageSize: result.pageSize,
+      pageCount: result.pageCount,
     }));
   }
 

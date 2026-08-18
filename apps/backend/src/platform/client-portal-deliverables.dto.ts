@@ -13,6 +13,8 @@ export class ClientPortalDeliverableDto {
   @ApiProperty({ type: String, enum: ["pending", "approved", "rejected"] }) clientDecisionStatus!: "pending" | "approved" | "rejected";
   @ApiPropertyOptional({ type: String, nullable: true }) clientDecisionAt!: string | null;
   @ApiPropertyOptional({ type: String, nullable: true }) clientDecisionComment!: string | null;
+  @ApiPropertyOptional({ type: String, nullable: true }) validUntil!: string | null;
+  @ApiProperty({ type: String, enum: ["active", "expired"] }) accessStatus!: "active" | "expired";
 }
 
 export class ClientPortalDeliverablesResponseDto {

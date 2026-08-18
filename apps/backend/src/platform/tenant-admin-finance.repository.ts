@@ -24,6 +24,8 @@ export type TenantDocumentRow = {
   readonly clientDecisionBy: string | null;
   readonly clientDecisionComment: string | null;
   readonly shareReason: string | null;
+  readonly validUntil: string | null;
+  readonly agreementAccessStatus: "active" | "expired" | null;
   readonly storageKey: string | null;
 };
 
@@ -112,14 +114,15 @@ export class TenantAdminFinanceRepository {
             jsonb_build_object(
               'clientDecisionStatus', 'pending',
               'clientVisible', $14::boolean,
-              'shareReason', $13::text
+              'shareReason', $13::text,
+              'validUntil', nullif($15::text, '')
             ),
             $12
           )
           on conflict (tenant_id, created_by, idempotency_key) where idempotency_key is not null do nothing
           returning id::text
         `,
-        [context.tenantId, input.clientId ?? null, input.title, input.fileName, input.fileType, input.sizeBytes, input.category, storageBucket, input.storageKey, input.contentType, input.idempotencyKey ?? null, context.membershipId, input.shareReason ?? "", Boolean(input.clientId)],
+        [context.tenantId, input.clientId ?? null, input.title, input.fileName, input.fileType, input.sizeBytes, input.category, storageBucket, input.storageKey, input.contentType, input.idempotencyKey ?? null, context.membershipId, input.shareReason ?? "", Boolean(input.clientId), input.validUntil ?? null],
       ).catch((error: unknown) => {
         if (isUndefinedTable(error)) {
           throw new ConflictException({
@@ -380,7 +383,7 @@ export class TenantAdminFinanceRepository {
 
   private async getDocuments(client: PoolClient, tenantId: string, clientId?: string, membershipId?: string): Promise<readonly TenantDocumentRow[]> {
     const result = await client.query<{
-      id: string; client_id: string | null; client: string; title: string; file_name: string; file_type: string; size_bytes: number; category: string; storage_key: string | null; uploaded_by: string; updated_on: string; status: "active" | "archived"; client_decision_status: "pending" | "approved" | "rejected"; client_decision_at: string | null; client_decision_by: string | null; client_decision_comment: string | null; share_reason: string | null;
+      id: string; client_id: string | null; client: string; title: string; file_name: string; file_type: string; size_bytes: number; category: string; storage_key: string | null; uploaded_by: string; updated_on: string; status: "active" | "archived"; client_decision_status: "pending" | "approved" | "rejected"; client_decision_at: string | null; client_decision_by: string | null; client_decision_comment: string | null; share_reason: string | null; valid_until: string | null; agreement_access_status: "active" | "expired" | null;
     }>(
       `
         select d.id::text, d.client_id::text, coalesce(c.display_name, 'Not linked') as client, d.title, d.file_name, d.file_type, d.storage_key,
@@ -390,7 +393,17 @@ export class TenantAdminFinanceRepository {
                d.metadata->>'clientDecisionAt' as client_decision_at,
                d.metadata->>'clientDecisionBy' as client_decision_by,
                d.metadata->>'clientDecisionComment' as client_decision_comment,
-               nullif(d.metadata->>'shareReason', '') as share_reason
+               nullif(d.metadata->>'shareReason', '') as share_reason,
+               nullif(d.metadata->>'validUntil', '') as valid_until,
+               case
+                 when d.category = 'agreement'
+                   and nullif(d.metadata->>'validUntil', '') is not null
+                   and (d.metadata->>'validUntil')::timestamptz <= now()
+                 then 'expired'
+                 when d.category = 'agreement'
+                 then 'active'
+                 else null
+               end as agreement_access_status
         from public.tenant_documents d
         left join public.clients c on c.id = d.client_id and c.tenant_id = d.tenant_id
         left join public.tenant_memberships tm on tm.id = d.created_by and tm.tenant_id = d.tenant_id
@@ -425,6 +438,8 @@ export class TenantAdminFinanceRepository {
       clientDecisionBy: row.client_decision_by,
       clientDecisionComment: row.client_decision_comment,
       shareReason: row.share_reason,
+      validUntil: row.valid_until,
+      agreementAccessStatus: row.agreement_access_status,
       storageKey: row.storage_key,
     }));
   }

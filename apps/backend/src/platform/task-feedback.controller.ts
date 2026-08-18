@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Inject, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Inject, Post, Query, UseGuards } from "@nestjs/common";
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { ActiveRequestContextGuard } from "../auth/guards/active-request-context.guard";
 import { PermissionGuard } from "../auth/guards/permission.guard";
@@ -13,6 +13,8 @@ import {
   SubmitClientTaskFeedback,
   submitClientTaskFeedbackSchema,
   TaskFeedbackLogResponseDto,
+  taskFeedbackLogQuerySchema,
+  TaskFeedbackLogQuery,
 } from "./task-feedback.dto";
 import { TaskFeedbackService } from "./task-feedback.service";
 
@@ -53,8 +55,11 @@ export class TenantAdminTaskFeedbackController {
   @RequirePermissions("employee.read")
   @ApiOperation({ summary: "List all client task feedback for performance review." })
   @ApiOkResponse({ type: TaskFeedbackLogResponseDto })
-  list(@CurrentRequestContext() context: RequestContext) {
-    return this.service.listTenantLog(context);
+  list(
+    @CurrentRequestContext() context: RequestContext,
+    @Query(new ZodValidationPipe(taskFeedbackLogQuerySchema)) query: TaskFeedbackLogQuery,
+  ) {
+    return this.service.listTenantLog(context, query);
   }
 }
 

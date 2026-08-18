@@ -1,18 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   ArrowDown,
   CheckCircle2,
   Clock,
-  Filter,
   RefreshCw,
-  Search,
   TrendingUp,
   UserCheck,
-  X,
 } from "lucide-react";
+import { FilterToolbar } from "@/components/shared/filter-toolbar";
 import { PageHeader } from "@/components/shared/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -24,11 +22,12 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 
 type EmployeeRef = {
   id: string;
   name: string;
+  employeeCode?: string | null;
   role: string;
   status: string;
 };
@@ -148,13 +147,25 @@ function formatMoney(money: Money | null): string {
 
 export function TenantEmployeePerformancePage() {
   const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("active");
   const [sortBy, setSortBy] = useState("performanceScore");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [page, setPage] = useState(1);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
 
-  const queryKey = ["tenant-employee-performance", { statusFilter, sortBy, sortOrder, page }];
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      setDebouncedSearch(searchTerm.trim());
+      setPage(1);
+    }, 300);
+    return () => window.clearTimeout(timeout);
+  }, [searchTerm]);
+
+  const queryKey = [
+    "tenant-employee-performance",
+    { statusFilter, sortBy, sortOrder, page, debouncedSearch },
+  ];
 
   const { data, isLoading, isError, refetch } = useQuery<PerformanceResponse>({
     queryKey,
@@ -163,6 +174,7 @@ export function TenantEmployeePerformancePage() {
       if (statusFilter && statusFilter !== "all") params.set("status", statusFilter);
       if (sortBy) params.set("sortBy", sortBy);
       if (sortOrder) params.set("sortOrder", sortOrder);
+      if (debouncedSearch) params.set("query", debouncedSearch);
       params.set("page", page.toString());
       params.set("limit", "20");
 
@@ -203,11 +215,6 @@ export function TenantEmployeePerformancePage() {
 
   const { summary, period, items, pagination } = data;
 
-  const filteredItems = items.filter((item) =>
-    item.employee.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    item.employee.role.toLowerCase().includes(searchTerm.toLowerCase()),
-  );
-
   const topPerformers = items.filter((i) => i.isEligibleForRanking && i.rank !== null).slice(0, 5);
 
   return (
@@ -215,7 +222,7 @@ export function TenantEmployeePerformancePage() {
       <PageHeader
         eyebrow="Tenant Admin · Workforce Performance"
         title="Employee Performance"
-        description={`Compare employee delivery, SLA efficiency, client performance and revenue contribution for ${period.label}.`}
+        description={`Compare employee delivery, SLA efficiency, and task completion for ${period.label}.`}
       />
 
       {/* Top Summary Metrics */}
@@ -286,7 +293,7 @@ export function TenantEmployeePerformancePage() {
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-lg font-bold">Top Performers</h2>
-              <p className="text-xs text-muted-foreground">Ranked by composite task completion, SLA efficiency, and revenue contribution.</p>
+              <p className="text-xs text-muted-foreground">Ranked by composite task completion and SLA efficiency.</p>
             </div>
             <div className="flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
               <ArrowDown className="size-3.5" />
@@ -333,8 +340,10 @@ export function TenantEmployeePerformancePage() {
                     </span>
                   </div>
                   <div className="flex justify-between border-t pt-2 text-[11px] text-muted-foreground">
-                    <span>Revenue:</span>
-                    <span className="font-medium">{formatMoney(item.revenueContribution)}</span>
+                    <span>On-time rate:</span>
+                    <span className="font-medium">
+                      {item.onTimeCompletionRatePercent !== null ? `${item.onTimeCompletionRatePercent}%` : "N/A"}
+                    </span>
                   </div>
                 </CardContent>
               </Card>
@@ -345,56 +354,61 @@ export function TenantEmployeePerformancePage() {
 
       {/* Full Employee Performance Table */}
       <Card>
-        <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <CardTitle>All Employees</CardTitle>
-            <CardDescription>
-              Backend-calculated employee metrics for {period.label}. Minimum 3 completed tasks required for top ranking.
-            </CardDescription>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="relative min-w-48">
-              <Search className="absolute left-2.5 top-2.5 size-4 text-muted-foreground" />
-              <Input
-                placeholder="Search employee..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-8 text-xs"
-              />
-            </div>
-
-            <div className="flex items-center gap-2">
-              <Filter className="size-4 text-muted-foreground" />
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="h-9 rounded-md border border-input bg-transparent px-3 text-xs shadow-sm focus:outline-none"
-              >
-                <option value="active">Active Only</option>
-                <option value="all">All Statuses</option>
-              </select>
-
-              <select
+        <CardHeader className="gap-4">
+          <CardTitle>All Employees</CardTitle>
+          <FilterToolbar
+            filterGridClassName="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
+            search={{
+              value: searchTerm,
+              onChange: setSearchTerm,
+              label: "Search employees",
+              placeholder: "Search name, employee code, or SLA",
+            }}
+            activeFilterCount={Number(statusFilter !== "active") + Number(Boolean(debouncedSearch))}
+            onClear={() => {
+              setSearchTerm("");
+              setStatusFilter("active");
+              setSortBy("performanceScore");
+              setSortOrder("desc");
+              setPage(1);
+            }}
+            trailing={
+              <Select
+                aria-label="Sort employees"
+                className="min-w-44"
                 value={`${sortBy}:${sortOrder}`}
-                onChange={(e) => {
-                  const [b, o] = e.target.value.split(":");
-                  setSortBy(b);
-                  setSortOrder(o as "asc" | "desc");
+                onChange={(event) => {
+                  const [nextSortBy, nextSortOrder] = event.target.value.split(":");
+                  setSortBy(nextSortBy);
+                  setSortOrder(nextSortOrder as "asc" | "desc");
+                  setPage(1);
                 }}
-                className="h-9 rounded-md border border-input bg-transparent px-3 text-xs shadow-sm focus:outline-none"
               >
-                <option value="performanceScore:desc">Sort: Highest Score</option>
-                <option value="averageSla:asc">Sort: Fastest SLA (Ascending)</option>
-                <option value="completionRate:desc">Sort: Task Completion Rate</option>
-                <option value="revenue:desc">Sort: Revenue Contribution</option>
-              </select>
-            </div>
-          </div>
+                <option value="performanceScore:desc">Highest score</option>
+                <option value="averageSla:asc">Fastest SLA</option>
+                <option value="completionRate:desc">Completion rate</option>
+              </Select>
+            }
+          >
+            <label className="flex flex-col gap-1 text-sm font-medium">
+              Status
+              <Select
+                aria-label="Filter employee status"
+                value={statusFilter}
+                onChange={(event) => {
+                  setStatusFilter(event.target.value);
+                  setPage(1);
+                }}
+              >
+                <option value="active">Active only</option>
+                <option value="all">All statuses</option>
+              </Select>
+            </label>
+          </FilterToolbar>
         </CardHeader>
 
         <CardContent>
-          {filteredItems.length === 0 ? (
+          {items.length === 0 ? (
             <div className="py-12 text-center text-sm text-muted-foreground">
               No employees found matching the selected criteria.
             </div>
@@ -415,13 +429,12 @@ export function TenantEmployeePerformancePage() {
                       <span className="block text-[10px] text-emerald-600 font-semibold">(Lower=Better)</span>
                     </th>
                     <th className="p-3 text-right">SLA Met %</th>
-                    <th className="p-3 text-right">Revenue</th>
                     <th className="p-3 text-right">Score</th>
                     <th className="p-3 text-center">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
-                  {filteredItems.map((item) => (
+                  {items.map((item) => (
                     <tr
                       key={item.employee.id}
                       className="hover:bg-muted/30 transition-colors cursor-pointer"
@@ -456,9 +469,6 @@ export function TenantEmployeePerformancePage() {
                       </td>
                       <td className="p-3 text-right font-medium">
                         {item.slaMetRatePercent !== null ? `${item.slaMetRatePercent}%` : "N/A"}
-                      </td>
-                      <td className="p-3 text-right text-muted-foreground">
-                        {formatMoney(item.revenueContribution)}
                       </td>
                       <td className="p-3 text-right font-extrabold text-primary">
                         {item.performanceScore !== null ? item.performanceScore : "N/A"}
@@ -519,7 +529,7 @@ export function TenantEmployeePerformancePage() {
               Failed to load detailed performance metrics for this employee.
             </div>
           ) : (
-            <EmployeeDetailView data={detailQuery.data} onClose={() => setSelectedEmployeeId(null)} />
+            <EmployeeDetailView data={detailQuery.data} />
           )}
         </DialogContent>
       </Dialog>
@@ -529,34 +539,27 @@ export function TenantEmployeePerformancePage() {
 
 function EmployeeDetailView({
   data,
-  onClose,
 }: {
   data: EmployeeDetailResponse;
-  onClose: () => void;
 }) {
-  const { performance, clientBreakdown, taskHistory } = data;
+  const { performance, taskHistory } = data;
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-start justify-between border-b pb-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <h2 className="text-xl font-bold">{performance.employee.name}</h2>
-            {performance.rank ? (
-              <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-bold text-primary">
-                Rank #{performance.rank}
-              </span>
-            ) : null}
-          </div>
-          <p className="text-sm text-muted-foreground">{performance.employee.role} · Status: {performance.employee.status}</p>
+      <div className="border-b pb-4">
+        <div className="flex items-center gap-2 pr-10">
+          <h2 className="text-xl font-bold">{performance.employee.name}</h2>
+          {performance.rank ? (
+            <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-bold text-primary">
+              Rank #{performance.rank}
+            </span>
+          ) : null}
         </div>
-        <Button variant="ghost" size="sm" onClick={onClose}>
-          <X className="size-4" />
-        </Button>
+        <p className="text-sm text-muted-foreground">{performance.employee.role} · Status: {performance.employee.status}</p>
       </div>
 
       {/* Score Breakdown Cards */}
-      <div className="grid gap-4 sm:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-3">
         <Card className="p-3 bg-muted/30">
           <p className="text-xs text-muted-foreground">Overall Score</p>
           <p className="text-2xl font-extrabold text-primary">{performance.performanceScore ?? "N/A"}</p>
@@ -572,47 +575,6 @@ function EmployeeDetailView({
           </div>
           <p className="text-xl font-bold">{performance.scoreComponents.slaScore ?? "N/A"}</p>
         </Card>
-        <Card className="p-3 bg-muted/30">
-          <p className="text-xs text-muted-foreground">Revenue Component</p>
-          <p className="text-xl font-bold">{performance.scoreComponents.revenueScore ?? "N/A"}</p>
-        </Card>
-      </div>
-
-      {/* Client-wise Breakdown */}
-      <div className="flex flex-col gap-2">
-        <h3 className="text-sm font-bold">Client-wise Performance</h3>
-        {clientBreakdown.length === 0 ? (
-          <p className="text-xs text-muted-foreground">No client breakdown data available.</p>
-        ) : (
-          <div className="overflow-x-auto rounded border">
-            <table className="w-full text-left text-xs">
-              <thead className="border-b bg-muted/50 text-muted-foreground">
-                <tr>
-                  <th className="p-2">Client Name</th>
-                  <th className="p-2 text-center">Assigned</th>
-                  <th className="p-2 text-center">Completed</th>
-                  <th className="p-2 text-right">Completion %</th>
-                  <th className="p-2 text-right">Avg SLA Time</th>
-                  <th className="p-2 text-right">Revenue</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {clientBreakdown.map((cb) => (
-                  <tr key={cb.clientId}>
-                    <td className="p-2 font-medium">{cb.clientName}</td>
-                    <td className="p-2 text-center">{cb.assignedTasks}</td>
-                    <td className="p-2 text-center">{cb.completedTasks}</td>
-                    <td className="p-2 text-right">{cb.completionRatePercent}%</td>
-                    <td className="p-2 text-right font-semibold text-emerald-600">
-                      {formatSlaMinutes(cb.averageSlaMinutes)}
-                    </td>
-                    <td className="p-2 text-right">{formatMoney(cb.revenueContribution)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
       </div>
 
       {/* Task History */}

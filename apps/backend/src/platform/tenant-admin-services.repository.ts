@@ -5,11 +5,28 @@ import { DATABASE_POOL } from "../database/database.tokens";
 import { withDatabaseTransaction } from "../database/transaction-context";
 import { TenantAdminRequestContext } from "./tenant-admin-context";
 import {
+  TenantAdminServiceAllocationsResponseDto,
   TenantAdminServiceCreateRequest,
   TenantAdminServiceDto,
   TenantAdminServiceRateDto,
   TenantAdminServiceTaskStatusResponseDto,
 } from "./tenant-admin-services.dto";
+
+type ServiceAllocationRow = {
+  readonly rate_item_id: string;
+  readonly task_type: string;
+  readonly rate_amount: number;
+  readonly currency_code: string;
+  readonly unit_type: TenantAdminServiceRateDto["unitType"];
+  readonly task_id: string | null;
+  readonly task_title: string | null;
+  readonly task_status: string | null;
+  readonly client_id: string | null;
+  readonly client_name: string | null;
+  readonly employee_id: string | null;
+  readonly employee_name: string | null;
+  readonly assignment_status: string | null;
+};
 
 @Injectable()
 export class TenantAdminServicesRepository {
@@ -126,6 +143,81 @@ export class TenantAdminServicesRepository {
         [serviceId, JSON.stringify({ rateItemId, taskType: item.task_type, status })],
       );
       return { rateItemId, taskType: item.task_type, status };
+    });
+  }
+
+  async getAllocations(
+    context: TenantAdminRequestContext,
+    serviceId: string,
+    rateItemId?: string,
+  ): Promise<TenantAdminServiceAllocationsResponseDto> {
+    return this.withContext(context, async (client) => {
+      const service = await client.query<{ id: string; name: string }>(
+        `
+          select s.id::text, s.name
+          from public.services s
+          where s.tenant_id = $1
+            and s.id = $2
+            and s.status in ('active', 'inactive')
+        `,
+        [context.tenantId, serviceId],
+      );
+      const serviceRow = service.rows[0];
+      if (!serviceRow) {
+        throw new NotFoundException({ code: "SERVICE_NOT_FOUND", message: "Select a service from this tenant." });
+      }
+
+      const result = await client.query<ServiceAllocationRow>(
+        `
+          select
+            rci.id::text as rate_item_id,
+            rci.task_type,
+            rci.rate_amount::float as rate_amount,
+            rc.currency_code,
+            rci.unit_type,
+            t.id::text as task_id,
+            t.title as task_title,
+            t.status as task_status,
+            c.id::text as client_id,
+            c.display_name as client_name,
+            e.id::text as employee_id,
+            coalesce(tm.display_name, e.employee_code) as employee_name,
+            ta.status as assignment_status
+          from public.rate_card_items rci
+          join public.rate_cards rc
+            on rc.id = rci.rate_card_id
+           and rc.tenant_id = rci.tenant_id
+           and rc.status = 'active'
+          left join public.tasks t
+            on t.tenant_id = rci.tenant_id
+           and t.rate_card_item_id = rci.id
+           and t.status <> 'cancelled'
+          left join public.clients c
+            on c.tenant_id = t.tenant_id
+           and c.id = t.client_id
+          left join public.task_assignments ta
+            on ta.tenant_id = t.tenant_id
+           and ta.task_id = t.id
+           and ta.status in ('active', 'submitted')
+          left join public.employees e
+            on e.tenant_id = ta.tenant_id
+           and e.id = ta.employee_id
+          left join public.tenant_memberships tm
+            on tm.tenant_id = e.tenant_id
+           and tm.id = e.membership_id
+          where rci.tenant_id = $1
+            and rci.service_id = $2
+            and ($3::uuid is null or rci.id = $3)
+          order by rci.task_type asc, c.display_name asc nulls last, t.title asc nulls last, employee_name asc nulls last
+        `,
+        [context.tenantId, serviceId, rateItemId ?? null],
+      );
+
+      return {
+        serviceId: serviceRow.id,
+        serviceName: serviceRow.name,
+        rateItems: groupServiceAllocations(result.rows),
+      };
     });
   }
 
@@ -267,6 +359,55 @@ export class TenantAdminServicesRepository {
     if (!this.pool) throw databaseNotConfigured();
     return withDatabaseTransaction(this.pool, context, (_tx, client) => work(client));
   }
+}
+
+function groupServiceAllocations(rows: readonly ServiceAllocationRow[]): TenantAdminServiceAllocationsResponseDto["rateItems"] {
+  const rateItems = new Map<string, TenantAdminServiceAllocationsResponseDto["rateItems"][number]>();
+
+  for (const row of rows) {
+    let rateItem = rateItems.get(row.rate_item_id);
+    if (!rateItem) {
+      rateItem = {
+        rateItemId: row.rate_item_id,
+        taskType: row.task_type,
+        rateAmount: Number(row.rate_amount),
+        currencyCode: row.currency_code,
+        unitType: row.unit_type,
+        tasks: [],
+      };
+      rateItems.set(row.rate_item_id, rateItem);
+    }
+
+    if (!row.task_id || !row.client_id || !row.client_name || !row.task_title || !row.task_status) {
+      continue;
+    }
+
+    let task = rateItem.tasks.find((item) => item.taskId === row.task_id);
+    if (!task) {
+      task = {
+        taskId: row.task_id,
+        taskTitle: row.task_title,
+        taskStatus: row.task_status,
+        clientId: row.client_id,
+        clientName: row.client_name,
+        employees: [],
+      };
+      rateItem.tasks.push(task);
+    }
+
+    if (row.employee_id && row.employee_name && row.assignment_status) {
+      const exists = task.employees.some((employee) => employee.employeeId === row.employee_id);
+      if (!exists) {
+        task.employees.push({
+          employeeId: row.employee_id,
+          employeeName: row.employee_name,
+          assignmentStatus: row.assignment_status,
+        });
+      }
+    }
+  }
+
+  return [...rateItems.values()];
 }
 
 function dedupeRates(rates: readonly (TenantAdminServiceRateDto & { updatedAt: string })[]): TenantAdminServiceRateDto[] {

@@ -2,6 +2,8 @@ import { Inject, Injectable } from "@nestjs/common";
 import { RequestContext } from "../auth/request-context";
 import { requireTenantAdminContext } from "./tenant-admin-context";
 import {
+  TenantAdminServiceAllocationsResponseDto,
+  TenantAdminServiceAllocationsQuery,
   TenantAdminServiceCreateRequest,
   TenantAdminServiceDto,
   TenantAdminServicesResponseDto,
@@ -32,6 +34,14 @@ export class TenantAdminServicesService {
     input: TenantAdminServiceTaskStatusRequest,
   ): Promise<TenantAdminServiceTaskStatusResponseDto> {
     return this.repository.setRateItemStatus(requireTenantAdminContext(context), serviceId, rateItemId, input.status);
+  }
+
+  getAllocations(
+    context: RequestContext,
+    serviceId: string,
+    query: TenantAdminServiceAllocationsQuery,
+  ): Promise<TenantAdminServiceAllocationsResponseDto> {
+    return this.repository.getAllocations(requireTenantAdminContext(context), serviceId, query.rateItemId);
   }
 }
 

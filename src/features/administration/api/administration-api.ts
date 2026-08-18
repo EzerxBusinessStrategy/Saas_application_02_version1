@@ -204,6 +204,7 @@ export async function listClients(request: ClientListRequest) {
   if (request.status) params.set("status", request.status);
   if (request.service) params.set("service", request.service);
   if (request.manager) params.set("manager", request.manager);
+  if (request.employee) params.set("employee", request.employee);
   if (request.deadline) params.set("deadline", request.deadline);
   if (typeof request.revenueMin === "number" && Number.isFinite(request.revenueMin)) {
     params.set("revenueMin", String(request.revenueMin));
@@ -222,6 +223,7 @@ export async function listClients(request: ClientListRequest) {
       filters: z.object({
         services: z.array(clientOptionSchema),
         managers: z.array(clientOptionSchema),
+        employees: z.array(clientOptionSchema),
       }),
     })
     .parse(await response.json()) satisfies ClientListResponse;

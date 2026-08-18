@@ -41,9 +41,22 @@ export type TaskFeedbackLogItem = {
   createdAt: string;
 };
 
+export type TaskFeedbackLogRequest = {
+  status?: "submitted" | "expired";
+  from?: string;
+  to?: string;
+  employeeId?: string;
+  clientId?: string;
+  page?: number;
+  pageSize?: number;
+};
+
 export type TaskFeedbackLogResponse = {
   items: TaskFeedbackLogItem[];
   total: number;
+  page: number;
+  pageSize: number;
+  pageCount: number;
 };
 
 type ApiErrorBody = {
@@ -88,8 +101,19 @@ export async function submitTaskFeedback(input: {
   return response.json() as Promise<ClientTaskFeedback>;
 }
 
-export async function listTenantTaskFeedbackLog(): Promise<TaskFeedbackLogResponse> {
-  const response = await fetch("/api/tenant-admin/task-feedback");
+export async function listTenantTaskFeedbackLog(
+  request: TaskFeedbackLogRequest = {},
+): Promise<TaskFeedbackLogResponse> {
+  const params = new URLSearchParams();
+  if (request.status) params.set("status", request.status);
+  if (request.from) params.set("from", request.from);
+  if (request.to) params.set("to", request.to);
+  if (request.employeeId) params.set("employeeId", request.employeeId);
+  if (request.clientId) params.set("clientId", request.clientId);
+  if (request.page) params.set("page", String(request.page));
+  if (request.pageSize) params.set("pageSize", String(request.pageSize));
+  const query = params.toString();
+  const response = await fetch(query ? `/api/tenant-admin/task-feedback?${query}` : "/api/tenant-admin/task-feedback");
   if (!response.ok) {
     throw new Error("Could not load feedback log.");
   }

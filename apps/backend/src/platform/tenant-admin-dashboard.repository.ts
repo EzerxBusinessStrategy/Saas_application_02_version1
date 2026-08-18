@@ -31,6 +31,12 @@ export type DashboardMetricsResult = {
   readonly currencyCode: string;
   readonly openTasks: number;
   readonly completedTasks: number;
+  readonly overdueTasks: number;
+};
+
+type DashboardScopeFilters = {
+  readonly clientId?: string;
+  readonly employeeId?: string;
 };
 
 export type RecentActivityResult = {
@@ -127,10 +133,20 @@ export class TenantAdminDashboardRepository {
         today,
       });
       const timezone = tenant.timezone || "UTC";
-      const metrics = await this.getMetrics(client, tenantId, period, tenant.currencyCode, timezone);
+      const scopeFilters: DashboardScopeFilters = {
+        clientId: query.clientId,
+        employeeId: query.employeeId,
+      };
+      const metrics = await this.getMetrics(client, tenantId, period, tenant.currencyCode, timezone, scopeFilters);
       const recentActivity = await this.getRecentActivity(client, tenantId, period, timezone);
       const organisationSetup = await this.getOrganisationSetup(client, tenantId);
-      const upcomingDeadlines = await this.getUpcomingDeadlines(client, tenantId, period, timezone);
+      const upcomingDeadlines = await this.getUpcomingDeadlines(
+        client,
+        tenantId,
+        period,
+        timezone,
+        scopeFilters,
+      );
 
       return {
         tenant,
@@ -336,7 +352,10 @@ export class TenantAdminDashboardRepository {
     period: DashboardPeriod,
     currencyCode: string,
     timezone: string,
+    filters: DashboardScopeFilters = {},
   ): Promise<DashboardMetricsResult> {
+    const clientId = filters.clientId ?? null;
+    const employeeId = filters.employeeId ?? null;
     const query = `
       with scoped_invoices as (
         select i.id, i.tenant_id
@@ -345,6 +364,7 @@ export class TenantAdminDashboardRepository {
           and i.finalized_at is not null
           and i.status not in ('draft', 'cancelled', 'void')
           and i.issued_on between $2::date and $3::date
+          and ($5::uuid is null or i.client_id = $5)
       ), invoice_gross as (
         select coalesce(sum(ii.gross_amount - ii.discount_amount), 0)::numeric as sales
         from scoped_invoices si
@@ -360,6 +380,7 @@ export class TenantAdminDashboardRepository {
           from public.clients c
           where c.tenant_id = $1
             and c.status = 'active'
+            and ($5::uuid is null or c.id = $5)
             and (
               (c.created_at at time zone $4)::date between $2::date and $3::date
               or exists (
@@ -372,6 +393,14 @@ export class TenantAdminDashboardRepository {
                     (t.planned_due_at at time zone $4)::date,
                     (t.created_at at time zone $4)::date
                   ) between $2::date and $3::date
+                  and ($6::uuid is null or exists (
+                    select 1
+                    from public.task_assignments ta
+                    where ta.tenant_id = t.tenant_id
+                      and ta.task_id = t.id
+                      and ta.employee_id = $6
+                      and ta.status = 'active'
+                  ))
               )
               or exists (
                 select 1
@@ -394,6 +423,15 @@ export class TenantAdminDashboardRepository {
               (t.planned_due_at at time zone $4)::date,
               (t.created_at at time zone $4)::date
             ) between $2::date and $3::date
+            and ($5::uuid is null or t.client_id = $5)
+            and ($6::uuid is null or exists (
+              select 1
+              from public.task_assignments ta
+              where ta.tenant_id = t.tenant_id
+                and ta.task_id = t.id
+                and ta.employee_id = $6
+                and ta.status = 'active'
+            ))
         ) as open_tasks,
         (
           select count(*)::int
@@ -405,7 +443,33 @@ export class TenantAdminDashboardRepository {
               (t.planned_due_at at time zone $4)::date,
               (t.created_at at time zone $4)::date
             ) between $2::date and $3::date
-        ) as completed_tasks;
+            and ($5::uuid is null or t.client_id = $5)
+            and ($6::uuid is null or exists (
+              select 1
+              from public.task_assignments ta
+              where ta.tenant_id = t.tenant_id
+                and ta.task_id = t.id
+                and ta.employee_id = $6
+                and ta.status = 'active'
+            ))
+        ) as completed_tasks,
+        (
+          select count(*)::int
+          from public.tasks t
+          where t.tenant_id = $1
+            and t.status not in ('completed', 'cancelled')
+            and t.planned_due_at is not null
+            and t.planned_due_at < now()
+            and ($5::uuid is null or t.client_id = $5)
+            and ($6::uuid is null or exists (
+              select 1
+              from public.task_assignments ta
+              where ta.tenant_id = t.tenant_id
+                and ta.task_id = t.id
+                and ta.employee_id = $6
+                and ta.status = 'active'
+            ))
+        ) as overdue_tasks;
     `;
 
     const result = await client.query<{
@@ -414,7 +478,8 @@ export class TenantAdminDashboardRepository {
       collected: string | number | null;
       open_tasks: number;
       completed_tasks: number;
-    }>(query, [tenantId, period.from, period.to, timezone]);
+      overdue_tasks: number;
+    }>(query, [tenantId, period.from, period.to, timezone, clientId, employeeId]);
 
     const row = result.rows[0];
     const rawSales = Math.max(0, Number(row?.total_sales ?? 0));
@@ -429,6 +494,7 @@ export class TenantAdminDashboardRepository {
       currencyCode,
       openTasks: Number(row?.open_tasks ?? 0),
       completedTasks: Number(row?.completed_tasks ?? 0),
+      overdueTasks: Number(row?.overdue_tasks ?? 0),
     };
   }
 
@@ -556,7 +622,10 @@ export class TenantAdminDashboardRepository {
     tenantId: string,
     period: DashboardPeriod,
     timezone: string,
+    filters: DashboardScopeFilters = {},
   ): Promise<readonly UpcomingDeadlineResult[]> {
+    const clientId = filters.clientId ?? null;
+    const employeeId = filters.employeeId ?? null;
     const result = await client.query<{
       id: string;
       task_id: string;
@@ -596,6 +665,15 @@ export class TenantAdminDashboardRepository {
           and t.status not in ('completed', 'cancelled')
           and t.planned_due_at is not null
           and (t.planned_due_at at time zone $4)::date between $2::date and $3::date
+          and ($5::uuid is null or t.client_id = $5)
+          and ($6::uuid is null or exists (
+            select 1
+            from public.task_assignments ta_filter
+            where ta_filter.tenant_id = t.tenant_id
+              and ta_filter.task_id = t.id
+              and ta_filter.employee_id = $6
+              and ta_filter.status = 'active'
+          ))
         group by
           t.id,
           t.title,
@@ -607,9 +685,9 @@ export class TenantAdminDashboardRepository {
           wg.name
         order by
           t.planned_due_at asc
-        limit 8
+        limit 12
       `,
-      [tenantId, period.from, period.to, timezone],
+      [tenantId, period.from, period.to, timezone, clientId, employeeId],
     );
 
     return result.rows.map((row) => ({

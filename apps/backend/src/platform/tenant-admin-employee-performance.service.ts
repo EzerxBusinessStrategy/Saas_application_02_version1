@@ -37,14 +37,15 @@ export class TenantAdminEmployeePerformanceService {
     const items = this.processAndScoreEmployees(rows, tenantCurrency);
     const sorted = this.sortItems(items, query.sortBy ?? "performanceScore", query.sortOrder);
     const ranked = this.assignRanks(sorted);
+    const filtered = this.filterByQuery(ranked, query.query);
 
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
-    const total = ranked.length;
+    const total = filtered.length;
     const totalPages = Math.ceil(total / limit) || 1;
-    const paginatedItems = ranked.slice((page - 1) * limit, page * limit);
+    const paginatedItems = filtered.slice((page - 1) * limit, page * limit);
 
-    const summary = this.buildSummary(ranked);
+    const summary = this.buildSummary(filtered);
 
     return {
       period,
@@ -211,6 +212,7 @@ export class TenantAdminEmployeePerformanceService {
         employee: {
           id: r.employee_id,
           name: r.display_name,
+          employeeCode: r.employee_code,
           role: r.role,
           status: r.employment_status,
         },
@@ -293,6 +295,35 @@ export class TenantAdminEmployeePerformanceService {
         return { ...item, rank };
       }
       return { ...item, rank: null };
+    });
+  }
+
+  private filterByQuery(
+    items: readonly EmployeePerformanceItemDto[],
+    rawQuery?: string,
+  ): readonly EmployeePerformanceItemDto[] {
+    const query = rawQuery?.trim().toLowerCase();
+    if (!query) return items;
+
+    return items.filter((item) => {
+      const slaTokens = [
+        item.averageSlaMinutes?.toString() ?? "",
+        item.medianSlaMinutes?.toString() ?? "",
+        item.slaMetRatePercent?.toString() ?? "",
+        item.averageSlaMinutes !== null ? `${item.averageSlaMinutes}m` : "",
+        item.averageSlaMinutes !== null && item.averageSlaMinutes >= 60
+          ? `${Math.floor(item.averageSlaMinutes / 60)}h`
+          : "",
+      ];
+      const haystack = [
+        item.employee.name,
+        item.employee.role,
+        item.employee.employeeCode ?? "",
+        ...slaTokens,
+      ]
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(query);
     });
   }
 

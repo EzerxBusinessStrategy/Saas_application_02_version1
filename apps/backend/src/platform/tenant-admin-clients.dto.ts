@@ -11,6 +11,7 @@ export const tenantAdminClientsQuerySchema = z.object({
   status: z.enum(["active", "onboarding", "paused", "archived"]).optional(),
   service: optionalUuid,
   manager: optionalUuid,
+  employee: optionalUuid,
   deadline: z.enum(["any", "upcoming", "none"]).optional().default("any"),
   revenueMin: z.coerce.number().nonnegative().optional(),
   sort: z.enum(["name", "revenue", "outstanding", "deadline"]).optional().default("name"),
@@ -156,6 +157,9 @@ export class TenantAdminClientFiltersDto {
 
   @ApiProperty({ type: () => [TenantAdminClientOptionDto] })
   managers!: readonly TenantAdminClientOptionDto[];
+
+  @ApiProperty({ type: () => [TenantAdminClientOptionDto] })
+  employees!: readonly TenantAdminClientOptionDto[];
 }
 
 export class TenantAdminClientsResponseDto {

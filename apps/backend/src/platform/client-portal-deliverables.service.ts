@@ -82,5 +82,7 @@ function mapDeliverable(row: Awaited<ReturnType<ClientPortalDeliverablesReposito
     clientDecisionStatus: row.client_decision_status,
     clientDecisionAt: row.client_decision_at,
     clientDecisionComment: row.client_decision_comment,
+    validUntil: row.valid_until,
+    accessStatus: row.access_status,
   };
 }

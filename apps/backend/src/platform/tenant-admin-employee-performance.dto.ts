@@ -17,6 +17,9 @@ export class QueryEmployeePerformanceDto {
   @ApiPropertyOptional({ type: String, example: "active" })
   status?: string;
 
+  @ApiPropertyOptional({ type: String, example: "sayantan" })
+  query?: string;
+
   @ApiPropertyOptional({ type: String, example: "performanceScore" })
   sortBy?: string;
 
@@ -64,6 +67,9 @@ export class EmployeeRefDto {
 
   @ApiProperty({ type: String })
   name!: string;
+
+  @ApiPropertyOptional({ type: String, nullable: true })
+  employeeCode?: string | null;
 
   @ApiProperty({ type: String })
   role!: string;

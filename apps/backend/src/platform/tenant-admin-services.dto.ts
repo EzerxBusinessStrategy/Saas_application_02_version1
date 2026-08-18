@@ -83,3 +83,41 @@ export class TenantAdminServiceTaskStatusResponseDto {
   status!: "active" | "inactive";
 }
 
+export const tenantAdminServiceAllocationsQuerySchema = z.object({
+  rateItemId: z.string().uuid().optional(),
+});
+export type TenantAdminServiceAllocationsQuery = z.infer<typeof tenantAdminServiceAllocationsQuerySchema>;
+
+export class TenantAdminServiceAllocationEmployeeDto {
+  @ApiProperty({ type: String, format: "uuid" }) employeeId!: string;
+  @ApiProperty({ type: String }) employeeName!: string;
+  @ApiProperty({ type: String }) assignmentStatus!: string;
+}
+
+export class TenantAdminServiceAllocationTaskDto {
+  @ApiProperty({ type: String, format: "uuid" }) taskId!: string;
+  @ApiProperty({ type: String }) taskTitle!: string;
+  @ApiProperty({ type: String }) taskStatus!: string;
+  @ApiProperty({ type: String, format: "uuid" }) clientId!: string;
+  @ApiProperty({ type: String }) clientName!: string;
+  @ApiProperty({ type: () => [TenantAdminServiceAllocationEmployeeDto] })
+  employees!: readonly TenantAdminServiceAllocationEmployeeDto[];
+}
+
+export class TenantAdminServiceRateItemAllocationsDto {
+  @ApiProperty({ type: String, format: "uuid" }) rateItemId!: string;
+  @ApiProperty({ type: String }) taskType!: string;
+  @ApiProperty({ type: Number }) rateAmount!: number;
+  @ApiProperty({ type: String }) currencyCode!: string;
+  @ApiProperty({ enum: tenantAdminBillingUnits }) unitType!: (typeof tenantAdminBillingUnits)[number];
+  @ApiProperty({ type: () => [TenantAdminServiceAllocationTaskDto] })
+  tasks!: readonly TenantAdminServiceAllocationTaskDto[];
+}
+
+export class TenantAdminServiceAllocationsResponseDto {
+  @ApiProperty({ type: String, format: "uuid" }) serviceId!: string;
+  @ApiProperty({ type: String }) serviceName!: string;
+  @ApiProperty({ type: () => [TenantAdminServiceRateItemAllocationsDto] })
+  rateItems!: readonly TenantAdminServiceRateItemAllocationsDto[];
+}
+

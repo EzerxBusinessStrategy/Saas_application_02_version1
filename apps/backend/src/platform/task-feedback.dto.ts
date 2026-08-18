@@ -1,5 +1,19 @@
-import { ApiProperty } from "@nestjs/swagger";
+import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import { z } from "zod";
+
+const optionalUuid = z.preprocess((value) => (value === "" ? undefined : value), z.string().uuid().optional());
+const optionalDate = z.preprocess((value) => (value === "" ? undefined : value), z.string().date().optional());
+
+export const taskFeedbackLogQuerySchema = z.object({
+  status: z.enum(["submitted", "expired"]).optional(),
+  from: optionalDate,
+  to: optionalDate,
+  employeeId: optionalUuid,
+  clientId: optionalUuid,
+  page: z.coerce.number().int().positive().default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(25),
+});
+export type TaskFeedbackLogQuery = z.infer<typeof taskFeedbackLogQuerySchema>;
 
 export const submitClientTaskFeedbackSchema = z.object({
   taskId: z.string().uuid(),
@@ -118,4 +132,13 @@ export class TaskFeedbackLogResponseDto {
 
   @ApiProperty({ type: Number })
   total!: number;
+
+  @ApiProperty({ type: Number })
+  page!: number;
+
+  @ApiProperty({ type: Number })
+  pageSize!: number;
+
+  @ApiProperty({ type: Number })
+  pageCount!: number;
 }

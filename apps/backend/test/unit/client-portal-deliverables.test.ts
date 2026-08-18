@@ -21,4 +21,15 @@ describe("Client portal deliverables", () => {
     expect(source).toContain("and d.category <> 'invoice'");
     expect(source).toContain("getInvoiceDownloadableDocument");
   });
+
+  test("blocks expired agreement downloads and decisions in the client portal", () => {
+    const source = readFileSync(
+      resolve(__dirname, "../../src/platform/client-portal-deliverables.repository.ts"),
+      "utf8",
+    );
+
+    expect(source).toContain("code: \"AGREEMENT_EXPIRED\"");
+    expect(source).toContain("current.access_status === \"expired\"");
+    expect(source).toContain("as access_status");
+  });
 });

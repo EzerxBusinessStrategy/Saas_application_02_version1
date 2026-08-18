@@ -14,6 +14,7 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { EntityHeader } from "@/components/shared/entity-header";
 import { ErrorState } from "@/components/shared/error-state";
 import { FilterToolbar } from "@/components/shared/filter-toolbar";
+import { SearchableFilterSelect } from "@/components/shared/searchable-filter-select";
 import { LoadingState } from "@/components/shared/loading-state";
 import { MobileEntityCard } from "@/components/shared/mobile-entity-card";
 import { PageHeader } from "@/components/shared/page-header";
@@ -183,6 +184,7 @@ export function ClientDirectory() {
       status: searchParams.get("status") as ClientListRequest["status"],
       service: searchParams.get("service") ?? undefined,
       manager: searchParams.get("manager") ?? undefined,
+      employee: searchParams.get("employee") ?? undefined,
       revenueMin:
         searchParams.get("revenueMin") &&
         Number.isFinite(Number(searchParams.get("revenueMin")))
@@ -223,6 +225,7 @@ export function ClientDirectory() {
     request.status,
     request.service,
     request.manager,
+    request.employee,
     request.revenueMin,
     request.deadline && request.deadline !== "any"
       ? request.deadline
@@ -406,11 +409,12 @@ export function ClientDirectory() {
         </CardHeader>
         <CardContent className="flex flex-col gap-5">
           <FilterToolbar
+            filterGridClassName="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
             search={{
               value: searchValue,
               onChange: setSearchValue,
               label: "Search clients",
-              placeholder: "Search client name or ID",
+              placeholder: "Search client name, ID, or employee",
             }}
             activeFilterCount={activeFilterCount}
             onClear={() => router.replace(pathname, { scroll: false })}
@@ -442,36 +446,33 @@ export function ClientDirectory() {
                 <option value="archived">Deleted clients</option>
               </Select>
             </label>
-            <label className="flex flex-col gap-1 text-sm font-medium">
-              Service
-              <Select
-                aria-label="Filter by service"
-                value={request.service ?? ""}
-                onChange={(event) => setParam("service", event.target.value)}
-              >
-                <option value="">All services</option>
-                {(query.data?.filters.services ?? []).map((service) => (
-                  <option key={service.id} value={service.id}>
-                    {service.name}
-                  </option>
-                ))}
-              </Select>
-            </label>
-            <label className="flex flex-col gap-1 text-sm font-medium">
-              Manager
-              <Select
-                aria-label="Filter by manager"
-                value={request.manager ?? ""}
-                onChange={(event) => setParam("manager", event.target.value)}
-              >
-                <option value="">All managers</option>
-                {(query.data?.filters.managers ?? []).map((manager) => (
-                  <option key={manager.id} value={manager.id}>
-                    {manager.name}
-                  </option>
-                ))}
-              </Select>
-            </label>
+            <SearchableFilterSelect
+              label="Service"
+              ariaLabel="Filter by service"
+              value={request.service ?? ""}
+              onChange={(value) => setParam("service", value)}
+              options={query.data?.filters.services ?? []}
+              emptyLabel="All services"
+              placeholder="Search services..."
+            />
+            <SearchableFilterSelect
+              label="Manager"
+              ariaLabel="Filter by manager"
+              value={request.manager ?? ""}
+              onChange={(value) => setParam("manager", value)}
+              options={query.data?.filters.managers ?? []}
+              emptyLabel="All managers"
+              placeholder="Search managers..."
+            />
+            <SearchableFilterSelect
+              label="Employee"
+              ariaLabel="Filter by employee"
+              value={request.employee ?? ""}
+              onChange={(value) => setParam("employee", value)}
+              options={query.data?.filters.employees ?? []}
+              emptyLabel="All employees"
+              placeholder="Search employees..."
+            />
             <label className="flex flex-col gap-1 text-sm font-medium">
               Revenue
               <Select
@@ -493,8 +494,20 @@ export function ClientDirectory() {
                 <option value="custom">Custom</option>
               </Select>
             </label>
+            <label className="flex flex-col gap-1 text-sm font-medium">
+              Deadline
+              <Select
+                aria-label="Filter deadline"
+                value={request.deadline ?? "any"}
+                onChange={(event) => setParam("deadline", event.target.value)}
+              >
+                <option value="any">Any deadline</option>
+                <option value="upcoming">Has deadline</option>
+                <option value="none">No deadline</option>
+              </Select>
+            </label>
             {revenueSelectValue === "custom" ? (
-              <label className="flex flex-col gap-1 text-sm font-medium">
+              <label className="flex flex-col gap-1 text-sm font-medium sm:col-span-2 lg:col-span-3">
                 Custom revenue
                 <Input
                   aria-label="Custom minimum revenue"
@@ -506,18 +519,6 @@ export function ClientDirectory() {
                 />
               </label>
             ) : null}
-            <label className="flex flex-col gap-1 text-sm font-medium">
-              Upcoming deadline
-              <Select
-                aria-label="Filter upcoming deadline"
-                value={request.deadline ?? "any"}
-                onChange={(event) => setParam("deadline", event.target.value)}
-              >
-                <option value="any">Any deadline</option>
-                <option value="upcoming">Has deadline</option>
-                <option value="none">No deadline</option>
-              </Select>
-            </label>
           </FilterToolbar>
           {clients.length ? (
             <>

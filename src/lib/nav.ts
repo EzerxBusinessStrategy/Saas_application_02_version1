@@ -258,7 +258,6 @@ const tenantAdminNavigation = [
   tenantAdminGroup("People & Teams", Users, [
     "Departments",
     "Employees",
-    "Task review",
     "Managers",
     "Employee Performance",
     "Feedback log",
@@ -271,6 +270,7 @@ const tenantAdminNavigation = [
     "Services",
     "Task request",
     "Calendar",
+    "Task review",
   ]),
   tenantAdminGroup(
     "Finance & Documents",

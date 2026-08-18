@@ -1,6 +1,6 @@
 "use client";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 export const Dialog = DialogPrimitive.Root;
@@ -10,18 +10,45 @@ export function DialogContent({
   className,
   title = "Dialog",
   description,
+  blockOutsideClose = false,
+  onBlockedOutsideClose,
 }: {
   children: ReactNode;
   className?: string;
   title?: string;
   description?: string;
+  blockOutsideClose?: boolean;
+  onBlockedOutsideClose?: () => void;
 }) {
+  const [shake, setShake] = useState(false);
+
+  const triggerBlockedCloseFeedback = () => {
+    onBlockedOutsideClose?.();
+    setShake(true);
+    window.setTimeout(() => setShake(false), 450);
+  };
+
   return (
     <DialogPrimitive.Portal>
       <DialogPrimitive.Overlay className="fixed inset-0 z-40 bg-foreground/35" />
       <DialogPrimitive.Content
+        onPointerDownOutside={(event) => {
+          if (!blockOutsideClose) return;
+          event.preventDefault();
+          triggerBlockedCloseFeedback();
+        }}
+        onInteractOutside={(event) => {
+          if (!blockOutsideClose) return;
+          event.preventDefault();
+        }}
+        onEscapeKeyDown={(event) => {
+          if (!blockOutsideClose) return;
+          event.preventDefault();
+          triggerBlockedCloseFeedback();
+        }}
         className={cn(
           "fixed left-1/2 top-1/2 z-50 w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-xl border bg-popover p-6 text-popover-foreground shadow-xl outline-none",
+          shake && "dialog-shake",
           className,
         )}
       >

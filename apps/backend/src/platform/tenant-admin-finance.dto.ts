@@ -15,6 +15,7 @@ export const createTenantDocumentSchema = z.object({
   idempotencyKey: z.string().uuid().optional(),
   recipientEmployeeIds: z.array(z.string().uuid()).default([]),
   shareReason: z.string().trim().max(1000).optional().default(""),
+  validUntil: z.string().datetime({ offset: true }).optional(),
 }).superRefine((value, ctx) => {
   const hasClient = Boolean(value.clientId);
   const hasEmployee = (value.recipientEmployeeIds?.length ?? 0) > 0;
@@ -24,6 +25,24 @@ export const createTenantDocumentSchema = z.object({
       path: ["clientId"],
       message: "Select a related client for this agreement.",
     });
+  }
+  if (value.category === "agreement") {
+    if (!value.validUntil?.trim()) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["validUntil"],
+        message: "Expiry date and time are required for agreements.",
+      });
+    } else {
+      const expiry = Date.parse(value.validUntil);
+      if (Number.isNaN(expiry) || expiry <= Date.now()) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["validUntil"],
+          message: "Agreement expiry must be in the future.",
+        });
+      }
+    }
   }
   if (!hasClient && !hasEmployee) {
     ctx.addIssue({
@@ -110,6 +129,9 @@ export class TenantDocumentDto {
   @ApiPropertyOptional({ type: String, nullable: true }) clientDecisionBy!: string | null;
   @ApiPropertyOptional({ type: String, nullable: true }) clientDecisionComment!: string | null;
   @ApiPropertyOptional({ type: String, nullable: true }) shareReason!: string | null;
+  @ApiPropertyOptional({ type: String, nullable: true }) validUntil!: string | null;
+  @ApiPropertyOptional({ type: String, enum: ["active", "expired"], nullable: true })
+  agreementAccessStatus!: "active" | "expired" | null;
 }
 
 export class TenantDocumentsResponseDto {

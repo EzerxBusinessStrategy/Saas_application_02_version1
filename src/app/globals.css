@@ -683,6 +683,25 @@ body {
   }
 }
 
+@keyframes dialog-shake {
+  0%,
+  100% {
+    transform: translate(-50%, -50%);
+  }
+  20%,
+  60% {
+    transform: translate(calc(-50% - 6px), -50%);
+  }
+  40%,
+  80% {
+    transform: translate(calc(-50% + 6px), -50%);
+  }
+}
+
+.dialog-shake {
+  animation: dialog-shake 0.45s ease;
+}
+
 @keyframes super-admin-alert-signal {
   0%,
   40%,

@@ -45,6 +45,7 @@ export class TenantAdminClientsRepository {
         filters: {
           services: await this.getServiceOptions(client, context.tenantId),
           managers: await this.getManagerOptions(client, context.tenantId),
+          employees: await this.getEmployeeOptions(client, context.tenantId),
         },
       };
     });
@@ -299,6 +300,26 @@ export class TenantAdminClientsRepository {
               or c.code ilike '%' || $3 || '%'
               or c.legal_name ilike '%' || $3 || '%'
               or c.display_name ilike '%' || $3 || '%'
+              or exists (
+                select 1
+                from public.tasks t
+                join public.task_assignments ta
+                  on ta.task_id = t.id
+                 and ta.tenant_id = t.tenant_id
+                 and ta.status = 'active'
+                join public.employees e
+                  on e.id = ta.employee_id
+                 and e.tenant_id = ta.tenant_id
+                join public.tenant_memberships tm
+                  on tm.id = e.membership_id
+                 and tm.tenant_id = e.tenant_id
+                where t.tenant_id = c.tenant_id
+                  and t.client_id = c.id
+                  and (
+                    coalesce(tm.display_name, e.employee_code, '') ilike '%' || $3 || '%'
+                    or coalesce(e.employee_code, '') ilike '%' || $3 || '%'
+                  )
+              )
             )
         ), client_rows as (
           select
@@ -390,17 +411,28 @@ export class TenantAdminClientsRepository {
               join public.employees e on e.id = wgm.employee_id and e.tenant_id = wgm.tenant_id
               where wg.tenant_id = cr.tenant_id and wg.client_id = cr.id and e.id = $6
             ))
-            and ($7::numeric is null or cr.revenue_amount >= $7)
-            and ($8::text = 'any' or ($8 = 'upcoming' and cr.upcoming_deadline is not null) or ($8 = 'none' and cr.upcoming_deadline is null))
+            and ($7::uuid is null or exists (
+              select 1
+              from public.tasks t
+              join public.task_assignments ta
+                on ta.task_id = t.id
+               and ta.tenant_id = t.tenant_id
+               and ta.status = 'active'
+              where t.tenant_id = cr.tenant_id
+                and t.client_id = cr.id
+                and ta.employee_id = $7
+            ))
+            and ($8::numeric is null or cr.revenue_amount >= $8)
+            and ($9::text = 'any' or ($9 = 'upcoming' and cr.upcoming_deadline is not null) or ($9 = 'none' and cr.upcoming_deadline is null))
         )
         select *, count(*) over() as total_count
         from filtered
         order by
-          case when $9 = 'revenue' then revenue_amount end desc nulls last,
-          case when $9 = 'outstanding' then outstanding_amount end desc nulls last,
-          case when $9 = 'deadline' then upcoming_deadline end asc nulls last,
+          case when $10 = 'revenue' then revenue_amount end desc nulls last,
+          case when $10 = 'outstanding' then outstanding_amount end desc nulls last,
+          case when $10 = 'deadline' then upcoming_deadline end asc nulls last,
           lower(name) asc
-        limit $10 offset $11
+        limit $11 offset $12
       `,
       [
         tenantId,
@@ -409,6 +441,7 @@ export class TenantAdminClientsRepository {
         query.status ?? null,
         query.service ?? null,
         query.manager ?? null,
+        query.employee ?? null,
         query.revenueMin ?? null,
         query.deadline ?? "any",
         query.sort ?? "name",
@@ -459,6 +492,20 @@ export class TenantAdminClientsRepository {
         join public.work_group_memberships wgm on wgm.employee_id = e.id and wgm.tenant_id = e.tenant_id and wgm.group_role = 'manager' and wgm.status = 'active'
         where e.tenant_id = $1 and e.employment_status = 'active'
         order by tm.display_name
+      `,
+      [tenantId],
+    );
+    return result.rows;
+  }
+
+  private async getEmployeeOptions(client: PoolClient, tenantId: string) {
+    const result = await client.query<{ id: string; name: string }>(
+      `
+        select distinct e.id::text as id, coalesce(tm.display_name, e.employee_code) as name
+        from public.employees e
+        join public.tenant_memberships tm on tm.id = e.membership_id and tm.tenant_id = e.tenant_id
+        where e.tenant_id = $1 and e.employment_status = 'active'
+        order by coalesce(tm.display_name, e.employee_code)
       `,
       [tenantId],
     );

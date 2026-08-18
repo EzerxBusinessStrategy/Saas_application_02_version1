@@ -80,7 +80,23 @@ describe("TenantAdminFinanceRepository document delivery", () => {
       ...base,
       category: "agreement",
       clientId,
+      validUntil: "2026-12-31T23:59:59.000Z",
     }).clientId).toBe(clientId);
+    expect(createTenantDocumentSchema.safeParse({
+      ...base,
+      category: "agreement",
+      clientId,
+    }).success).toBe(false);
+  });
+
+  test("persists agreement expiry metadata and enforces client portal access checks", () => {
+    const financeSource = readFileSync(resolve(__dirname, "../../src/platform/tenant-admin-finance.repository.ts"), "utf8");
+    const deliverablesSource = readFileSync(resolve(__dirname, "../../src/platform/client-portal-deliverables.repository.ts"), "utf8");
+
+    expect(financeSource).toContain("'validUntil', nullif($15::text, '')");
+    expect(financeSource).toContain("agreement_access_status");
+    expect(deliverablesSource).toContain("AGREEMENT_EXPIRED");
+    expect(deliverablesSource).toContain("access_status");
   });
 
   test("creates client-downloadable invoice PDFs through private storage", () => {

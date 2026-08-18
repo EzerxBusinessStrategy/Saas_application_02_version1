@@ -128,6 +128,7 @@ describe("TenantAdminDashboardService", () => {
           currencyCode: "INR",
           openTasks: 12,
           completedTasks: 4,
+          overdueTasks: 2,
         },
         recentActivity: [
           {
@@ -192,6 +193,7 @@ describe("TenantAdminDashboardService", () => {
     expect(result.metrics.totalSales).toEqual({ amount: "125000.00", currencyCode: "INR" });
     expect(result.metrics.outstanding).toEqual({ amount: "25000.00", currencyCode: "INR" });
     expect(result.metrics.activeClients).toBe(5);
+    expect(result.metrics.overdueTasks).toBe(2);
     expect(result.recentActivity[0]).toMatchObject({
       id: "activity-1",
       action: "TASK_CREATED",
@@ -228,6 +230,7 @@ describe("TenantAdminDashboardService", () => {
           currencyCode: "USD",
           openTasks: 8,
           completedTasks: 2,
+          overdueTasks: 1,
         },
         recentActivity: [],
         organisationSetup: {
@@ -474,14 +477,14 @@ describe("TenantAdminDashboardService", () => {
       }
     ).getUpcomingDeadlines.bind(repository);
 
-    const result = await getUpcomingDeadlines(client, "tenant-1", period, "Asia/Kolkata");
+    const result = await getUpcomingDeadlines(client, "tenant-1", period, "Asia/Kolkata", {});
 
     expect(queries.join("\n")).toContain("where t.tenant_id = $1");
     expect(queries.join("\n")).toContain("t.status not in ('completed', 'cancelled')");
     expect(queries.join("\n")).toContain("(t.planned_due_at at time zone $4)::date between $2::date and $3::date");
     expect(queries.join("\n")).not.toContain("now() + interval '14 days'");
     expect(queries.join("\n")).toContain("c.tenant_id = t.tenant_id");
-    expect(params[0]).toEqual(["tenant-1", period.from, period.to, "Asia/Kolkata"]);
+    expect(params[0]).toEqual(["tenant-1", period.from, period.to, "Asia/Kolkata", null, null]);
     expect(result[0]).toMatchObject({ taskTitle: "GST Return Filing", clientName: "ABC Pvt Ltd", assigneeCount: 3 });
   });
 
@@ -578,6 +581,14 @@ describe("tenant dashboard date range", () => {
     expect(tenantAdminDashboardQuerySchema.safeParse({ from: "2026-08-01" }).success).toBe(false);
     expect(tenantAdminDashboardQuerySchema.safeParse({ from: "2026-08-16", to: "2026-08-01" }).success).toBe(false);
     expect(tenantAdminDashboardQuerySchema.safeParse({ from: "2026-08-01", to: "2026-08-16" }).success).toBe(true);
+    expect(
+      tenantAdminDashboardQuerySchema.safeParse({
+        from: "2026-08-01",
+        to: "2026-08-16",
+        clientId: "11111111-1111-4111-8111-111111111111",
+        employeeId: "22222222-2222-4222-8222-222222222222",
+      }).success,
+    ).toBe(true);
     expect(tenantAdminDashboardQuerySchema.safeParse({ from: "2020-01-01", to: "2023-01-02" }).success).toBe(false);
     expect(tenantAdminDashboardQuerySchema.safeParse({ from: "2014-12-31", to: "2015-01-31" }).success).toBe(false);
   });

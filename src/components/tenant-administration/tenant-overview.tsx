@@ -1,12 +1,24 @@
 "use client";
 
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { useState } from "react";
-import { CalendarClock, CheckCircle2, ClipboardList, IndianRupee, RefreshCw, ShieldAlert, Users, Wallet } from "lucide-react";
+import { useEffect, useState } from "react";
+import {
+  AlertCircle,
+  CalendarClock,
+  CheckCircle2,
+  ClipboardList,
+  IndianRupee,
+  RefreshCw,
+  ShieldAlert,
+  Users,
+  Wallet,
+} from "lucide-react";
+import { DashboardGreetingBanner } from "@/components/shared/dashboard-greeting-banner";
 import { EmptyState } from "@/components/shared/empty-state";
 import { FilterToolbar } from "@/components/shared/filter-toolbar";
 import { MetricCard } from "@/components/shared/metric-card";
-import { PageHeader } from "@/components/shared/page-header";
+import { OrganisationSetupFloat } from "@/components/tenant-administration/organisation-setup-float";
+import { TenantDashboardCalendarWidget } from "@/components/tenant-administration/tenant-dashboard-calendar-widget";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -17,6 +29,8 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import { listTenantAdminTaskOptions } from "@/features/operations/api/operations-api";
+import { formatDashboardMonthLabel } from "@/lib/dashboard-greeting";
 
 type DashboardResponse = {
   tenant: {
@@ -40,6 +54,7 @@ type DashboardResponse = {
     } | null;
     openTasks: number;
     completedTasks: number;
+    overdueTasks: number;
     outstanding: {
       amount: string;
       currencyCode: string;
@@ -197,19 +212,54 @@ function periodSourceLabel(
 
 type DashboardPreset = "custom" | "this_month" | "last_30_days" | "financial_year";
 
+type AuthenticatedProfile = {
+  readonly user: {
+    readonly displayName: string;
+  };
+};
+
 export function TenantAdministrationOverview() {
-  const [applied, setApplied] = useState<{ from?: string; to?: string }>({});
+  const [applied, setApplied] = useState<{ from?: string; to?: string; clientId?: string; employeeId?: string }>({});
   const [draftFrom, setDraftFrom] = useState<string | null>(null);
   const [draftTo, setDraftTo] = useState<string | null>(null);
+  const [draftClientId, setDraftClientId] = useState("");
+  const [draftEmployeeId, setDraftEmployeeId] = useState("");
   const [preset, setPreset] = useState<DashboardPreset>("custom");
+  const [profileName, setProfileName] = useState("Tenant Admin");
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void fetch("/api/me?portal=tenant", { cache: "no-store", signal: controller.signal })
+      .then(async (response) => (response.ok ? ((await response.json()) as AuthenticatedProfile) : null))
+      .then((response) => {
+        if (response?.user.displayName) setProfileName(response.user.displayName);
+      })
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, []);
+
+  const filterOptionsQuery = useQuery({
+    queryKey: ["tenant-dashboard-filter-options"],
+    queryFn: listTenantAdminTaskOptions,
+    staleTime: 60_000,
+  });
+
   const query = useQuery<DashboardResponse>({
-    queryKey: ["tenant-operations-overview", applied.from ?? "", applied.to ?? ""],
+    queryKey: [
+      "tenant-operations-overview",
+      applied.from ?? "",
+      applied.to ?? "",
+      applied.clientId ?? "",
+      applied.employeeId ?? "",
+    ],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (applied.from && applied.to) {
         params.set("from", applied.from);
         params.set("to", applied.to);
       }
+      if (applied.clientId) params.set("clientId", applied.clientId);
+      if (applied.employeeId) params.set("employeeId", applied.employeeId);
       const suffix = params.toString() ? `?${params.toString()}` : "";
       const res = await fetch(`/api/admin/operations-overview${suffix}`, { cache: "no-store" });
       if (!res.ok) throw new Error("Failed to load operations overview");
@@ -243,12 +293,22 @@ export function TenantAdministrationOverview() {
   const setupComplete = organisationSetup.completed === organisationSetup.total;
   const fromValue = draftFrom ?? period.from;
   const toValue = draftTo ?? period.to;
+  const clientValue = draftClientId || applied.clientId || "";
+  const employeeValue = draftEmployeeId || applied.employeeId || "";
   const incompleteRange = Boolean(fromValue) !== Boolean(toValue);
   const invertedRange = Boolean(fromValue && toValue && fromValue > toValue);
   const oversizedRange = Boolean(fromValue && toValue && isoDateDiffDays(fromValue, toValue) > 731);
   const invalidRange = incompleteRange || invertedRange || oversizedRange;
-  const filtersDirty = fromValue !== period.from || toValue !== period.to;
+  const filtersDirty =
+    fromValue !== period.from ||
+    toValue !== period.to ||
+    clientValue !== (applied.clientId ?? "") ||
+    employeeValue !== (applied.employeeId ?? "");
   const periodLabel = periodSourceLabel(period, financialYear);
+  const activeFilterCount =
+    (applied.from && applied.to ? 1 : 0) +
+    (applied.clientId ? 1 : 0) +
+    (applied.employeeId ? 1 : 0);
   const selectValue: DashboardPreset =
     draftFrom === null && draftTo === null
       ? period.source === "query"
@@ -259,6 +319,7 @@ export function TenantAdministrationOverview() {
     metrics.activeClients > 0 ||
     metrics.openTasks > 0 ||
     metrics.completedTasks > 0 ||
+    metrics.overdueTasks > 0 ||
     Number(metrics.totalSales?.amount ?? 0) > 0 ||
     upcomingDeadlines.length > 0 ||
     recentActivity.length > 0;
@@ -268,11 +329,25 @@ export function TenantAdministrationOverview() {
     setDraftFrom(from);
     setDraftTo(to);
     setPreset(nextPreset);
-    setApplied({ from, to });
+    setApplied((current) => ({
+      from,
+      to,
+      clientId: current.clientId,
+      employeeId: current.employeeId,
+    }));
   }
 
   function applyDraft() {
-    applyRange(fromValue, toValue, "custom");
+    if (invalidRange) return;
+    setApplied({
+      from: fromValue,
+      to: toValue,
+      clientId: clientValue || undefined,
+      employeeId: employeeValue || undefined,
+    });
+    setDraftFrom(fromValue);
+    setDraftTo(toValue);
+    setPreset("custom");
   }
 
   function applyPreset(next: DashboardPreset) {
@@ -306,30 +381,18 @@ export function TenantAdministrationOverview() {
   function resetPeriod() {
     setDraftFrom(null);
     setDraftTo(null);
+    setDraftClientId("");
+    setDraftEmployeeId("");
     setPreset("custom");
     setApplied({});
   }
 
   const openTasksHref = `/admin/open-tasks?from=${encodeURIComponent(period.from)}&to=${encodeURIComponent(period.to)}`;
   const completedTasksHref = `/admin/completed-tasks?from=${encodeURIComponent(period.from)}&to=${encodeURIComponent(period.to)}`;
+  const overdueTasksHref = openTasksHref;
+  const greetingSubtitle = `${formatDashboardMonthLabel()} · ${periodLabel} · ${metrics.openTasks + metrics.completedTasks} tasks · ${metrics.openTasks} open · ${metrics.overdueTasks ?? 0} overdue`;
 
   const cards = [
-    {
-      label: "Active clients",
-      value: metrics.activeClients.toString(),
-      change: metrics.activeClients > 0 ? "With work or billing in this period" : "None in this period",
-      trend: metrics.activeClients > 0 ? ("up" as const) : ("flat" as const),
-      icon: Users,
-    },
-    {
-      label: "Total sales",
-      value: metrics.totalSales
-        ? formatMoney(metrics.totalSales.amount, metrics.totalSales.currencyCode || currency)
-        : "Not available",
-      change: "Invoices issued in this period",
-      trend: metrics.totalSales && Number(metrics.totalSales.amount) > 0 ? ("up" as const) : ("flat" as const),
-      icon: IndianRupee,
-    },
     {
       label: "Open tasks",
       value: metrics.openTasks.toString(),
@@ -349,6 +412,31 @@ export function TenantAdministrationOverview() {
       icon: CheckCircle2,
     },
     {
+      label: "Overdue tasks",
+      value: String(metrics.overdueTasks ?? 0),
+      change: metrics.overdueTasks > 0 ? "Past due and still open" : "None overdue",
+      trend: metrics.overdueTasks > 0 ? ("down" as const) : ("flat" as const),
+      href: overdueTasksHref,
+      ariaLabel: `View ${metrics.overdueTasks} overdue tasks`,
+      icon: AlertCircle,
+    },
+    {
+      label: "Active clients",
+      value: metrics.activeClients.toString(),
+      change: metrics.activeClients > 0 ? "With work or billing in this period" : "None in this period",
+      trend: metrics.activeClients > 0 ? ("up" as const) : ("flat" as const),
+      icon: Users,
+    },
+    {
+      label: "Total sales",
+      value: metrics.totalSales
+        ? formatMoney(metrics.totalSales.amount, metrics.totalSales.currencyCode || currency)
+        : "Not available",
+      change: "Invoices issued in this period",
+      trend: metrics.totalSales && Number(metrics.totalSales.amount) > 0 ? ("up" as const) : ("flat" as const),
+      icon: IndianRupee,
+    },
+    {
       label: "Outstanding invoices",
       value: metrics.outstanding
         ? formatMoney(metrics.outstanding.amount, metrics.outstanding.currencyCode || currency)
@@ -360,19 +448,21 @@ export function TenantAdministrationOverview() {
   ];
 
   return (
-    <div className="flex flex-col gap-[30px]">
-      <PageHeader
-        eyebrow={`Tenant Admin · ${tenant.name}`}
-        title="Operations overview"
-        description={`Showing ${formatLocalIsoDate(period.from)} – ${formatLocalIsoDate(period.to)} (${periodLabel}).`}
+    <div className="relative flex flex-col gap-[30px]">
+      {!setupComplete ? <OrganisationSetupFloat organisationSetup={organisationSetup} /> : null}
+
+      <DashboardGreetingBanner
+        userName={profileName}
+        organizationName={tenant.name}
+        subtitle={greetingSubtitle}
       />
 
       <FilterToolbar
-        activeFilterCount={applied.from && applied.to ? 1 : 0}
+        activeFilterCount={activeFilterCount}
         onClear={resetPeriod}
         trailing={
           <Button type="button" disabled={!filtersDirty || invalidRange || isFetching} onClick={applyDraft}>
-            Apply dates
+            Apply filters
           </Button>
         }
       >
@@ -418,6 +508,36 @@ export function TenantAdministrationOverview() {
             }}
           />
         </label>
+        <label className="text-sm font-medium">
+          Client
+          <Select
+            className="mt-1"
+            aria-label="Filter dashboard by client"
+            value={clientValue}
+            onChange={(event) => setDraftClientId(event.target.value)}
+          >
+            <option value="">All clients</option>
+            {(filterOptionsQuery.data?.clients ?? []).map((client) => (
+              <option key={client.id} value={client.id}>{client.name}</option>
+            ))}
+          </Select>
+        </label>
+        <label className="text-sm font-medium">
+          Employee
+          <Select
+            className="mt-1"
+            aria-label="Filter dashboard by employee"
+            value={employeeValue}
+            onChange={(event) => setDraftEmployeeId(event.target.value)}
+          >
+            <option value="">All employees</option>
+            {(filterOptionsQuery.data?.employees ?? [])
+              .filter((employee) => employee.employmentStatus === "active")
+              .map((employee) => (
+                <option key={employee.id} value={employee.id}>{employee.name}</option>
+              ))}
+          </Select>
+        </label>
         {invalidRange ? (
           <p className="text-sm text-muted-foreground sm:col-span-2 xl:col-span-1">
             {incompleteRange
@@ -440,7 +560,7 @@ export function TenantAdministrationOverview() {
       ) : null}
 
       <section
-        className="grid items-stretch gap-4 sm:grid-cols-2 xl:grid-cols-5"
+        className="grid items-stretch gap-4 sm:grid-cols-2 lg:grid-cols-3"
         aria-label="Tenant administration metrics"
         aria-busy={isFetching}
       >
@@ -459,53 +579,20 @@ export function TenantAdministrationOverview() {
       {!hasFilteredRecords ? (
         <EmptyState
           title="No matching records in this date range"
-          description="Try another period. Organisation setup below is current and is not date filtered."
+          description="Try another period or clear the client and employee filters."
         />
       ) : null}
-      <section className="grid gap-[30px] xl:grid-cols-[0.95fr_1.05fr]">
+
+      <TenantDashboardCalendarWidget
+        clientId={applied.clientId}
+        employeeId={applied.employeeId}
+      />
+
+      <section>
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <CheckCircle2
-                className="size-[18px] text-primary"
-                aria-hidden="true"
-              />
-              Organisation setup
-            </CardTitle>
-            <CardDescription>
-              Complete operational setup tasks before expanding delivery.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {setupComplete ? (
-              <div className="py-6 text-center">
-                <CheckCircle2 className="mx-auto mb-2 size-7 text-emerald-600" aria-hidden="true" />
-                <p className="font-medium text-emerald-700 dark:text-emerald-400">Setup completed</p>
-              </div>
-            ) : (
-              <>
-                <div className="mb-4">
-                  <p className="mb-2 text-sm font-medium">
-                    {organisationSetup.completed} of {organisationSetup.total} completed
-                  </p>
-                  <ProgressBar value={organisationSetup.completionPercent} />
-                </div>
-                <div className="divide-y">
-                  {organisationSetup.items.map((item) => (
-                    <SetupItem key={item.key} item={item} />
-                  ))}
-                </div>
-              </>
-            )}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <CalendarClock
-                className="size-[18px] text-primary"
-                aria-hidden="true"
-              />
+              <CalendarClock className="size-[18px] text-primary" aria-hidden="true" />
               Deadlines in this period
             </CardTitle>
             <CardDescription>
@@ -519,9 +606,12 @@ export function TenantAdministrationOverview() {
                 description="Open tasks with due dates in the selected range will appear here."
               />
             ) : (
-              <ol className="flex flex-col gap-4 text-sm">
+              <div className="flex gap-4 overflow-x-auto pb-2">
                 {upcomingDeadlines.map((item) => (
-                  <li key={item.id} className="rounded-md border p-3">
+                  <article
+                    key={item.id}
+                    className="min-w-[17rem] max-w-[17rem] shrink-0 rounded-md border p-4 text-sm"
+                  >
                     <p className="font-medium">{item.taskTitle}</p>
                     <p className="text-muted-foreground">{item.clientName}</p>
                     <p className="mt-2">
@@ -533,9 +623,9 @@ export function TenantAdministrationOverview() {
                     <p className="mt-1 text-muted-foreground">
                       {humanise(item.priority)} priority - {humanise(item.status)}
                     </p>
-                  </li>
+                  </article>
                 ))}
-              </ol>
+              </div>
             )}
           </CardContent>
         </Card>
@@ -566,45 +656,6 @@ export function TenantAdministrationOverview() {
           </CardContent>
         </Card>
       </section>
-    </div>
-  );
-}
-
-function ProgressBar({ value }: { value: number }) {
-  const width = Math.max(0, Math.min(100, value));
-  return (
-    <div className="h-2 overflow-hidden rounded-full bg-muted" role="progressbar" aria-label={`${width}% complete`} aria-valuenow={width} aria-valuemin={0} aria-valuemax={100}>
-      <div className="h-full rounded-full bg-primary" style={{ width: `${width}%` }} />
-    </div>
-  );
-}
-
-function SetupItem({
-  item,
-}: {
-  item: {
-    label: string;
-    description: string;
-    completed: boolean;
-  };
-}) {
-  return (
-    <div className="flex items-start gap-3 py-3 text-sm">
-      <span
-        className={`mt-1 flex size-3 shrink-0 items-center justify-center rounded-full ${
-          item.completed ? "bg-emerald-500" : "bg-amber-400 animate-pulse"
-        }`}
-        aria-hidden="true"
-      >
-        {item.completed ? <CheckCircle2 className="size-3 text-white" strokeWidth={3} /> : null}
-      </span>
-      <div>
-        <p className="font-medium">{item.label}</p>
-        <p className="text-muted-foreground">{item.description}</p>
-      </div>
-      <span className={`ml-auto shrink-0 text-xs font-medium ${item.completed ? "text-emerald-700 dark:text-emerald-400" : "text-amber-700 dark:text-amber-400"}`}>
-        {item.completed ? "Created" : "Pending"}
-      </span>
     </div>
   );
 }

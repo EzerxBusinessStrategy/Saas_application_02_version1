@@ -13,6 +13,8 @@ const clientPortalDeliverableSchema = z.object({
   clientDecisionStatus: z.enum(["pending", "approved", "rejected"]),
   clientDecisionAt: z.string().nullable(),
   clientDecisionComment: z.string().nullable(),
+  validUntil: z.string().nullable().optional(),
+  accessStatus: z.enum(["active", "expired"]).default("active"),
 });
 
 const clientPortalDeliverablesResponseSchema = z.object({

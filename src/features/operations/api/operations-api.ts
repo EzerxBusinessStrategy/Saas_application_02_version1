@@ -87,6 +87,32 @@ const tenantAdminServiceSchema = z.object({
 const tenantAdminServicesResponseSchema = z.object({
   services: z.array(tenantAdminServiceSchema),
 });
+const tenantAdminServiceAllocationEmployeeSchema = z.object({
+  employeeId: z.string(),
+  employeeName: z.string(),
+  assignmentStatus: z.string(),
+});
+const tenantAdminServiceAllocationTaskSchema = z.object({
+  taskId: z.string(),
+  taskTitle: z.string(),
+  taskStatus: z.string(),
+  clientId: z.string(),
+  clientName: z.string(),
+  employees: z.array(tenantAdminServiceAllocationEmployeeSchema),
+});
+const tenantAdminServiceRateItemAllocationsSchema = z.object({
+  rateItemId: z.string(),
+  taskType: z.string(),
+  rateAmount: z.number(),
+  currencyCode: z.string(),
+  unitType: z.enum(["per_task", "per_hour", "per_filing", "per_unit"]),
+  tasks: z.array(tenantAdminServiceAllocationTaskSchema),
+});
+const tenantAdminServiceAllocationsResponseSchema = z.object({
+  serviceId: z.string(),
+  serviceName: z.string(),
+  rateItems: z.array(tenantAdminServiceRateItemAllocationsSchema),
+});
 const tenantAdminTaskOptionsSchema = z.object({
   clients: z.array(taskOptionSchema),
   services: z.array(taskOptionSchema),
@@ -181,6 +207,8 @@ const tenantFinanceDocumentSchema = z.object({
   clientDecisionBy: z.string().nullable(),
   clientDecisionComment: z.string().nullable(),
   shareReason: z.string().nullable().optional(),
+  validUntil: z.string().nullable().optional(),
+  agreementAccessStatus: z.enum(["active", "expired"]).nullable().optional(),
 });
 const tenantFinanceDocumentsResponseSchema = z.object({ documents: z.array(tenantFinanceDocumentSchema) });
 const employeeDocumentRecipientOptionSchema = z.object({
@@ -339,6 +367,7 @@ export type TenantAdminWorkGroup = z.infer<typeof tenantAdminWorkGroupSchema>;
 export type TenantAdminTask = z.infer<typeof tenantAdminTaskSchema>;
 export type TaskReviewDetail = z.infer<typeof taskReviewDetailSchema>;
 export type TenantAdminService = z.infer<typeof tenantAdminServiceSchema>;
+export type TenantAdminServiceAllocations = z.infer<typeof tenantAdminServiceAllocationsResponseSchema>;
 type EmployeeTask = z.infer<typeof employeeTaskSchema>;
 export type CreateTenantAdminServiceInput = {
   name: string;
@@ -439,6 +468,8 @@ export async function listSharedDocuments(workspace: Workspace) {
       uploadedById: "tenant-admin",
       status: "active",
       clientDecisionBy: null,
+      validUntil: document.validUntil ?? null,
+      agreementAccessStatus: document.category === "agreement" ? document.accessStatus : null,
       recipientEmployeeIds: [],
       recipientManagerIds: [],
       recipientTenantAdminIds: [],
@@ -568,6 +599,7 @@ export async function createSharedDocument(
         idempotencyKey,
         recipientEmployeeIds: value.recipientEmployeeIds ?? [],
         shareReason: value.shareReason ?? "",
+        ...(value.validUntil ? { validUntil: value.validUntil } : {}),
       }),
     });
     const document = tenantFinanceDocumentSchema.parse(await parseJsonResponse(response));
@@ -753,6 +785,18 @@ export async function setTenantAdminServiceTaskStatus(input: {
   return z
     .object({ rateItemId: z.string(), taskType: z.string(), status: z.enum(["active", "inactive"]) })
     .parse(await parseJsonResponse(response));
+}
+
+export async function getTenantAdminServiceAllocations(
+  serviceId: string,
+  rateItemId?: string,
+): Promise<TenantAdminServiceAllocations> {
+  const query = rateItemId ? `?rateItemId=${encodeURIComponent(rateItemId)}` : "";
+  const response = await fetch(
+    `/api/tenant-admin/services/${encodeURIComponent(serviceId)}/allocations${query}`,
+    { cache: "no-store" },
+  );
+  return tenantAdminServiceAllocationsResponseSchema.parse(await parseJsonResponse(response));
 }
 
 export async function createTenantAdminEmployee(input: CreateTenantAdminEmployeeInput): Promise<TenantAdminEmployeeOption> {
