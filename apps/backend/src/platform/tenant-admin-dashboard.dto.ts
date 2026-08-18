@@ -348,3 +348,14 @@ export class TenantAdminOpenTasksResponseDto {
   @ApiProperty({ type: () => [OpenTaskItemDto] })
   tasks!: readonly OpenTaskItemDto[];
 }
+
+export class TenantAdminActivityResponseDto {
+  @ApiProperty({ type: () => TenantAdminDashboardPeriodDto })
+  period!: TenantAdminDashboardPeriodDto;
+
+  @ApiProperty({ type: Number })
+  total!: number;
+
+  @ApiProperty({ type: () => [RecentActivityItemDto] })
+  events!: readonly RecentActivityItemDto[];
+}

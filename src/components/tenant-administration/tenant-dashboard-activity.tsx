@@ -23,15 +23,32 @@ import {
   type DashboardActivityEvent,
 } from "@/components/tenant-administration/dashboard-activity";
 
+export function TenantActivityList({ rows }: { rows: readonly ActivityFeedRow[] }) {
+  return (
+    <ol className="divide-y">
+      {rows.map((row) => (
+        <li key={row.id}>
+          <ActivityRow row={row} />
+        </li>
+      ))}
+    </ol>
+  );
+}
+
 export function TenantDashboardActivity({
   events,
   periodLabel,
+  periodFrom,
+  periodTo,
 }: {
   events: readonly DashboardActivityEvent[];
   periodLabel: string;
+  periodFrom: string;
+  periodTo: string;
 }) {
   const [filter, setFilter] = useState<ActivityFilter>("all");
   const feed = useMemo(() => buildActivityFeed(events, filter), [events, filter]);
+  const activityHref = `/admin/activity?from=${encodeURIComponent(periodFrom)}&to=${encodeURIComponent(periodTo)}`;
 
   return (
     <Card>
@@ -66,13 +83,9 @@ export function TenantDashboardActivity({
             )}
           </div>
         ) : (
-          <ol className="max-h-[18rem] divide-y overflow-y-auto border-t">
-            {feed.rows.map((row) => (
-              <li key={row.id}>
-                <ActivityRow row={row} />
-              </li>
-            ))}
-          </ol>
+          <div className="max-h-[18rem] overflow-y-auto border-t">
+            <TenantActivityList rows={feed.rows} />
+          </div>
         )}
         <div className="flex items-center justify-between gap-3 px-4 pt-3 sm:px-5">
           {feed.hiddenCount > 0 ? (
@@ -81,7 +94,7 @@ export function TenantDashboardActivity({
             <span />
           )}
           <Link
-            href="/admin/audit-log"
+            href={activityHref}
             className="text-xs font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             View all activity

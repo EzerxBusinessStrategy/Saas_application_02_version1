@@ -92,12 +92,13 @@ export function activityCategory(event: Pick<DashboardActivityEvent, "action" | 
 export function buildActivityFeed(
   events: readonly DashboardActivityEvent[],
   filter: ActivityFilter,
+  maxRows = visibleActivityCount,
 ): { rows: ActivityFeedRow[]; hiddenCount: number } {
   const filtered = events.filter((event) => matchesFilter(event, filter));
   const collapsed = collapseAuthRuns(filtered);
   return {
-    rows: collapsed.slice(0, visibleActivityCount),
-    hiddenCount: Math.max(0, collapsed.length - visibleActivityCount),
+    rows: collapsed.slice(0, maxRows),
+    hiddenCount: Math.max(0, collapsed.length - maxRows),
   };
 }
 

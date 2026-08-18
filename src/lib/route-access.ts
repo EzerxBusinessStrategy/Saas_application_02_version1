@@ -38,6 +38,10 @@ export const sectionAccess: Record<
     workspaces: ["admin"],
     permissions: ["task.read"],
   },
+  activity: {
+    workspaces: ["admin"],
+    permissions: ["engagement.manage"],
+  },
   "completed-tasks": {
     workspaces: ["admin"],
     permissions: ["task.read"],

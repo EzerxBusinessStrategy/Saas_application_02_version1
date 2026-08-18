@@ -215,16 +215,14 @@ export function SidebarWhatsNewButton({
   collapsed,
   active = false,
   unseen = false,
-  productName,
   onOpen,
 }: {
   collapsed: boolean;
   active?: boolean;
   unseen?: boolean;
-  productName: string;
   onOpen: () => void;
 }) {
-  const label = `${productName} v${APP_VERSION}`;
+  const label = `v${APP_VERSION}`;
   const tooltip = `${label}\nWhat's new\n${LATEST_RELEASE.title}`;
 
   return (

@@ -20,6 +20,7 @@ import {
   TenantAdminDashboardResponseDto,
   TenantAdminCompletedTasksResponseDto,
   TenantAdminOpenTasksResponseDto,
+  TenantAdminActivityResponseDto,
   TenantProfileDto,
   tenantAdminDashboardQuerySchema,
   updateTenantProfileSchema,
@@ -78,6 +79,21 @@ export class TenantAdminDashboardController {
     @Query(new ZodValidationPipe(tenantAdminDashboardQuerySchema)) query: TenantAdminDashboardQuery,
   ): Promise<TenantAdminCompletedTasksResponseDto> {
     return this.service.listCompletedTasks(context, query);
+  }
+
+  @Get("activity")
+  @RequirePermissions("tenant.read")
+  @ApiOperation({
+    summary: "List tenant-scoped audit activity for the dashboard period.",
+  })
+  @ApiOkResponse({ type: TenantAdminActivityResponseDto })
+  @ApiUnauthorizedResponse({ type: ApiErrorResponseDto })
+  @ApiForbiddenResponse({ type: ApiErrorResponseDto })
+  listActivity(
+    @CurrentRequestContext() context: RequestContext,
+    @Query(new ZodValidationPipe(tenantAdminDashboardQuerySchema)) query: TenantAdminDashboardQuery,
+  ): Promise<TenantAdminActivityResponseDto> {
+    return this.service.listActivity(context, query);
   }
 
   @Get("profile")

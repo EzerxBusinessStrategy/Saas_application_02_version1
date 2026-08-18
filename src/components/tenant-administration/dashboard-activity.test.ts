@@ -66,6 +66,20 @@ describe("dashboard activity feed", () => {
     expect(feed.hiddenCount).toBe(4);
   });
 
+  it("can return every collapsed row for the full activity page", () => {
+    const events = Array.from({ length: 10 }, (_, index) =>
+      event({
+        id: String(index),
+        action: "TASK_CREATED",
+        resourceType: "task",
+        createdAt: `2026-08-18T${String(10 + index).padStart(2, "0")}:00:00.000Z`,
+      }),
+    );
+    const feed = buildActivityFeed(events, "all", Number.POSITIVE_INFINITY);
+    expect(feed.rows).toHaveLength(10);
+    expect(feed.hiddenCount).toBe(0);
+  });
+
   it("filters authentication events separately from system changes", () => {
     const events = [
       event({ id: "a", action: "SERVICE_CREATED", resourceType: "service" }),

@@ -114,6 +114,57 @@ describe("TenantAdminDashboardService", () => {
     expect(repository.getDashboardData).not.toHaveBeenCalled();
   });
 
+  it("lists tenant-scoped activity for a Tenant Admin and rejects other portals", async () => {
+    const repository = {
+      listActivity: vi.fn().mockResolvedValue({
+        period,
+        events: [
+          {
+            id: "activity-1",
+            action: "SERVICE_CREATED",
+            resourceType: "service",
+            resourceId: "service-1",
+            result: "succeeded",
+            metadata: {},
+            actor: "Sayantan",
+            createdAt: new Date("2026-08-18T10:00:00.000Z"),
+          },
+        ],
+      }),
+    } as unknown as TenantAdminDashboardRepository;
+    const service = new TenantAdminDashboardService(repository);
+    const tenantAdmin: RequestContext = {
+      userId: "user-1",
+      authUserId: "auth-user-1",
+      tenantId: "tenant-1",
+      membershipId: "membership-1",
+      isPlatformAdmin: false,
+      roles: ["TENANT_ADMIN"],
+      permissions: ["engagement.manage"],
+      requestId: "request-1",
+    };
+
+    await expect(service.listActivity(tenantAdmin)).resolves.toMatchObject({
+      total: 1,
+      period,
+      events: [{ id: "activity-1", action: "SERVICE_CREATED", actor: "Sayantan" }],
+    });
+
+    await expect(
+      service.listActivity({
+        userId: "user-2",
+        authUserId: "auth-user-2",
+        tenantId: "tenant-1",
+        membershipId: "member-1",
+        isPlatformAdmin: false,
+        roles: ["EMPLOYEE"],
+        permissions: ["task.read.assigned"],
+        requestId: "req-denied",
+      }),
+    ).rejects.toThrow("Selected portal is not available for this membership.");
+    expect(repository.listActivity).toHaveBeenCalledTimes(1);
+  });
+
   it("automatically uses current active financial year and formats dashboard metrics", async () => {
     const repository = {
       getDashboardData: vi.fn().mockResolvedValue({
@@ -421,18 +472,19 @@ describe("TenantAdminDashboardService", () => {
           tenantId: string,
           period: { from: string; to: string; source: "query" | "financial_year" | "last_30_days" },
           timezone: string,
+          limit: number,
         ): Promise<unknown[]>;
       }
     ).getRecentActivity.bind(repository);
 
-    const result = await getRecentActivity(client, "tenant-1", period, "Asia/Kolkata");
+    const result = await getRecentActivity(client, "tenant-1", period, "Asia/Kolkata", 24);
 
     expect(queries.join("\n")).toContain("ae.tenant_id = $1");
     expect(queries.join("\n")).toContain("ae.result = 'succeeded'");
     expect(queries.join("\n")).not.toContain("ae.action <> 'TENANT_ADMIN_LOGGED_IN'");
     expect(queries.join("\n")).toContain("(ae.created_at at time zone $4)::date between $2::date and $3::date");
-    expect(queries.join("\n")).toContain("limit 24");
-    expect(params[0]).toEqual(["tenant-1", period.from, period.to, "Asia/Kolkata"]);
+    expect(queries.join("\n")).toContain("limit $5");
+    expect(params[0]).toEqual(["tenant-1", period.from, period.to, "Asia/Kolkata", 24]);
     expect(result[0]).toMatchObject({ id: "activity-1", resourceType: "task", resourceId: "task-1" });
   });
 

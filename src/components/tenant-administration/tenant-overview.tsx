@@ -702,6 +702,8 @@ export function TenantAdministrationOverview() {
         <TenantDashboardActivity
           events={recentActivity}
           periodLabel={compactPeriodLabel(period.from, period.to)}
+          periodFrom={period.from}
+          periodTo={period.to}
         />
       </section>
     </div>

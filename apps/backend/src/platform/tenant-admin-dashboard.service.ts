@@ -6,6 +6,7 @@ import {
   TenantAdminDashboardResponseDto,
   TenantAdminCompletedTasksResponseDto,
   TenantAdminOpenTasksResponseDto,
+  TenantAdminActivityResponseDto,
   TenantProfileDto,
   UpdateTenantProfileRequest,
 } from "./tenant-admin-dashboard.dto";
@@ -70,17 +71,7 @@ export class TenantAdminDashboardService {
               }
             : null,
       },
-      recentActivity: data.recentActivity.map((act) => ({
-        id: act.id,
-        action: act.action,
-        label: humaniseActivity(act.action),
-        resourceType: act.resourceType,
-        resourceId: act.resourceId,
-        result: act.result,
-        metadata: act.metadata,
-        actor: act.actor,
-        createdAt: act.createdAt.toISOString(),
-      })),
+      recentActivity: data.recentActivity.map(mapActivityItem),
       organisationSetup: mapOrganisationSetup(data.organisationSetup),
       upcomingDeadlines: data.upcomingDeadlines.map((item) => ({
         id: item.id,
@@ -115,6 +106,23 @@ export class TenantAdminDashboardService {
     return mapPeriodTaskListResponse(data.period, data.tasks);
   }
 
+  async listActivity(
+    context: RequestContext,
+    query: TenantAdminDashboardQuery = {},
+  ): Promise<TenantAdminActivityResponseDto> {
+    const tenantContext = requireTenantAdminContext(context);
+    const data = await this.repository.listActivity(tenantContext, query);
+    return {
+      period: {
+        from: data.period.from,
+        to: data.period.to,
+        source: data.period.source === "upcoming_year" ? ("last_30_days" as const) : data.period.source,
+      },
+      total: data.events.length,
+      events: data.events.map(mapActivityItem),
+    };
+  }
+
   async getTenantProfile(context: RequestContext): Promise<TenantProfileDto> {
     return this.repository.getTenantProfile(requireTenantAdminContext(context));
   }
@@ -133,6 +141,29 @@ const activityLabels: Record<string, string> = {
   PAYMENT_RECORDED: "recorded a payment",
   EMPLOYEE_CREATED: "created an employee",
 };
+
+function mapActivityItem(act: {
+  readonly id: string;
+  readonly action: string;
+  readonly resourceType: string;
+  readonly resourceId: string | null;
+  readonly result: string;
+  readonly metadata: Record<string, unknown>;
+  readonly actor: string;
+  readonly createdAt: Date;
+}) {
+  return {
+    id: act.id,
+    action: act.action,
+    label: humaniseActivity(act.action),
+    resourceType: act.resourceType,
+    resourceId: act.resourceId,
+    result: act.result,
+    metadata: act.metadata,
+    actor: act.actor,
+    createdAt: act.createdAt.toISOString(),
+  };
+}
 
 function humaniseActivity(action: string): string {
   return activityLabels[action] ?? action.toLowerCase().replaceAll("_", " ");

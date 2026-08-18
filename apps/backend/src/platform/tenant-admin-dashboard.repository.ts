@@ -7,6 +7,9 @@ import { TenantAdminRequestContext } from "./tenant-admin-context";
 import { TenantAdminDashboardQuery } from "./tenant-admin-dashboard.dto";
 import { DashboardPeriod, resolveTenantDashboardPeriod, utcTodayIso } from "./tenant-admin-dashboard.period";
 
+export const DASHBOARD_RECENT_ACTIVITY_LIMIT = 24;
+export const TENANT_ACTIVITY_LIST_LIMIT = 200;
+
 export type TenantInfoResult = {
   readonly id: string;
   readonly name: string;
@@ -138,7 +141,13 @@ export class TenantAdminDashboardRepository {
         employeeId: query.employeeId,
       };
       const metrics = await this.getMetrics(client, tenantId, period, tenant.currencyCode, timezone, scopeFilters);
-      const recentActivity = await this.getRecentActivity(client, tenantId, period, timezone);
+      const recentActivity = await this.getRecentActivity(
+        client,
+        tenantId,
+        period,
+        timezone,
+        DASHBOARD_RECENT_ACTIVITY_LIMIT,
+      );
       const organisationSetup = await this.getOrganisationSetup(client, tenantId);
       const upcomingDeadlines = await this.getUpcomingDeadlines(
         client,
@@ -183,6 +192,38 @@ export class TenantAdminDashboardRepository {
       const tasks = await this.getOpenTasks(client, tenantId, period, timezone);
 
       return { period, tasks };
+    });
+  }
+
+  async listActivity(
+    context: TenantAdminRequestContext,
+    query: TenantAdminDashboardQuery = {},
+  ): Promise<{ readonly period: DashboardPeriod; readonly events: readonly RecentActivityResult[] }> {
+    if (!this.pool) throw databaseNotConfigured();
+
+    return withDatabaseTransaction(this.pool, context, async (_tx, client) => {
+      const tenantId = context.tenantId;
+      await client.query("select set_config('app.tenant_id', $1, true)", [tenantId]);
+
+      const tenant = await this.getTenantInfo(client, tenantId);
+      const financialYear = await this.getCurrentFinancialYear(client, tenantId);
+      const today = await this.getCurrentDate(client);
+      const period = resolveTenantDashboardPeriod({
+        from: query.from,
+        to: query.to,
+        financialYear,
+        today,
+      });
+      const timezone = tenant.timezone || "UTC";
+      const events = await this.getRecentActivity(
+        client,
+        tenantId,
+        period,
+        timezone,
+        TENANT_ACTIVITY_LIST_LIMIT,
+      );
+
+      return { period, events };
     });
   }
 
@@ -503,6 +544,7 @@ export class TenantAdminDashboardRepository {
     tenantId: string,
     period: DashboardPeriod,
     timezone: string,
+    limit: number,
   ): Promise<readonly RecentActivityResult[]> {
     const result = await client.query<{
       id: string;
@@ -530,9 +572,9 @@ export class TenantAdminDashboardRepository {
           and ae.result = 'succeeded'
           and (ae.created_at at time zone $4)::date between $2::date and $3::date
         order by ae.created_at desc
-        limit 24
+        limit $5
       `,
-      [tenantId, period.from, period.to, timezone],
+      [tenantId, period.from, period.to, timezone, limit],
     );
 
     return result.rows.map((row) => ({

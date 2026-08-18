@@ -362,7 +362,6 @@ function Sidebar({
         collapsed={collapsed}
         active={whatsNewActive}
         unseen={whatsNewUnseen}
-        productName={companyName}
         onOpen={onOpenWhatsNew}
       />
     </aside>

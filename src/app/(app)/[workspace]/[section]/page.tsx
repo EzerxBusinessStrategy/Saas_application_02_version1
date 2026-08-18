@@ -137,11 +137,7 @@ export default async function Section({
     );
   }
   if (section === "audit-log" && workspace === "admin") {
-    return (
-      <FeatureBoundary role={user.role} permissions={["audit_log.read"]}>
-        <GlobalAuditLog tenantName="SaaS App" />
-      </FeatureBoundary>
-    );
+    redirect("/admin/activity");
   }
   if (section === "clients" && workspace === "admin") {
     return (
