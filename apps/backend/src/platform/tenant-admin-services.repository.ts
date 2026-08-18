@@ -362,7 +362,29 @@ export class TenantAdminServicesRepository {
 }
 
 function groupServiceAllocations(rows: readonly ServiceAllocationRow[]): TenantAdminServiceAllocationsResponseDto["rateItems"] {
-  const rateItems = new Map<string, TenantAdminServiceAllocationsResponseDto["rateItems"][number]>();
+  type MutableEmployee = {
+    employeeId: string;
+    employeeName: string;
+    assignmentStatus: string;
+  };
+  type MutableTask = {
+    taskId: string;
+    taskTitle: string;
+    taskStatus: string;
+    clientId: string;
+    clientName: string;
+    employees: MutableEmployee[];
+  };
+  type MutableRateItem = {
+    rateItemId: string;
+    taskType: string;
+    rateAmount: number;
+    currencyCode: string;
+    unitType: TenantAdminServiceAllocationsResponseDto["rateItems"][number]["unitType"];
+    tasks: MutableTask[];
+  };
+
+  const rateItems = new Map<string, MutableRateItem>();
 
   for (const row of rows) {
     let rateItem = rateItems.get(row.rate_item_id);

@@ -1,4 +1,4 @@
-import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
+import { ApiProperty } from "@nestjs/swagger";
 import { z } from "zod";
 
 const optionalUuid = z.preprocess((value) => (value === "" ? undefined : value), z.string().uuid().optional());

@@ -7,6 +7,7 @@ import {
   ClientTaskFeedbackDto,
   PendingTaskFeedbackResponseDto,
   SubmitClientTaskFeedback,
+  TaskFeedbackLogQuery,
   TaskFeedbackLogResponseDto,
 } from "./task-feedback.dto";
 import { TaskFeedbackRepository } from "./task-feedback.repository";
@@ -36,9 +37,16 @@ export class TaskFeedbackService {
   }
 
   listEmployeeLog(context: RequestContext): Promise<TaskFeedbackLogResponseDto> {
-    return this.repository.listForEmployee(requireEmployeeContext(context)).then((result) => ({
-      items: [...result.items],
-      total: result.total,
-    }));
+    return this.repository.listForEmployee(requireEmployeeContext(context)).then((result) => {
+      const pageSize = 100;
+      const page = 1;
+      return {
+        items: [...result.items],
+        total: result.total,
+        page,
+        pageSize,
+        pageCount: Math.max(1, Math.ceil(result.total / pageSize)),
+      };
+    });
   }
 }
