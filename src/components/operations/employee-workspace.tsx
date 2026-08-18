@@ -498,7 +498,7 @@ function ManagerField({ label, children }: { label: string; children: ReactNode 
 }
 
 function EmployeeInfo({ section }: { section: "notifications" | "profile" }) {
-  const notifications = useQuery({ queryKey: ["employee-notifications", "page"], queryFn: getEmployeeNotifications, enabled: section === "notifications", refetchInterval: 10000 });
+  const notifications = useQuery({ queryKey: ["employee-notifications", "page"], queryFn: () => getEmployeeNotifications(), enabled: section === "notifications", refetchInterval: 10000 });
   const profile = useQuery({ queryKey: ["employee-profile"], queryFn: getEmployeeProfile, enabled: section === "profile" });
 
   if (section === "notifications") {
