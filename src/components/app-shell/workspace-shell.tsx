@@ -26,7 +26,7 @@ import { PendingActionIndicator } from "@/components/app-shell/pending-action-in
 import { ClientTaskFeedbackPrompt } from "@/components/operations/client-task-feedback-prompt";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { UserMenu } from "@/components/app-shell/user-menu";
-import { SidebarWhatsNewButton, WhatsNewDialog } from "@/components/app-shell/whats-new-dialog";
+import { SidebarWhatsNewButton, useWhatsNewUnseen, WhatsNewDialog } from "@/components/app-shell/whats-new-dialog";
 import { BoxBuildLoader } from "@/components/shared/box-build-loader";
 import { getClientPortalProfile } from "@/features/client-portal/api/client-portal-profile-api";
 import { getTenantProfile } from "@/features/operations/api/operations-api";
@@ -285,6 +285,8 @@ function Sidebar({
   showToggle = true,
   onNavigate,
   onOpenWhatsNew,
+  whatsNewActive,
+  whatsNewUnseen,
 }: {
   items: NavigationItem[];
   pathname: string;
@@ -295,6 +297,8 @@ function Sidebar({
   showToggle?: boolean;
   onNavigate?: () => void;
   onOpenWhatsNew: () => void;
+  whatsNewActive: boolean;
+  whatsNewUnseen: boolean;
 }) {
   return (
     <aside className="flex h-dvh min-h-0 w-full flex-col bg-sidebar text-sidebar-foreground">
@@ -354,7 +358,13 @@ function Sidebar({
         collapsed={collapsed}
         onNavigate={onNavigate}
       />
-      <SidebarWhatsNewButton collapsed={collapsed} onOpen={onOpenWhatsNew} />
+      <SidebarWhatsNewButton
+        collapsed={collapsed}
+        active={whatsNewActive}
+        unseen={whatsNewUnseen}
+        productName={companyName}
+        onOpen={onOpenWhatsNew}
+      />
     </aside>
   );
 }
@@ -376,6 +386,7 @@ export function WorkspaceShell({
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [commandMenuOpen, setCommandMenuOpen] = useState(false);
   const [whatsNewOpen, setWhatsNewOpen] = useState(false);
+  const whatsNewUnseen = useWhatsNewUnseen(whatsNewOpen);
   const [companyName, setCompanyName] = useState("SaaS App");
   const [isRefreshing, setIsRefreshing] = useState(false);
   const platformConfigurationQuery = useQuery({
@@ -468,6 +479,8 @@ export function WorkspaceShell({
           companyName={companyName}
           onToggle={() => setSidebarCollapsed((collapsed) => !collapsed)}
           onOpenWhatsNew={() => setWhatsNewOpen(true)}
+          whatsNewActive={whatsNewOpen}
+          whatsNewUnseen={whatsNewUnseen}
         />
       </div>
       <Dialog
@@ -491,6 +504,8 @@ export function WorkspaceShell({
               setMobileNavigationOpen(false);
               setWhatsNewOpen(true);
             }}
+            whatsNewActive={whatsNewOpen}
+            whatsNewUnseen={whatsNewUnseen}
           />
         </DialogContent>
       </Dialog>

@@ -1,14 +1,21 @@
 import { APP_VERSION } from "@/lib/app-version";
 
 export type ReleaseNoteSection = "added" | "improved" | "fixed";
+export type ReleaseItemTag = "New" | "Improved" | "Fixed";
+
+export type ReleaseChangeItem = {
+  readonly title: string;
+  readonly description: string;
+  readonly tag: ReleaseItemTag;
+};
 
 export type Release = {
   readonly version: string;
   readonly date: string;
   readonly title: string;
-  readonly added?: readonly string[];
-  readonly improved?: readonly string[];
-  readonly fixed?: readonly string[];
+  readonly added?: readonly ReleaseChangeItem[];
+  readonly improved?: readonly ReleaseChangeItem[];
+  readonly fixed?: readonly ReleaseChangeItem[];
 };
 
 export const RELEASES: readonly Release[] = [
@@ -17,26 +24,68 @@ export const RELEASES: readonly Release[] = [
     date: "18 Aug 2026",
     title: "Initial platform release",
     added: [
-      "Role-based workspaces for platform, tenant, manager, employee, and client users",
-      "Dashboards with recent activity and operational overview",
-      "Task lists, reviews, and a work calendar",
-      "Client directory, service setup, and service requests",
-      "People and teams: employees, managers, departments, and performance",
-      "Agreements, invoices, and shared documents",
-      "Client portal for services, deliverables, invoices, and feedback",
-      "In-app notifications from the header bell",
+      {
+        title: "Role-based workspaces",
+        description: "Platform, tenant, manager, employee, and client access layers.",
+        tag: "New",
+      },
+      {
+        title: "Dashboard overview",
+        description: "Operational overview and recent work visibility.",
+        tag: "New",
+      },
+      {
+        title: "Tasks and calendar",
+        description: "Work tracking, task lists, reviews, and a due-date calendar.",
+        tag: "New",
+      },
+      {
+        title: "Client directory",
+        description: "Client records, service setup, and service requests.",
+        tag: "New",
+      },
+      {
+        title: "People and teams",
+        description: "Employees, managers, departments, and performance.",
+        tag: "New",
+      },
+      {
+        title: "Agreements and invoices",
+        description: "Agreements, invoices, and shared documents.",
+        tag: "New",
+      },
+      {
+        title: "Client portal",
+        description: "Services, deliverables, invoices, and feedback.",
+        tag: "New",
+      },
+      {
+        title: "In-app notifications",
+        description: "Header bell with recent read and unread items.",
+        tag: "New",
+      },
     ],
     improved: [
-      "Clearer navigation grouped by people, clients, operations, and finance",
-      "Notification history includes recent read and unread items",
+      {
+        title: "Navigation grouping",
+        description: "Clearer grouping by people, clients, operations, and finance.",
+        tag: "Improved",
+      },
+      {
+        title: "Notification history",
+        description: "Recent read and unread items in one list.",
+        tag: "Improved",
+      },
     ],
   },
 ];
 
+export const LATEST_RELEASE = RELEASES[0];
+
 export function notesForSection(
   release: Release,
   section: ReleaseNoteSection,
-): readonly string[] {
+): readonly ReleaseChangeItem[] {
   switch (section) {
     case "added":
       return release.added ?? [];
@@ -64,4 +113,8 @@ export function sectionLabel(section: ReleaseNoteSection): string {
       return _exhaustive;
     }
   }
+}
+
+export function sectionCount(release: Release, section: ReleaseNoteSection): number {
+  return notesForSection(release, section).length;
 }

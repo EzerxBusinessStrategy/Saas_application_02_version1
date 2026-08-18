@@ -6,16 +6,16 @@
 
 **Added**
 
-- Role-based workspaces for platform, tenant, manager, employee, and client users
-- Dashboards with recent activity and operational overview
-- Task lists, reviews, and a work calendar
-- Client directory, service setup, and service requests
-- People and teams: employees, managers, departments, and performance
-- Agreements, invoices, and shared documents
-- Client portal for services, deliverables, invoices, and feedback
-- In-app notifications from the header bell
+- Role-based workspaces — Platform, tenant, manager, employee, and client access layers
+- Dashboard overview — Operational overview and recent work visibility
+- Tasks and calendar — Work tracking, task lists, reviews, and a due-date calendar
+- Client directory — Client records, service setup, and service requests
+- People and teams — Employees, managers, departments, and performance
+- Agreements and invoices — Agreements, invoices, and shared documents
+- Client portal — Services, deliverables, invoices, and feedback
+- In-app notifications — Header bell with recent read and unread items
 
 **Improved**
 
-- Clearer navigation grouped by people, clients, operations, and finance
-- Notification history includes recent read and unread items
+- Navigation grouping — Clearer grouping by people, clients, operations, and finance
+- Notification history — Recent read and unread items in one list
