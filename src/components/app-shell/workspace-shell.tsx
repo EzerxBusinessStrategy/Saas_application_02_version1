@@ -26,6 +26,7 @@ import { PendingActionIndicator } from "@/components/app-shell/pending-action-in
 import { ClientTaskFeedbackPrompt } from "@/components/operations/client-task-feedback-prompt";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { UserMenu } from "@/components/app-shell/user-menu";
+import { SidebarWhatsNewButton, WhatsNewDialog } from "@/components/app-shell/whats-new-dialog";
 import { BoxBuildLoader } from "@/components/shared/box-build-loader";
 import { getClientPortalProfile } from "@/features/client-portal/api/client-portal-profile-api";
 import { getTenantProfile } from "@/features/operations/api/operations-api";
@@ -283,6 +284,7 @@ function Sidebar({
   onToggle,
   showToggle = true,
   onNavigate,
+  onOpenWhatsNew,
 }: {
   items: NavigationItem[];
   pathname: string;
@@ -292,6 +294,7 @@ function Sidebar({
   onToggle: () => void;
   showToggle?: boolean;
   onNavigate?: () => void;
+  onOpenWhatsNew: () => void;
 }) {
   return (
     <aside className="flex h-dvh min-h-0 w-full flex-col bg-sidebar text-sidebar-foreground">
@@ -351,6 +354,7 @@ function Sidebar({
         collapsed={collapsed}
         onNavigate={onNavigate}
       />
+      <SidebarWhatsNewButton collapsed={collapsed} onOpen={onOpenWhatsNew} />
     </aside>
   );
 }
@@ -371,6 +375,7 @@ export function WorkspaceShell({
   const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [commandMenuOpen, setCommandMenuOpen] = useState(false);
+  const [whatsNewOpen, setWhatsNewOpen] = useState(false);
   const [companyName, setCompanyName] = useState("SaaS App");
   const [isRefreshing, setIsRefreshing] = useState(false);
   const platformConfigurationQuery = useQuery({
@@ -462,6 +467,7 @@ export function WorkspaceShell({
           collapsed={sidebarCollapsed}
           companyName={companyName}
           onToggle={() => setSidebarCollapsed((collapsed) => !collapsed)}
+          onOpenWhatsNew={() => setWhatsNewOpen(true)}
         />
       </div>
       <Dialog
@@ -481,6 +487,10 @@ export function WorkspaceShell({
             onToggle={() => undefined}
             showToggle={false}
             onNavigate={() => setMobileNavigationOpen(false)}
+            onOpenWhatsNew={() => {
+              setMobileNavigationOpen(false);
+              setWhatsNewOpen(true);
+            }}
           />
         </DialogContent>
       </Dialog>
@@ -545,6 +555,7 @@ export function WorkspaceShell({
         workspace={workspace}
         role={user.role}
       />
+      <WhatsNewDialog open={whatsNewOpen} onOpenChange={setWhatsNewOpen} />
     </div>
   );
 }
