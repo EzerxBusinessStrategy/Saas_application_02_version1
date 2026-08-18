@@ -1,7 +1,9 @@
+import { ConflictException } from "@nestjs/common";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import { createTenantDocumentSchema } from "../../src/platform/tenant-admin-finance.dto";
+import { TenantAdminFinanceRepository } from "../../src/platform/tenant-admin-finance.repository";
 
 describe("TenantAdminFinanceRepository document delivery", () => {
   test("uses the partial notification idempotency index correctly", () => {
@@ -44,6 +46,7 @@ describe("TenantAdminFinanceRepository document delivery", () => {
 
     expect(source).toContain("left join public.clients c on c.id = d.client_id and c.tenant_id = d.tenant_id");
     expect(source).toContain("coalesce(c.display_name, 'Not linked')");
+    expect(source).toContain("d.category <> 'invoice'");
     expect(source).toContain("'clientVisible', $14::boolean");
     expect(source).toContain("input.clientId ?? null");
     expect(source).toMatch(/if \(input\.clientId\) \{\s*await this\.assertClient/);
@@ -87,6 +90,11 @@ describe("TenantAdminFinanceRepository document delivery", () => {
       category: "agreement",
       clientId,
     }).success).toBe(false);
+    expect(createTenantDocumentSchema.safeParse({
+      ...base,
+      category: "invoice",
+      clientId,
+    }).success).toBe(false);
   });
 
   test("persists agreement expiry metadata and enforces client portal access checks", () => {
@@ -102,10 +110,136 @@ describe("TenantAdminFinanceRepository document delivery", () => {
   test("creates client-downloadable invoice PDFs through private storage", () => {
     const storageSource = readFileSync(resolve(__dirname, "../../src/platform/tenant-document-storage.service.ts"), "utf8");
     const clientDeliverablesSource = readFileSync(resolve(__dirname, "../../src/platform/client-portal-deliverables.service.ts"), "utf8");
+    const tenantFinanceServiceSource = readFileSync(resolve(__dirname, "../../src/platform/tenant-admin-finance.service.ts"), "utf8");
 
     expect(storageSource).toContain("storeGeneratedInvoice");
     expect(storageSource).toContain("invoices/${input.invoiceId}.pdf");
     expect(clientDeliverablesSource).toContain("getDownloadableDocument");
     expect(clientDeliverablesSource).toContain("attachGeneratedInvoiceStorageObject");
+    expect(tenantFinanceServiceSource).toContain("getDownloadableDocument");
+    expect(tenantFinanceServiceSource).toContain("storeGeneratedInvoice");
+    expect(tenantFinanceServiceSource).toContain("attachGeneratedInvoiceStorageObject");
+  });
+
+  test("generates a downloadable invoice when the sent invoice has no stored file", async () => {
+    type QueryClient = {
+      query(sqlText: string, params: readonly unknown[]): Promise<{ rows: Array<Record<string, unknown>> }>;
+    };
+    const queries: string[] = [];
+    const client: QueryClient = {
+      query: vi.fn(async (sqlText: string, values: readonly unknown[]) => {
+        queries.push(sqlText);
+        expect(values).toEqual(["tenant-1", "document-1", "membership-1"]);
+        return {
+          rows: [
+            {
+              id: "document-1",
+              client_id: "client-1",
+              category: "invoice",
+              storage_bucket: null,
+              storage_key: null,
+              invoice_id: "invoice-1",
+              invoice_number: "1252",
+              client_name: "Acme Operations",
+              task_title: "GST filing",
+              issued_on: "2026-08-17",
+              due_on: null,
+              currency: "INR",
+              amount: 1200,
+            },
+          ],
+        };
+      }),
+    };
+    const repository = new TenantAdminFinanceRepository(null);
+    const resolveDownloadableDocument = (
+      repository as unknown as {
+        resolveDownloadableDocument(
+          queryClient: QueryClient,
+          tenantId: string,
+          membershipId: string,
+          documentId: string,
+        ): Promise<unknown>;
+      }
+    ).resolveDownloadableDocument.bind(repository);
+
+    const result = await resolveDownloadableDocument(client, "tenant-1", "membership-1", "document-1");
+
+    expect(queries.join("\n")).toContain("d.tenant_id = $1");
+    expect(queries.join("\n")).toContain("d.id = $2");
+    expect(result).toMatchObject({
+      kind: "generated-invoice",
+      documentId: "document-1",
+      invoiceNumber: "1252",
+      clientName: "Acme Operations",
+    });
+  });
+
+  test("keeps stored files as signed-download objects", async () => {
+    type QueryClient = {
+      query(sqlText: string, params: readonly unknown[]): Promise<{ rows: Array<Record<string, unknown>> }>;
+    };
+    const client: QueryClient = {
+      query: vi.fn(async () => ({
+        rows: [
+          {
+            id: "document-2",
+            client_id: "client-1",
+            category: "supporting",
+            storage_bucket: "tenant-documents",
+            storage_key: "tenants/tenant-1/clients/client-1/tenant/file.pdf",
+            invoice_id: null,
+            invoice_number: null,
+            client_name: "Acme Operations",
+            task_title: null,
+            issued_on: null,
+            due_on: null,
+            currency: null,
+            amount: null,
+          },
+        ],
+      })),
+    };
+    const repository = new TenantAdminFinanceRepository(null);
+    const resolveDownloadableDocument = (
+      repository as unknown as {
+        resolveDownloadableDocument(
+          queryClient: QueryClient,
+          tenantId: string,
+          membershipId: string,
+          documentId: string,
+        ): Promise<unknown>;
+      }
+    ).resolveDownloadableDocument.bind(repository);
+
+    await expect(resolveDownloadableDocument(client, "tenant-1", "membership-1", "document-2")).resolves.toEqual({
+      kind: "stored",
+      object: {
+        storageBucket: "tenant-documents",
+        storageKey: "tenants/tenant-1/clients/client-1/tenant/file.pdf",
+      },
+    });
+  });
+
+  test("does not leak missing documents as a distinct not-found error", async () => {
+    type QueryClient = {
+      query(sqlText: string, params: readonly unknown[]): Promise<{ rows: Array<Record<string, unknown>> }>;
+    };
+    const client: QueryClient = {
+      query: vi.fn(async () => ({ rows: [] })),
+    };
+    const repository = new TenantAdminFinanceRepository(null);
+    const resolveDownloadableDocument = (
+      repository as unknown as {
+        resolveDownloadableDocument(
+          queryClient: QueryClient,
+          tenantId: string,
+          membershipId: string,
+          documentId: string,
+        ): Promise<unknown>;
+      }
+    ).resolveDownloadableDocument.bind(repository);
+
+    await expect(resolveDownloadableDocument(client, "tenant-1", "membership-1", "missing")).rejects.toBeInstanceOf(ConflictException);
   });
 });

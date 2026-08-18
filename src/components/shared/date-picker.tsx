@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useMemo, useRef, useState, type RefObject } from "react";
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import {
   addMonths,
@@ -66,6 +66,33 @@ export function isDateOutOfRange(date: Date, min?: string, max?: string): boolea
   if (min && iso < min) return true;
   if (max && iso > max) return true;
   return false;
+}
+
+export const DATE_PICKER_POPOVER_WIDTH = 288;
+export const DATE_PICKER_VIEWPORT_MARGIN = 8;
+
+export function computeDatePickerPosition(input: {
+  anchor: { top: number; bottom: number; left: number };
+  popoverHeight: number;
+  viewportWidth: number;
+  viewportHeight: number;
+  popoverWidth?: number;
+  margin?: number;
+}): { top: number; left: number; maxHeight: number } {
+  const width = input.popoverWidth ?? DATE_PICKER_POPOVER_WIDTH;
+  const margin = input.margin ?? DATE_PICKER_VIEWPORT_MARGIN;
+  const maxHeight = Math.max(160, input.viewportHeight - margin * 2);
+  const height = Math.min(Math.max(input.popoverHeight, 1), maxHeight);
+  const spaceBelow = input.viewportHeight - input.anchor.bottom - margin;
+  const spaceAbove = input.anchor.top - margin;
+  const openAbove = spaceBelow < height && spaceAbove > spaceBelow;
+  const left = Math.min(
+    Math.max(margin, input.anchor.left),
+    Math.max(margin, input.viewportWidth - width - margin),
+  );
+  const rawTop = openAbove ? input.anchor.top - height - margin : input.anchor.bottom + margin;
+  const top = Math.min(Math.max(margin, rawTop), input.viewportHeight - height - margin);
+  return { top, left, maxHeight };
 }
 
 export function DatePicker({
@@ -192,30 +219,36 @@ function DatePickerPopover({
   const today = useMemo(() => new Date(), []);
   const [visibleMonth, setVisibleMonth] = useState(() => startOfMonth(selected ?? today));
   const [monthMenuOpen, setMonthMenuOpen] = useState(false);
-  const [position, setPosition] = useState({ top: 0, left: 0 });
+  const [position, setPosition] = useState({ top: 0, left: 0, maxHeight: 360 });
 
   useEffect(() => {
     setVisibleMonth(startOfMonth(selected ?? today));
   }, [selected, today]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     function updatePosition() {
       const anchor = anchorRef.current;
       if (!anchor) return;
       const rect = anchor.getBoundingClientRect();
-      const width = 288;
-      const left = Math.min(Math.max(8, rect.left), window.innerWidth - width - 8);
-      const top = rect.bottom + 8;
-      setPosition({ top, left });
+      setPosition(
+        computeDatePickerPosition({
+          anchor: { top: rect.top, bottom: rect.bottom, left: rect.left },
+          popoverHeight: popoverRef.current?.offsetHeight || 360,
+          viewportWidth: window.innerWidth,
+          viewportHeight: window.innerHeight,
+        }),
+      );
     }
     updatePosition();
+    const frame = window.requestAnimationFrame(updatePosition);
     window.addEventListener("resize", updatePosition);
     window.addEventListener("scroll", updatePosition, true);
     return () => {
+      window.cancelAnimationFrame(frame);
       window.removeEventListener("resize", updatePosition);
       window.removeEventListener("scroll", updatePosition, true);
     };
-  }, [anchorRef]);
+  }, [anchorRef, popoverRef, monthMenuOpen, visibleMonth]);
 
   const days = eachDayOfInterval({
     start: startOfWeek(startOfMonth(visibleMonth), { weekStartsOn: 0 }),
@@ -227,8 +260,9 @@ function DatePickerPopover({
       ref={popoverRef}
       role="dialog"
       aria-label="Choose date"
-      className="fixed z-[60] w-72 rounded-[var(--radius-card)] border border-border bg-card p-3 text-card-foreground shadow-[var(--shadow-card)]"
-      style={{ top: position.top, left: position.left }}
+      data-date-picker-popover=""
+      className="fixed z-[80] w-72 overflow-y-auto rounded-[var(--radius-card)] border border-border bg-card p-3 text-card-foreground shadow-[var(--shadow-card)]"
+      style={{ top: position.top, left: position.left, maxHeight: position.maxHeight }}
     >
       <div className="mb-3 flex items-center justify-between gap-2">
         <button

@@ -438,7 +438,9 @@ const clientId = "northstar";
 export async function listSharedDocuments(workspace: Workspace) {
   if (workspace === "admin") {
     const response = await fetch("/api/tenant-admin/finance/documents", { cache: "no-store" });
-      return tenantFinanceDocumentsResponseSchema.parse(await parseJsonResponse(response)).documents.map((document): SharedDocument => ({
+      return tenantFinanceDocumentsResponseSchema.parse(await parseJsonResponse(response)).documents
+        .filter((document) => document.category !== "invoice")
+        .map((document): SharedDocument => ({
         ...document,
         tenantId: "tenant",
         clientId: document.clientId ?? "",
@@ -489,7 +491,9 @@ export async function listEmployeeDocumentOptions(): Promise<EmployeeDocumentOpt
 
 export async function listEmployeeDocuments(): Promise<SharedDocument[]> {
   const response = await fetch("/api/employee/documents", { cache: "no-store" });
-  return employeeDocumentsResponseSchema.parse(await parseJsonResponse(response)).documents.map(mapEmployeeDocument);
+  return employeeDocumentsResponseSchema.parse(await parseJsonResponse(response)).documents
+    .filter((document) => document.category !== "invoice")
+    .map(mapEmployeeDocument);
 }
 
 function mapEmployeeDocument(document: z.infer<typeof employeeDocumentSchema>): SharedDocument {

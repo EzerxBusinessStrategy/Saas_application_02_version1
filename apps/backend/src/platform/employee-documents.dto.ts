@@ -15,6 +15,13 @@ export const createEmployeeDocumentSchema = z.object({
   recipientTenantAdminIds: z.array(z.string().uuid()).default([]),
   recipientManagerIds: z.array(z.string().uuid()).default([]),
 }).superRefine((value, ctx) => {
+  if (value.category === "invoice") {
+    ctx.addIssue({
+      code: "custom",
+      path: ["category"],
+      message: "Invoices belong in the Invoices section.",
+    });
+  }
   if (!value.recipientTenantAdminIds.length && !value.recipientManagerIds.length) {
     ctx.addIssue({
       code: "custom",

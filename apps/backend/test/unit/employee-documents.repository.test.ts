@@ -17,5 +17,6 @@ describe("EmployeeDocumentsRepository recipient notifications", () => {
 
     expect(source).toContain("left join public.clients c on c.id = d.client_id and c.tenant_id = d.tenant_id");
     expect(source).toContain("coalesce(c.display_name, 'Not linked')");
+    expect(source).toContain("d.category <> 'invoice'");
   });
 });

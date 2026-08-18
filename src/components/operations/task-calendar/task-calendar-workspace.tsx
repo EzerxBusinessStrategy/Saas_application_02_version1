@@ -1,12 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   format,
   isSameDay,
   isSameMonth,
   startOfMonth,
 } from "date-fns";
+import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import {
   ChevronLeft,
@@ -41,7 +42,7 @@ import {
   tasksForMonth,
   tasksForWeek,
   toCalendarTasks,
-  visibleTasksPerDay,
+  visibleTasksPerCell,
   weekdayLabels,
   weekDays,
   type CalendarFilters,
@@ -75,12 +76,22 @@ export function TaskCalendarWorkspace({
 }: TaskCalendarWorkspaceProps) {
   const [view, setView] = useState<CalendarView>("month");
   const [focusDate, setFocusDate] = useState(() => startOfMonth(new Date()));
+  const [selectedDay, setSelectedDay] = useState(() => new Date());
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const compact = variant === "embedded";
   const [filters, setFilters] = useState<CalendarFilters>({
     ...defaultFilters,
     clientId: initialClientId,
     employeeId: initialEmployeeId,
   });
+
+  useEffect(() => {
+    setFilters((current) => ({
+      ...current,
+      clientId: initialClientId,
+      employeeId: initialEmployeeId,
+    }));
+  }, [initialClientId, initialEmployeeId]);
 
   const tasksQuery = useQuery({
     queryKey: ["tenant-task-calendar", initialClientId ?? ""],
@@ -105,6 +116,10 @@ export function TaskCalendarWorkspace({
     return tasksForMonth(calendarTasks, focusDate);
   }, [calendarTasks, focusDate, view]);
 
+  const selectedDayTasks = useMemo(
+    () => tasksForDay(calendarTasks, selectedDay),
+    [calendarTasks, selectedDay],
+  );
   const summary = useMemo(() => calendarSummary(visibleTasks), [visibleTasks]);
   const selectedTask = calendarTasks.find((task) => task.id === selectedTaskId) ?? null;
   const activeFilterCount =
@@ -125,17 +140,29 @@ export function TaskCalendarWorkspace({
 
   function selectTask(task: CalendarTask) {
     setSelectedTaskId(task.id);
+    setSelectedDay(task.dueDate);
+  }
+
+  function selectDay(day: Date) {
+    setSelectedDay(day);
+    if (view === "month") setFocusDate(startOfMonth(day));
+  }
+
+  function movePeriod(direction: "prev" | "next") {
+    setFocusDate((current) => {
+      const next = navigateCalendar(view, current, direction);
+      if (view === "month" && !isSameMonth(selectedDay, next)) {
+        setSelectedDay(startOfMonth(next));
+      }
+      return next;
+    });
   }
 
   if (tasksQuery.isPending) {
     return variant === "page" ? (
       <LoadingState label="Loading task calendar" rows={6} />
     ) : (
-      <Card>
-        <CardContent className="py-10">
-          <LoadingState label="Loading task calendar" rows={4} />
-        </CardContent>
-      </Card>
+      <LoadingState label="Loading task calendar" rows={4} />
     );
   }
 
@@ -150,18 +177,18 @@ export function TaskCalendarWorkspace({
   }
 
   const toolbar = (
-    <div className="flex flex-wrap items-center justify-between gap-2">
-      <div className="flex flex-wrap items-center gap-2">
+    <div className={cn("flex flex-wrap items-center justify-between gap-2", compact && "gap-1.5")}>
+      <div className="flex flex-wrap items-center gap-1.5">
         <Button
           variant="ghost"
           size="sm"
           className="size-8 p-0"
           aria-label="Previous period"
-          onClick={() => setFocusDate((current) => navigateCalendar(view, current, "prev"))}
+          onClick={() => movePeriod("prev")}
         >
           <ChevronLeft className="size-4" />
         </Button>
-        <h2 className="min-w-[9rem] text-center text-base font-semibold tracking-tight">
+        <h2 className={cn("min-w-[8.5rem] text-center font-semibold tracking-tight", compact ? "text-sm" : "text-base")}>
           {calendarHeading(view, focusDate)}
         </h2>
         <Button
@@ -169,7 +196,7 @@ export function TaskCalendarWorkspace({
           size="sm"
           className="size-8 p-0"
           aria-label="Next period"
-          onClick={() => setFocusDate((current) => navigateCalendar(view, current, "next"))}
+          onClick={() => movePeriod("next")}
         >
           <ChevronRight className="size-4" />
         </Button>
@@ -179,38 +206,108 @@ export function TaskCalendarWorkspace({
           className="h-8"
           onClick={() => {
             const today = new Date();
+            setSelectedDay(today);
             setFocusDate(view === "month" ? startOfMonth(today) : today);
           }}
         >
           Today
         </Button>
-        <div className="flex flex-wrap items-center gap-1.5 text-xs">
-          <span className="sr-only">
-            {view === "week" ? "Week overview" : `${format(focusDate, "MMMM")} overview`}
-          </span>
-          <Badge tone="info">{summary.open} Open</Badge>
-          <Badge tone="success">{summary.completed} Completed</Badge>
-          <Badge tone={summary.overdue > 0 ? "danger" : "neutral"}>{summary.overdue} Overdue</Badge>
-        </div>
+        {compact ? null : (
+          <div className="flex flex-wrap items-center gap-1.5 text-xs">
+            <span className="sr-only">
+              {view === "week" ? "Week overview" : `${format(focusDate, "MMMM")} overview`}
+            </span>
+            <Badge tone="info">{summary.open} Open</Badge>
+            <Badge tone="success">{summary.completed} Completed</Badge>
+            <Badge tone={summary.overdue > 0 ? "danger" : "neutral"}>{summary.overdue} Overdue</Badge>
+          </div>
+        )}
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        <ViewSwitch view={view} onChange={setView} />
-        <Button
-          variant="outline"
-          size="sm"
-          className="size-8 p-0"
-          aria-label="Refresh calendar"
-          onClick={() => void tasksQuery.refetch()}
-          disabled={tasksQuery.isFetching}
-        >
-          <RefreshCw className={cn("size-4", tasksQuery.isFetching && "animate-spin")} />
-        </Button>
+        <ViewSwitch view={view} onChange={setView} compact={compact} />
+        {compact ? (
+          <Link
+            href="/admin/task-calendar"
+            className="text-xs font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            Open calendar
+          </Link>
+        ) : (
+          <Button
+            variant="outline"
+            size="sm"
+            className="size-8 p-0"
+            aria-label="Refresh calendar"
+            onClick={() => void tasksQuery.refetch()}
+            disabled={tasksQuery.isFetching}
+          >
+            <RefreshCw className={cn("size-4", tasksQuery.isFetching && "animate-spin")} />
+          </Button>
+        )}
       </div>
     </div>
   );
 
-  const filterBar = (
+  const compactFilters = (
+    <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+      <Select
+        className="h-8 min-h-8 px-2 text-xs"
+        value={filters.employeeId}
+        onChange={(event) => setFilters((current) => ({ ...current, employeeId: event.target.value }))}
+        aria-label="Filter calendar by employee"
+      >
+        <option value="">All employees</option>
+        {(optionsQuery.data?.employees ?? [])
+          .filter((employee) => employee.employmentStatus === "active")
+          .map((employee) => (
+            <option key={employee.id} value={employee.id}>
+              {employee.name}
+            </option>
+          ))}
+      </Select>
+      <Select
+        className="h-8 min-h-8 px-2 text-xs"
+        value={filters.clientId}
+        onChange={(event) => setFilters((current) => ({ ...current, clientId: event.target.value }))}
+        aria-label="Filter calendar by client"
+      >
+        <option value="">All clients</option>
+        {(optionsQuery.data?.clients ?? []).map((client) => (
+          <option key={client.id} value={client.id}>
+            {client.name}
+          </option>
+        ))}
+      </Select>
+      <Select
+        className="h-8 min-h-8 px-2 text-xs"
+        value={filters.status}
+        onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value }))}
+        aria-label="Filter calendar by status"
+      >
+        <option value="all">All statuses</option>
+        {taskStatusOptions.map((status) => (
+          <option key={status.value} value={status.value}>
+            {status.label}
+          </option>
+        ))}
+      </Select>
+      <Select
+        className="h-8 min-h-8 px-2 text-xs"
+        value={filters.priority}
+        onChange={(event) => setFilters((current) => ({ ...current, priority: event.target.value }))}
+        aria-label="Filter calendar by priority"
+      >
+        <option value="all">All priorities</option>
+        <option value="low">Low</option>
+        <option value="normal">Normal</option>
+        <option value="high">High</option>
+        <option value="urgent">Urgent</option>
+      </Select>
+    </div>
+  );
+
+  const filterBar = compact ? compactFilters : (
     <FilterToolbar
       search={{
         value: filters.search,
@@ -321,20 +418,51 @@ export function TaskCalendarWorkspace({
     <>
       {view === "month" ? (
         <MonthCalendarView
+          compact={compact}
           focusDate={focusDate}
           tasks={calendarTasks}
+          selectedDay={selectedDay}
           selectedTaskId={selectedTaskId}
+          onSelectDay={selectDay}
           onSelectTask={selectTask}
         />
       ) : null}
       {view === "week" ? (
-        <WeekCalendarView focusDate={focusDate} tasks={calendarTasks} onSelectTask={selectTask} />
+        <WeekCalendarView compact={compact} focusDate={focusDate} tasks={calendarTasks} onSelectTask={selectTask} />
       ) : null}
       {view === "agenda" ? (
         <AgendaCalendarView focusDate={focusDate} tasks={calendarTasks} onSelectTask={selectTask} />
       ) : null}
     </>
   );
+
+  const drawer = (
+    <TaskCalendarDetailDrawer
+      task={selectedTask}
+      open={Boolean(selectedTask)}
+      onOpenChange={(open) => {
+        if (!open) setSelectedTaskId(null);
+      }}
+    />
+  );
+
+  if (variant === "embedded") {
+    return (
+      <div className="flex flex-col gap-2">
+        {toolbar}
+        {filterBar}
+        {view === "agenda" ? (
+          <div className="overflow-hidden rounded-md border">{calendarBody}</div>
+        ) : (
+          <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_15.5rem]">
+            <div className="overflow-hidden rounded-md border">{calendarBody}</div>
+            <SelectedDayPanel day={selectedDay} tasks={selectedDayTasks} onSelectTask={selectTask} />
+          </div>
+        )}
+        {drawer}
+      </div>
+    );
+  }
 
   const workspace = (
     <>
@@ -344,19 +472,9 @@ export function TaskCalendarWorkspace({
       <Card>
         <CardContent className="p-0">{calendarBody}</CardContent>
       </Card>
-      <TaskCalendarDetailDrawer
-        task={selectedTask}
-        open={Boolean(selectedTask)}
-        onOpenChange={(open) => {
-          if (!open) setSelectedTaskId(null);
-        }}
-      />
+      {drawer}
     </>
   );
-
-  if (variant === "embedded") {
-    return <div className="flex flex-col gap-3">{workspace}</div>;
-  }
 
   return (
     <div className="flex flex-col gap-3">
@@ -373,9 +491,11 @@ export function TaskCalendarWorkspace({
 function ViewSwitch({
   view,
   onChange,
+  compact = false,
 }: {
   view: CalendarView;
   onChange: (view: CalendarView) => void;
+  compact?: boolean;
 }) {
   const options: CalendarView[] = ["month", "week", "agenda"];
   return (
@@ -386,7 +506,7 @@ function ViewSwitch({
           type="button"
           size="sm"
           variant={view === option ? "default" : "ghost"}
-          className="h-8 px-3 capitalize"
+          className={cn("capitalize", compact ? "h-7 px-2 text-xs" : "h-8 px-3")}
           onClick={() => onChange(option)}
         >
           {option}
@@ -397,14 +517,20 @@ function ViewSwitch({
 }
 
 function MonthCalendarView({
+  compact = false,
   focusDate,
   tasks,
+  selectedDay,
   selectedTaskId,
+  onSelectDay,
   onSelectTask,
 }: {
+  compact?: boolean;
   focusDate: Date;
   tasks: readonly CalendarTask[];
+  selectedDay: Date;
   selectedTaskId: string | null;
+  onSelectDay: (day: Date) => void;
   onSelectTask: (task: CalendarTask) => void;
 }) {
   const days = calendarDays(focusDate);
@@ -414,7 +540,7 @@ function MonthCalendarView({
 
   return (
     <div className="overflow-x-auto">
-      <div className="min-w-[960px]">
+      <div className={compact ? "min-w-[36rem]" : "min-w-[960px]"}>
         <div className="grid grid-cols-7 border-b bg-muted/20">
           {weekdayLabels.map((weekday, index) => {
             const isTodayColumn = showTodayColumn && index === todayWeekday;
@@ -422,11 +548,11 @@ function MonthCalendarView({
               <p
                 key={weekday}
                 className={cn(
-                  "px-2 py-1.5 text-[11px] font-semibold uppercase tracking-wide",
+                  "px-1.5 py-1 text-[11px] font-semibold uppercase tracking-wide",
                   isTodayColumn ? "text-primary" : "text-muted-foreground",
                 )}
               >
-                {weekday}
+                {compact ? weekday.slice(0, 2) : weekday}
               </p>
             );
           })}
@@ -435,10 +561,13 @@ function MonthCalendarView({
           {days.map((day) => (
             <MonthDayCell
               key={day.toISOString()}
+              compact={compact}
               day={day}
               month={focusDate}
               tasks={tasksForDay(tasks, day)}
+              selected={isSameDay(day, selectedDay)}
               selectedTaskId={selectedTaskId}
+              onSelectDay={onSelectDay}
               onSelectTask={onSelectTask}
               highlightColumn={showTodayColumn && day.getDay() === todayWeekday}
             />
@@ -450,49 +579,71 @@ function MonthCalendarView({
 }
 
 function MonthDayCell({
+  compact = false,
   day,
   month,
   tasks,
+  selected,
   selectedTaskId,
+  onSelectDay,
   onSelectTask,
   highlightColumn = false,
 }: {
+  compact?: boolean;
   day: Date;
   month: Date;
   tasks: CalendarTask[];
+  selected: boolean;
   selectedTaskId: string | null;
+  onSelectDay: (day: Date) => void;
   onSelectTask: (task: CalendarTask) => void;
   highlightColumn?: boolean;
 }) {
   const currentMonth = isSameMonth(day, month);
   const today = isSameDay(day, new Date());
-  const visible = tasks.slice(0, visibleTasksPerDay);
-  const overflow = tasks.slice(visibleTasksPerDay);
+  const limit = visibleTasksPerCell(compact);
+  const visible = tasks.slice(0, limit);
+  const overflow = tasks.slice(limit);
+  const dayLabel = format(day, "EEEE, d MMMM yyyy");
 
   return (
     <div
       className={cn(
-        "min-h-[5.5rem] border-b border-r p-1.5 align-top",
+        "border-b border-r align-top",
+        compact ? "min-h-[4.25rem] p-1" : "min-h-[5.5rem] p-1.5",
         !currentMonth && "bg-muted/15 text-muted-foreground",
         highlightColumn && !today && "bg-primary/[0.03]",
         today && "bg-primary/5",
+        selected && "bg-primary/10 ring-1 ring-inset ring-primary/40",
       )}
     >
-      <div className="flex items-start justify-between gap-1">
+      <button
+        type="button"
+        aria-label={tasks.length ? `${dayLabel}, ${tasks.length} tasks` : dayLabel}
+        aria-pressed={selected}
+        aria-current={today ? "date" : undefined}
+        onClick={() => onSelectDay(day)}
+        className="flex w-full items-center justify-between gap-1 rounded-sm text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
         <span
           className={cn(
-            "inline-flex size-6 items-center justify-center rounded-full text-xs font-semibold",
+            "inline-flex items-center justify-center rounded-full font-semibold",
+            compact ? "size-5 text-[11px]" : "size-6 text-xs",
             today && "bg-primary text-primary-foreground",
           )}
         >
           {format(day, "d")}
         </span>
         {tasks.length > 0 ? (
-          <span className="text-[10px] font-medium text-muted-foreground">{tasks.length} tasks</span>
+          <span className="text-[10px] font-medium tabular-nums text-muted-foreground">
+            {compact ? tasks.length : `${tasks.length} tasks`}
+          </span>
         ) : null}
-      </div>
-      {today ? <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">Today</p> : null}
-      <div className="mt-1 space-y-1">
+      </button>
+      {compact || !today ? null : (
+        <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">Today</p>
+      )}
+      <div className="mt-1 flex flex-col gap-1">
         {visible.map((task) => (
           <TaskCalendarEventCard
             key={task.id}
@@ -511,10 +662,12 @@ function MonthDayCell({
 }
 
 function WeekCalendarView({
+  compact = false,
   focusDate,
   tasks,
   onSelectTask,
 }: {
+  compact?: boolean;
   focusDate: Date;
   tasks: readonly CalendarTask[];
   onSelectTask: (task: CalendarTask) => void;
@@ -524,7 +677,7 @@ function WeekCalendarView({
 
   return (
     <div className="overflow-x-auto">
-      <div className="min-w-[960px]">
+      <div className={compact ? "min-w-[36rem]" : "min-w-[960px]"}>
         <div className="grid grid-cols-7 border-b bg-muted/20">
           {days.map((day) => {
             const today = isSameDay(day, new Date());
@@ -538,7 +691,7 @@ function WeekCalendarView({
             );
           })}
         </div>
-        <div className="grid min-h-[14rem] grid-cols-7">
+        <div className={cn("grid grid-cols-7", compact ? "min-h-[8rem]" : "min-h-[14rem]")}>
           {days.map((day) => {
             const dayTasks = tasksForDay(weekTasks, day).sort(
               (left, right) => left.dueDate.getTime() - right.dueDate.getTime(),
@@ -631,6 +784,38 @@ function AgendaCalendarView({
         );
       })}
     </div>
+  );
+}
+
+function SelectedDayPanel({
+  day,
+  tasks,
+  onSelectTask,
+}: {
+  day: Date;
+  tasks: readonly CalendarTask[];
+  onSelectTask: (task: CalendarTask) => void;
+}) {
+  const heading = isSameDay(day, new Date())
+    ? `Today · ${format(day, "d MMM")}`
+    : format(day, "EEE d MMM");
+
+  return (
+    <aside className="rounded-md border p-3">
+      <h3 className="text-sm font-semibold">{heading}</h3>
+      <p className="mt-0.5 text-xs text-muted-foreground">
+        {tasks.length === 1 ? "1 task" : `${tasks.length} tasks`}
+      </p>
+      <div className="mt-3 flex max-h-[18rem] flex-col gap-2 overflow-y-auto">
+        {tasks.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No scheduled work on this day.</p>
+        ) : (
+          tasks.map((task) => (
+            <TaskCalendarEventCard key={task.id} task={task} compact onSelect={onSelectTask} />
+          ))
+        )}
+      </div>
+    </aside>
   );
 }
 

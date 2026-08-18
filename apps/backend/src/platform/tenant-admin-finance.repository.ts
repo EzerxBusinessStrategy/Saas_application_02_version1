@@ -57,6 +57,22 @@ export type TenantBillableTaskEntryRow = {
   readonly netAmount: number;
 };
 
+export type TenantDownloadableDocument =
+  | { readonly kind: "stored"; readonly object: StoredDocumentObject }
+  | {
+      readonly kind: "generated-invoice";
+      readonly documentId: string;
+      readonly clientId: string;
+      readonly invoiceId: string;
+      readonly invoiceNumber: string;
+      readonly clientName: string;
+      readonly taskTitle: string | null;
+      readonly issuedOn: string;
+      readonly dueOn: string | null;
+      readonly currency: string;
+      readonly amount: number;
+    };
+
 @Injectable()
 export class TenantAdminFinanceRepository {
   constructor(@Inject(DATABASE_POOL) private readonly pool: Pool | null) {}
@@ -65,15 +81,34 @@ export class TenantAdminFinanceRepository {
     return this.withContext(context, (client) => this.getDocuments(client, context.tenantId, clientId, context.membershipId));
   }
 
-  async getDocumentStorageObject(context: TenantAdminRequestContext, documentId: string): Promise<StoredDocumentObject> {
-    return this.withContext(context, async (client) => {
-      const result = await client.query<{ storage_bucket: string | null; storage_key: string | null }>(
-        `select storage_bucket, storage_key from public.tenant_documents where tenant_id = $1 and id = $2 and status = 'active'`,
-        [context.tenantId, documentId],
+  async getDownloadableDocument(context: TenantAdminRequestContext, documentId: string): Promise<TenantDownloadableDocument> {
+    return this.withContext(context, (client) =>
+      this.resolveDownloadableDocument(client, context.tenantId, context.membershipId, documentId),
+    );
+  }
+
+  async attachGeneratedInvoiceStorageObject(
+    context: TenantAdminRequestContext,
+    documentId: string,
+    object: StoredDocumentObject,
+    sizeBytes: number,
+  ): Promise<void> {
+    await this.withContext(context, async (client) => {
+      await client.query(
+        `
+          update public.tenant_documents
+          set storage_bucket = $3,
+              storage_key = $4,
+              content_type = 'application/pdf',
+              size_bytes = $5,
+              updated_at = now()
+          where tenant_id = $1
+            and id = $2
+            and category = 'invoice'
+            and status = 'active'
+        `,
+        [context.tenantId, documentId, object.storageBucket, object.storageKey, sizeBytes],
       );
-      const object = result.rows[0];
-      if (!object?.storage_bucket || !object.storage_key) throw new ConflictException({ code: "DOCUMENT_FILE_NOT_AVAILABLE", message: "The file for this document is not available." });
-      return { storageBucket: object.storage_bucket, storageKey: object.storage_key };
     });
   }
 
@@ -408,6 +443,7 @@ export class TenantAdminFinanceRepository {
         left join public.clients c on c.id = d.client_id and c.tenant_id = d.tenant_id
         left join public.tenant_memberships tm on tm.id = d.created_by and tm.tenant_id = d.tenant_id
         where d.tenant_id = $1
+          and d.category <> 'invoice'
           and ($2::uuid is null or d.client_id = $2)
           and (
             coalesce(d.metadata->>'employeeUpload', 'false') <> 'true'
@@ -600,6 +636,121 @@ export class TenantAdminFinanceRepository {
        on conflict (notification_id, recipient_user_id) do nothing`,
       [context.tenantId, context.userId, documentId, clientId, title],
     );
+  }
+
+  private async resolveDownloadableDocument(
+    client: PoolClient,
+    tenantId: string,
+    membershipId: string,
+    documentId: string,
+  ): Promise<TenantDownloadableDocument> {
+    const result = await client.query<{
+      id: string;
+      client_id: string | null;
+      category: string;
+      storage_bucket: string | null;
+      storage_key: string | null;
+      invoice_id: string | null;
+      invoice_number: string | null;
+      client_name: string | null;
+      task_title: string | null;
+      issued_on: string | null;
+      due_on: string | null;
+      currency: string | null;
+      amount: number | null;
+    }>(
+      `
+        select
+          d.id::text,
+          d.client_id::text,
+          d.category,
+          d.storage_bucket,
+          d.storage_key,
+          i.id::text as invoice_id,
+          i.invoice_number,
+          c.display_name as client_name,
+          (
+            select t.title
+            from public.invoice_items ii
+            left join public.tasks t
+              on t.tenant_id = ii.tenant_id
+             and t.id = ii.task_id
+            where ii.tenant_id = i.tenant_id
+              and ii.invoice_id = i.id
+            order by ii.created_at asc
+            limit 1
+          ) as task_title,
+          i.issued_on::text,
+          i.due_on::text,
+          i.currency_code as currency,
+          i.total_amount as amount
+        from public.tenant_documents d
+        left join public.clients c
+          on c.tenant_id = d.tenant_id
+         and c.id = d.client_id
+        left join public.invoices i
+          on i.tenant_id = d.tenant_id
+         and i.id = case
+           when coalesce(d.metadata->>'invoiceId', '') ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+             then (d.metadata->>'invoiceId')::uuid
+           else null
+         end
+        where d.tenant_id = $1
+          and d.id = $2
+          and d.status = 'active'
+          and d.category <> 'invoice'
+          and (
+            coalesce(d.metadata->>'employeeUpload', 'false') <> 'true'
+            or d.created_by = $3
+            or exists (
+              select 1
+              from public.tenant_document_recipients tdr
+              where tdr.tenant_id = d.tenant_id
+                and tdr.document_id = d.id
+                and tdr.recipient_membership_id = $3
+            )
+          )
+      `,
+      [tenantId, documentId, membershipId],
+    );
+    const document = result.rows[0];
+    if (!document) {
+      throw new ConflictException({
+        code: "DOCUMENT_FILE_NOT_AVAILABLE",
+        message: "The file for this document is not available.",
+      });
+    }
+    if (document.storage_bucket && document.storage_key) {
+      return { kind: "stored", object: { storageBucket: document.storage_bucket, storageKey: document.storage_key } };
+    }
+    if (
+      document.category === "invoice" &&
+      document.client_id &&
+      document.invoice_id &&
+      document.invoice_number &&
+      document.client_name &&
+      document.issued_on &&
+      document.currency &&
+      document.amount !== null
+    ) {
+      return {
+        kind: "generated-invoice",
+        documentId: document.id,
+        clientId: document.client_id,
+        invoiceId: document.invoice_id,
+        invoiceNumber: document.invoice_number,
+        clientName: document.client_name,
+        taskTitle: document.task_title,
+        issuedOn: document.issued_on,
+        dueOn: document.due_on,
+        currency: document.currency,
+        amount: Number(document.amount),
+      };
+    }
+    throw new ConflictException({
+      code: "DOCUMENT_FILE_NOT_AVAILABLE",
+      message: "The file for this document is not available.",
+    });
   }
 
   private async getDocumentOrThrow(client: PoolClient, tenantId: string, id: string, membershipId?: string): Promise<TenantDocumentRow> {

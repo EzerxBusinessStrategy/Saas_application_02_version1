@@ -19,6 +19,13 @@ export const createTenantDocumentSchema = z.object({
 }).superRefine((value, ctx) => {
   const hasClient = Boolean(value.clientId);
   const hasEmployee = (value.recipientEmployeeIds?.length ?? 0) > 0;
+  if (value.category === "invoice") {
+    ctx.addIssue({
+      code: "custom",
+      path: ["category"],
+      message: "Invoices belong in the Invoices section.",
+    });
+  }
   if (value.category === "agreement" && !hasClient) {
     ctx.addIssue({
       code: "custom",

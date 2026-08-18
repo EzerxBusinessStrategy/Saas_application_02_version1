@@ -45,7 +45,7 @@ import type { Workspace } from "@/types/domain";
 import type { SharedDocument, SharedInvoice } from "@/types/operations";
 
 const rupees = new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 });
-const categories = ["agreement", "deliverable", "evidence", "compliance", "finance", "report", "invoice", "client-upload", "employee-submission", "internal", "supporting", "other"] as const;
+const categories = ["agreement", "deliverable", "evidence", "compliance", "finance", "report", "client-upload", "employee-submission", "internal", "supporting", "other"] as const;
 
 export function FinanceDocuments({
   section,
@@ -89,6 +89,7 @@ function DocumentsWorkspace({ workspace, fixedCategory }: { workspace: Extract<W
   if (error) return <ErrorState title="Documents could not load" onRetry={() => void refresh()} />;
   const agreementDocuments = (documents ?? []).filter((document) => document.category === "agreement");
   const visible = (documents ?? []).filter((document) =>
+    document.category !== "invoice" &&
     (!search || [document.title, document.fileName, document.client, document.category, document.uploadedBy].join(" ").toLowerCase().includes(search.toLowerCase())) &&
     (fixedCategory ? document.category === fixedCategory : !category || document.category === category) &&
     (!clientFilter || document.clientId === clientFilter) &&

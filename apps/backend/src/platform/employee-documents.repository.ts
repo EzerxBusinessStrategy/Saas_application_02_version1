@@ -55,7 +55,7 @@ export class EmployeeDocumentsRepository {
         `
           select d.storage_bucket, d.storage_key
           from public.tenant_documents d
-          where d.tenant_id = $1 and d.id = $2 and d.status = 'active'
+          where d.tenant_id = $1 and d.id = $2 and d.status = 'active' and d.category <> 'invoice'
             and (d.created_by = $3 or exists (
               select 1 from public.tenant_document_recipients recipient
               where recipient.tenant_id = d.tenant_id and recipient.document_id = d.id and recipient.recipient_membership_id = $3
@@ -252,6 +252,7 @@ export class EmployeeDocumentsRepository {
         left join public.tenant_memberships owner on owner.id = d.created_by and owner.tenant_id = d.tenant_id
         left join public.tenant_document_recipients tdr on tdr.tenant_id = d.tenant_id and tdr.document_id = d.id
         where d.tenant_id = $1
+          and d.category <> 'invoice'
           and (
             d.created_by = $2
             or exists (

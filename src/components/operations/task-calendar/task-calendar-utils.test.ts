@@ -5,6 +5,7 @@ import {
   filterCalendarTasks,
   taskAccent,
   toCalendarTasks,
+  visibleTasksPerCell,
   type CalendarTask,
 } from "@/components/operations/task-calendar/task-calendar-utils";
 import type { TenantAdminTask } from "@/features/operations/api/operations-api";
@@ -78,6 +79,11 @@ describe("task calendar utils", () => {
     expect(filterCalendarTasks(tasks, { ...filters, status: "review" }).map((task) => task.id)).toEqual(["review"]);
     expect(filterCalendarTasks(tasks, { ...filters, status: "rejected" }).map((task) => task.id)).toEqual(["returned"]);
     expect(filterCalendarTasks(tasks, { ...filters, status: "done" }).map((task) => task.id)).toEqual(["done"]);
+  });
+
+  it("shows one task per day in the compact dashboard calendar", () => {
+    expect(visibleTasksPerCell(true)).toBe(1);
+    expect(visibleTasksPerCell(false)).toBe(3);
   });
 
   it("derives overdue accent and summary counts", () => {

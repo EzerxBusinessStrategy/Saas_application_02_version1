@@ -41,6 +41,10 @@ export const weekdayLabels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] a
 
 export const visibleTasksPerDay = 3;
 
+export function visibleTasksPerCell(compact: boolean): number {
+  return compact ? 1 : visibleTasksPerDay;
+}
+
 export const taskStatusOptions: ReadonlyArray<{
   value: OperationalTask["status"];
   label: string;

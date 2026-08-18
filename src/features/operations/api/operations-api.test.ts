@@ -134,7 +134,7 @@ test("lists tenant documents that are not linked to a client", async () => {
   ]);
 });
 
-test("lists tenant documents when an invoice PDF is stored with category invoice", async () => {
+test("keeps invoice files out of the tenant documents list", async () => {
   vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response(JSON.stringify({
     documents: [{
       id: "3cb036fe-dcca-4d35-9b3c-08a6cd354a48",
@@ -157,9 +157,7 @@ test("lists tenant documents when an invoice PDF is stored with category invoice
     }],
   }), { status: 200, headers: { "content-type": "application/json" } }));
 
-  await expect(listSharedDocuments("admin")).resolves.toEqual([
-    expect.objectContaining({ id: "3cb036fe-dcca-4d35-9b3c-08a6cd354a48", category: "invoice", title: "Invoice 1" }),
-  ]);
+  await expect(listSharedDocuments("admin")).resolves.toEqual([]);
 });
 
 test("accepts RFC 3339 work-segment timestamps returned by PostgreSQL JSON", async () => {

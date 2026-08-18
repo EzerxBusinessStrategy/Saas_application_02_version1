@@ -11,6 +11,7 @@ import {
   TenantInvoicesResponseDto,
   TenantInvoiceDto,
 } from "./tenant-admin-finance.dto";
+import { createInvoicePdf } from "./invoice-pdf";
 import { TenantAdminFinanceRepository } from "./tenant-admin-finance.repository";
 import { TenantDocumentStorageService } from "./tenant-document-storage.service";
 
@@ -38,7 +39,25 @@ export class TenantAdminFinanceService {
 
   async createDocumentDownloadUrl(context: RequestContext, documentId: string): Promise<{ url: string }> {
     const scoped = requireTenantAdminContext(context);
-    return { url: await this.storage.createSignedDownloadUrl(await this.repository.getDocumentStorageObject(scoped, documentId)) };
+    const document = await this.repository.getDownloadableDocument(scoped, documentId);
+    if (document.kind === "stored") {
+      return { url: await this.storage.createSignedDownloadUrl(document.object) };
+    }
+
+    const content = createInvoicePdf(document);
+    const object = await this.storage.storeGeneratedInvoice({
+      tenantId: scoped.tenantId,
+      clientId: document.clientId,
+      invoiceId: document.invoiceId,
+      content,
+    });
+    await this.repository.attachGeneratedInvoiceStorageObject(
+      scoped,
+      document.documentId,
+      object,
+      content.byteLength,
+    );
+    return { url: await this.storage.createSignedDownloadUrl(object) };
   }
 
   async listInvoices(context: RequestContext, clientId?: string): Promise<TenantInvoicesResponseDto> {

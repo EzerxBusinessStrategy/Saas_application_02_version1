@@ -20,7 +20,7 @@ export function TenantDashboardCalendarWidget({
           <CalendarDays className="size-4 text-primary" aria-hidden="true" />
           Task calendar
         </CardTitle>
-        <CardDescription>Scheduled client work for the selected period.</CardDescription>
+        <CardDescription>Click a day to inspect scheduled work.</CardDescription>
       </CardHeader>
       <div className="p-3 sm:p-4">
         <TaskCalendarWorkspace

@@ -2755,7 +2755,7 @@ export class TenantAdminTasksRepository {
                  coalesce(owner.display_name, 'Authorised user') as uploaded_by, document.updated_at
           from public.tenant_documents document
           left join public.tenant_memberships owner on owner.tenant_id = document.tenant_id and owner.id = document.created_by
-          where document.tenant_id = $1 and document.task_id = $2 and document.status = 'active'
+          where document.tenant_id = $1 and document.task_id = $2 and document.status = 'active' and document.category <> 'invoice'
           order by document.updated_at desc, document.id desc
           limit 100
         `,

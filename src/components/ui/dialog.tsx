@@ -33,11 +33,19 @@ export function DialogContent({
       <DialogPrimitive.Overlay className="fixed inset-0 z-40 bg-foreground/35" />
       <DialogPrimitive.Content
         onPointerDownOutside={(event) => {
+          if (isDatePickerPopoverEvent(event)) {
+            event.preventDefault();
+            return;
+          }
           if (!blockOutsideClose) return;
           event.preventDefault();
           triggerBlockedCloseFeedback();
         }}
         onInteractOutside={(event) => {
+          if (isDatePickerPopoverEvent(event)) {
+            event.preventDefault();
+            return;
+          }
           if (!blockOutsideClose) return;
           event.preventDefault();
         }}
@@ -70,4 +78,8 @@ export function DialogContent({
       </DialogPrimitive.Content>
     </DialogPrimitive.Portal>
   );
+}
+
+function isDatePickerPopoverEvent(event: { target: EventTarget | null }): boolean {
+  return event.target instanceof Element && Boolean(event.target.closest("[data-date-picker-popover]"));
 }
