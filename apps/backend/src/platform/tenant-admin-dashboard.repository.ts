@@ -813,7 +813,7 @@ export class TenantAdminDashboardRepository {
           t.planned_due_at,
           t.created_at,
           min(ta.assigned_at) filter (where ta.id is not null) as assigned_at,
-          t.completed_at,
+          t.actual_completed_at as completed_at,
           employee_ip.employee_public_ip,
           coalesce(
             jsonb_agg(
@@ -964,7 +964,7 @@ export class TenantAdminDashboardRepository {
               coalesce($10::text, 'due') = 'kpi'
               and $5::text = 'completed'
               and coalesce(
-                (t.completed_at at time zone $9)::date,
+                (t.actual_completed_at at time zone $9)::date,
                 (t.planned_due_at at time zone $9)::date,
                 (t.created_at at time zone $9)::date
               ) between $7::date and $8::date
@@ -999,7 +999,7 @@ export class TenantAdminDashboardRepository {
           t.sla_status,
           t.planned_due_at,
           t.created_at,
-          t.completed_at,
+          t.actual_completed_at,
           employee_ip.employee_public_ip
         order by coalesce(t.planned_due_at, t.created_at) asc, t.title asc
         limit 1000

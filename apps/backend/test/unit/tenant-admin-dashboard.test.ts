@@ -751,6 +751,7 @@ describe("allocated work query", () => {
     expect(source).toContain("$5::text = 'overdue'");
     expect(source).toContain("employee_ip.employee_public_ip");
     expect(source).toContain("coalesce($10::text, 'due') = 'kpi'");
+    expect(source).toContain("t.actual_completed_at as completed_at");
   });
 });
 
