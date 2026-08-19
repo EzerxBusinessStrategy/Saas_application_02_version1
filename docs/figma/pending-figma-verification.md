@@ -110,17 +110,23 @@ Design status: Pending Figma verification.
   Legacy `/admin/tasks?task=` notification links redirect to Task review.
   Reuses PageHeader, Card, DataTable, Dialog, StatusBadge, TaskBoard, and
   TaskDetailsDrawer. Figma MCP was not used.
-- Client Active services lists every taken month with its price. This month
-  due and next month due are the remaining open installments for those months.
+- Client dashboard Active services use a compact 2/3 + 1/3 layout (services
+  left, recent requests and upcoming billing right, `align-items: start`).
+  Compact cards show status as Active (not On track), next due, this month,
+  assigned employee, and progress from the dashboard API. Task lists and the
+  message-tenant form open in a drawer/dialog, not on every dashboard card.
+  Duplicate engagement/service titles are collapsed. Money amounts omit
+  forced `.00`. Reuses Card, Badge, Button, Dialog, EmptyState, and Link.
+  Figma MCP was not used.
+- Client Active services (full page) lists every taken month with its price.
+  This month and next month are remaining open installments for those months.
   Total task amount is the sum of listed prices. A discount row appears only
   when the tenant entered a discount percent while accepting the request; the
   backend stores that percent on the engagement configuration and computes the
   amount. Invoice discounts stay on invoices and never appear here. Assigned
-  employees are
-  not shown to clients. The Service catalogue card was removed from this page
-  because clients already tick services from Requests. Comments notify Tenant
-  Admins and Owners with the client name. Reuses Card, StatusBadge, Button, and
-  the existing textarea pattern. Figma MCP was not used.
+  employees are shown to clients. Comments notify Tenant Admins and Owners
+  with the client name from a Message tenant dialog. Reuses Card, StatusBadge,
+  Button, and Dialog. Figma MCP was not used.
 
 ## Optional related client on Tenant Admin document upload
 

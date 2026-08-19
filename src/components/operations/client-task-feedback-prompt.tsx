@@ -1,41 +1,53 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { listPendingTaskFeedback } from "@/features/client-portal/api/task-feedback-api";
 import { ClientTaskFeedbackDialog } from "@/components/operations/client-task-feedback-dialog";
+import {
+  canShowClientFeedbackPrompt,
+  markClientFeedbackPromptShown,
+  markClientFeedbackPromptSnoozed,
+  readClientFeedbackPromptState,
+  writeClientFeedbackPromptState,
+} from "@/lib/client-feedback-prompt";
 
 export function ClientTaskFeedbackPrompt() {
   const queryClient = useQueryClient();
-  const [dismissedTaskIds, setDismissedTaskIds] = useState<readonly string[]>([]);
+  const [openThisVisit, setOpenThisVisit] = useState(false);
   const pendingQuery = useQuery({
     queryKey: ["client-task-feedback-pending"],
     queryFn: listPendingTaskFeedback,
-    refetchInterval: 15_000,
-    refetchOnWindowFocus: "always",
+    refetchInterval: 60_000,
+    refetchOnWindowFocus: true,
   });
 
-  const activeItem = useMemo(() => {
-    const items = pendingQuery.data?.items ?? [];
-    return items.find((item) => !dismissedTaskIds.includes(item.taskId)) ?? null;
-  }, [dismissedTaskIds, pendingQuery.data?.items]);
+  const pendingItem = pendingQuery.data?.items[0] ?? null;
+
+  useEffect(() => {
+    if (openThisVisit || !pendingItem) return;
+    const state = readClientFeedbackPromptState();
+    if (!canShowClientFeedbackPrompt(state)) return;
+    writeClientFeedbackPromptState(markClientFeedbackPromptShown(state));
+    setOpenThisVisit(true);
+  }, [openThisVisit, pendingItem]);
 
   function handleSubmitted() {
+    writeClientFeedbackPromptState(markClientFeedbackPromptShown(readClientFeedbackPromptState()));
+    setOpenThisVisit(false);
     void queryClient.invalidateQueries({ queryKey: ["client-task-feedback-pending"] });
   }
 
   function handleDismiss() {
-    if (!activeItem) return;
-    setDismissedTaskIds((current) =>
-      current.includes(activeItem.taskId) ? current : [...current, activeItem.taskId],
-    );
+    writeClientFeedbackPromptState(markClientFeedbackPromptSnoozed(readClientFeedbackPromptState()));
+    setOpenThisVisit(false);
   }
 
-  if (!activeItem) return null;
+  if (!openThisVisit || !pendingItem) return null;
 
   return (
     <ClientTaskFeedbackDialog
-      item={activeItem}
+      item={pendingItem}
       open
       onSubmitted={handleSubmitted}
       onDismiss={handleDismiss}

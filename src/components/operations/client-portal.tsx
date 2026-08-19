@@ -1,17 +1,23 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronDown, ListChecks } from "lucide-react";
+import Link from "next/link";
+import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import {
   getClientPortalDashboard,
   type ClientPortalDashboard,
 } from "@/features/client-portal/api/client-portal-dashboard-api";
-import { formatDiscountPercent, formatMonthLabel, summarizeClientServiceSchedule, taskYearMonth } from "@/features/client-portal/client-service-pricing";
+import { formatMonthLabel, summarizeClientServiceSchedule } from "@/features/client-portal/client-service-pricing";
 import { openSignedDownloadUrl } from "@/lib/signed-download";
-import { createClientServiceComment } from "@/features/client-portal/api/client-portal-service-comments-api";
+import { ClientServices } from "@/components/operations/client-portal-services";
+import {
+  clientRequestStatusTone,
+  formatClientDate,
+  formatClientMoney,
+  humanizeClientStatus,
+} from "@/components/operations/client-portal-display";
 import {
   decideClientPortalDeliverable,
   getClientPortalDeliverableDownloadUrl,
@@ -285,9 +291,9 @@ export function ClientPortal({
       >
         {[
           { label: "Active services", value: String(data.activeServices) },
-          { label: "Pending tasks", value: String(data.pendingTasks) },
-          { label: "Completed tasks", value: String(data.completedTasks) },
-          { label: "Open requests", value: String(data.openRequests) },
+          { label: "Open tasks", value: String(data.pendingTasks) },
+          { label: "Completed", value: String(data.completedTasks) },
+          { label: "Requests", value: String(data.openRequests) },
           {
             label: "Outstanding invoices",
             value: currency.format(data.outstandingInvoices),
@@ -300,9 +306,22 @@ export function ClientPortal({
           />
         ))}
       </section>
-      <section className="grid gap-[30px] lg:grid-cols-2">
+      <section className="grid items-start gap-[30px] lg:grid-cols-[minmax(0,2fr)_minmax(300px,1fr)]">
         <ClientServices services={data.services} compact />
-        <ClientRequests requests={data.requests} period={period} compact />
+        <div className="grid gap-[30px]">
+          <ClientRequests
+            requests={data.requests}
+            period={period}
+            compact
+            onChanged={() => void query.refetch()}
+          />
+          <ClientBillingRail
+            services={data.services}
+            invoices={data.invoices}
+            outstandingInvoices={data.outstandingInvoices}
+            currencyCode={data.currencyCode}
+          />
+        </div>
       </section>
     </div>
   );
@@ -326,7 +345,7 @@ function ClientInvoices({
                     {invoice.taskTitle ?? "Invoice"} · Issued {invoice.issuedOn}
                   </p>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    {formatCurrency(invoice.totalAmount, invoice.currencyCode)} · Outstanding {formatCurrency(invoice.outstandingAmount, invoice.currencyCode)}
+                    {formatClientMoney(invoice.totalAmount, invoice.currencyCode)} · Outstanding {formatClientMoney(invoice.outstandingAmount, invoice.currencyCode)}
                   </p>
                 </div>
                 <Button
@@ -354,223 +373,64 @@ function ClientInvoices({
   );
 }
 
-function ClientServices({
+function ClientBillingRail({
   services,
-  compact = false,
+  invoices,
+  outstandingInvoices,
+  currencyCode,
 }: {
-  services: Awaited<ReturnType<typeof getClientPortalDashboard>>["services"];
-  compact?: boolean;
+  services: ClientPortalDashboard["services"];
+  invoices: ClientPortalDashboard["invoices"];
+  outstandingInvoices: number;
+  currencyCode: string;
 }) {
+  const schedule = services.reduce(
+    (totals, service) => {
+      const month = summarizeClientServiceSchedule(service.tasks, service.discountPercent);
+      return {
+        thisMonthDue: totals.thisMonthDue + month.thisMonthDue,
+        nextMonthDue: totals.nextMonthDue + month.nextMonthDue,
+        thisMonthKey: month.thisMonthKey,
+        nextMonthKey: month.nextMonthKey,
+      };
+    },
+    { thisMonthDue: 0, nextMonthDue: 0, thisMonthKey: "", nextMonthKey: "" },
+  );
+  const openInvoiceCount = invoices.filter((invoice) => invoice.outstandingAmount > 0).length;
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <ListChecks className="size-[18px] text-primary" />
-          Active services
-        </CardTitle>
-        <CardDescription>
-          Each service stays compact. Open the task list to see every month’s price, due date, and status.
-        </CardDescription>
+        <CardTitle>Upcoming billing</CardTitle>
+        <CardDescription>Amounts come from scheduled tasks and issued invoices.</CardDescription>
       </CardHeader>
       <CardContent>
-        {services.length ? (
-          <ul className="flex flex-col divide-y">
-            {services.map((service) => {
-              const currency = service.currencyCode ?? "INR";
-              const schedule = summarizeClientServiceSchedule(service.tasks, service.discountPercent);
-              return (
-                <li key={service.id} className="py-4 first:pt-0">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="font-medium">{service.engagementName}</p>
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        {service.serviceName}
-                      </p>
-                    </div>
-                    <StatusBadge
-                      status={service.status === "active" ? "on-track" : "pending"}
-                    />
-                  </div>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    {service.completedTasks}/{service.totalTasks} tasks completed
-                    {service.openTasks > 0 ? ` · ${service.openTasks} open` : ""}
-                  </p>
-                  <div className="mt-3">
-                    <div className="flex justify-between gap-3 text-sm">
-                      <span className="font-medium">Progress</span>
-                      <span className="text-muted-foreground">{service.progressPercent}%</span>
-                    </div>
-                    <div className="mt-2 h-2 overflow-hidden rounded-[var(--radius-control)] bg-muted">
-                      <div className="h-full bg-primary" style={{ width: `${service.progressPercent}%` }} />
-                    </div>
-                  </div>
-                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                    <p className="text-sm">
-                      <span className="text-muted-foreground">This month due ({formatMonthLabel(schedule.thisMonthKey)})</span>
-                      <span className="mt-1 block font-medium">{formatCurrency(schedule.thisMonthDue, currency)}</span>
-                    </p>
-                    <p className="text-sm">
-                      <span className="text-muted-foreground">Next month due ({formatMonthLabel(schedule.nextMonthKey)})</span>
-                      <span className="mt-1 block font-medium">{formatCurrency(schedule.nextMonthDue, currency)}</span>
-                    </p>
-                  </div>
-                  {service.tasks.length ? (
-                    <ClientServiceTaskDropdown
-                      serviceName={service.serviceName}
-                      tasks={service.tasks}
-                      schedule={schedule}
-                      currency={currency}
-                    />
-                  ) : (
-                    <p className="mt-3 text-sm text-muted-foreground">
-                      No tasks have been created for this service yet.
-                    </p>
-                  )}
-                  <ActiveServiceCommentForm serviceId={service.id} serviceName={service.serviceName} />
-                </li>
-              );
-            })}
-          </ul>
-        ) : (
-            <EmptyState
-              title="No active services"
-              description="Tick services from Requests. After the tenant accepts, they appear here with dates and prices."
-            />
-        )}
-        {!compact && services.length ? (
-          <p className="mt-5 text-sm text-muted-foreground">
-            Status is derived from real engagement and task records, not mock checkpoints.
+        <dl className="grid gap-3 text-sm">
+          <div className="flex items-center justify-between gap-3">
+            <dt className="text-muted-foreground">
+              {schedule.thisMonthKey ? formatMonthLabel(schedule.thisMonthKey) : "This month"}
+            </dt>
+            <dd className="font-medium">{formatClientMoney(schedule.thisMonthDue, currencyCode)}</dd>
+          </div>
+          <div className="flex items-center justify-between gap-3">
+            <dt className="text-muted-foreground">
+              {schedule.nextMonthKey ? formatMonthLabel(schedule.nextMonthKey) : "Next month"}
+            </dt>
+            <dd className="font-medium">{formatClientMoney(schedule.nextMonthDue, currencyCode)}</dd>
+          </div>
+          <div className="flex items-center justify-between gap-3">
+            <dt className="text-muted-foreground">Outstanding</dt>
+            <dd className="font-medium">{formatClientMoney(outstandingInvoices, currencyCode)}</dd>
+          </div>
+          <p className="text-muted-foreground">
+            {openInvoiceCount} {openInvoiceCount === 1 ? "invoice" : "invoices"} with a balance
           </p>
-        ) : null}
+        </dl>
+        <Link href="/client/invoices" className="mt-4 inline-flex text-sm font-medium text-primary">
+          View invoices →
+        </Link>
       </CardContent>
     </Card>
-  );
-}
-
-function ClientServiceTaskDropdown({
-  serviceName,
-  tasks,
-  schedule,
-  currency,
-}: {
-  serviceName: string;
-  tasks: Awaited<ReturnType<typeof getClientPortalDashboard>>["services"][number]["tasks"];
-  schedule: ReturnType<typeof summarizeClientServiceSchedule>;
-  currency: string;
-}) {
-  const taskCountLabel = `${tasks.length} ${tasks.length === 1 ? "task" : "tasks"}`;
-
-  return (
-    <details className="group mt-3 rounded-[var(--radius-control)] border">
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2.5 text-sm outline-none marker:content-none focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
-        <span className="font-medium">
-          {taskCountLabel} under {serviceName}
-        </span>
-        <span className="flex items-center gap-2">
-          <span className="text-muted-foreground">{formatCurrency(schedule.amountDue, currency)}</span>
-          <ChevronDown aria-hidden className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
-        </span>
-      </summary>
-      <ul className="flex flex-col divide-y border-t">
-        {tasks.map((task) => {
-          const yearMonth = taskYearMonth(task.plannedDueAt);
-          const monthHint =
-            yearMonth === schedule.thisMonthKey
-              ? "This month"
-              : yearMonth === schedule.nextMonthKey
-                ? "Next month"
-                : null;
-          return (
-            <li key={task.id} className="flex items-start justify-between gap-3 px-3 py-2 text-sm">
-              <div>
-                <p className="font-medium">{task.title}</p>
-                <p className="mt-1 text-muted-foreground">
-                  {task.plannedDueAt ? formatDate(task.plannedDueAt) : "No due date"}
-                  {monthHint ? ` · ${monthHint}` : ""}
-                </p>
-              </div>
-              <div className="flex flex-col items-end gap-1">
-                <span className="font-medium">
-                  {formatCurrency(task.rateAmount, task.currencyCode || currency)}
-                </span>
-                <StatusBadge status={mapTaskStatus(task.status)} />
-              </div>
-            </li>
-          );
-        })}
-        <li className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
-          <span className="font-medium">Total task amount</span>
-          <span className="font-medium">{formatCurrency(schedule.taskTotal, currency)}</span>
-        </li>
-        {schedule.discountAmount > 0 ? (
-          <>
-            <li className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
-              <span>Discount ({formatDiscountPercent(schedule.discountPercent)})</span>
-              <span>−{formatCurrency(schedule.discountAmount, currency)}</span>
-            </li>
-            <li className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
-              <span className="font-medium">Amount due</span>
-              <span className="font-medium">{formatCurrency(schedule.amountDue, currency)}</span>
-            </li>
-          </>
-        ) : null}
-      </ul>
-    </details>
-  );
-}
-
-function ActiveServiceCommentForm({
-  serviceId,
-  serviceName,
-}: {
-  serviceId: string;
-  serviceName: string;
-}) {
-  const queryClient = useQueryClient();
-  const [body, setBody] = useState("");
-  const mutation = useMutation({
-    mutationFn: () =>
-      createClientServiceComment(serviceId, {
-        idempotencyKey: crypto.randomUUID(),
-        body: body.trim(),
-      }),
-    onSuccess: () => {
-      setBody("");
-      toast.success("Comment sent to the tenant.");
-      void queryClient.invalidateQueries({ queryKey: ["client-portal-dashboard"] });
-    },
-    onError: (error) => {
-      toast.error(error instanceof Error ? error.message : "Comment could not be sent.");
-    },
-  });
-  const canSend = body.trim().length >= 2 && !mutation.isPending;
-
-  return (
-    <form
-      className="mt-4 grid gap-2"
-      onSubmit={(event) => {
-        event.preventDefault();
-        if (!canSend) return;
-        mutation.mutate();
-      }}
-    >
-      <label className="text-sm font-medium">
-        Comment
-        <textarea
-          className="mt-1 min-h-24 w-full rounded-[var(--radius-control)] border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          value={body}
-          maxLength={2000}
-          aria-label={`Comment on ${serviceName}`}
-          placeholder="Send a note to the tenant about this service."
-          onChange={(event) => setBody(event.target.value)}
-        />
-      </label>
-      <div className="flex justify-end">
-        <Button type="submit" size="sm" disabled={!canSend}>
-          {mutation.isPending ? "Sending..." : "Send comment"}
-        </Button>
-      </div>
-    </form>
   );
 }
 
@@ -628,6 +488,11 @@ function ClientRequests({
     const day = item.submittedAt.slice(0, 10);
     return day >= period.from && day <= period.to;
   });
+  const timeline = compact
+    ? [...visible]
+        .sort((left, right) => Date.parse(right.updatedAt) - Date.parse(left.updatedAt))
+        .slice(0, 3)
+    : visible;
   const canSend =
     (selected.length > 0 && selected.every((service) => (drafts[service.serviceId] ?? []).some((task) => task.enabled))) ||
     title.trim().length >= 2;
@@ -694,41 +559,74 @@ function ClientRequests({
           <div>
             <CardTitle>Recent requests</CardTitle>
             <CardDescription>
-              Tick services from the tenant catalogue, or send a custom request. Work is created after tenant accept.
+              {compact
+                ? "Latest requests from this account."
+                : "Tick services from the tenant catalogue, or send a custom request. Work is created after tenant accept."}
             </CardDescription>
           </div>
-          {!compact ? <Button size="sm" onClick={() => setOpen(true)}>Request services</Button> : null}
+          {compact ? (
+            <Link href="/client/requests" className="shrink-0 text-sm font-medium text-primary">
+              View all
+            </Link>
+          ) : (
+            <Button size="sm" onClick={() => setOpen(true)}>Request services</Button>
+          )}
         </div>
       </CardHeader>
       <CardContent>
-        {visible.length ? (
-          <ul className="flex flex-col divide-y">
-            {visible.map((request) => (
-              <li key={request.id} className="py-4 first:pt-0">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="font-medium">{request.title}</p>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      {request.serviceName} · {request.countryCode}
-                    </p>
-                    {request.comment ? (
-                      <p className="mt-1 text-sm">Comment: {request.comment}</p>
-                    ) : null}
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      Updated {formatDate(request.updatedAt)}
-                    </p>
+        {timeline.length ? (
+          <ul className={compact ? "flex flex-col gap-4" : "flex flex-col divide-y"}>
+            {timeline.map((request) => {
+              const showService =
+                request.serviceName.trim() &&
+                request.serviceName.trim().toLowerCase() !== request.title.trim().toLowerCase();
+              return (
+                <li
+                  key={request.id}
+                  className={compact ? "relative pl-5" : "py-4 first:pt-0"}
+                >
+                  {compact ? (
+                    <span
+                      aria-hidden
+                      className="absolute left-0 top-1.5 size-2 rounded-full bg-primary"
+                    />
+                  ) : null}
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-medium">{request.title}</p>
+                      {showService ? (
+                        <p className="mt-1 text-sm text-muted-foreground">{request.serviceName}</p>
+                      ) : null}
+                      {!compact && request.comment ? (
+                        <p className="mt-1 text-sm">Comment: {request.comment}</p>
+                      ) : null}
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        Updated {formatClientDate(request.updatedAt)}
+                      </p>
+                    </div>
+                    <Badge tone={clientRequestStatusTone(request.status)}>
+                      {humanizeClientStatus(request.status)}
+                    </Badge>
                   </div>
-                  <StatusBadge status={mapRequestStatus(request.status)} />
-                </div>
-              </li>
-            ))}
+                </li>
+              );
+            })}
           </ul>
         ) : (
           <EmptyState
-            title="No requests"
-            description="Tick the services you need, or send a custom request, then wait for the tenant to accept."
+            title={compact ? "No active requests" : "No requests"}
+            description={
+              compact
+                ? "Need another service? Browse your available service catalogue."
+                : "Tick the services you need, or send a custom request, then wait for the tenant to accept."
+            }
           />
         )}
+        {compact ? (
+          <Button className="mt-4" size="sm" variant="outline" onClick={() => setOpen(true)}>
+            Request service
+          </Button>
+        ) : null}
       </CardContent>
     </Card>
     <Dialog
@@ -782,7 +680,7 @@ function ClientRequests({
                   <span>
                     <span className="font-medium">{service.name}</span>
                     <span className="mt-1 block text-muted-foreground">
-                      {formatCurrency(service.estimatedAnnualTotal, service.currencyCode)}
+                      {formatClientMoney(service.estimatedAnnualTotal, service.currencyCode)}
                       {service.alreadyActive ? " · already purchased" : ""}
                       {service.alreadyRequested ? " · request waiting" : ""}
                     </span>
@@ -949,11 +847,11 @@ function ClientDeliverablesList({
                         {item.fileName} · {item.fileType} · {item.category}
                       </p>
                       <p className="mt-1 text-sm text-muted-foreground">
-                        Shared by {item.uploadedBy} · {formatDate(item.updatedOn)}
+                        Shared by {item.uploadedBy} · {formatClientDate(item.updatedOn)}
                       </p>
                       {item.validUntil ? (
                         <p className="mt-1 text-sm text-muted-foreground">
-                          Expires {formatDate(item.validUntil)}
+                          Expires {formatClientDate(item.validUntil)}
                         </p>
                       ) : null}
                       {isExpiredAgreement ? (
@@ -1206,40 +1104,6 @@ const defaultClientProfile: ClientPortalProfile = {
   sidebarColour: "#1C2434",
   surfaceColour: "#FFFFFF",
 };
-
-function formatDate(value: string) {
-  return new Date(value).toLocaleDateString("en-IN", {
-    year: "numeric",
-    month: "short",
-    day: "2-digit",
-  });
-}
-
-function formatCurrency(amount: number, currencyCode: string) {
-  return new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: currencyCode,
-    maximumFractionDigits: 2,
-  }).format(amount);
-}
-
-function mapTaskStatus(status: string) {
-  if (status === "completed") return "complete";
-  if (["cancelled"].includes(status)) return "pending";
-  if (["in_progress", "submitted", "manager_review", "tenant_approval", "approved"].includes(status)) {
-    return "on-track";
-  }
-  return "pending";
-}
-
-function mapRequestStatus(status: string) {
-  if (["resolved", "completed", "approved", "accepted"].includes(status)) return "complete";
-  if (["rejected", "cancelled"].includes(status)) return "blocked";
-  if (["in_progress", "in-progress", "reviewed", "converted"].includes(status)) {
-    return "on-track";
-  }
-  return "pending";
-}
 
 function ClientPortalPeriodFilter({
   fromValue,

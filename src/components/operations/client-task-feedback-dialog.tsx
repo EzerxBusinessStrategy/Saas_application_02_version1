@@ -95,8 +95,8 @@ export function ClientTaskFeedbackDialog({
                   variant="outline"
                   disabled={submitting}
                   onClick={() => {
-                    toast.message("Saved for later", {
-                      description: "Open Feedback in the sidebar to rate this task within 60 days of completion.",
+                    toast.message("Remind me later", {
+                      description: "We will not show this popup for 72 hours. You can still rate from Feedback within 60 days of completion.",
                     });
                     onDismiss?.();
                   }}

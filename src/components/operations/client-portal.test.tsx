@@ -95,36 +95,38 @@ test("shows this month due, next month due, monthly prices, and total without in
   expect(await screen.findByText("2 tasks under demo")).toBeInTheDocument();
   expect(screen.getByText("GST")).toBeInTheDocument();
   expect(screen.getByText("Monthly books")).toBeInTheDocument();
-  expect(screen.getByText(/This month due/)).toBeInTheDocument();
-  expect(screen.getByText(/Next month due/)).toBeInTheDocument();
+  expect(screen.getByText(/This month \(/)).toBeInTheDocument();
+  expect(screen.getByText(/Next month \(/)).toBeInTheDocument();
   expect(screen.getByText(/· This month/)).toBeInTheDocument();
   expect(screen.getByText(/· Next month/)).toBeInTheDocument();
-  expect(screen.getByText("₹0.00")).toBeInTheDocument();
-  expect(screen.getByText("₹10,000.00")).toBeInTheDocument();
-  expect(screen.getAllByText("₹1,50,000.00").length).toBeGreaterThanOrEqual(2);
+  expect(screen.getByText("₹0")).toBeInTheDocument();
+  expect(screen.getByText("₹10,000")).toBeInTheDocument();
+  expect(screen.getAllByText("₹1,50,000").length).toBeGreaterThanOrEqual(2);
   expect(screen.getByText("Total task amount")).toBeInTheDocument();
-  expect(screen.getByText("₹1,60,000.00")).toBeInTheDocument();
+  expect(screen.getByText("₹1,60,000")).toBeInTheDocument();
   expect(screen.getByText("Discount (10%)")).toBeInTheDocument();
-  expect(screen.getByText("−₹16,000.00")).toBeInTheDocument();
+  expect(screen.getByText("−₹16,000")).toBeInTheDocument();
   expect(screen.getByText("Amount due")).toBeInTheDocument();
-  expect(screen.getAllByText("₹1,44,000.00").length).toBeGreaterThanOrEqual(2);
+  expect(screen.getAllByText("₹1,44,000").length).toBeGreaterThanOrEqual(2);
   expect(screen.queryByText(/responsible person/i)).not.toBeInTheDocument();
-  expect(screen.queryByText("Ada")).not.toBeInTheDocument();
-  expect(screen.queryByText("₹19,20,000.00")).not.toBeInTheDocument();
+  expect(screen.getByText("Ada")).toBeInTheDocument();
+  expect(screen.queryByText("₹19,20,000")).not.toBeInTheDocument();
   expect(screen.queryByText("Total due")).not.toBeInTheDocument();
   expect(screen.queryByText("Task total")).not.toBeInTheDocument();
   expect(screen.queryByText("Service catalogue")).not.toBeInTheDocument();
-  expect(screen.getByLabelText("Comment on demo")).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "Send comment" })).toBeInTheDocument();
+  expect(screen.queryByLabelText("Comment on demo")).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Message tenant" }));
+  expect(await screen.findByLabelText("Comment on demo")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Send" })).toBeInTheDocument();
 });
 
 test("applies a date range and reloads dashboard data from the API", async () => {
   const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
     const url = String(input);
-    if (url.includes("from=2026-09-01") && url.includes("to=2026-09-30")) {
+    if (url.includes("/api/client-portal/dashboard?from=")) {
       return Response.json({
         ...dashboard,
-        period: { from: "2026-09-01", to: "2026-09-30", source: "query" },
+        period: { from: "2026-08-01", to: "2026-08-31", source: "query" },
         activeServices: 0,
         pendingTasks: 0,
         completedTasks: 0,
@@ -140,19 +142,55 @@ test("applies a date range and reloads dashboard data from the API", async () =>
 
   renderWithQuery(<ClientPortal />);
 
-  expect(await screen.findByText("GST")).toBeInTheDocument();
-  expect(screen.getByText("Pending tasks")).toBeInTheDocument();
-  expect(screen.getByText("Completed tasks")).toBeInTheDocument();
-  fireEvent.change(screen.getByLabelText("Dashboard from date"), { target: { value: "2026-09-01" } });
-  fireEvent.change(screen.getByLabelText("Dashboard to date"), { target: { value: "2026-09-30" } });
-  fireEvent.click(screen.getByRole("button", { name: "Apply dates" }));
+  expect(await screen.findByText("Monthly books")).toBeInTheDocument();
+  expect(screen.getByText("Open tasks")).toBeInTheDocument();
+  expect(screen.getByText("Completed")).toBeInTheDocument();
+  fireEvent.change(screen.getByLabelText("Dashboard date preset"), { target: { value: "this_month" } });
 
   await waitFor(() => {
     expect(fetchMock).toHaveBeenCalledWith(
-      "/api/client-portal/dashboard?from=2026-09-01&to=2026-09-30",
+      expect.stringMatching(/^\/api\/client-portal\/dashboard\?from=\d{4}-\d{2}-\d{2}&to=\d{4}-\d{2}-\d{2}$/),
       expect.objectContaining({ cache: "no-store" }),
     );
   });
   expect(await screen.findByText("No active services")).toBeInTheDocument();
   expect(screen.queryByText("GST")).not.toBeInTheDocument();
+});
+
+test("overview compact mode hides comments and the task accordion", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/api/client-portal/dashboard")) {
+        return Response.json({
+          ...dashboard,
+          requests: [
+            {
+              id: "req-1",
+              title: "GST filing",
+              status: "complete",
+              serviceName: "GST filing",
+              countryCode: "IN",
+              requestedDueDate: null,
+              submittedAt: "2026-08-17T10:00:00.000Z",
+              updatedAt: "2026-08-17T10:00:00.000Z",
+            },
+          ],
+        });
+      }
+      return Response.json({ message: "Not found" }, { status: 404 });
+    }),
+  );
+
+  renderWithQuery(<ClientPortal />);
+
+  expect(await screen.findByRole("button", { name: "View service →" })).toBeInTheDocument();
+  expect(screen.getByText("Active")).toBeInTheDocument();
+  expect(screen.getByText("Ada")).toBeInTheDocument();
+  expect(screen.getByText("Upcoming billing")).toBeInTheDocument();
+  expect(screen.getAllByText("Completed").length).toBeGreaterThanOrEqual(1);
+  expect(screen.queryByText("2 tasks under demo")).not.toBeInTheDocument();
+  expect(screen.queryByLabelText("Comment on demo")).not.toBeInTheDocument();
+  expect(screen.queryByText("On track")).not.toBeInTheDocument();
 });
