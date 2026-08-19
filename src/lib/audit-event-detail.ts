@@ -41,7 +41,7 @@ export function parseAuditEventDetail(detail: string): readonly AuditDetailField
         value: formatAuditDetailValue(value),
       }));
     const rank = new Map(preferredAuditDetailOrder.map((key, index) => [key, index]));
-    return entries.toSorted((left, right) => {
+    return [...entries].sort((left, right) => {
       const leftRank = rank.get(left.key as (typeof preferredAuditDetailOrder)[number]) ?? 100;
       const rightRank = rank.get(right.key as (typeof preferredAuditDetailOrder)[number]) ?? 100;
       if (leftRank !== rightRank) return leftRank - rightRank;
