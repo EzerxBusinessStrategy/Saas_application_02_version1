@@ -8,6 +8,14 @@ export function calculateDiscount(
   return Math.min(grossAmount, roundMoney(amount));
 }
 
+export function toStoredDiscountType(
+  type: "percentage" | "fixed" | undefined,
+): "percentage" | "fixed_amount" | null {
+  if (type === "percentage") return "percentage";
+  if (type === "fixed") return "fixed_amount";
+  return null;
+}
+
 export function distributeDiscount(grossAmounts: readonly number[], discountTotal: number): number[] {
   if (grossAmounts.length === 0) return [];
   const subtotalCents = grossAmounts.reduce((sum, amount) => sum + toCents(amount), 0);

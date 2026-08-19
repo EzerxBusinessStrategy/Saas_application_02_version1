@@ -61,6 +61,14 @@ export class TenantAdminNotificationsController {
     return { unreadCount: await this.service.unreadCount(context) };
   }
 
+  @Patch("read-all")
+  @HttpCode(204)
+  @ApiOperation({ summary: "Mark all notifications as read for the logged-in Tenant Admin." })
+  @ApiNoContentResponse()
+  async markAllRead(@CurrentRequestContext() context: RequestContext): Promise<void> {
+    await this.service.markAllRead(context);
+  }
+
   @Patch(":notificationId/read")
   @HttpCode(204)
   @ApiOperation({ summary: "Mark one notification as read for the logged-in Tenant Admin." })
@@ -70,13 +78,5 @@ export class TenantAdminNotificationsController {
     @Param("notificationId", ParseUUIDPipe) notificationId: string,
   ): Promise<void> {
     await this.service.markRead(context, notificationId);
-  }
-
-  @Patch("read-all")
-  @HttpCode(204)
-  @ApiOperation({ summary: "Mark all notifications as read for the logged-in Tenant Admin." })
-  @ApiNoContentResponse()
-  async markAllRead(@CurrentRequestContext() context: RequestContext): Promise<void> {
-    await this.service.markAllRead(context);
   }
 }

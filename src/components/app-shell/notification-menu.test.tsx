@@ -1,11 +1,11 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { NotificationMenu } from "@/components/app-shell/notification-menu";
 import { getClientPortalNotifications } from "@/features/client-portal/api/client-portal-notifications-api";
 import { getEmployeeNotifications } from "@/features/employee/api/employee-notifications-api";
 import { getSuperAdminNotifications } from "@/features/platform/api/super-admin-notifications-api";
-import { getTenantAdminNotifications } from "@/features/tenant-admin/api/tenant-admin-notifications-api";
+import { getTenantAdminNotifications, markAllTenantAdminNotificationsRead } from "@/features/tenant-admin/api/tenant-admin-notifications-api";
 import type { SuperAdminNotification } from "@/types/super-admin-notifications";
 
 vi.mock("socket.io-client", () => ({
@@ -131,4 +131,26 @@ test("wires the tenant bell as an openable menu trigger", async () => {
   const bell = await screen.findByRole("button", { name: "Notifications, 1 unread" });
   expect(bell).toHaveAttribute("aria-haspopup", "menu");
   expect(bell).toHaveAttribute("aria-expanded", "false");
+});
+
+test("mark all read clears unread items in the notification centre", async () => {
+  vi.mocked(markAllTenantAdminNotificationsRead).mockImplementation(async () => {
+    vi.mocked(getTenantAdminNotifications).mockResolvedValue({
+      unreadCount: 0,
+      items: mixedPage().items.map((item) => ({
+        ...item,
+        readAt: item.readAt ?? "2026-08-19T10:00:00.000Z",
+      })),
+    });
+  });
+  renderMenu("admin");
+
+  expect(await screen.findByLabelText("Unread")).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Mark all read" }));
+
+  await waitFor(() => {
+    expect(markAllTenantAdminNotificationsRead).toHaveBeenCalled();
+    expect(screen.queryByLabelText("Unread")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /unread/i })).not.toBeInTheDocument();
+  });
 });

@@ -259,6 +259,7 @@ describe("TenantAdminFinanceRepository document delivery", () => {
     expect(source).toContain("approved_for_invoice");
     expect(source).toContain("BILLABLE_TASK_NOT_AVAILABLE");
     expect(source).toContain("isUniqueViolation");
+    expect(source).toContain("toStoredDiscountType");
   });
 
   test("rejects duplicate charge ids on grouped invoice creation", () => {

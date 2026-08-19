@@ -11,7 +11,7 @@ import {
   toBillingFrequency,
   type BillingFrequency,
 } from "./billing-charge-period";
-import { calculateDiscount, distributeDiscount, roundMoney } from "./invoice-discount";
+import { calculateDiscount, distributeDiscount, roundMoney, toStoredDiscountType } from "./invoice-discount";
 import { TenantAdminRequestContext } from "./tenant-admin-context";
 import {
   CreateEntriesInvoiceRequest,
@@ -412,7 +412,7 @@ export class TenantAdminFinanceRepository {
          set discount_type = $3, discount_value = $4, discount_amount = $5, net_amount = $6,
              status = 'invoiced', invoice_item_id = $7, updated_at = now()
          where tenant_id = $1 and id = $2`,
-        [context.tenantId, entry.id, input.discountType ?? null, input.discountValue || null, discountAmount, totalAmount, invoiceItemId],
+        [context.tenantId, entry.id, toStoredDiscountType(input.discountType), input.discountValue || null, discountAmount, totalAmount, invoiceItemId],
       );
       await client.query(
         "select audit.write_audit_event('INVOICE_CREATED_FROM_TASK', 'invoice', $1::uuid, 'succeeded', null, $2::jsonb)",
@@ -617,7 +617,7 @@ export class TenantAdminFinanceRepository {
           [
             context.tenantId,
             entry.id,
-            input.discountType ?? null,
+            toStoredDiscountType(input.discountType),
             input.discountValue || null,
             itemDiscount,
             itemNet,

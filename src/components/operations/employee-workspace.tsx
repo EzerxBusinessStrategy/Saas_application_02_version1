@@ -544,7 +544,10 @@ function EmployeeInfo({ section }: { section: "notifications" | "profile" }) {
               <ul className="divide-y">
                 {notifications.data.items.map((item) => (
                   <li key={item.id} className="py-4 first:pt-0">
-                    <p className="font-medium">{item.title}</p>
+                    <p className="flex items-center gap-2 font-medium">
+                      {item.title}
+                      {!item.readAt ? <span className="size-2 shrink-0 rounded-full bg-primary" aria-label="Unread" /> : null}
+                    </p>
                     <p className="mt-1 text-sm text-muted-foreground">
                       {item.message}
                     </p>

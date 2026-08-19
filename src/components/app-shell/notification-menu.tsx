@@ -193,10 +193,7 @@ function SuperAdminNotificationMenu({ open, userEmail }: { open?: boolean; userE
               <span className="sr-only">Toggle notification sound</span>
             </Button>
             {unreadCount ? (
-              <Button variant="ghost" size="sm" onClick={() => markAllRead.mutate()}>
-                <CheckCheck className="size-4" aria-hidden="true" />
-                Mark all read
-              </Button>
+              <MarkAllReadButton unreadCount={unreadCount} onMarkAllRead={() => markAllRead.mutate()} />
             ) : null}
           </div>
         </div>
@@ -316,10 +313,7 @@ function TenantAdminNotificationMenu({ open, userEmail }: { open?: boolean; user
               <span className="sr-only">Toggle notification sound</span>
             </Button>
             {unreadCount ? (
-              <Button variant="ghost" size="sm" onClick={() => markAllRead.mutate()}>
-                <CheckCheck className="size-4" aria-hidden="true" />
-                Mark all read
-              </Button>
+              <MarkAllReadButton unreadCount={unreadCount} onMarkAllRead={() => markAllRead.mutate()} />
             ) : null}
           </div>
         </div>
@@ -412,7 +406,7 @@ function EmployeeNotificationMenu({
       <DropdownMenuContent align="end" className="w-[min(24rem,calc(100vw-2rem))] max-md:!fixed max-md:!inset-x-4 max-md:!bottom-4 max-md:!top-auto">
         <div className="flex items-center justify-between gap-2 px-3 py-2">
           <DropdownMenuLabel className="p-0 font-semibold">Notifications</DropdownMenuLabel>
-          {unreadCount ? <Button variant="ghost" size="sm" onClick={() => markAllRead.mutate()}><CheckCheck className="size-4" aria-hidden="true" />Mark all read</Button> : null}
+          <MarkAllReadButton unreadCount={unreadCount} onMarkAllRead={() => markAllRead.mutate()} />
         </div>
         <DropdownMenuSeparator className="my-1 h-px bg-border" />
         {query.isLoading ? <NotificationLoading /> : null}
@@ -463,6 +457,35 @@ function ClientPortalNotificationMenu({ open }: { open?: boolean }) {
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+function MarkAllReadButton({
+  unreadCount,
+  onMarkAllRead,
+}: {
+  unreadCount: number;
+  onMarkAllRead: () => void;
+}) {
+  if (!unreadCount) return null;
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="sm"
+      onPointerDown={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+      }}
+      onClick={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        onMarkAllRead();
+      }}
+    >
+      <CheckCheck className="size-4" aria-hidden="true" />
+      Mark all read
+    </Button>
   );
 }
 
@@ -545,6 +568,20 @@ function NotificationError() {
   );
 }
 
+function notificationQueryFilter(queryKey: QueryKey) {
+  const root = Array.isArray(queryKey) ? queryKey[0] : queryKey;
+  return {
+    predicate: (query: { queryKey: QueryKey }) => query.queryKey[0] === root,
+  };
+}
+
+function markAllItemsRead(data: SuperAdminNotificationsResponse): SuperAdminNotificationsResponse {
+  const readAt = new Date().toISOString();
+  return {
+    unreadCount: 0,
+    items: data.items.map((item) => ({ ...item, readAt: item.readAt ?? readAt })),
+  };
+}
 function markItemRead(data: SuperAdminNotificationsResponse, notificationId: string): SuperAdminNotificationsResponse {
   const item = data.items.find((current) => current.id === notificationId);
   const decrement = item && !item.readAt ? 1 : 0;
@@ -557,7 +594,7 @@ function markItemRead(data: SuperAdminNotificationsResponse, notificationId: str
 }
 
 type NotificationRollback = {
-  readonly previous: SuperAdminNotificationsResponse | undefined;
+  readonly snapshots: ReadonlyArray<readonly [QueryKey, SuperAdminNotificationsResponse | undefined]>;
 };
 
 function optimisticReadMutation(
@@ -565,18 +602,22 @@ function optimisticReadMutation(
   queryKey: QueryKey,
   mutationFn: (notificationId: string) => Promise<unknown>,
 ) {
+  const matchedQueries = notificationQueryFilter(queryKey);
   return {
     mutationFn,
     async onMutate(notificationId: string): Promise<NotificationRollback> {
-      await queryClient.cancelQueries({ queryKey });
-      const previous = queryClient.getQueryData<SuperAdminNotificationsResponse>(queryKey);
-      queryClient.setQueryData<SuperAdminNotificationsResponse>(queryKey, (current) =>
+      await queryClient.cancelQueries(matchedQueries);
+      const snapshots = queryClient.getQueriesData<SuperAdminNotificationsResponse>(matchedQueries);
+      queryClient.setQueriesData<SuperAdminNotificationsResponse>(matchedQueries, (current) =>
         current ? markItemRead(current, notificationId) : current,
       );
-      return { previous };
+      return { snapshots };
     },
     onError(_error: unknown, _notificationId: string, rollback: NotificationRollback | undefined) {
-      queryClient.setQueryData(queryKey, rollback?.previous);
+      rollback?.snapshots.forEach(([key, data]) => queryClient.setQueryData(key, data));
+    },
+    onSettled() {
+      void queryClient.invalidateQueries(matchedQueries);
     },
   };
 }
@@ -586,23 +627,22 @@ function optimisticMarkAllReadMutation(
   queryKey: QueryKey,
   mutationFn: () => Promise<unknown>,
 ) {
+  const matchedQueries = notificationQueryFilter(queryKey);
   return {
     mutationFn,
     async onMutate(): Promise<NotificationRollback> {
-      await queryClient.cancelQueries({ queryKey });
-      const previous = queryClient.getQueryData<SuperAdminNotificationsResponse>(queryKey);
-      queryClient.setQueryData<SuperAdminNotificationsResponse>(queryKey, (current) =>
-        current
-          ? {
-              unreadCount: 0,
-              items: current.items.map((item) => ({ ...item, readAt: item.readAt ?? new Date().toISOString() })),
-            }
-          : current,
+      await queryClient.cancelQueries(matchedQueries);
+      const snapshots = queryClient.getQueriesData<SuperAdminNotificationsResponse>(matchedQueries);
+      queryClient.setQueriesData<SuperAdminNotificationsResponse>(matchedQueries, (current) =>
+        current ? markAllItemsRead(current) : current,
       );
-      return { previous };
+      return { snapshots };
     },
     onError(_error: unknown, _variables: void, rollback: NotificationRollback | undefined) {
-      queryClient.setQueryData(queryKey, rollback?.previous);
+      rollback?.snapshots.forEach(([key, data]) => queryClient.setQueryData(key, data));
+    },
+    onSettled() {
+      void queryClient.invalidateQueries(matchedQueries);
     },
   };
 }

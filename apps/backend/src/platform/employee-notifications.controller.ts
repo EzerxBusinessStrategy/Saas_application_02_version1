@@ -43,6 +43,14 @@ export class EmployeeNotificationsController {
     return { unreadCount: await this.service.unreadCount(context) };
   }
 
+  @Patch("read-all")
+  @HttpCode(204)
+  @ApiOperation({ summary: "Mark all employee notifications as read." })
+  @ApiNoContentResponse()
+  async markAllRead(@CurrentRequestContext() context: RequestContext): Promise<void> {
+    await this.service.markAllRead(context);
+  }
+
   @Patch(":notificationId/read")
   @HttpCode(204)
   @ApiOperation({ summary: "Mark one employee notification as read." })
@@ -52,13 +60,5 @@ export class EmployeeNotificationsController {
     @Param("notificationId", ParseUUIDPipe) notificationId: string,
   ): Promise<void> {
     await this.service.markRead(context, notificationId);
-  }
-
-  @Patch("read-all")
-  @HttpCode(204)
-  @ApiOperation({ summary: "Mark all employee notifications as read." })
-  @ApiNoContentResponse()
-  async markAllRead(@CurrentRequestContext() context: RequestContext): Promise<void> {
-    await this.service.markAllRead(context);
   }
 }

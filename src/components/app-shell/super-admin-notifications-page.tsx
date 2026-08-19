@@ -21,11 +21,11 @@ export function SuperAdminNotificationsPage() {
   });
   const markRead = useMutation({
     mutationFn: markSuperAdminNotificationRead,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: notificationsQueryKey }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["super-admin-notifications"] }),
   });
   const markAllRead = useMutation({
     mutationFn: markAllSuperAdminNotificationsRead,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: notificationsQueryKey }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["super-admin-notifications"] }),
   });
 
   return (

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calculateDiscount, distributeDiscount } from "../../src/platform/invoice-discount";
+import { calculateDiscount, distributeDiscount, toStoredDiscountType } from "../../src/platform/invoice-discount";
 
 describe("invoice discount distribution", () => {
   it("keeps grouped item nets equal to the invoice total", () => {
@@ -15,5 +15,11 @@ describe("invoice discount distribution", () => {
     const shares = distributeDiscount([100, 100, 100], 1);
     expect(shares.reduce((sum, value) => sum + value, 0)).toBe(1);
     expect(shares.every((value) => value === 0.33 || value === 0.34)).toBe(true);
+  });
+
+  it("stores API fixed discounts as the billable-entry fixed_amount value", () => {
+    expect(toStoredDiscountType("fixed")).toBe("fixed_amount");
+    expect(toStoredDiscountType("percentage")).toBe("percentage");
+    expect(toStoredDiscountType(undefined)).toBeNull();
   });
 });
