@@ -1,8 +1,7 @@
 "use client";
 
 import { Select } from "@/components/ui/select";
-import { cn } from "@/lib/utils";
-import type { ServiceOnboardingAssignee } from "@/features/administration/api/service-onboarding-api";
+import { specializationLabel } from "@/components/tenant-administration/employee-specialization-picker";
 
 export function ServiceEmployeeSelector({
   serviceName,
@@ -37,7 +36,8 @@ export function ServiceEmployeeSelector({
             <option key={employee.employeeId} value={employee.employeeId}>
               {employee.name}
               {employee.departmentName ? ` · ${employee.departmentName}` : ""}
-              {employee.serviceCapable ? " · handles this service" : ""}
+              {employee.serviceCapable ? " · specialist" : ""}
+              {` · ${specializationLabel(employee.skills)}`}
               {` · ${employee.activeTasks} active tasks · ${employee.weeklyCapacityHours}h/week`}
             </option>
           ))}
@@ -46,7 +46,8 @@ export function ServiceEmployeeSelector({
       {selected ? (
         <p className="mt-3 text-sm text-muted-foreground">
           {selected.departmentName ? `${selected.departmentName} department. ` : ""}
-          {selected.serviceCapable ? "Mapped to this service." : "Not mapped to this service; still available because no specialist is set."}{" "}
+          {selected.serviceCapable ? "Specialist for this service." : "Not a specialist for this service; still available to allocate."}{" "}
+          Skills: {specializationLabel(selected.skills)}.{" "}
           {selected.activeTasks} open tasks, {selected.weeklyCapacityHours}h weekly capacity.
         </p>
       ) : null}

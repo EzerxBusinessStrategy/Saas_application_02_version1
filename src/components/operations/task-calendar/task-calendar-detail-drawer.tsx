@@ -8,6 +8,7 @@ import {
   assigneeInitials,
   humanise,
   taskAccent,
+  type CalendarAudience,
   type CalendarTask,
 } from "@/components/operations/task-calendar/task-calendar-utils";
 
@@ -15,10 +16,12 @@ export function TaskCalendarDetailDrawer({
   task,
   open,
   onOpenChange,
+  audience = "tenant",
 }: {
   task: CalendarTask | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  audience?: CalendarAudience;
 }) {
   if (!task) return null;
 
@@ -41,22 +44,26 @@ export function TaskCalendarDetailDrawer({
             <Badge tone={accent === "info" ? "info" : accent === "success" ? "success" : accent === "warning" ? "warning" : accent === "danger" ? "danger" : "neutral"}>
               {humanise(task.status)}
             </Badge>
-            <span
-              className={cn(
-                "rounded-full border px-2.5 py-0.5 text-xs font-medium",
-                task.priority === "high" || task.priority === "urgent"
-                  ? "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300"
-                  : "border-border bg-muted/40 text-muted-foreground",
-              )}
-            >
-              {humanise(task.priority)}
-            </span>
+            {audience === "client" ? null : (
+              <span
+                className={cn(
+                  "rounded-full border px-2.5 py-0.5 text-xs font-medium",
+                  task.priority === "high" || task.priority === "urgent"
+                    ? "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300"
+                    : "border-border bg-muted/40 text-muted-foreground",
+                )}
+              >
+                {humanise(task.priority)}
+              </span>
+            )}
           </div>
 
           <dl className="mt-6 space-y-4 text-sm">
             <DrawerField label="Due" value={`${format(task.dueDate, "d MMM yyyy")} · ${format(task.dueDate, "h:mm a")}`} />
             <DrawerField label="Service" value={task.serviceName} />
-            <DrawerField label="Work group" value={task.workGroupName ?? "Direct assignment"} />
+            {audience === "client" ? null : (
+              <DrawerField label="Work group" value={task.workGroupName ?? "Direct assignment"} />
+            )}
             <div>
               <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Assigned to</dt>
               <dd className="mt-2 flex flex-wrap gap-2">

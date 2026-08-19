@@ -47,11 +47,20 @@ export class ClientPortalTaskCalendarTaskDto {
   @ApiProperty({ type: String })
   status!: string;
 
+  @ApiProperty({ type: String })
+  priority!: string;
+
   @ApiProperty({ type: String, format: "date-time" })
   plannedDueAt!: string;
 
   @ApiProperty({ type: String })
+  serviceId!: string;
+
+  @ApiProperty({ type: String })
   serviceName!: string;
+
+  @ApiProperty({ type: String, nullable: true })
+  frequency!: string | null;
 
   @ApiProperty({ type: () => [ClientPortalTaskCalendarAssigneeDto] })
   assignees!: readonly ClientPortalTaskCalendarAssigneeDto[];

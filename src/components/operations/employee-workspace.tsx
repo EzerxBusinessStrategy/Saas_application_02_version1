@@ -34,6 +34,10 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import type { OperationalTask } from "@/types/operations";
+import {
+  employeesForServiceAllocation,
+  specializationLabel,
+} from "@/components/tenant-administration/employee-specialization-picker";
 
 export function EmployeeWorkspace({
   section = "day",
@@ -281,7 +285,12 @@ function EmployeeManagerAssignTaskPage() {
   const options = optionsQuery.data;
   const selectedService = serviceId || options?.services[0]?.id || "";
   const selectedClient = clientId || options?.clients[0]?.id || "";
-  const selectedEmployee = employeeId || options?.employees[0]?.id || "";
+  const selectedServiceName = options?.services.find((service) => service.id === selectedService)?.name ?? "";
+  const allocatableEmployees = employeesForServiceAllocation(
+    (options?.employees ?? []).filter((employee) => employee.employmentStatus === "active"),
+    selectedServiceName,
+  );
+  const selectedEmployee = employeeId || allocatableEmployees[0]?.id || "";
   const assign = () => {
     if (!options || !selectedClient || !selectedService || !selectedEmployee || !title.trim()) return;
     const country = options.countries[0];
@@ -316,7 +325,7 @@ function EmployeeManagerAssignTaskPage() {
           <ManagerField label="Client"><select className={managerInputClass} value={selectedClient} onChange={(event) => setClientId(event.target.value)}>{options.clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}</select></ManagerField>
           <ManagerField label="Service"><select className={managerInputClass} value={selectedService} onChange={(event) => setServiceId(event.target.value)}>{options.services.map((service) => <option key={service.id} value={service.id}>{service.name}</option>)}</select></ManagerField>
           <ManagerField label="Task title"><input className={managerInputClass} value={title} onChange={(event) => setTitle(event.target.value)} /></ManagerField>
-          <ManagerField label="Assign employee"><select className={managerInputClass} value={selectedEmployee} onChange={(event) => setEmployeeId(event.target.value)}>{options.employees.filter((employee) => employee.employmentStatus === "active").map((employee) => <option key={employee.id} value={employee.id}>{employee.name}</option>)}</select></ManagerField>
+          <ManagerField label="Assign employee"><select className={managerInputClass} value={selectedEmployee} onChange={(event) => setEmployeeId(event.target.value)}>{allocatableEmployees.map((employee) => <option key={employee.id} value={employee.id}>{employee.name} · {specializationLabel(employee.skills)}</option>)}</select></ManagerField>
           <ManagerField label="Priority"><select className={managerInputClass} value={priority} onChange={(event) => setPriority(event.target.value as typeof priority)}><option value="normal">Normal</option><option value="high">High</option><option value="urgent">Urgent</option><option value="low">Low</option></select></ManagerField>
           <ManagerField label="Due date"><DatePicker value={dueDate} onChange={setDueDate} aria-label="Due date" /></ManagerField>
           <label className="flex flex-col gap-1 text-sm font-medium sm:col-span-2">Description<textarea className={`${managerInputClass} min-h-28`} value={description} onChange={(event) => setDescription(event.target.value)} /></label>

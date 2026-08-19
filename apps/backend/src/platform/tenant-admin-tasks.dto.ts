@@ -116,6 +116,7 @@ export const createTenantAdminEmployeeSchema = z.object({
   employeeCode: z.string().trim().max(40).optional().default(""),
   isManager: z.boolean().optional().default(false),
   skills: z.array(z.string().trim().min(1).max(120)).max(20).optional().default([]),
+  serviceIds: z.array(z.string().uuid()).max(50).optional().default([]),
   experienceLevel: z.enum(["junior", "mid", "senior", "lead"]).optional(),
   weeklyCapacityHours: z.coerce.number().int().min(1).max(168).optional().default(40),
   departmentId: optionalUuid,
@@ -139,6 +140,7 @@ export type CreateTenantAdminDepartmentRequest = z.infer<typeof createTenantAdmi
 export const updateTenantAdminEmployeeAssignmentSchema = z.object({
   departmentId: z.string().uuid().nullable().optional(),
   skills: z.array(z.string().trim().min(1).max(120)).max(20).optional(),
+  serviceIds: z.array(z.string().uuid()).max(50).optional(),
   experienceLevel: z.enum(["junior", "mid", "senior", "lead"]).nullable().optional(),
   managerId: z.string().uuid().nullable().optional(),
   workGroupIds: z.array(z.string().uuid()).max(50).optional(),

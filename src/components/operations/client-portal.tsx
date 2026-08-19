@@ -261,11 +261,35 @@ export function ClientPortal({
       <div className="flex flex-col gap-[30px]">
         <PageHeader
           eyebrow="Client portal"
-          title="Services"
-          description={periodDescription}
+          title="Active services"
+          description="Track progress, upcoming work and scheduled billing."
         />
-        {periodFilter}
-        <ClientServices services={data.services} />
+        <ClientServices
+          services={data.services}
+          currencyCode={data.currencyCode}
+          period={{
+            fromValue,
+            toValue,
+            selectValue,
+            invalidRange,
+            incompleteRange,
+            invertedRange,
+            filtersDirty,
+            isFetching: query.isFetching,
+            activeFilterCount: applied.from && applied.to ? 1 : 0,
+            onFromChange: (value) => {
+              setPreset("custom");
+              setDraftFrom(value);
+            },
+            onToChange: (value) => {
+              setPreset("custom");
+              setDraftTo(value);
+            },
+            onPresetChange: applyPreset,
+            onApply: applyDraft,
+            onClear: resetPeriod,
+          }}
+        />
       </div>
     );
   }

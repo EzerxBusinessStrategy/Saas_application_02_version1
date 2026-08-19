@@ -359,6 +359,7 @@ export type TenantProfile = z.infer<typeof tenantProfileSchema>;
 export type UpdateTenantAdminEmployeeAssignmentInput = {
   departmentId?: string | null;
   skills?: string[];
+  serviceIds?: string[];
   experienceLevel?: "junior" | "mid" | "senior" | "lead" | null;
   managerId?: string | null;
   workGroupIds?: string[];
@@ -385,6 +386,7 @@ export type CreateTenantAdminEmployeeInput = {
   employeeCode?: string;
   isManager?: boolean;
   skills?: string[];
+  serviceIds?: string[];
   experienceLevel?: "junior" | "mid" | "senior" | "lead";
   weeklyCapacityHours?: number;
   departmentId?: string;

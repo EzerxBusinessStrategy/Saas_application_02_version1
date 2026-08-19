@@ -20,6 +20,75 @@ export function formatClientMoney(amount: number, currencyCode: string) {
   }
 }
 
+const LAKH = 100_000;
+const CRORE = 10_000_000;
+
+export function formatClientMoneyCompact(amount: number, currencyCode: string) {
+  const exact = formatClientMoney(amount, currencyCode);
+  if (currencyCode !== "INR") return { display: exact, exact };
+
+  const absolute = Math.abs(amount);
+  if (absolute >= CRORE) {
+    const formatted = new Intl.NumberFormat("en-IN", {
+      maximumFractionDigits: absolute >= CRORE * 10 ? 1 : 2,
+    }).format(amount / CRORE);
+    return { display: `₹${formatted}Cr`, exact };
+  }
+  if (absolute >= LAKH) {
+    const formatted = new Intl.NumberFormat("en-IN", {
+      maximumFractionDigits: absolute >= LAKH * 10 ? 1 : 2,
+    }).format(amount / LAKH);
+    return { display: `₹${formatted}L`, exact };
+  }
+  if (absolute >= 1_000) {
+    const value = amount / 1_000;
+    const formatted = new Intl.NumberFormat("en-IN", {
+      maximumFractionDigits: Math.abs(value) >= 10 ? 0 : 1,
+    }).format(value);
+    return { display: `₹${formatted}K`, exact };
+  }
+  return { display: exact, exact };
+}
+
+export function isOpenClientTask(status: string) {
+  const key = status.trim().toLowerCase();
+  return key !== "completed" && key !== "cancelled" && key !== "canceled" && key !== "approved";
+}
+
+export function clientTaskListStatus(status: string) {
+  const key = status.trim().toLowerCase().replace(/[_-]+/g, " ");
+  switch (key) {
+    case "completed":
+    case "approved":
+      return "Completed";
+    case "cancelled":
+    case "canceled":
+      return "Cancelled";
+    case "in progress":
+    case "submitted":
+    case "manager review":
+    case "tenant approval":
+    case "returned":
+      return "Open";
+    default:
+      return "Scheduled";
+  }
+}
+
+export function isClientTaskDueSoon(
+  plannedDueAt: string | null | undefined,
+  status: string,
+  now: Date = new Date(),
+) {
+  if (!plannedDueAt || !isOpenClientTask(status)) return false;
+  const due = new Date(plannedDueAt);
+  if (Number.isNaN(due.getTime())) return false;
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const dueDay = new Date(due.getFullYear(), due.getMonth(), due.getDate()).getTime();
+  const diffDays = Math.round((dueDay - start) / 86_400_000);
+  return diffDays >= 0 && diffDays <= 7;
+}
+
 export function clientServiceTitles(engagementName: string, serviceName: string) {
   const engagement = engagementName.trim();
   const service = serviceName.trim();

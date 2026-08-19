@@ -8,6 +8,10 @@ import { suggestFinancialYear } from "./financial-year-policy";
 import { TenantAdminRequestContext } from "./tenant-admin-context";
 import { publishTaskWorkflowNotification, resumeReturnedTaskTimer } from "./task-workflow-support";
 import {
+  replaceEmployeeSpecialization,
+  resolveServiceIdsForSpecialization,
+} from "./employee-specialization";
+import {
   CreateTenantAdminEmployeeRequest,
   CreateTenantAdminDepartmentRequest,
   CreateTenantAdminTaskRequest,
@@ -357,9 +361,13 @@ export class TenantAdminTasksRepository {
          values ('EMPLOYEE', $1::uuid, $2::uuid, $3::uuid, $4, $4, $5, 'ACTIVE', now())`,
         [userId, context.tenantId, employee.id, email, passwordHash],
       );
-      if (input.skills.length) {
-        await this.upsertEmployeeSkills(client, context.tenantId, employee.id, input.skills);
-      }
+      const specializationIds = await resolveServiceIdsForSpecialization(
+        client,
+        context.tenantId,
+        input.serviceIds,
+        input.skills,
+      );
+      await replaceEmployeeSpecialization(client, context.tenantId, employee.id, specializationIds);
       if (input.isManager) {
         await this.assignManagerRole(client, context, employee.id);
         await this.notifyEmployeeManagerRoleChanged(
@@ -372,7 +380,7 @@ export class TenantAdminTasksRepository {
 
       await client.query(
         "select audit.write_audit_event('EMPLOYEE_CREATED', 'employee', $1::uuid, 'succeeded', null, $2::jsonb)",
-        [employee.id, JSON.stringify({ employeeCode: employee.employee_code, email, isManager: input.isManager, skills: input.skills, experienceLevel: input.experienceLevel ?? null, departmentId: department?.id ?? null, departmentName: department?.name ?? null })],
+        [employee.id, JSON.stringify({ employeeCode: employee.employee_code, email, isManager: input.isManager, skills: input.skills, serviceIds: specializationIds, experienceLevel: input.experienceLevel ?? null, departmentId: department?.id ?? null, departmentName: department?.name ?? null })],
       );
       return this.getEmployeeOptionOrThrow(client, context.tenantId, employee.id);
     });
@@ -491,9 +499,14 @@ export class TenantAdminTasksRepository {
         );
       }
 
-      if (input.skills !== undefined) {
-        await client.query("delete from public.employee_skills where tenant_id = $1 and employee_id = $2", [context.tenantId, employeeId]);
-        if (input.skills.length) await this.upsertEmployeeSkills(client, context.tenantId, employeeId, input.skills);
+      if (input.serviceIds !== undefined || input.skills !== undefined) {
+        const specializationIds = await resolveServiceIdsForSpecialization(
+          client,
+          context.tenantId,
+          input.serviceIds ?? [],
+          input.skills ?? [],
+        );
+        await replaceEmployeeSpecialization(client, context.tenantId, employeeId, specializationIds);
       }
 
       if (input.managerId !== undefined) {
@@ -2277,47 +2290,6 @@ export class TenantAdminTasksRepository {
     ]);
     if (!result.rowCount) {
       throw new BadRequestException({ code: "CLIENT_NOT_AVAILABLE", message: "Select an available client for this tenant." });
-    }
-  }
-
-  private async upsertEmployeeSkills(
-    client: PoolClient,
-    tenantId: string,
-    employeeId: string,
-    skills: readonly string[],
-  ): Promise<void> {
-    for (const rawSkill of [...new Set(skills.map((skill) => skill.trim()).filter(Boolean))]) {
-      const code = rawSkill.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 80);
-      if (!code) continue;
-      const skillResult = await client.query<{ id: string }>(
-        `
-          insert into public.skills (tenant_id, code, name, status)
-          values ($1, $2, $3, 'active')
-          on conflict (tenant_id, code) do update
-            set name = excluded.name,
-                status = 'active',
-                updated_at = now()
-          returning id::text
-        `,
-        [tenantId, code, rawSkill],
-      );
-      const skillId = skillResult.rows[0]?.id;
-      if (!skillId) continue;
-      await client.query(
-        `
-          insert into public.employee_skills (
-            tenant_id,
-            employee_id,
-            skill_id,
-            proficiency_level,
-            is_verified
-          )
-          values ($1, $2, $3, 'intermediate', false)
-          on conflict (employee_id, skill_id) do update
-            set updated_at = now()
-        `,
-        [tenantId, employeeId, skillId],
-      );
     }
   }
 

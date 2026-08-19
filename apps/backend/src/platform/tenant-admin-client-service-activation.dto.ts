@@ -105,6 +105,9 @@ export class ServiceOnboardingAssigneeDto {
   @ApiProperty({ type: Boolean })
   serviceCapable!: boolean;
 
+  @ApiProperty({ type: () => [String] })
+  skills!: readonly string[];
+
   @ApiProperty({ type: Number })
   activeTasks!: number;
 

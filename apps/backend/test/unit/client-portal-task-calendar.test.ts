@@ -41,6 +41,9 @@ test("maps calendar tasks with assignees for the client portal response", async 
         status: "completed",
         plannedDueAt: new Date("2026-08-28T10:00:00.000Z"),
         serviceName: "GST",
+        serviceId: "svc-1",
+        priority: "normal",
+        frequency: "monthly",
         assignees: [{ id: "employee-1", name: "Rahul" }],
       },
     ],
@@ -56,6 +59,7 @@ test("maps calendar tasks with assignees for the client portal response", async 
   expect(result.tasks[0]).toMatchObject({
     title: "tax",
     serviceName: "GST",
+    frequency: "monthly",
     assignees: [{ name: "Rahul" }],
   });
 });

@@ -86,6 +86,7 @@ export class TenantAdminClientServiceActivationRepository {
         name: string;
         department_name: string | null;
         service_capable: boolean;
+        skills: string[] | null;
         active_tasks: string;
         weekly_capacity_hours: string;
       }>(
@@ -102,6 +103,7 @@ export class TenantAdminClientServiceActivationRepository {
                 and esc.service_id = $2
                 and esc.status = 'active'
             ) as service_capable,
+            coalesce(skill_data.skills, '{}'::text[]) as skills,
             (
               select count(*)::int
               from public.task_assignments ta
@@ -118,6 +120,15 @@ export class TenantAdminClientServiceActivationRepository {
           left join public.departments d
             on d.tenant_id = e.tenant_id
            and d.id = e.department_id
+          left join lateral (
+            select array_agg(distinct s.name order by s.name) as skills
+            from public.employee_skills es
+            join public.skills s
+              on s.tenant_id = es.tenant_id
+             and s.id = es.skill_id
+            where es.tenant_id = e.tenant_id
+              and es.employee_id = e.id
+          ) skill_data on true
           where e.tenant_id = $1
             and e.employment_status = 'active'
           order by
@@ -134,15 +145,14 @@ export class TenantAdminClientServiceActivationRepository {
         `,
         [context.tenantId, serviceId],
       );
-      const capable = result.rows.filter((row) => row.service_capable);
-      const rows = capable.length ? capable : result.rows;
       return {
         serviceId,
-        employees: rows.map((row) => ({
+        employees: result.rows.map((row) => ({
           employeeId: row.employee_id,
           name: row.name,
           departmentName: row.department_name,
           serviceCapable: row.service_capable,
+          skills: row.skills ?? [],
           activeTasks: Number(row.active_tasks),
           weeklyCapacityHours: Number(row.weekly_capacity_hours),
         })),
@@ -179,7 +189,7 @@ export class TenantAdminClientServiceActivationRepository {
           throw new BadRequestException({ code: "SERVICE_TASKS_REQUIRED", message: "Keep at least one task in each selected service." });
         }
         const service = await this.requireService(client, context.tenantId, selected.serviceId);
-        await this.requireAssignableEmployee(client, context.tenantId, selected.assignedEmployeeId, selected.serviceId);
+        await this.requireAssignableEmployee(client, context.tenantId, selected.assignedEmployeeId);
         const existing = await this.findActiveEngagement(client, context.tenantId, clientId, selected.serviceId);
         if (existing) {
           activated.push(existing);
@@ -808,7 +818,6 @@ export class TenantAdminClientServiceActivationRepository {
     client: PoolClient,
     tenantId: string,
     employeeId: string,
-    serviceId: string,
   ): Promise<void> {
     const employee = await client.query(
       "select 1 from public.employees where tenant_id = $1 and id = $2 and employment_status = 'active'",
@@ -816,25 +825,6 @@ export class TenantAdminClientServiceActivationRepository {
     );
     if (!employee.rowCount) {
       throw new BadRequestException({ code: "EMPLOYEE_NOT_AVAILABLE", message: "Select an active employee for this service." });
-    }
-    const capableCount = await client.query<{ count: string }>(
-      "select count(*)::text from public.employee_service_capabilities where tenant_id = $1 and service_id = $2 and status = 'active'",
-      [tenantId, serviceId],
-    );
-    if (Number(capableCount.rows[0]?.count ?? 0) === 0) return;
-    const capable = await client.query(
-      `
-        select 1
-        from public.employee_service_capabilities
-        where tenant_id = $1 and employee_id = $2 and service_id = $3 and status = 'active'
-      `,
-      [tenantId, employeeId, serviceId],
-    );
-    if (!capable.rowCount) {
-      throw new BadRequestException({
-        code: "EMPLOYEE_NOT_CAPABLE",
-        message: "Select an employee who handles this service.",
-      });
     }
   }
 

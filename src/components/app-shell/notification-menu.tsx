@@ -14,7 +14,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { HeaderUtilityButton } from "@/components/app-shell/header-utility-button";
+import { headerUtilityButtonClassName } from "@/components/app-shell/header-utility-button";
 import { Button } from "@/components/ui/button";
 import {
   getSuperAdminNotifications,
@@ -85,6 +85,10 @@ export function NotificationMenu({
     );
   }
   return null;
+}
+
+function dropdownOpenProps(open: boolean | undefined) {
+  return typeof open === "boolean" ? { open } : {};
 }
 
 function useRefetchNotificationsOnOpen(open: boolean | undefined, queryClient: QueryClient, queryKey: QueryKey) {
@@ -171,14 +175,12 @@ function SuperAdminNotificationMenu({ open, userEmail }: { open?: boolean; userE
 
   return (
     <DropdownMenu
-      open={open}
+      {...dropdownOpenProps(open)}
       onOpenChange={(next) => {
         if (next) void queryClient.invalidateQueries({ queryKey: notificationQueryKey });
       }}
     >
-      <DropdownMenuTrigger asChild>
-        <NotificationTriggerButton unreadCount={unreadCount} />
-      </DropdownMenuTrigger>
+      <NotificationTriggerButton unreadCount={unreadCount} />
       <DropdownMenuContent
         align="end"
         className="w-[min(24rem,calc(100vw-2rem))] max-md:!fixed max-md:!inset-x-4 max-md:!bottom-4 max-md:!top-auto"
@@ -296,14 +298,12 @@ function TenantAdminNotificationMenu({ open, userEmail }: { open?: boolean; user
 
   return (
     <DropdownMenu
-      open={open}
+      {...dropdownOpenProps(open)}
       onOpenChange={(next) => {
         if (next) void queryClient.invalidateQueries({ queryKey: notificationQueryKey });
       }}
     >
-      <DropdownMenuTrigger asChild>
-        <NotificationTriggerButton unreadCount={unreadCount} />
-      </DropdownMenuTrigger>
+      <NotificationTriggerButton unreadCount={unreadCount} />
       <DropdownMenuContent
         align="end"
         className="w-[min(24rem,calc(100vw-2rem))] max-md:!fixed max-md:!inset-x-4 max-md:!bottom-4 max-md:!top-auto"
@@ -403,14 +403,12 @@ function EmployeeNotificationMenu({
 
   return (
     <DropdownMenu
-      open={open}
+      {...dropdownOpenProps(open)}
       onOpenChange={(next) => {
         if (next) void queryClient.invalidateQueries({ queryKey: notificationQueryKey });
       }}
     >
-      <DropdownMenuTrigger asChild>
-        <NotificationTriggerButton unreadCount={unreadCount} />
-      </DropdownMenuTrigger>
+      <NotificationTriggerButton unreadCount={unreadCount} />
       <DropdownMenuContent align="end" className="w-[min(24rem,calc(100vw-2rem))] max-md:!fixed max-md:!inset-x-4 max-md:!bottom-4 max-md:!top-auto">
         <div className="flex items-center justify-between gap-2 px-3 py-2">
           <DropdownMenuLabel className="p-0 font-semibold">Notifications</DropdownMenuLabel>
@@ -439,14 +437,12 @@ function ClientPortalNotificationMenu({ open }: { open?: boolean }) {
 
   return (
     <DropdownMenu
-      open={open}
+      {...dropdownOpenProps(open)}
       onOpenChange={(next) => {
         if (next) void queryClient.invalidateQueries({ queryKey: clientPortalNotificationsQueryKey });
       }}
     >
-      <DropdownMenuTrigger asChild>
-        <NotificationTriggerButton unreadCount={unreadCount} />
-      </DropdownMenuTrigger>
+      <NotificationTriggerButton unreadCount={unreadCount} />
       <DropdownMenuContent
         align="end"
         className="w-[min(24rem,calc(100vw-2rem))] max-md:!fixed max-md:!inset-x-4 max-md:!bottom-4 max-md:!top-auto"
@@ -472,7 +468,8 @@ function ClientPortalNotificationMenu({ open }: { open?: boolean }) {
 
 function NotificationTriggerButton({ unreadCount }: { unreadCount: number }) {
   return (
-    <HeaderUtilityButton
+    <DropdownMenuTrigger
+      className={headerUtilityButtonClassName}
       aria-label={unreadCount ? `Notifications, ${unreadCount} unread` : "Notifications"}
       title="Notifications"
     >
@@ -483,7 +480,7 @@ function NotificationTriggerButton({ unreadCount }: { unreadCount: number }) {
           aria-hidden="true"
         />
       ) : null}
-    </HeaderUtilityButton>
+    </DropdownMenuTrigger>
   );
 }
 

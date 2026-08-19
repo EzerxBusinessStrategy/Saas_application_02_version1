@@ -2,9 +2,12 @@ import { parseISO } from "date-fns";
 import { describe, expect, it } from "vitest";
 import {
   calendarSummary,
+  clientCalendarSummary,
+  defaultCalendarFilters,
   filterCalendarTasks,
   taskAccent,
   toCalendarTasks,
+  toClientCalendarTasks,
   visibleTasksPerCell,
   type CalendarTask,
 } from "@/components/operations/task-calendar/task-calendar-utils";
@@ -33,46 +36,31 @@ function sampleTask(overrides: Partial<TenantAdminTask> = {}): TenantAdminTask {
   };
 }
 
+function withDue(task: TenantAdminTask, dueAt = "2026-08-28T12:52:00.000Z"): CalendarTask {
+  return { ...task, dueDate: parseISO(dueAt), frequency: null };
+}
+
 describe("task calendar utils", () => {
   it("maps and filters calendar tasks", () => {
     const tasks = toCalendarTasks([sampleTask(), sampleTask({ id: "task-2", plannedDueAt: null })]);
     expect(tasks).toHaveLength(1);
 
     const filtered = filterCalendarTasks(tasks, {
+      ...defaultCalendarFilters(),
       search: "acme",
-      employeeId: "",
-      clientId: "",
-      status: "all",
-      priority: "all",
     });
     expect(filtered).toHaveLength(1);
   });
 
   it("filters by the task-board statuses used in the product", () => {
-    const assigned = { ...sampleTask({ id: "assigned", status: "assigned" }), dueDate: parseISO("2026-08-28T12:52:00.000Z") };
-    const inProgress = {
-      ...sampleTask({ id: "progress", status: "in_progress" }),
-      dueDate: parseISO("2026-08-28T12:52:00.000Z"),
-    };
-    const review = {
-      ...sampleTask({ id: "review", status: "manager_review" }),
-      dueDate: parseISO("2026-08-28T12:52:00.000Z"),
-    };
-    const returned = {
-      ...sampleTask({ id: "returned", status: "returned" }),
-      dueDate: parseISO("2026-08-28T12:52:00.000Z"),
-    };
-    const done = {
-      ...sampleTask({ id: "done", status: "completed" }),
-      dueDate: parseISO("2026-08-28T12:52:00.000Z"),
-    };
-    const tasks = [assigned, inProgress, review, returned, done];
-    const filters = {
-      search: "",
-      employeeId: "",
-      clientId: "",
-      priority: "all" as const,
-    };
+    const tasks = [
+      withDue(sampleTask({ id: "assigned", status: "assigned" })),
+      withDue(sampleTask({ id: "progress", status: "in_progress" })),
+      withDue(sampleTask({ id: "review", status: "manager_review" })),
+      withDue(sampleTask({ id: "returned", status: "returned" })),
+      withDue(sampleTask({ id: "done", status: "completed" })),
+    ];
+    const filters = defaultCalendarFilters();
 
     expect(filterCalendarTasks(tasks, { ...filters, status: "to-do" }).map((task) => task.id)).toEqual(["assigned"]);
     expect(filterCalendarTasks(tasks, { ...filters, status: "in-progress" }).map((task) => task.id)).toEqual(["progress"]);
@@ -81,16 +69,56 @@ describe("task calendar utils", () => {
     expect(filterCalendarTasks(tasks, { ...filters, status: "done" }).map((task) => task.id)).toEqual(["done"]);
   });
 
+  it("maps client portal calendar tasks onto the shared calendar model", () => {
+    const tasks = toClientCalendarTasks([
+      {
+        id: "client-task",
+        title: "tax",
+        status: "completed",
+        plannedDueAt: "2026-08-28T00:00:00.000Z",
+        serviceId: "svc-1",
+        serviceName: "Demo",
+        frequency: "monthly",
+        priority: "normal",
+        assignees: [{ id: "emp-1", name: "Rahul" }],
+      },
+    ]);
+    expect(tasks).toHaveLength(1);
+    expect(tasks[0]?.clientName).toBe("Demo");
+    expect(tasks[0]?.status).toBe("completed");
+    expect(tasks[0]?.frequency).toBe("monthly");
+  });
+
+  it("filters client tasks by service, assignee, status bucket and due window", () => {
+    const gst = {
+      ...withDue(sampleTask({ id: "gst", serviceName: "GST Compliance", status: "assigned" })),
+      frequency: "monthly",
+    };
+    const tax = {
+      ...withDue(sampleTask({
+        id: "tax",
+        serviceName: "Taxation",
+        status: "completed",
+        assignees: [{ id: "emp-2", name: "Priya" }],
+      })),
+      frequency: "annually",
+    };
+    const tasks = [gst, tax];
+
+    expect(filterCalendarTasks(tasks, { ...defaultCalendarFilters(), serviceName: "GST Compliance" }).map((task) => task.id)).toEqual(["gst"]);
+    expect(filterCalendarTasks(tasks, { ...defaultCalendarFilters(), employeeId: "emp-2" }).map((task) => task.id)).toEqual(["tax"]);
+    expect(filterCalendarTasks(tasks, { ...defaultCalendarFilters(), clientBucket: "completed" }).map((task) => task.id)).toEqual(["tax"]);
+    expect(filterCalendarTasks(tasks, { ...defaultCalendarFilters(), frequency: "monthly" }).map((task) => task.id)).toEqual(["gst"]);
+    expect(clientCalendarSummary(tasks)).toEqual({ scheduled: 1, inProgress: 0, completed: 1 });
+  });
+
   it("shows one task per day in the compact dashboard calendar", () => {
     expect(visibleTasksPerCell(true)).toBe(1);
     expect(visibleTasksPerCell(false)).toBe(3);
   });
 
   it("derives overdue accent and summary counts", () => {
-    const overdueTask = {
-      ...sampleTask({ status: "assigned" }),
-      dueDate: parseISO("2020-01-01T09:00:00.000Z"),
-    } satisfies CalendarTask;
+    const overdueTask = withDue(sampleTask({ status: "assigned" }), "2020-01-01T09:00:00.000Z");
 
     expect(taskAccent(overdueTask)).toBe("danger");
     expect(calendarSummary([overdueTask]).overdue).toBe(1);

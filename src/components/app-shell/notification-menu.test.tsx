@@ -117,3 +117,18 @@ test("caps the bell list at 20 notifications", async () => {
   expect(screen.getAllByRole("menuitem")).toHaveLength(21);
   expect(screen.queryByText("Notice 21")).not.toBeInTheDocument();
 });
+
+test("wires the tenant bell as an openable menu trigger", async () => {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false, refetchInterval: false } },
+  });
+  render(
+    <QueryClientProvider client={client}>
+      <NotificationMenu workspace="admin" userEmail="user@example.com" />
+    </QueryClientProvider>,
+  );
+
+  const bell = await screen.findByRole("button", { name: "Notifications, 1 unread" });
+  expect(bell).toHaveAttribute("aria-haspopup", "menu");
+  expect(bell).toHaveAttribute("aria-expanded", "false");
+});

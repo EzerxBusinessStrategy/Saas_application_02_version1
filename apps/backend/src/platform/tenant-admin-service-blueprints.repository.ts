@@ -4,6 +4,7 @@ import { databaseNotConfigured } from "../auth/auth-errors";
 import { DATABASE_POOL } from "../database/database.tokens";
 import { withDatabaseTransaction } from "../database/transaction-context";
 import { yearlyOccurrenceCount } from "./service-blueprint-recurrence";
+import { replaceEmployeeSpecialization } from "./employee-specialization";
 import { TenantAdminRequestContext } from "./tenant-admin-context";
 import {
   EmployeeServiceCapabilitiesResponseDto,
@@ -120,38 +121,7 @@ export class TenantAdminServiceBlueprintsRepository {
     return this.withContext(context, async (client) => {
       await this.assertEmployee(client, context.tenantId, employeeId);
       const uniqueIds = [...new Set(input.serviceIds)];
-      if (uniqueIds.length) {
-        const found = await client.query<{ id: string }>(
-          "select id::text from public.services where tenant_id = $1 and id = any($2::uuid[]) and status = 'active'",
-          [context.tenantId, uniqueIds],
-        );
-        if (found.rowCount !== uniqueIds.length) {
-          throw new BadRequestException({ code: "SERVICE_NOT_AVAILABLE", message: "Select active services for this tenant." });
-        }
-      }
-
-      await client.query(
-        `
-          update public.employee_service_capabilities
-          set status = 'inactive', updated_at = now()
-          where tenant_id = $1
-            and employee_id = $2
-            and status = 'active'
-            and not (service_id = any($3::uuid[]))
-        `,
-        [context.tenantId, employeeId, uniqueIds],
-      );
-      for (const serviceId of uniqueIds) {
-        await client.query(
-          `
-            insert into public.employee_service_capabilities (tenant_id, employee_id, service_id, status)
-            values ($1, $2, $3, 'active')
-            on conflict (tenant_id, employee_id, service_id) do update
-              set status = 'active', updated_at = now()
-          `,
-          [context.tenantId, employeeId, serviceId],
-        );
-      }
+      await replaceEmployeeSpecialization(client, context.tenantId, employeeId, uniqueIds);
       await client.query(
         "select audit.write_audit_event('EMPLOYEE_SERVICE_CAPABILITIES_UPDATED', 'employee', $1::uuid, 'succeeded', null, $2::jsonb)",
         [employeeId, JSON.stringify({ serviceIds: uniqueIds })],

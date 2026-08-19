@@ -48,6 +48,15 @@ Design status: Pending Figma verification.
   label refinements use existing TailAdmin tokens and responsive patterns.
   They are inferred design-system implementations, not pixel-perfect Figma
   matches.
+- The client Task calendar reuses the tenant calendar workspace: month, week,
+  and agenda views, compact day cells, click-to-select days, overflow lists,
+  hover previews, and a task detail drawer. Client filters are Search,
+  Service, Assigned to, More filters (due window, frequency, priority), and
+  quick chips (All, Due soon, Overdue, This month). Status is toggled from
+  the Scheduled / In progress / Completed KPI cards, not a Status dropdown.
+  Event cards show title, service, and assignee · status. Data still comes
+  from `/api/client-portal/task-calendar`. Design status: Pending Figma
+  verification.
 
 ## Professional progress compositions
 
@@ -112,21 +121,18 @@ Design status: Pending Figma verification.
   TaskDetailsDrawer. Figma MCP was not used.
 - Client dashboard Active services use a compact 2/3 + 1/3 layout (services
   left, recent requests and upcoming billing right, `align-items: start`).
-  Compact cards show status as Active (not On track), next due, this month,
-  assigned employee, and progress from the dashboard API. Task lists and the
-  message-tenant form open in a drawer/dialog, not on every dashboard card.
-  Duplicate engagement/service titles are collapsed. Money amounts omit
-  forced `.00`. Reuses Card, Badge, Button, Dialog, EmptyState, and Link.
-  Figma MCP was not used.
-- Client Active services (full page) lists every taken month with its price.
-  This month and next month are remaining open installments for those months.
-  Total task amount is the sum of listed prices. A discount row appears only
-  when the tenant entered a discount percent while accepting the request; the
-  backend stores that percent on the engagement configuration and computes the
-  amount. Invoice discounts stay on invoices and never appear here. Assigned
-  employees are shown to clients. Comments notify Tenant Admins and Owners
-  with the client name from a Message tenant dialog. Reuses Card, StatusBadge,
-  Button, and Dialog. Figma MCP was not used.
+  Compact cards show status as Active (not On track), next due, assigned
+  employee, progress, and a compact billing strip from the dashboard API.
+  Task lists and the message form open in a drawer/dialog, not on every
+  dashboard card. Duplicate engagement/service titles are collapsed. Money
+  amounts omit forced `.00`. Reuses Card, Badge, Button, Dialog, EmptyState,
+  and Link. Figma MCP was not used.
+- Client Active services is a two-column service portfolio (one card per
+  service). Filters are Search, Status, Assigned to, and one compact date-range
+  control with presets inside the popover. Cards show next due, assignee,
+  progress as completed-of-total, and a billing strip. Tasks open in a service
+  drawer (Overview / Tasks / Billing). The message action is labelled Message
+  team. Design status: Pending Figma verification.
 
 ## Optional related client on Tenant Admin document upload
 

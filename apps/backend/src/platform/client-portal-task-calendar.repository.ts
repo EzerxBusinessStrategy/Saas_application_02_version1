@@ -14,8 +14,11 @@ export type ClientPortalTaskCalendarRow = {
   readonly id: string;
   readonly title: string;
   readonly status: string;
+  readonly priority: string;
   readonly plannedDueAt: Date;
+  readonly serviceId: string;
   readonly serviceName: string;
+  readonly frequency: string | null;
   readonly assignees: readonly { id: string; name: string }[];
 };
 
@@ -52,8 +55,11 @@ export class ClientPortalTaskCalendarRepository {
       id: string;
       title: string;
       status: string;
+      priority: string;
       planned_due_at: Date;
+      service_id: string;
       service_name: string;
+      frequency: string | null;
       assignees: Array<{ id: string; name: string }> | null;
     }>(
       `
@@ -61,8 +67,11 @@ export class ClientPortalTaskCalendarRepository {
           t.id::text,
           t.title,
           t.status,
+          t.priority,
           t.planned_due_at,
+          s.id::text as service_id,
           s.name as service_name,
+          r.frequency,
           coalesce(
             jsonb_agg(
               distinct jsonb_build_object(
@@ -76,6 +85,9 @@ export class ClientPortalTaskCalendarRepository {
         join public.services s
           on s.id = t.service_id
          and s.tenant_id = t.tenant_id
+        left join public.compliance_calendar_rules r
+          on r.id = t.compliance_calendar_rule_id
+         and r.tenant_id = t.tenant_id
         left join public.task_assignments ta
           on ta.task_id = t.id
          and ta.tenant_id = t.tenant_id
@@ -95,8 +107,11 @@ export class ClientPortalTaskCalendarRepository {
           t.id,
           t.title,
           t.status,
+          t.priority,
           t.planned_due_at,
-          s.name
+          s.id,
+          s.name,
+          r.frequency
         order by t.planned_due_at asc, t.title asc
       `,
       [scope.tenantId, scope.clientId, query.from, query.to, timezone],
@@ -106,8 +121,11 @@ export class ClientPortalTaskCalendarRepository {
       id: row.id,
       title: row.title,
       status: row.status,
+      priority: row.priority,
       plannedDueAt: row.planned_due_at,
+      serviceId: row.service_id,
       serviceName: row.service_name,
+      frequency: row.frequency,
       assignees: row.assignees ?? [],
     }));
   }

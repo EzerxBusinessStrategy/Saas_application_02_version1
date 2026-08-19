@@ -15,6 +15,17 @@ vi.mock("next/navigation", () => ({
 vi.mock("@/features/operations/api/operations-api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/features/operations/api/operations-api")>()),
   listTenantAdminEmployeeDirectory: vi.fn(),
+  listTenantAdminServices: vi.fn(async () => [
+    { id: "service-1", name: "GST Compliance", code: "GST", status: "active" as const, rates: [] },
+  ]),
+}));
+
+vi.mock("@/features/administration/api/service-onboarding-api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/features/administration/api/service-onboarding-api")>()),
+  getEmployeeServiceCapabilities: vi.fn(async () => ({
+    employeeId: "employee-1",
+    capabilities: [{ serviceId: "service-1", serviceName: "GST Compliance", status: "active" as const }],
+  })),
 }));
 
 beforeEach(() => {
@@ -73,11 +84,17 @@ test("stores filter changes in the URL", async () => {
   });
 });
 
+test("maps employee skills to service specialization", async () => {
+  renderWithQuery(<EmployeeDirectory />);
+  fireEvent.click(await screen.findByRole("button", { name: "Create employee" }));
+  expect(await screen.findByRole("group", { name: "Skills / specialization" })).toBeInTheDocument();
+});
+
 test("allows department assignment and services handled", async () => {
   renderWithQuery(<EmployeeDirectory />);
   fireEvent.click(await screen.findByRole("button", { name: "Edit details" }));
 
-  expect(await screen.findByRole("group", { name: "Services handled" })).toBeInTheDocument();
+  expect(await screen.findByRole("group", { name: "Skills / specialization" })).toBeInTheDocument();
   expect(screen.queryByRole("group", { name: "Work groups" })).not.toBeInTheDocument();
   expect(screen.getByLabelText("Department")).toBeInTheDocument();
 });

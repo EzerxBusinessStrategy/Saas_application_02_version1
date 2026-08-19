@@ -13,11 +13,13 @@ import {
 import { cn } from "@/lib/utils";
 import {
   assigneeInitials,
+  clientTaskStatusLabel,
   humanise,
   primaryAssigneeLabel,
   taskAccent,
   taskAccentClass,
   taskOpenHref,
+  type CalendarAudience,
   type CalendarTask,
 } from "@/components/operations/task-calendar/task-calendar-utils";
 
@@ -25,16 +27,19 @@ export function TaskCalendarEventCard({
   task,
   compact = false,
   selected = false,
+  audience = "tenant",
   onSelect,
 }: {
   task: CalendarTask;
   compact?: boolean;
   selected?: boolean;
+  audience?: CalendarAudience;
   onSelect?: (task: CalendarTask) => void;
 }) {
   const accent = taskAccent(task);
   const assignee = primaryAssigneeLabel(task);
-  const highPriority = task.priority === "high" || task.priority === "urgent";
+  const highPriority = audience !== "client" && (task.priority === "high" || task.priority === "urgent");
+  const statusLabel = audience === "client" ? clientTaskStatusLabel(task) : humanise(task.status);
   const triggerRef = useRef<HTMLDivElement>(null);
   const [hoverOpen, setHoverOpen] = useState(false);
 
@@ -51,16 +56,20 @@ export function TaskCalendarEventCard({
         ) : null}
       </div>
       <p className={cn("truncate text-muted-foreground", compact ? "text-[10px]" : "text-[11px]")}>
-        {task.clientName}
+        {task.serviceName || task.clientName}
       </p>
-      {compact ? null : (
-        <p className="truncate text-[11px] text-muted-foreground">
-          <span className="inline-flex items-center gap-1">
-            <span className="inline-flex size-4 items-center justify-center rounded-full bg-muted text-[9px] font-semibold">
-              {assigneeInitials(assignee)}
+      {compact && audience !== "client" ? null : (
+        <p className={cn("truncate text-muted-foreground", compact ? "text-[10px]" : "text-[11px]")}>
+          {audience === "client" ? (
+            `${assignee} \u00b7 ${statusLabel}`
+          ) : (
+            <span className="inline-flex items-center gap-1">
+              <span className="inline-flex size-4 items-center justify-center rounded-full bg-muted text-[9px] font-semibold">
+                {assigneeInitials(assignee)}
+              </span>
+              {assignee}
             </span>
-            {assignee}
-          </span>
+          )}
         </p>
       )}
     </div>
@@ -81,9 +90,10 @@ export function TaskCalendarEventCard({
   };
 
   const preview = (
-    <TaskEventHoverPreview
+      <TaskEventHoverPreview
       task={task}
       assignee={assignee}
+      statusLabel={statusLabel}
       open={hoverOpen}
       anchorRef={triggerRef}
     />
@@ -120,11 +130,13 @@ export function TaskCalendarEventCard({
 function TaskEventHoverPreview({
   task,
   assignee,
+  statusLabel,
   open,
   anchorRef,
 }: {
   task: CalendarTask;
   assignee: string;
+  statusLabel: string;
   open: boolean;
   anchorRef: RefObject<HTMLDivElement | null>;
 }) {
@@ -174,7 +186,7 @@ function TaskEventHoverPreview({
       style={{ top: position.top, left: position.left }}
     >
       <p className="text-sm font-semibold">{task.title}</p>
-      <p className="mt-1 text-xs text-muted-foreground">{task.clientName}</p>
+      <p className="mt-1 text-xs text-muted-foreground">{task.serviceName || task.clientName}</p>
       <div className="my-2 h-px bg-border" />
       <dl className="flex flex-col gap-2 text-xs">
         <div>
@@ -187,7 +199,7 @@ function TaskEventHoverPreview({
         </div>
         <div>
           <dt className="text-muted-foreground">Status</dt>
-          <dd className="font-medium">{humanise(task.status)}</dd>
+          <dd className="font-medium">{statusLabel}</dd>
         </div>
       </dl>
     </div>,
@@ -217,7 +229,7 @@ export function TaskCalendarOverflowList({
           <DropdownMenuItem key={task.id} onSelect={() => onSelectTask(task)} className="flex flex-col items-start gap-0.5">
             <span className="font-medium">{task.title}</span>
             <span className="text-xs text-muted-foreground">
-              {task.clientName} · {format(task.dueDate, "h:mm a")}
+              {(task.serviceName || task.clientName)} · {format(task.dueDate, "h:mm a")}
             </span>
           </DropdownMenuItem>
         ))}

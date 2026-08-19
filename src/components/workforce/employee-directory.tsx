@@ -37,8 +37,8 @@ import {
 } from "@/features/operations/api/operations-api";
 import {
   getEmployeeServiceCapabilities,
-  replaceEmployeeServiceCapabilities,
 } from "@/features/administration/api/service-onboarding-api";
+import { EmployeeSpecializationPicker } from "@/components/tenant-administration/employee-specialization-picker";
 import { readFormDraft } from "@/lib/client/form-draft-store";
 import type { Employee, EmployeeDirectoryFilters } from "@/types/workforce";
 
@@ -326,7 +326,7 @@ export function EmployeeDirectory() {
           {row.original.skills.length ? (
             row.original.skills.join(", ")
           ) : (
-            <span className="text-muted-foreground">Not set</span>
+            <span className="text-muted-foreground">No specialization</span>
           )}
           {row.original.experienceLevel ? (
             <span className="mt-1 block text-xs text-muted-foreground">
@@ -616,6 +616,7 @@ export function EmployeeDirectory() {
           await Promise.all([
             queryClient.invalidateQueries({ queryKey: ["tenant-admin-employees"] }),
             queryClient.invalidateQueries({ queryKey: ["tenant-admin-departments"] }),
+            queryClient.invalidateQueries({ queryKey: ["employee-service-capabilities"] }),
           ]);
           setAssignmentEmployee(null);
           toast.success("Employee details updated.");
@@ -640,13 +641,18 @@ function CreateEmployeeDialog({
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [employeeCode, setEmployeeCode] = useState("");
-  const [skills, setSkills] = useState("");
+  const [serviceIds, setServiceIds] = useState<string[]>([]);
   const [experienceLevel, setExperienceLevel] = useState("");
   const [isManager, setIsManager] = useState(false);
   const [weeklyCapacityHours, setWeeklyCapacityHours] = useState("40");
   const [departmentChoice, setDepartmentChoice] = useState("");
   const [newDepartmentName, setNewDepartmentName] = useState("");
   const [saving, setSaving] = useState(false);
+  const servicesQuery = useQuery({
+    queryKey: ["tenant-admin-services"],
+    queryFn: listTenantAdminServices,
+    enabled: open,
+  });
   const normalizedEmail = email.trim().toLowerCase();
   const canCheckEmail = isValidEmail(normalizedEmail);
   const emailAvailability = useQuery({
@@ -685,7 +691,7 @@ function CreateEmployeeDialog({
         password,
         employeeCode,
         isManager,
-        skills: skills.split(",").map((value) => value.trim()).filter(Boolean),
+        serviceIds,
         experienceLevel: experienceLevel ? (experienceLevel as "junior" | "mid" | "senior" | "lead") : undefined,
         weeklyCapacityHours: Number(weeklyCapacityHours) || 40,
         departmentId: departmentChoice && departmentChoice !== "new" ? departmentChoice : undefined,
@@ -696,7 +702,7 @@ function CreateEmployeeDialog({
       setEmail("");
       setPassword("");
       setEmployeeCode("");
-      setSkills("");
+      setServiceIds([]);
       setExperienceLevel("");
       setIsManager(false);
       setWeeklyCapacityHours("40");
@@ -753,7 +759,12 @@ function CreateEmployeeDialog({
               <Input required data-field-label="New department name" name="newDepartmentName" className="mt-1" value={newDepartmentName} onChange={(event) => setNewDepartmentName(event.target.value)} placeholder="For example, Taxation" />
             </label>
           ) : null}
-          <label className="text-sm font-medium">Skills (optional)<Input name="skills" className="mt-1" placeholder="GST, Payroll, Compliance" value={skills} onChange={(event) => setSkills(event.target.value)} /></label>
+          <EmployeeSpecializationPicker
+            services={servicesQuery.data ?? []}
+            selectedIds={serviceIds}
+            isLoading={servicesQuery.isPending}
+            onChange={setServiceIds}
+          />
           <label className="text-sm font-medium">Level (optional)<Select name="experienceLevel" className="mt-1" value={experienceLevel} onChange={(event) => setExperienceLevel(event.target.value)}><option value="">Not set</option><option value="junior">Junior</option><option value="mid">Mid</option><option value="senior">Senior</option><option value="lead">Lead</option></Select></label>
           <label className="text-sm font-medium">Weekly capacity hours<Input required data-field-label="Weekly capacity hours" name="weeklyCapacityHours" className="mt-1" type="number" min="1" max="168" value={weeklyCapacityHours} onChange={(event) => setWeeklyCapacityHours(event.target.value)} /></label>
           <label className="flex items-center gap-2 text-sm font-medium"><input name="isManager" type="checkbox" checked={isManager} onChange={(event) => setIsManager(event.target.checked)} />Make this employee a manager</label>
@@ -817,14 +828,13 @@ function AssignmentDialog({
   departments: readonly { id: string; name: string }[];
   onOpenChange: (open: boolean) => void;
   onSaved: (input: {
-    skills: string[];
+    serviceIds: string[];
     departmentId: string | null;
     experienceLevel: "junior" | "mid" | "senior" | "lead" | null;
     managerId: string | null;
     workGroupIds: string[];
   }) => Promise<void>;
 }) {
-  const [skills, setSkills] = useState("");
   const [departmentId, setDepartmentId] = useState("");
   const [experienceLevel, setExperienceLevel] = useState("");
   const [managerId, setManagerId] = useState("");
@@ -844,7 +854,6 @@ function AssignmentDialog({
   });
 
   useEffect(() => {
-    setSkills(employee?.skills.join(", ") ?? "");
     setDepartmentId(employee?.departmentId ?? "");
     setExperienceLevel(employee?.experienceLevel ?? "");
     setManagerId(employee?.manager?.id ?? "");
@@ -861,9 +870,8 @@ function AssignmentDialog({
     if (!employee) return;
     setSaving(true);
     try {
-      await replaceEmployeeServiceCapabilities(employee.id, serviceIds);
       await onSaved({
-        skills: skills.split(",").map((value) => value.trim()).filter(Boolean),
+        serviceIds,
         departmentId: departmentId || null,
         experienceLevel: experienceLevel ? (experienceLevel as "junior" | "mid" | "senior" | "lead") : null,
         managerId: managerId || null,
@@ -878,7 +886,7 @@ function AssignmentDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent title="Edit employee details" description="Update department, skills, services handled, level, and reporting manager." className="max-w-md">
+      <DialogContent title="Edit employee details" description="Update department, specialization, level, and reporting manager." className="max-w-md">
         <form
           data-draft-key={`tenant-employee-assignment-${employee?.id ?? "new"}`}
           className="grid gap-4 pr-8"
@@ -889,35 +897,17 @@ function AssignmentDialog({
           }}
         >
           <label className="text-sm font-medium">Department<Select name="departmentId" className="mt-1" value={departmentId} onChange={(event) => setDepartmentId(event.target.value)}><option value="">Unassigned</option>{departments.map((department) => <option key={department.id} value={department.id}>{department.name}</option>)}</Select></label>
-          <label className="text-sm font-medium">Skills<Input name="skills" className="mt-1" value={skills} placeholder="GST, Payroll, Compliance" onChange={(event) => setSkills(event.target.value)} /></label>
-          <fieldset className="grid gap-2">
-            <legend className="text-sm font-medium">Services handled</legend>
-            <div className="max-h-40 space-y-1 overflow-y-auto rounded-[var(--radius-control)] border border-input bg-muted/20 p-2">
-              {servicesQuery.data?.length ? servicesQuery.data.map((service) => (
-                <label key={service.id} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-muted">
-                  <input
-                    type="checkbox"
-                    checked={serviceIds.includes(service.id)}
-                    onChange={(event) =>
-                      setServiceIds((current) =>
-                        event.target.checked ? [...new Set([...current, service.id])] : current.filter((id) => id !== service.id),
-                      )
-                    }
-                  />
-                  <span className="min-w-0 flex-1 truncate">{service.name}</span>
-                </label>
-              )) : (
-                <p className="px-2 py-1 text-sm text-muted-foreground">
-                  {servicesQuery.isPending ? "Loading services…" : "Create services first, then map the ones this employee handles."}
-                </p>
-              )}
-            </div>
-          </fieldset>
+          <EmployeeSpecializationPicker
+            services={servicesQuery.data ?? []}
+            selectedIds={serviceIds}
+            isLoading={servicesQuery.isPending || capabilitiesQuery.isPending}
+            onChange={setServiceIds}
+          />
           <label className="text-sm font-medium">Level<Select name="experienceLevel" className="mt-1" value={experienceLevel} onChange={(event) => setExperienceLevel(event.target.value)}><option value="">Not set</option><option value="junior">Junior</option><option value="mid">Mid</option><option value="senior">Senior</option><option value="lead">Lead</option></Select></label>
           <label className="text-sm font-medium">Manager<Select name="managerId" className="mt-1" value={managerId} onChange={(event) => setManagerId(event.target.value)}><option value="">Unassigned</option>{managers.filter((manager) => manager.id !== employee?.id).map((manager) => <option key={manager.id} value={manager.id}>{manager.name}</option>)}</Select></label>
           <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-            <Button type="submit" disabled={saving}>{saving ? "Saving..." : "Save changes"}</Button>
+            <Button type="submit" disabled={saving || capabilitiesQuery.isPending}>{saving ? "Saving..." : "Save changes"}</Button>
           </div>
         </form>
       </DialogContent>

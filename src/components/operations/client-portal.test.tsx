@@ -78,7 +78,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-test("shows this month due, next month due, monthly prices, and total without internal staffing labels", async () => {
+test("shows compact service cards, next due, and a service drawer instead of an accordion", async () => {
   vi.stubGlobal(
     "fetch",
     vi.fn(async (input: RequestInfo | URL) => {
@@ -92,30 +92,32 @@ test("shows this month due, next month due, monthly prices, and total without in
 
   renderWithQuery(<ClientPortal section="services" />);
 
-  expect(await screen.findByText("2 tasks under demo")).toBeInTheDocument();
-  expect(screen.getByText("GST")).toBeInTheDocument();
+  expect(await screen.findByRole("heading", { name: "Active services" })).toBeInTheDocument();
+  expect(screen.getByLabelText("Search services")).toBeInTheDocument();
+  expect(screen.getByLabelText("Service date range")).toBeInTheDocument();
+  expect(screen.queryByText("2 tasks under demo")).not.toBeInTheDocument();
+  expect(screen.queryByText("GST")).not.toBeInTheDocument();
+  expect(screen.getByText("Next due")).toBeInTheDocument();
   expect(screen.getByText("Monthly books")).toBeInTheDocument();
-  expect(screen.getByText(/This month \(/)).toBeInTheDocument();
-  expect(screen.getByText(/Next month \(/)).toBeInTheDocument();
-  expect(screen.getByText(/· This month/)).toBeInTheDocument();
-  expect(screen.getByText(/· Next month/)).toBeInTheDocument();
-  expect(screen.getByText("₹0")).toBeInTheDocument();
-  expect(screen.getByText("₹10,000")).toBeInTheDocument();
-  expect(screen.getAllByText("₹1,50,000").length).toBeGreaterThanOrEqual(2);
+  expect(screen.getByText("Ada")).toBeInTheDocument();
+  expect(screen.getByText("Billing schedule")).toBeInTheDocument();
+  expect(screen.queryByText(/responsible person/i)).not.toBeInTheDocument();
+  expect(screen.queryByText("On track")).not.toBeInTheDocument();
+  expect(screen.queryByText("Message tenant")).not.toBeInTheDocument();
+  expect(screen.queryByLabelText("Comment on demo")).not.toBeInTheDocument();
+
+  fireEvent.click(screen.getByRole("button", { name: /2 scheduled tasks/i }));
+  expect(await screen.findByText("GST")).toBeInTheDocument();
+  expect(screen.getAllByText("Monthly books").length).toBeGreaterThan(0);
+  fireEvent.click(screen.getByRole("button", { name: "Billing" }));
   expect(screen.getByText("Total task amount")).toBeInTheDocument();
   expect(screen.getByText("₹1,60,000")).toBeInTheDocument();
   expect(screen.getByText("Discount (10%)")).toBeInTheDocument();
   expect(screen.getByText("−₹16,000")).toBeInTheDocument();
   expect(screen.getByText("Amount due")).toBeInTheDocument();
-  expect(screen.getAllByText("₹1,44,000").length).toBeGreaterThanOrEqual(2);
-  expect(screen.queryByText(/responsible person/i)).not.toBeInTheDocument();
-  expect(screen.getByText("Ada")).toBeInTheDocument();
-  expect(screen.queryByText("₹19,20,000")).not.toBeInTheDocument();
-  expect(screen.queryByText("Total due")).not.toBeInTheDocument();
-  expect(screen.queryByText("Task total")).not.toBeInTheDocument();
-  expect(screen.queryByText("Service catalogue")).not.toBeInTheDocument();
-  expect(screen.queryByLabelText("Comment on demo")).not.toBeInTheDocument();
-  fireEvent.click(screen.getByRole("button", { name: "Message tenant" }));
+  expect(screen.getByText("₹1,44,000")).toBeInTheDocument();
+
+  fireEvent.click(screen.getAllByRole("button", { name: "Message team" })[0]!);
   expect(await screen.findByLabelText("Comment on demo")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Send" })).toBeInTheDocument();
 });
@@ -185,7 +187,7 @@ test("overview compact mode hides comments and the task accordion", async () => 
 
   renderWithQuery(<ClientPortal />);
 
-  expect(await screen.findByRole("button", { name: "View service →" })).toBeInTheDocument();
+  expect(await screen.findByRole("button", { name: "Details →" })).toBeInTheDocument();
   expect(screen.getByText("Active")).toBeInTheDocument();
   expect(screen.getByText("Ada")).toBeInTheDocument();
   expect(screen.getByText("Upcoming billing")).toBeInTheDocument();

@@ -32,45 +32,56 @@ import {
 import {
   calendarDays,
   calendarHeading,
+  calendarQueryRange,
   calendarSummary,
+  clientCalendarSummary,
+  defaultCalendarFilters,
   filterCalendarTasks,
   formatAgendaHeading,
   formatTaskDueTime,
+  humanise,
   navigateCalendar,
   taskStatusOptions,
   tasksForDay,
   tasksForMonth,
   tasksForWeek,
   toCalendarTasks,
+  toClientCalendarTasks,
   visibleTasksPerCell,
   weekdayLabels,
   weekDays,
+  clientTaskStatusLabel,
+  type CalendarAudience,
   type CalendarFilters,
   type CalendarTask,
   type CalendarView,
 } from "@/components/operations/task-calendar/task-calendar-utils";
+import {
+  ClientCalendarFilterBar,
+  ClientCalendarKpiCards,
+  clientBucketLabel,
+  dueWindowLabel,
+  frequencyChipLabel,
+} from "@/components/operations/task-calendar/client-calendar-filters";
+import { getClientPortalTaskCalendar } from "@/features/client-portal/api/client-portal-task-calendar-api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
-const defaultFilters: CalendarFilters = {
-  search: "",
-  employeeId: "",
-  clientId: "",
-  status: "all",
-  priority: "all",
-};
+const defaultFilters: CalendarFilters = defaultCalendarFilters();
 
 type TaskCalendarWorkspaceProps = {
   variant?: "page" | "embedded";
+  audience?: CalendarAudience;
   initialClientId?: string;
   initialEmployeeId?: string;
 };
 
 export function TaskCalendarWorkspace({
   variant = "page",
+  audience = "tenant",
   initialClientId = "",
   initialEmployeeId = "",
 }: TaskCalendarWorkspaceProps) {
@@ -93,22 +104,53 @@ export function TaskCalendarWorkspace({
     }));
   }, [initialClientId, initialEmployeeId]);
 
-  const tasksQuery = useQuery({
+  const queryRange = useMemo(() => calendarQueryRange(view, focusDate), [focusDate, view]);
+  const isClient = audience === "client";
+
+  const tenantTasksQuery = useQuery({
     queryKey: ["tenant-task-calendar", initialClientId ?? ""],
     queryFn: () => listTenantAdminTasks(initialClientId || undefined),
+    enabled: !isClient,
     refetchInterval: 30_000,
     refetchOnWindowFocus: true,
   });
 
+  const clientTasksQuery = useQuery({
+    queryKey: ["client-task-calendar", queryRange.from, queryRange.to],
+    queryFn: () => getClientPortalTaskCalendar(queryRange),
+    enabled: isClient,
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
+  });
+
+  const tasksQuery = isClient ? clientTasksQuery : tenantTasksQuery;
+
   const optionsQuery = useQuery({
     queryKey: ["tenant-task-calendar-options"],
     queryFn: listTenantAdminTaskOptions,
+    enabled: !isClient,
     staleTime: 60_000,
   });
 
+  const mappedTasks = useMemo(() => {
+    return isClient
+      ? toClientCalendarTasks(clientTasksQuery.data?.tasks ?? [])
+      : toCalendarTasks(tenantTasksQuery.data ?? []);
+  }, [clientTasksQuery.data?.tasks, isClient, tenantTasksQuery.data]);
+
   const calendarTasks = useMemo(
-    () => filterCalendarTasks(toCalendarTasks(tasksQuery.data ?? []), filters),
-    [filters, tasksQuery.data],
+    () => filterCalendarTasks(mappedTasks, filters),
+    [filters, mappedTasks],
+  );
+
+  const kpiTasks = useMemo(
+    () =>
+      filterCalendarTasks(mappedTasks, {
+        ...filters,
+        clientBucket: "all",
+        dueWindow: "all",
+      }),
+    [filters, mappedTasks],
   );
 
   const visibleTasks = useMemo(() => {
@@ -121,16 +163,44 @@ export function TaskCalendarWorkspace({
     [calendarTasks, selectedDay],
   );
   const summary = useMemo(() => calendarSummary(visibleTasks), [visibleTasks]);
+  const clientKpi = useMemo(() => {
+    const periodTasks = view === "week" ? tasksForWeek(kpiTasks, focusDate) : tasksForMonth(kpiTasks, focusDate);
+    return clientCalendarSummary(periodTasks);
+  }, [focusDate, kpiTasks, view]);
   const selectedTask = calendarTasks.find((task) => task.id === selectedTaskId) ?? null;
-  const activeFilterCount =
-    (filters.search ? 1 : 0) +
-    (filters.employeeId ? 1 : 0) +
-    (filters.clientId ? 1 : 0) +
-    (filters.status !== "all" ? 1 : 0) +
-    (filters.priority !== "all" ? 1 : 0);
+  const clientServices = useMemo(() => {
+    const names = [...new Set(mappedTasks.map((task) => task.serviceName).filter(Boolean))];
+    return names.sort((left, right) => left.localeCompare(right)).map((name) => ({ id: name, name }));
+  }, [mappedTasks]);
+  const clientAssignees = useMemo(() => {
+    const byId = new Map<string, string>();
+    for (const task of mappedTasks) {
+      for (const assignee of task.assignees) {
+        if (!byId.has(assignee.id)) byId.set(assignee.id, assignee.name);
+      }
+    }
+    return [...byId.entries()]
+      .map(([id, name]) => ({ id, name }))
+      .sort((left, right) => left.name.localeCompare(right.name));
+  }, [mappedTasks]);
+  const activeFilterCount = isClient
+    ? (filters.search ? 1 : 0) +
+      (filters.serviceName ? 1 : 0) +
+      (filters.employeeId ? 1 : 0) +
+      (filters.clientBucket !== "all" ? 1 : 0) +
+      (filters.dueWindow !== "all" ? 1 : 0) +
+      (filters.frequency !== "all" ? 1 : 0) +
+      (filters.priority !== "all" ? 1 : 0)
+    : (filters.search ? 1 : 0) +
+      (filters.employeeId ? 1 : 0) +
+      (filters.clientId ? 1 : 0) +
+      (filters.status !== "all" ? 1 : 0) +
+      (filters.priority !== "all" ? 1 : 0);
 
   const employeeName =
-    optionsQuery.data?.employees.find((employee) => employee.id === filters.employeeId)?.name ?? "";
+    optionsQuery.data?.employees.find((employee) => employee.id === filters.employeeId)?.name ??
+    clientAssignees.find((assignee) => assignee.id === filters.employeeId)?.name ??
+    "";
   const clientName =
     optionsQuery.data?.clients.find((client) => client.id === filters.clientId)?.name ?? "";
 
@@ -169,7 +239,11 @@ export function TaskCalendarWorkspace({
     return (
       <ErrorState
         title="Task calendar could not load"
-        description="The current tenant tasks could not be retrieved."
+        description={
+          isClient
+            ? "Your scheduled tasks could not be retrieved."
+            : "The current tenant tasks could not be retrieved."
+        }
         onRetry={() => void tasksQuery.refetch()}
       />
     );
@@ -211,7 +285,7 @@ export function TaskCalendarWorkspace({
         >
           Today
         </Button>
-        {compact ? null : (
+        {compact || isClient ? null : (
           <div className="flex flex-wrap items-center gap-1.5 text-xs">
             <span className="sr-only">
               {view === "week" ? "Week overview" : `${format(focusDate, "MMMM")} overview`}
@@ -225,14 +299,14 @@ export function TaskCalendarWorkspace({
 
       <div className="flex flex-wrap items-center gap-2">
         <ViewSwitch view={view} onChange={setView} compact={compact} />
-        {compact ? (
+        {compact && !isClient ? (
           <Link
             href="/admin/task-calendar"
             className="text-xs font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             Open calendar
           </Link>
-        ) : (
+        ) : compact ? null : (
           <Button
             variant="outline"
             size="sm"
@@ -306,7 +380,16 @@ export function TaskCalendarWorkspace({
     </div>
   );
 
-  const filterBar = compact ? compactFilters : (
+  const filterBar = isClient ? (
+    <ClientCalendarFilterBar
+      filters={filters}
+      onChange={setFilters}
+      onClear={resetFilters}
+      services={clientServices}
+      assignees={clientAssignees}
+      activeFilterCount={activeFilterCount}
+    />
+  ) : compact ? compactFilters : (
     <FilterToolbar
       search={{
         value: filters.search,
@@ -388,17 +471,40 @@ export function TaskCalendarWorkspace({
 
   const filterChips =
     activeFilterCount > 0 ? (
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-col gap-2">
+        {isClient ? <p className="text-xs font-medium text-muted-foreground">Active filters</p> : null}
+        <div className="flex flex-wrap items-center gap-2">
         {filters.search ? (
-          <FilterChip label={`Search: ${filters.search}`} onRemove={() => setFilters((c) => ({ ...c, search: "" }))} />
+          <FilterChip label={filters.search} onRemove={() => setFilters((c) => ({ ...c, search: "" }))} />
+        ) : null}
+        {isClient && filters.serviceName ? (
+          <FilterChip label={filters.serviceName} onRemove={() => setFilters((c) => ({ ...c, serviceName: "" }))} />
         ) : null}
         {filters.employeeId ? (
-          <FilterChip label={employeeName || "Employee"} onRemove={() => setFilters((c) => ({ ...c, employeeId: "" }))} />
+          <FilterChip label={employeeName || "Assigned"} onRemove={() => setFilters((c) => ({ ...c, employeeId: "" }))} />
         ) : null}
-        {filters.clientId ? (
+        {!isClient && filters.clientId ? (
           <FilterChip label={clientName || "Client"} onRemove={() => setFilters((c) => ({ ...c, clientId: "" }))} />
         ) : null}
-        {filters.status !== "all" ? (
+        {isClient && filters.clientBucket !== "all" ? (
+          <FilterChip
+            label={clientBucketLabel(filters.clientBucket)}
+            onRemove={() => setFilters((c) => ({ ...c, clientBucket: "all" }))}
+          />
+        ) : null}
+        {isClient && filters.dueWindow !== "all" ? (
+          <FilterChip
+            label={dueWindowLabel(filters.dueWindow)}
+            onRemove={() => setFilters((c) => ({ ...c, dueWindow: "all" }))}
+          />
+        ) : null}
+        {isClient && filters.frequency !== "all" ? (
+          <FilterChip
+            label={frequencyChipLabel(filters.frequency)}
+            onRemove={() => setFilters((c) => ({ ...c, frequency: "all" }))}
+          />
+        ) : null}
+        {!isClient && filters.status !== "all" ? (
           <FilterChip
             label={taskStatusOptions.find((status) => status.value === filters.status)?.label ?? filters.status}
             onRemove={() => setFilters((c) => ({ ...c, status: "all" }))}
@@ -406,10 +512,16 @@ export function TaskCalendarWorkspace({
         ) : null}
         {filters.priority !== "all" ? (
           <FilterChip
-            label={filters.priority}
+            label={filters.priority.replace(/^\w/, (letter) => letter.toUpperCase())}
             onRemove={() => setFilters((c) => ({ ...c, priority: "all" }))}
           />
         ) : null}
+        {isClient ? (
+          <Button type="button" size="sm" variant="ghost" className="h-7 px-2" onClick={resetFilters}>
+            Clear all
+          </Button>
+        ) : null}
+        </div>
       </div>
     ) : null;
 
@@ -417,6 +529,7 @@ export function TaskCalendarWorkspace({
     <>
       {view === "month" ? (
         <MonthCalendarView
+          audience={audience}
           compact={compact}
           focusDate={focusDate}
           tasks={calendarTasks}
@@ -427,16 +540,28 @@ export function TaskCalendarWorkspace({
         />
       ) : null}
       {view === "week" ? (
-        <WeekCalendarView compact={compact} focusDate={focusDate} tasks={calendarTasks} onSelectTask={selectTask} />
+        <WeekCalendarView
+          audience={audience}
+          compact={compact}
+          focusDate={focusDate}
+          tasks={calendarTasks}
+          onSelectTask={selectTask}
+        />
       ) : null}
       {view === "agenda" ? (
-        <AgendaCalendarView focusDate={focusDate} tasks={calendarTasks} onSelectTask={selectTask} />
+        <AgendaCalendarView
+          audience={audience}
+          focusDate={focusDate}
+          tasks={calendarTasks}
+          onSelectTask={selectTask}
+        />
       ) : null}
     </>
   );
 
   const drawer = (
     <TaskCalendarDetailDrawer
+      audience={audience}
       task={selectedTask}
       open={Boolean(selectedTask)}
       onOpenChange={(open) => {
@@ -445,19 +570,27 @@ export function TaskCalendarWorkspace({
     />
   );
 
+  const calendarPanel =
+    view === "agenda" ? (
+      <div className="overflow-hidden rounded-md border">{calendarBody}</div>
+    ) : (
+      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_15.5rem]">
+        <div className="overflow-hidden rounded-md border">{calendarBody}</div>
+        <SelectedDayPanel
+          audience={audience}
+          day={selectedDay}
+          tasks={selectedDayTasks}
+          onSelectTask={selectTask}
+        />
+      </div>
+    );
+
   if (variant === "embedded") {
     return (
       <div className="flex flex-col gap-2">
         {toolbar}
         {filterBar}
-        {view === "agenda" ? (
-          <div className="overflow-hidden rounded-md border">{calendarBody}</div>
-        ) : (
-          <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_15.5rem]">
-            <div className="overflow-hidden rounded-md border">{calendarBody}</div>
-            <SelectedDayPanel day={selectedDay} tasks={selectedDayTasks} onSelectTask={selectTask} />
-          </div>
-        )}
+        {calendarPanel}
         {drawer}
       </div>
     );
@@ -465,12 +598,30 @@ export function TaskCalendarWorkspace({
 
   const workspace = (
     <>
-      {toolbar}
+      {isClient ? (
+        <ClientCalendarKpiCards
+          scheduled={clientKpi.scheduled}
+          inProgress={clientKpi.inProgress}
+          completed={clientKpi.completed}
+          selected={filters.clientBucket}
+          onToggle={(bucket) =>
+            setFilters((current) => ({
+              ...current,
+              clientBucket: current.clientBucket === bucket ? "all" : bucket,
+            }))
+          }
+        />
+      ) : null}
       {filterBar}
       {filterChips}
-      <Card>
-        <CardContent className="p-0">{calendarBody}</CardContent>
-      </Card>
+      {toolbar}
+      {isClient ? (
+        calendarPanel
+      ) : (
+        <Card>
+          <CardContent className="p-0">{calendarBody}</CardContent>
+        </Card>
+      )}
       {drawer}
     </>
   );
@@ -478,9 +629,13 @@ export function TaskCalendarWorkspace({
   return (
     <div className="flex flex-col gap-3">
       <PageHeader
-        eyebrow="Operations"
+        eyebrow={isClient ? "Client portal" : "Operations"}
         title="Task calendar"
-        description="Plan, track and manage scheduled client work."
+        description={
+          isClient
+            ? "Track due dates, assigned team members, and live task status for your services."
+            : "Plan, track and manage scheduled client work."
+        }
       />
       {workspace}
     </div>
@@ -516,6 +671,7 @@ function ViewSwitch({
 }
 
 function MonthCalendarView({
+  audience = "tenant",
   compact = false,
   focusDate,
   tasks,
@@ -524,6 +680,7 @@ function MonthCalendarView({
   onSelectDay,
   onSelectTask,
 }: {
+  audience?: CalendarAudience;
   compact?: boolean;
   focusDate: Date;
   tasks: readonly CalendarTask[];
@@ -560,6 +717,7 @@ function MonthCalendarView({
           {days.map((day) => (
             <MonthDayCell
               key={day.toISOString()}
+              audience={audience}
               compact={compact}
               day={day}
               month={focusDate}
@@ -578,6 +736,7 @@ function MonthCalendarView({
 }
 
 function MonthDayCell({
+  audience = "tenant",
   compact = false,
   day,
   month,
@@ -588,6 +747,7 @@ function MonthDayCell({
   onSelectTask,
   highlightColumn = false,
 }: {
+  audience?: CalendarAudience;
   compact?: boolean;
   day: Date;
   month: Date;
@@ -609,7 +769,7 @@ function MonthDayCell({
     <div
       className={cn(
         "relative isolate border-b border-r align-top transition-[background-color,box-shadow] duration-200 ease-out motion-reduce:transition-none",
-        compact ? "min-h-[4.25rem] p-1" : "min-h-[5.5rem] p-1.5",
+        compact ? (audience === "client" ? "min-h-[6.75rem] p-1" : "min-h-[4.25rem] p-1") : "min-h-[5.5rem] p-1.5",
         !currentMonth && !selected && "bg-muted/15 text-muted-foreground",
         highlightColumn && !today && !selected && "bg-primary/[0.03]",
         today && "bg-primary/5",
@@ -650,6 +810,7 @@ function MonthDayCell({
         {visible.map((task) => (
           <TaskCalendarEventCard
             key={task.id}
+            audience={audience}
             task={task}
             compact
             selected={selectedTaskId === task.id}
@@ -665,11 +826,13 @@ function MonthDayCell({
 }
 
 function WeekCalendarView({
+  audience = "tenant",
   compact = false,
   focusDate,
   tasks,
   onSelectTask,
 }: {
+  audience?: CalendarAudience;
   compact?: boolean;
   focusDate: Date;
   tasks: readonly CalendarTask[];
@@ -707,7 +870,7 @@ function WeekCalendarView({
                   dayTasks.map((task) => (
                     <div key={task.id} className="space-y-1">
                       <p className="text-[10px] text-muted-foreground">{formatTaskDueTime(task.dueDate)}</p>
-                      <TaskCalendarEventCard task={task} compact onSelect={onSelectTask} />
+                      <TaskCalendarEventCard audience={audience} task={task} compact onSelect={onSelectTask} />
                     </div>
                   ))
                 ) : (
@@ -723,10 +886,12 @@ function WeekCalendarView({
 }
 
 function AgendaCalendarView({
+  audience = "tenant",
   focusDate,
   tasks,
   onSelectTask,
 }: {
+  audience?: CalendarAudience;
   focusDate: Date;
   tasks: readonly CalendarTask[];
   onSelectTask: (task: CalendarTask) => void;
@@ -779,7 +944,9 @@ function AgendaCalendarView({
                       {task.clientName} · {task.assignees[0]?.name ?? "Unassigned"}
                     </p>
                   </div>
-                  <Badge tone="neutral">{task.priority}</Badge>
+                  <Badge tone="neutral">
+                    {audience === "client" ? clientTaskStatusLabel(task) : humanise(task.priority)}
+                  </Badge>
                 </button>
               ))}
             </div>
@@ -791,10 +958,12 @@ function AgendaCalendarView({
 }
 
 function SelectedDayPanel({
+  audience = "tenant",
   day,
   tasks,
   onSelectTask,
 }: {
+  audience?: CalendarAudience;
   day: Date;
   tasks: readonly CalendarTask[];
   onSelectTask: (task: CalendarTask) => void;
@@ -814,7 +983,7 @@ function SelectedDayPanel({
           <p className="text-sm text-muted-foreground">No scheduled work on this day.</p>
         ) : (
           tasks.map((task) => (
-            <TaskCalendarEventCard key={task.id} task={task} compact onSelect={onSelectTask} />
+            <TaskCalendarEventCard key={task.id} audience={audience} task={task} compact onSelect={onSelectTask} />
           ))
         )}
       </div>
