@@ -34,6 +34,10 @@ export const sectionAccess: Record<
     workspaces: ["admin"],
     permissions: ["task.read"],
   },
+  "allocated-work": {
+    workspaces: ["admin"],
+    permissions: ["task.read"],
+  },
   "open-tasks": {
     workspaces: ["admin"],
     permissions: ["task.read"],

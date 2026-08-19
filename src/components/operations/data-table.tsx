@@ -16,6 +16,7 @@ export function DataTable<TData>({
   emptyTitle,
   emptyDescription,
   className,
+  onRowClick,
 }: {
   caption: string;
   columns: ColumnDef<TData, unknown>[];
@@ -23,6 +24,7 @@ export function DataTable<TData>({
   emptyTitle: string;
   emptyDescription: string;
   className?: string;
+  onRowClick?: (row: TData) => void;
 }) {
   const table = useReactTable({
     data,
@@ -57,7 +59,25 @@ export function DataTable<TData>({
         </thead>
         <tbody>
           {table.getRowModel().rows.map((row) => (
-            <tr key={row.id} className="border-b last:border-0">
+            <tr
+              key={row.id}
+              className={cn(
+                "border-b last:border-0",
+                onRowClick ? "cursor-pointer hover:bg-muted/40" : null,
+              )}
+              onClick={onRowClick ? () => onRowClick(row.original) : undefined}
+              onKeyDown={
+                onRowClick
+                  ? (event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        onRowClick(row.original);
+                      }
+                    }
+                  : undefined
+              }
+              tabIndex={onRowClick ? 0 : undefined}
+            >
               {row.getVisibleCells().map((cell) => (
                 <td key={cell.id} className="px-4 py-5">
                   {flexRender(cell.column.columnDef.cell, cell.getContext())}

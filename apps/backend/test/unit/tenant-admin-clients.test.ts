@@ -109,7 +109,6 @@ describe("TenantAdminClientsRepository", () => {
               created_at: new Date("2026-08-05T00:00:00Z"),
               open_tasks: 0,
               at_risk_tasks: 0,
-              onboarding_progress: 35,
               document_progress: 0,
             }],
           };

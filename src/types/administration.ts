@@ -66,7 +66,6 @@ export const clientSchema = z.object({
   createdAt: z.string(),
   openTasks: z.number().int().nonnegative(),
   atRiskTasks: z.number().int().nonnegative(),
-  onboardingProgress: z.number().min(0).max(100),
   documentProgress: z.number().min(0).max(100),
 });
 export type Client = z.infer<typeof clientSchema>;

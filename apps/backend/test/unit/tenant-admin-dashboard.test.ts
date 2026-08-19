@@ -1,7 +1,12 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import type { Pool } from "pg";
 import { RequestContext } from "../../src/auth/request-context";
-import { tenantAdminDashboardQuerySchema } from "../../src/platform/tenant-admin-dashboard.dto";
+import {
+  tenantAdminAllocatedWorkQuerySchema,
+  tenantAdminDashboardQuerySchema,
+} from "../../src/platform/tenant-admin-dashboard.dto";
 import {
   resolveClientDashboardPeriod,
   resolveTenantDashboardPeriod,
@@ -67,6 +72,66 @@ describe("TenantAdminDashboardService", () => {
           id: "task-1",
           clientPublicIp: "203.0.113.10",
           assignees: [{ name: "Priya Sharma" }],
+        },
+      ],
+    });
+  });
+
+  it("formats allocated work with at-risk reasons", async () => {
+    const repository = {
+      listAllocatedWork: vi.fn().mockResolvedValue({
+        tasks: [
+          {
+            id: "task-1",
+            title: "GST return",
+            description: "Monthly filing",
+            clientId: "client-1",
+            clientName: "Acme Corp",
+            clientPublicIp: null,
+            employeePublicIp: "203.0.113.20",
+            serviceId: "service-1",
+            serviceName: "GST",
+            workGroupId: null,
+            workGroupName: null,
+            priority: "high",
+            status: "assigned",
+            slaStatus: "breached",
+            plannedDueAt: new Date("2026-08-01T00:00:00.000Z"),
+            createdAt: new Date("2026-08-01T00:00:00.000Z"),
+            assignedAt: new Date("2026-08-02T00:00:00.000Z"),
+            completedAt: null,
+            assignees: [
+              {
+                id: "employee-1",
+                name: "Priya Sharma",
+                assignedAt: new Date("2026-08-02T00:00:00.000Z"),
+              },
+            ],
+            atRisk: true,
+            atRiskReasons: ["SLA breached.", "Due date has passed."],
+          },
+        ],
+      }),
+    } as unknown as TenantAdminDashboardRepository;
+    const service = new TenantAdminDashboardService(repository);
+    const context: RequestContext = {
+      userId: "user-1",
+      authUserId: "auth-user-1",
+      tenantId: "tenant-1",
+      membershipId: "membership-1",
+      isPlatformAdmin: false,
+      roles: ["TENANT_ADMIN"],
+      permissions: ["task.read"],
+      requestId: "request-1",
+    };
+
+    await expect(service.listAllocatedWork(context)).resolves.toMatchObject({
+      total: 1,
+      tasks: [
+        {
+          id: "task-1",
+          atRisk: true,
+          atRiskReasons: ["SLA breached.", "Due date has passed."],
         },
       ],
     });
@@ -644,6 +709,48 @@ describe("tenant dashboard date range", () => {
     ).toBe(true);
     expect(tenantAdminDashboardQuerySchema.safeParse({ from: "2020-01-01", to: "2023-01-02" }).success).toBe(false);
     expect(tenantAdminDashboardQuerySchema.safeParse({ from: "2014-12-31", to: "2015-01-31" }).success).toBe(false);
+  });
+});
+
+describe("allocated work query", () => {
+  it("accepts client, employee, service, status, and at-risk filters", () => {
+    expect(tenantAdminAllocatedWorkQuerySchema.safeParse({}).success).toBe(true);
+    expect(
+      tenantAdminAllocatedWorkQuerySchema.safeParse({
+        clientId: "11111111-1111-4111-8111-111111111111",
+        employeeId: "22222222-2222-4222-8222-222222222222",
+        serviceId: "33333333-3333-4333-8333-333333333333",
+        status: "review",
+        atRisk: "true",
+      }).success,
+    ).toBe(true);
+    expect(
+      tenantAdminAllocatedWorkQuerySchema.safeParse({
+        status: "overdue",
+      }).success,
+    ).toBe(true);
+    expect(
+      tenantAdminAllocatedWorkQuerySchema.safeParse({
+        status: "completed",
+        from: "2026-04-01",
+        to: "2027-03-31",
+        range: "kpi",
+      }).success,
+    ).toBe(true);
+  });
+
+  it("scopes allocated work SQL to the tenant and assignment filters", () => {
+    const source = readFileSync(
+      resolve(__dirname, "../../src/platform/tenant-admin-dashboard.repository.ts"),
+      "utf8",
+    );
+    expect(source).toContain("async listAllocatedWork");
+    expect(source).toContain("t.tenant_id = $1");
+    expect(source).toContain("assigned.employee_id = $3::uuid");
+    expect(source).toContain("t.sla_status in ('near_breach', 'breached')");
+    expect(source).toContain("$5::text = 'overdue'");
+    expect(source).toContain("employee_ip.employee_public_ip");
+    expect(source).toContain("coalesce($10::text, 'due') = 'kpi'");
   });
 });
 

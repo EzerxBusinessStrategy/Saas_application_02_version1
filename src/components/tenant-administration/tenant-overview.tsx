@@ -25,6 +25,7 @@ import {
 import { TenantDashboardCalendarWidget } from "@/components/tenant-administration/tenant-dashboard-calendar-widget";
 import { TenantDashboardActivity } from "@/components/tenant-administration/tenant-dashboard-activity";
 import { compactPeriodLabel } from "@/components/tenant-administration/dashboard-activity";
+import { tenantTaskOverviewHrefs } from "@/components/tenant-administration/tenant-task-overview-links";
 import { DatePicker } from "@/components/shared/date-picker";
 import { Button } from "@/components/ui/button";
 import {
@@ -387,9 +388,8 @@ export function TenantAdministrationOverview() {
     setApplied({});
   }
 
-  const openTasksHref = `/admin/open-tasks?from=${encodeURIComponent(period.from)}&to=${encodeURIComponent(period.to)}`;
-  const completedTasksHref = `/admin/completed-tasks?from=${encodeURIComponent(period.from)}&to=${encodeURIComponent(period.to)}`;
-  const overdueTasksHref = openTasksHref;
+  const { open: openTasksHref, completed: completedTasksHref, overdue: overdueTasksHref } =
+    tenantTaskOverviewHrefs(period);
   const dueThisWeek = countDueThisWeek(upcomingDeadlines);
   const salesMoney = metrics.totalSales
     ? formatDashboardMoney(metrics.totalSales.amount, metrics.totalSales.currencyCode || currency)
@@ -420,13 +420,13 @@ export function TenantAdministrationOverview() {
         title="Dashboard"
         description="Monitor tasks, clients and business performance."
         actions={
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex w-[11.5rem] flex-col items-stretch gap-1.5 sm:w-auto sm:flex-row sm:items-center sm:gap-2">
             <label className="sr-only" htmlFor="dashboard-period-preset">
               Dashboard period
             </label>
             <Select
               id="dashboard-period-preset"
-              className="min-w-[11rem]"
+              className="h-8 w-full min-w-0 px-2 text-xs sm:w-[10.5rem]"
               aria-label="Dashboard period"
               value={selectValue}
               onChange={(event) => applyPreset(event.target.value as DashboardPreset)}
@@ -443,7 +443,7 @@ export function TenantAdministrationOverview() {
             </label>
             <Select
               id="dashboard-employee-filter"
-              className="min-w-[11rem]"
+              className="h-8 w-full min-w-0 px-2 text-xs sm:w-[10.5rem]"
               aria-label="Filter dashboard by employee"
               value={employeeValue}
               onChange={(event) => applyEmployeeFilter(event.target.value)}
@@ -457,7 +457,7 @@ export function TenantAdministrationOverview() {
                   </option>
                 ))}
             </Select>
-            <span className="text-xs text-muted-foreground">
+            <span className="text-xs text-muted-foreground sm:whitespace-nowrap">
               {isFetching ? "Updating…" : `Updated ${formatUpdatedAt(new Date())}`}
             </span>
           </div>

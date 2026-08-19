@@ -23,7 +23,6 @@ type ClientRow = {
   readonly created_at: Date;
   readonly open_tasks: number;
   readonly at_risk_tasks: number;
-  readonly onboarding_progress: number;
   readonly document_progress: number;
   readonly total_count?: string;
 };
@@ -283,13 +282,7 @@ export class TenantAdminClientsRepository {
               when c.status = 'paused' then 'paused'
               when c.status = 'active' and c.onboarding_status in ('active', 'completed') then 'active'
               else 'onboarding'
-            end as status,
-            case c.onboarding_status
-              when 'completed' then 100
-              when 'active' then 65
-              when 'blocked' then 25
-              else 35
-            end as onboarding_progress
+            end as status
           from public.clients c
           join public.tenants t on t.id = c.tenant_id
           where c.tenant_id = $1
@@ -874,7 +867,6 @@ function mapClient(row: ClientRow) {
     createdAt: row.created_at.toISOString(),
     openTasks: Number(row.open_tasks),
     atRiskTasks: Number(row.at_risk_tasks),
-    onboardingProgress: Number(row.onboarding_progress),
     documentProgress: Number(row.document_progress),
   };
 }

@@ -8,7 +8,16 @@ test("puts tenant Task review in Operations below Calendar", () => {
   const operationLabels = operations?.children?.map((item) => item.label) ?? [];
 
   expect(peopleAndTeams?.children?.some((item) => item.label === "Task review")).toBe(false);
-  expect(operationLabels).toEqual(["Services", "Task request", "Calendar", "Task review"]);
+  expect(operationLabels).toEqual([
+    "Services",
+    "Task request",
+    "Allocated work",
+    "Calendar",
+    "Task review",
+  ]);
+  expect(operations?.children?.find((item) => item.label === "Allocated work")?.href).toBe(
+    "/allocated-work",
+  );
   expect(operations?.children?.find((item) => item.label === "Task review")?.href).toBe("/task-review");
   expect(
     flattenNavigation(navigation).filter((item) => item.href === "/task-review"),

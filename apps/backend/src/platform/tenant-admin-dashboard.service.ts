@@ -6,11 +6,13 @@ import {
   TenantAdminDashboardResponseDto,
   TenantAdminCompletedTasksResponseDto,
   TenantAdminOpenTasksResponseDto,
+  TenantAdminAllocatedWorkResponseDto,
+  TenantAdminAllocatedWorkQuery,
   TenantAdminActivityResponseDto,
   TenantProfileDto,
   UpdateTenantProfileRequest,
 } from "./tenant-admin-dashboard.dto";
-import { TenantAdminDashboardRepository, OpenTaskResult } from "./tenant-admin-dashboard.repository";
+import { TenantAdminDashboardRepository, OpenTaskResult, AllocatedWorkTaskResult } from "./tenant-admin-dashboard.repository";
 import { DashboardPeriod } from "./tenant-admin-dashboard.period";
 
 @Injectable()
@@ -106,6 +108,18 @@ export class TenantAdminDashboardService {
     return mapPeriodTaskListResponse(data.period, data.tasks);
   }
 
+  async listAllocatedWork(
+    context: RequestContext,
+    query: TenantAdminAllocatedWorkQuery = { status: "all", atRisk: false },
+  ): Promise<TenantAdminAllocatedWorkResponseDto> {
+    const tenantContext = requireTenantAdminContext(context);
+    const data = await this.repository.listAllocatedWork(tenantContext, query);
+    return {
+      total: data.tasks.length,
+      tasks: data.tasks.map(mapAllocatedWorkTask),
+    };
+  }
+
   async listActivity(
     context: RequestContext,
     query: TenantAdminDashboardQuery = {},
@@ -177,30 +191,43 @@ function mapPeriodTaskListResponse(period: DashboardPeriod, tasks: readonly Open
       source: period.source === "upcoming_year" ? ("last_30_days" as const) : period.source,
     },
     total: tasks.length,
-    tasks: tasks.map((task) => ({
-      id: task.id,
-      title: task.title,
-      description: task.description,
-      clientId: task.clientId,
-      clientName: task.clientName,
-      clientPublicIp: task.clientPublicIp,
-      serviceId: task.serviceId,
-      serviceName: task.serviceName,
-      workGroupId: task.workGroupId,
-      workGroupName: task.workGroupName,
-      priority: task.priority,
-      status: task.status,
-      slaStatus: task.slaStatus,
-      plannedDueAt: task.plannedDueAt?.toISOString() ?? null,
-      createdAt: task.createdAt.toISOString(),
-      assignedAt: task.assignedAt?.toISOString() ?? null,
-      completedAt: task.completedAt?.toISOString() ?? null,
-      assignees: task.assignees.map((assignee) => ({
-        id: assignee.id,
-        name: assignee.name,
-        assignedAt: assignee.assignedAt.toISOString(),
-      })),
+    tasks: tasks.map(mapOpenTaskItem),
+  };
+}
+
+function mapOpenTaskItem(task: OpenTaskResult) {
+  return {
+    id: task.id,
+    title: task.title,
+    description: task.description,
+    clientId: task.clientId,
+    clientName: task.clientName,
+    clientPublicIp: task.clientPublicIp,
+    serviceId: task.serviceId,
+    serviceName: task.serviceName,
+    workGroupId: task.workGroupId,
+    workGroupName: task.workGroupName,
+    priority: task.priority,
+    status: task.status,
+    slaStatus: task.slaStatus,
+    plannedDueAt: task.plannedDueAt?.toISOString() ?? null,
+    createdAt: task.createdAt.toISOString(),
+    assignedAt: task.assignedAt?.toISOString() ?? null,
+    completedAt: task.completedAt?.toISOString() ?? null,
+    assignees: task.assignees.map((assignee) => ({
+      id: assignee.id,
+      name: assignee.name,
+      assignedAt: assignee.assignedAt.toISOString(),
     })),
+  };
+}
+
+function mapAllocatedWorkTask(task: AllocatedWorkTaskResult) {
+  return {
+    ...mapOpenTaskItem(task),
+    employeePublicIp: task.employeePublicIp,
+    atRisk: task.atRisk,
+    atRiskReasons: task.atRiskReasons,
   };
 }
 

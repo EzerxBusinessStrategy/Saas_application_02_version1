@@ -656,14 +656,14 @@ function BillingGroupDrawer({
                 Invoice number
                 <Input className="mt-1" value={invoiceNumber} onChange={(event) => setInvoiceNumber(event.target.value)} placeholder="INV/26-27/0042" />
               </label>
-              <label className="text-sm font-medium">
+              <div className="text-sm font-medium">
                 Invoice date
                 <DatePicker className="mt-1" value={issuedOn} onChange={setIssuedOn} aria-label="Invoice date" />
-              </label>
-              <label className="text-sm font-medium">
+              </div>
+              <div className="text-sm font-medium">
                 Payment due
                 <DatePicker className="mt-1" value={dueOn} onChange={setDueOn} aria-label="Payment due" />
-              </label>
+              </div>
               <div className="flex justify-end gap-2">
                 <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
                 <Button disabled={saving || !invoiceNumber.trim() || !issuedOn || !dueOn} onClick={() => void submit()}>

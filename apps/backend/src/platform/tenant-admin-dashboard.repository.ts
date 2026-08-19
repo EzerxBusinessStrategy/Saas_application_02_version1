@@ -4,7 +4,8 @@ import { databaseNotConfigured } from "../auth/auth-errors";
 import { DATABASE_POOL } from "../database/database.tokens";
 import { withDatabaseTransaction } from "../database/transaction-context";
 import { TenantAdminRequestContext } from "./tenant-admin-context";
-import { TenantAdminDashboardQuery } from "./tenant-admin-dashboard.dto";
+import { allocatedWorkAtRiskReasons } from "./allocated-work-risk";
+import { TenantAdminAllocatedWorkQuery, TenantAdminDashboardQuery } from "./tenant-admin-dashboard.dto";
 import { DashboardPeriod, resolveTenantDashboardPeriod, utcTodayIso } from "./tenant-admin-dashboard.period";
 
 export const DASHBOARD_RECENT_ACTIVITY_LIMIT = 24;
@@ -100,6 +101,12 @@ export type OpenTaskResult = {
   readonly assignedAt: Date | null;
   readonly completedAt: Date | null;
   readonly assignees: readonly OpenTaskAssigneeResult[];
+};
+
+export type AllocatedWorkTaskResult = OpenTaskResult & {
+  readonly employeePublicIp: string | null;
+  readonly atRisk: boolean;
+  readonly atRiskReasons: readonly string[];
 };
 
 export type TenantAdminDashboardData = {
@@ -250,6 +257,22 @@ export class TenantAdminDashboardRepository {
       const tasks = await this.getCompletedTasks(client, tenantId, period, timezone);
 
       return { period, tasks };
+    });
+  }
+
+  async listAllocatedWork(
+    context: TenantAdminRequestContext,
+    query: TenantAdminAllocatedWorkQuery = { status: "all", atRisk: false },
+  ): Promise<{ readonly tasks: readonly AllocatedWorkTaskResult[] }> {
+    if (!this.pool) throw databaseNotConfigured();
+
+    return withDatabaseTransaction(this.pool, context, async (_tx, client) => {
+      const tenantId = context.tenantId;
+      await client.query("select set_config('app.tenant_id', $1, true)", [tenantId]);
+      const tenant = await this.getTenantInfo(client, tenantId);
+      const timezone = tenant.timezone || "UTC";
+      const tasks = await this.getAllocatedWork(client, tenantId, timezone, query);
+      return { tasks };
     });
   }
 
@@ -743,6 +766,293 @@ export class TenantAdminDashboardRepository {
       workGroupName: row.work_group_name,
       assigneeCount: Number(row.assigned_employee_count),
     }));
+  }
+
+  private async getAllocatedWork(
+    client: PoolClient,
+    tenantId: string,
+    timezone: string,
+    query: TenantAdminAllocatedWorkQuery,
+  ): Promise<readonly AllocatedWorkTaskResult[]> {
+    const result = await client.query<{
+      id: string;
+      title: string;
+      description: string | null;
+      client_id: string;
+      client_name: string;
+      client_public_ip: string | null;
+      service_id: string;
+      service_name: string;
+      work_group_id: string | null;
+      work_group_name: string | null;
+      priority: string;
+      status: string;
+      sla_status: string;
+      planned_due_at: Date | null;
+      created_at: Date;
+      assigned_at: Date | null;
+      completed_at: Date | null;
+      employee_public_ip: string | null;
+      assignees: Array<{ id: string; name: string; assignedAt: string }> | null;
+    }>(
+      `
+        select
+          t.id::text,
+          t.title,
+          t.description,
+          t.client_id::text,
+          c.display_name as client_name,
+          client_ip.client_public_ip,
+          t.service_id::text,
+          s.name as service_name,
+          t.work_group_id::text,
+          wg.name as work_group_name,
+          t.priority,
+          t.status,
+          t.sla_status,
+          t.planned_due_at,
+          t.created_at,
+          min(ta.assigned_at) filter (where ta.id is not null) as assigned_at,
+          t.completed_at,
+          employee_ip.employee_public_ip,
+          coalesce(
+            jsonb_agg(
+              distinct jsonb_build_object(
+                'id', e.id::text,
+                'name', coalesce(tm.display_name, e.employee_code),
+                'assignedAt', ta.assigned_at
+              )
+            ) filter (where e.id is not null),
+            '[]'::jsonb
+          ) as assignees
+        from public.tasks t
+        join public.clients c
+          on c.id = t.client_id
+         and c.tenant_id = t.tenant_id
+        join public.services s
+          on s.id = t.service_id
+         and s.tenant_id = t.tenant_id
+        left join public.work_groups wg
+          on wg.id = t.work_group_id
+         and wg.tenant_id = t.tenant_id
+        left join public.task_assignments ta
+          on ta.task_id = t.id
+         and ta.tenant_id = t.tenant_id
+         and ta.status = 'active'
+        left join public.employees e
+          on e.id = ta.employee_id
+         and e.tenant_id = ta.tenant_id
+         and e.employment_status = 'active'
+        left join public.tenant_memberships tm
+          on tm.id = e.membership_id
+         and tm.tenant_id = e.tenant_id
+        left join lateral (
+          select coalesce(
+            (
+              select host(sess.ip_address)::text
+              from public.client_portal_accounts cpa
+              join authn.credentials cred
+                on cred.client_account_id = cpa.id
+               and cred.portal_type = 'CLIENT'
+              join authn.sessions sess
+                on sess.credential_id = cred.id
+               and sess.portal_type = 'CLIENT'
+               and sess.ip_address is not null
+              where cpa.tenant_id = t.tenant_id
+                and cpa.client_id = t.client_id
+                and cpa.status = 'active'
+              order by coalesce(sess.last_seen_at, sess.created_at) desc
+              limit 1
+            ),
+            (
+              select host(lae.ip_address)::text
+              from public.client_portal_accounts cpa
+              join authn.credentials cred
+                on cred.client_account_id = cpa.id
+               and cred.portal_type = 'CLIENT'
+              join authn.login_audit_events lae
+                on lae.credential_id = cred.id
+               and lae.portal_type = 'CLIENT'
+               and lae.outcome = 'SUCCESS'
+               and lae.ip_address is not null
+              where cpa.tenant_id = t.tenant_id
+                and cpa.client_id = t.client_id
+                and cpa.status = 'active'
+              order by lae.created_at desc
+              limit 1
+            )
+          ) as client_public_ip
+        ) client_ip on true
+        left join lateral (
+          select employee_id
+          from public.task_assignments first_assignee
+          where first_assignee.task_id = t.id
+            and first_assignee.tenant_id = t.tenant_id
+            and first_assignee.status = 'active'
+          order by first_assignee.assigned_at asc
+          limit 1
+        ) assigned_employee on true
+        left join lateral (
+          select coalesce(
+            (
+              select host(sess.ip_address)::text
+              from authn.credentials cred
+              join authn.sessions sess
+                on sess.credential_id = cred.id
+               and sess.portal_type = 'EMPLOYEE'
+               and sess.ip_address is not null
+              where cred.employee_id = assigned_employee.employee_id
+                and cred.tenant_id = t.tenant_id
+                and cred.portal_type = 'EMPLOYEE'
+              order by coalesce(sess.last_seen_at, sess.created_at) desc
+              limit 1
+            ),
+            (
+              select host(lae.ip_address)::text
+              from authn.credentials cred
+              join authn.login_audit_events lae
+                on lae.credential_id = cred.id
+               and lae.portal_type = 'EMPLOYEE'
+               and lae.outcome = 'SUCCESS'
+               and lae.ip_address is not null
+              where cred.employee_id = assigned_employee.employee_id
+                and cred.tenant_id = t.tenant_id
+                and cred.portal_type = 'EMPLOYEE'
+              order by lae.created_at desc
+              limit 1
+            )
+          ) as employee_public_ip
+        ) employee_ip on true
+        where t.tenant_id = $1
+          and ($2::uuid is null or t.client_id = $2::uuid)
+          and ($4::uuid is null or t.service_id = $4::uuid)
+          and (
+            $5::text = 'all' and t.status <> 'cancelled'
+            or $5::text = 'open' and t.status not in ('completed', 'cancelled')
+            or $5::text = 'in_progress' and t.status = 'in_progress'
+            or $5::text = 'review' and t.status in ('submitted', 'manager_review', 'returned', 'tenant_approval', 'approved')
+            or $5::text = 'completed' and t.status = 'completed'
+            or $5::text = 'overdue' and t.status not in ('completed', 'cancelled')
+              and t.planned_due_at is not null
+              and t.planned_due_at < now()
+          )
+          and (
+            $3::uuid is null
+            or exists (
+              select 1
+              from public.task_assignments assigned
+              where assigned.tenant_id = t.tenant_id
+                and assigned.task_id = t.id
+                and assigned.status = 'active'
+                and assigned.employee_id = $3::uuid
+            )
+          )
+          and (
+            $6::boolean = false
+            or (
+              t.status not in ('completed', 'cancelled')
+              and (
+                t.sla_status in ('near_breach', 'breached')
+                or (t.planned_due_at is not null and t.planned_due_at < now())
+              )
+            )
+          )
+          and (
+            $7::date is null
+            or $5::text = 'overdue'
+            or (
+              coalesce($10::text, 'due') = 'kpi'
+              and $5::text = 'completed'
+              and coalesce(
+                (t.completed_at at time zone $9)::date,
+                (t.planned_due_at at time zone $9)::date,
+                (t.created_at at time zone $9)::date
+              ) between $7::date and $8::date
+            )
+            or (
+              coalesce($10::text, 'due') = 'kpi'
+              and $5::text <> 'completed'
+              and coalesce(
+                (t.planned_due_at at time zone $9)::date,
+                (t.created_at at time zone $9)::date
+              ) between $7::date and $8::date
+            )
+            or (
+              coalesce($10::text, 'due') = 'due'
+              and t.planned_due_at is not null
+              and (t.planned_due_at at time zone $9)::date between $7::date and $8::date
+            )
+          )
+        group by
+          t.id,
+          t.title,
+          t.description,
+          t.client_id,
+          c.display_name,
+          client_ip.client_public_ip,
+          t.service_id,
+          s.name,
+          t.work_group_id,
+          wg.name,
+          t.priority,
+          t.status,
+          t.sla_status,
+          t.planned_due_at,
+          t.created_at,
+          t.completed_at,
+          employee_ip.employee_public_ip
+        order by coalesce(t.planned_due_at, t.created_at) asc, t.title asc
+        limit 1000
+      `,
+      [
+        tenantId,
+        query.clientId ?? null,
+        query.employeeId ?? null,
+        query.serviceId ?? null,
+        query.status ?? "all",
+        query.atRisk ?? false,
+        query.from ?? null,
+        query.to ?? null,
+        timezone,
+        query.range ?? "due",
+      ],
+    );
+
+    return result.rows.map((row) => {
+      const plannedDueAt = row.planned_due_at;
+      const atRiskReasons = allocatedWorkAtRiskReasons({
+        status: row.status,
+        slaStatus: row.sla_status,
+        plannedDueAt,
+      });
+      return {
+        id: row.id,
+        title: row.title,
+        description: row.description,
+        clientId: row.client_id,
+        clientName: row.client_name,
+        clientPublicIp: row.client_public_ip,
+        employeePublicIp: row.employee_public_ip,
+        serviceId: row.service_id,
+        serviceName: row.service_name,
+        workGroupId: row.work_group_id,
+        workGroupName: row.work_group_name,
+        priority: row.priority,
+        status: row.status,
+        slaStatus: row.sla_status,
+        plannedDueAt,
+        createdAt: row.created_at,
+        assignedAt: row.assigned_at,
+        completedAt: row.completed_at,
+        assignees: (row.assignees ?? []).map((assignee) => ({
+          id: assignee.id,
+          name: assignee.name,
+          assignedAt: new Date(assignee.assignedAt),
+        })),
+        atRisk: atRiskReasons.length > 0,
+        atRiskReasons,
+      };
+    });
   }
 
   private async getOpenTasks(

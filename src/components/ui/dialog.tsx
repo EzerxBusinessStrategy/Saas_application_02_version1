@@ -49,6 +49,11 @@ export function DialogContent({
           if (!blockOutsideClose) return;
           event.preventDefault();
         }}
+        onFocusOutside={(event) => {
+          if (isDatePickerPopoverEvent(event)) {
+            event.preventDefault();
+          }
+        }}
         onEscapeKeyDown={(event) => {
           if (!blockOutsideClose) return;
           event.preventDefault();
@@ -81,5 +86,8 @@ export function DialogContent({
 }
 
 function isDatePickerPopoverEvent(event: { target: EventTarget | null }): boolean {
-  return event.target instanceof Element && Boolean(event.target.closest("[data-date-picker-popover]"));
+  const target = event.target;
+  if (!(target instanceof Node)) return false;
+  const element = target instanceof Element ? target : target.parentElement;
+  return Boolean(element?.closest("[data-date-picker-popover]"));
 }

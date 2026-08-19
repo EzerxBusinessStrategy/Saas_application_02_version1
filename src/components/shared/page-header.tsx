@@ -18,7 +18,7 @@ export function PageHeader({
   const EyebrowIcon = eyebrowIcon;
 
   return (
-    <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+    <div className="flex flex-wrap items-start justify-between gap-3">
       <div>
         {eyebrow ? (
           <p

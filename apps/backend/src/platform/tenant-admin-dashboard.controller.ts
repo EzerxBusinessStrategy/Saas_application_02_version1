@@ -20,9 +20,12 @@ import {
   TenantAdminDashboardResponseDto,
   TenantAdminCompletedTasksResponseDto,
   TenantAdminOpenTasksResponseDto,
+  TenantAdminAllocatedWorkResponseDto,
+  TenantAdminAllocatedWorkQuery,
   TenantAdminActivityResponseDto,
   TenantProfileDto,
   tenantAdminDashboardQuerySchema,
+  tenantAdminAllocatedWorkQuerySchema,
   updateTenantProfileSchema,
   UpdateTenantProfileRequest,
 } from "./tenant-admin-dashboard.dto";
@@ -79,6 +82,21 @@ export class TenantAdminDashboardController {
     @Query(new ZodValidationPipe(tenantAdminDashboardQuerySchema)) query: TenantAdminDashboardQuery,
   ): Promise<TenantAdminCompletedTasksResponseDto> {
     return this.service.listCompletedTasks(context, query);
+  }
+
+  @Get("allocated-work")
+  @RequirePermissions("task.read")
+  @ApiOperation({
+    summary: "List allocated tenant tasks with client, service, assignee, due date, and at-risk reasons.",
+  })
+  @ApiOkResponse({ type: TenantAdminAllocatedWorkResponseDto })
+  @ApiUnauthorizedResponse({ type: ApiErrorResponseDto })
+  @ApiForbiddenResponse({ type: ApiErrorResponseDto })
+  listAllocatedWork(
+    @CurrentRequestContext() context: RequestContext,
+    @Query(new ZodValidationPipe(tenantAdminAllocatedWorkQuerySchema)) query: TenantAdminAllocatedWorkQuery,
+  ): Promise<TenantAdminAllocatedWorkResponseDto> {
+    return this.service.listAllocatedWork(context, query);
   }
 
   @Get("activity")

@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest";
 import type { TenantAdminTask } from "@/features/operations/api/operations-api";
 import {
   isTenantAdminTaskAwaitingReview,
+  mapAllocatedWorkToOperationalTask,
   mapTenantAdminTask,
   tenantTaskReviewHref,
 } from "@/features/operations/tenant-admin-task-map";
@@ -52,5 +53,34 @@ describe("tenant admin task review mapping", () => {
     expect(mapped.reviewStatus).toBe("pending");
     expect(mapped.approvalStatus).toBe("pending");
     expect(mapped.assignee).toBe("Rahul");
+  });
+
+  test("marks allocated work as at-risk from the register flag", () => {
+    const mapped = mapAllocatedWorkToOperationalTask({
+      id: "task-1",
+      title: "GST filing",
+      description: "File GST",
+      clientId: "client-1",
+      clientName: "Acme",
+      clientPublicIp: null,
+      employeePublicIp: "203.0.113.20",
+      serviceId: "service-1",
+      serviceName: "GST",
+      workGroupId: null,
+      workGroupName: null,
+      priority: "normal",
+      status: "assigned",
+      slaStatus: "running",
+      plannedDueAt: "2026-08-01T00:00:00.000Z",
+      createdAt: "2026-07-01T00:00:00.000Z",
+      assignedAt: "2026-07-02T00:00:00.000Z",
+      completedAt: null,
+      assignees: [{ id: "employee-1", name: "Rahul", assignedAt: "2026-07-02T00:00:00.000Z" }],
+      atRisk: true,
+      atRiskReasons: ["Due date has passed."],
+    });
+    expect(mapped.client).toBe("Acme");
+    expect(mapped.engagement).toBe("GST");
+    expect(mapped.sla).toBe("at-risk");
   });
 });

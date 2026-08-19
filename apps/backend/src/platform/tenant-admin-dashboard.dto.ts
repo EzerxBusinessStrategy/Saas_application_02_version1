@@ -25,6 +25,14 @@ const optionalUuid = z.preprocess(
   z.string().uuid().optional(),
 );
 
+export const allocatedWorkStatusGroups = ["all", "open", "in_progress", "review", "completed", "overdue"] as const;
+
+const optionalBoolean = z.preprocess((value) => {
+  if (value === true || value === "true" || value === "1") return true;
+  if (value === false || value === "false" || value === "0" || value === "" || value == null) return false;
+  return value;
+}, z.boolean().optional().default(false));
+
 export const tenantAdminDashboardQuerySchema = z
   .object({
     from: optionalIsoDate,
@@ -69,6 +77,54 @@ export const tenantAdminDashboardQuerySchema = z
   })
   .default({});
 export type TenantAdminDashboardQuery = z.infer<typeof tenantAdminDashboardQuerySchema>;
+
+export const tenantAdminAllocatedWorkQuerySchema = z
+  .object({
+    from: optionalIsoDate,
+    to: optionalIsoDate,
+    clientId: optionalUuid,
+    employeeId: optionalUuid,
+    serviceId: optionalUuid,
+    status: z.enum(allocatedWorkStatusGroups).optional().default("all"),
+    atRisk: optionalBoolean,
+    range: z.enum(["due", "kpi"]).optional(),
+  })
+  .superRefine((value, context) => {
+    if ((value.from && !value.to) || (!value.from && value.to)) {
+      context.addIssue({ code: z.ZodIssueCode.custom, message: "from and to must be supplied together." });
+    }
+    if (value.from && value.to && value.from > value.to) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["to"],
+        message: "to must be on or after from.",
+      });
+    }
+    if (value.from && value.to) {
+      if (isoDateDiffDays(value.from, value.to) > DASHBOARD_MAX_SPAN_DAYS) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `Date range cannot exceed ${DASHBOARD_MAX_SPAN_DAYS} days.`,
+        });
+      }
+      if (value.from < DASHBOARD_MIN_FROM) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["from"],
+          message: `from cannot be earlier than ${DASHBOARD_MIN_FROM}.`,
+        });
+      }
+      const maxTo = addIsoDateDays(utcTodayIso(), DASHBOARD_MAX_FUTURE_DAYS);
+      if (value.to > maxTo) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["to"],
+          message: `to cannot be more than ${DASHBOARD_MAX_FUTURE_DAYS} days in the future.`,
+        });
+      }
+    }
+  });
+export type TenantAdminAllocatedWorkQuery = z.infer<typeof tenantAdminAllocatedWorkQuerySchema>;
 
 export class TenantInfoDto {
   @ApiProperty({ type: String, format: "uuid" })
@@ -325,6 +381,25 @@ export class OpenTaskItemDto {
 
   @ApiProperty({ type: () => [OpenTaskAssigneeDto] })
   assignees!: readonly OpenTaskAssigneeDto[];
+}
+
+export class AllocatedWorkTaskItemDto extends OpenTaskItemDto {
+  @ApiPropertyOptional({ type: String, nullable: true })
+  employeePublicIp!: string | null;
+
+  @ApiProperty({ type: Boolean })
+  atRisk!: boolean;
+
+  @ApiProperty({ type: [String] })
+  atRiskReasons!: readonly string[];
+}
+
+export class TenantAdminAllocatedWorkResponseDto {
+  @ApiProperty({ type: Number })
+  total!: number;
+
+  @ApiProperty({ type: () => [AllocatedWorkTaskItemDto] })
+  tasks!: readonly AllocatedWorkTaskItemDto[];
 }
 
 export class TenantAdminCompletedTasksResponseDto {

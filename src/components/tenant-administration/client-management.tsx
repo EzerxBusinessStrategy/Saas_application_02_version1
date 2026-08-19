@@ -54,6 +54,7 @@ import {
   type TenantAdminEmployeeOption,
   type TenantAdminWorkGroup,
 } from "@/features/operations/api/operations-api";
+import { ClientAtRiskTasksDialog } from "@/components/tenant-administration/client-at-risk-tasks-dialog";
 import { ClientServiceOnboarding } from "@/components/tenant-administration/client-service-onboarding";
 import { readFormDraft } from "@/lib/client/form-draft-store";
 import { formatIndiaTimestamp } from "@/lib/india-time";
@@ -865,20 +866,6 @@ function ContactForm({
   );
 }
 
-function ProgressRow({ label, value }: { label: string; value: number }) {
-  return (
-    <div>
-      <div className="flex justify-between gap-3 text-sm">
-        <span className="font-medium">{label}</span>
-        <span className="text-muted-foreground">{value}%</span>
-      </div>
-      <div className="mt-2 h-2 overflow-hidden rounded-[var(--radius-control)] bg-muted">
-        <div className="h-full bg-primary" style={{ width: `${value}%` }} />
-      </div>
-    </div>
-  );
-}
-
 type DetailRecord = object;
 const recordText = (record: DetailRecord, key: string, fallback = "") =>
   typeof (record as Record<string, unknown>)[key] === "string"
@@ -899,6 +886,7 @@ export function ClientDetail({ clientId }: { clientId: string }) {
     return clientTabs.some((item) => item.value === requested) ? requested : "overview";
   });
   const [configureOpen, setConfigureOpen] = useState(searchParams.get("configureServices") === "1");
+  const [atRiskOpen, setAtRiskOpen] = useState(false);
   const [editingContact, setEditingContact] = useState<
     ClientContact | "new" | null
   >(null);
@@ -988,7 +976,21 @@ export function ClientDetail({ clientId }: { clientId: string }) {
                 Open and at-risk tasks
               </p>
               <p className="mt-1 font-medium">
-                {client.openTasks} open · {client.atRiskTasks} at risk
+                {client.openTasks} open
+                {client.atRiskTasks > 0 ? (
+                  <>
+                    {" · "}
+                    <button
+                      type="button"
+                      className="text-primary underline-offset-2 hover:underline"
+                      onClick={() => setAtRiskOpen(true)}
+                    >
+                      {client.atRiskTasks} at risk
+                    </button>
+                  </>
+                ) : (
+                  " · 0 at risk"
+                )}
               </p>
             </div>
             <div>
@@ -1023,10 +1025,6 @@ export function ClientDetail({ clientId }: { clientId: string }) {
                 </p>
               </div>
             </div>
-            <ProgressRow
-              label="Client onboarding"
-              value={client.onboardingProgress}
-            />
           </CardContent>
         </Card>
       </section>
@@ -1314,6 +1312,12 @@ export function ClientDetail({ clientId }: { clientId: string }) {
         confirmLabel="Archive contact"
         destructive
         onConfirm={() => void archiveContact()}
+      />
+      <ClientAtRiskTasksDialog
+        clientId={client.id}
+        clientName={client.name}
+        open={atRiskOpen}
+        onOpenChange={setAtRiskOpen}
       />
       <ClientServiceOnboarding
         clientId={client.id}

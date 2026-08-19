@@ -261,8 +261,10 @@ function DatePickerPopover({
       role="dialog"
       aria-label="Choose date"
       data-date-picker-popover=""
-      className="fixed z-[80] w-72 overflow-y-auto rounded-[var(--radius-card)] border border-border bg-card p-3 text-card-foreground shadow-[var(--shadow-card)]"
+      className="pointer-events-auto fixed z-[200] w-72 overflow-y-auto rounded-[var(--radius-card)] border border-border bg-card p-3 text-card-foreground shadow-[var(--shadow-card)]"
       style={{ top: position.top, left: position.left, maxHeight: position.maxHeight }}
+      onMouseDown={(event) => event.stopPropagation()}
+      onPointerDown={(event) => event.stopPropagation()}
     >
       <div className="mb-3 flex items-center justify-between gap-2">
         <button

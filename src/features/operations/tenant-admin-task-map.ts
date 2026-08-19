@@ -1,5 +1,35 @@
 import type { TenantAdminTask } from "@/features/operations/api/operations-api";
+import type { AllocatedWorkTask } from "@/features/tenant-admin/api/open-tasks-api";
 import type { OperationalTask } from "@/types/operations";
+
+const tenantAdminStatuses: ReadonlySet<TenantAdminTask["status"]> = new Set([
+  "draft",
+  "requested",
+  "open",
+  "assigned",
+  "in_progress",
+  "submitted",
+  "manager_review",
+  "returned",
+  "tenant_approval",
+  "approved",
+  "completed",
+  "cancelled",
+]);
+const tenantAdminPriorities: ReadonlySet<TenantAdminTask["priority"]> = new Set([
+  "low",
+  "normal",
+  "high",
+  "urgent",
+]);
+const tenantAdminSlaStatuses: ReadonlySet<TenantAdminTask["slaStatus"]> = new Set([
+  "not_started",
+  "running",
+  "met",
+  "near_breach",
+  "breached",
+  "not_applicable",
+]);
 
 const pendingReviewStatuses: ReadonlySet<TenantAdminTask["status"]> = new Set([
   "submitted",
@@ -54,6 +84,38 @@ export function mapTenantAdminTask(task: TenantAdminTask): OperationalTask {
     approvalStatus: awaitingReview ? "pending" : "not-required",
     reviewComment: task.latestReviewRemarks,
     blocked: task.latestSubmissionStatus === "returned" || task.status === "returned",
+  };
+}
+
+export function mapAllocatedWorkToOperationalTask(task: AllocatedWorkTask): OperationalTask {
+  const mapped = mapTenantAdminTask({
+    id: task.id,
+    title: task.title,
+    description: task.description,
+    clientId: task.clientId,
+    clientName: task.clientName,
+    serviceId: task.serviceId,
+    serviceName: task.serviceName,
+    workGroupId: task.workGroupId,
+    workGroupName: task.workGroupName,
+    priority: tenantAdminPriorities.has(task.priority as TenantAdminTask["priority"])
+      ? (task.priority as TenantAdminTask["priority"])
+      : "normal",
+    status: tenantAdminStatuses.has(task.status as TenantAdminTask["status"])
+      ? (task.status as TenantAdminTask["status"])
+      : "open",
+    slaStatus: tenantAdminSlaStatuses.has(task.slaStatus as TenantAdminTask["slaStatus"])
+      ? (task.slaStatus as TenantAdminTask["slaStatus"])
+      : "running",
+    plannedDueAt: task.plannedDueAt,
+    assigneeCount: task.assignees.length,
+    assignees: task.assignees.map((assignee) => ({ id: assignee.id, name: assignee.name })),
+    latestSubmissionStatus: null,
+    latestReviewRemarks: null,
+  });
+  return {
+    ...mapped,
+    sla: task.atRisk ? "at-risk" : mapped.sla,
   };
 }
 

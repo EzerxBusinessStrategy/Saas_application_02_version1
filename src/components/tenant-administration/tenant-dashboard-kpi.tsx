@@ -134,8 +134,9 @@ export function ExecutiveKpiCard(props: ExecutiveKpiCardProps) {
   return (
     <Link
       href={props.href}
+      prefetch={false}
       aria-label={props.ariaLabel ?? `View ${props.label}`}
-      className="block rounded-[14px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+      className="relative z-0 block rounded-[14px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
     >
       <ExecutiveKpiCardBody {...props} />
     </Link>

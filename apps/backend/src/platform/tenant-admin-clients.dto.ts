@@ -145,9 +145,6 @@ export class TenantAdminClientItemDto {
   atRiskTasks!: number;
 
   @ApiProperty({ type: Number })
-  onboardingProgress!: number;
-
-  @ApiProperty({ type: Number })
   documentProgress!: number;
 }
 

@@ -232,6 +232,13 @@ if (tenantTasksItem) {
     label: "Task request",
     labelKey: "Navigation.taskRequest",
   });
+  tenantAdminItemsByLabel.set("Allocated work", {
+    ...tenantTasksItem,
+    label: "Allocated work",
+    labelKey: "Navigation.allocatedWork",
+    href: "/allocated-work",
+    icon: CheckSquare,
+  });
   tenantAdminItemsByLabel.set("Task review", {
     ...tenantTasksItem,
     label: "Task review",
@@ -269,6 +276,7 @@ const tenantAdminNavigation = [
   tenantAdminGroup("Operations", ClipboardList, [
     "Services",
     "Task request",
+    "Allocated work",
     "Calendar",
     "Task review",
   ]),

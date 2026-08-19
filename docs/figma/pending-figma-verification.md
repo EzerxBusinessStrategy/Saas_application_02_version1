@@ -112,7 +112,12 @@ Design status: Pending Figma verification.
 
 Design status: Pending Figma verification.
 
-- The Tenant Admin Task request section shows the client service-request inbox
+- The Tenant Admin Allocated work section lists live tasks after allotment
+  (client, service, task, assigned employee, assigned at, due at, status).
+  Row click reuses TaskDetailsDrawer. At-risk reasons open from the client
+  overview count. Reuses PageHeader, Card, FilterToolbar, DataTable, DatePicker,
+  SearchableFilterSelect, and Dialog. Figma MCP was not used.
+
   (accept opens the employee allotment dialog, reject requires a remark).
   Employee-submitted work is a separate Task review page under People & Teams,
   with the same TaskBoard drag targets as manager review (Returned and Done).
