@@ -5,6 +5,10 @@ import { databaseNotConfigured } from "../auth/auth-errors";
 import { DATABASE_POOL } from "../database/database.tokens";
 import { withDatabaseTransaction } from "../database/transaction-context";
 import {
+  resolveBillingPeriodKey,
+  toBillingFrequency,
+} from "./billing-charge-period";
+import {
   expandRecurrenceOccurrences,
   yearlyOccurrenceCount,
   type ServiceBlueprintDueRule,
@@ -272,6 +276,9 @@ export class TenantAdminClientServiceActivationRepository {
               engagementId,
               countryCode: input.countryCode,
               financialYearId: financialYear.id,
+              financialYearLabel: financialYear.label,
+              financialYearStartsOn: financialYear.startsOn,
+              financialYearEndsOn: financialYear.endsOn,
               calendarRuleId,
               rateCardItemId,
               title: `${task.title?.trim() || task.taskType} (${occurrence.periodLabel})`,
@@ -279,6 +286,8 @@ export class TenantAdminClientServiceActivationRepository {
               employeeId: selected.assignedEmployeeId,
               unitRate: task.rateAmount,
               currencyCode: input.currencyCode,
+              billingFrequency: task.frequency,
+              periodLabel: occurrence.periodLabel,
             });
             if (created) taskCount += 1;
           }
@@ -641,6 +650,9 @@ export class TenantAdminClientServiceActivationRepository {
       engagementId: string;
       countryCode: string;
       financialYearId: string;
+      financialYearLabel: string;
+      financialYearStartsOn: string;
+      financialYearEndsOn: string;
       calendarRuleId: string | null;
       rateCardItemId: string;
       title: string;
@@ -648,6 +660,8 @@ export class TenantAdminClientServiceActivationRepository {
       employeeId: string;
       unitRate: number;
       currencyCode: string;
+      billingFrequency: ServiceBlueprintFrequency;
+      periodLabel: string;
     },
   ): Promise<boolean> {
     const dueAt = `${input.dueOn}T00:00:00.000Z`;
@@ -688,16 +702,36 @@ export class TenantAdminClientServiceActivationRepository {
       [context.tenantId, taskId, input.employeeId, context.membershipId],
     );
     const grossAmount = roundMoney(input.unitRate);
+    const billingFrequency = toBillingFrequency(input.billingFrequency);
+    const billingPeriodKey = resolveBillingPeriodKey({
+      frequency: billingFrequency,
+      periodLabel: input.periodLabel,
+      taskId,
+      financialYearLabel: input.financialYearLabel,
+      financialYearStartsOn: input.financialYearStartsOn,
+      financialYearEndsOn: input.financialYearEndsOn,
+    });
     await client.query(
       `
         insert into public.billable_task_entries (
           tenant_id, task_id, client_id, rate_card_item_id, currency_code, quantity, unit_rate,
-          gross_amount, discount_type, discount_value, discount_amount, tax_amount, net_amount, status
+          gross_amount, discount_type, discount_value, discount_amount, tax_amount, net_amount, status,
+          billing_frequency, billing_period_key
         )
-        values ($1, $2, $3, $4, $5, 1, $6, $7, null, null, 0, 0, $7, 'pending_review')
+        values ($1, $2, $3, $4, $5, 1, $6, $7, null, null, 0, 0, $7, 'pending_review', $8, $9)
         on conflict (tenant_id, task_id) where status <> 'cancelled' do nothing
       `,
-      [context.tenantId, taskId, input.clientId, input.rateCardItemId, input.currencyCode, input.unitRate, grossAmount],
+      [
+        context.tenantId,
+        taskId,
+        input.clientId,
+        input.rateCardItemId,
+        input.currencyCode,
+        input.unitRate,
+        grossAmount,
+        billingFrequency,
+        billingPeriodKey,
+      ],
     );
     return true;
   }
@@ -832,10 +866,10 @@ export class TenantAdminClientServiceActivationRepository {
     client: PoolClient,
     tenantId: string,
     countryCode: string,
-  ): Promise<{ id: string; startsOn: string; endsOn: string }> {
-    const result = await client.query<{ id: string; starts_on: string; ends_on: string }>(
+  ): Promise<{ id: string; label: string; startsOn: string; endsOn: string }> {
+    const result = await client.query<{ id: string; label: string; starts_on: string; ends_on: string }>(
       `
-        select id::text, start_date::text as starts_on, end_date::text as ends_on
+        select id::text, label, start_date::text as starts_on, end_date::text as ends_on
         from public.tenant_financial_years
         where tenant_id = $1
           and country_code = $2
@@ -852,7 +886,12 @@ export class TenantAdminClientServiceActivationRepository {
         message: "Configure the current financial year for the selected country before activating services.",
       });
     }
-    return { id: result.rows[0].id, startsOn: result.rows[0].starts_on, endsOn: result.rows[0].ends_on };
+    return {
+      id: result.rows[0].id,
+      label: result.rows[0].label,
+      startsOn: result.rows[0].starts_on,
+      endsOn: result.rows[0].ends_on,
+    };
   }
 
   private async employeeName(client: PoolClient, tenantId: string, employeeId: string): Promise<string> {

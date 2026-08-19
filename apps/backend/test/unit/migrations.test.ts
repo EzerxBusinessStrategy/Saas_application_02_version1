@@ -338,4 +338,22 @@ describe("database migrations", () => {
     expect(sql).toContain("status = 'expired'");
     expect(sql).not.toContain("drop table");
   });
+
+  test("adds billing period metadata to billable charges without dropping columns", () => {
+    expect(migrationNames).toContain("0073_billable_entry_billing_period.sql");
+    expect(migrationNames.indexOf("0073_billable_entry_billing_period.sql")).toBeGreaterThan(
+      migrationNames.indexOf("0072_client_task_feedback_expiry.sql"),
+    );
+
+    const sql = readFileSync(
+      resolve(__dirname, "../../drizzle/migrations/0073_billable_entry_billing_period.sql"),
+      "utf8",
+    );
+
+    expect(sql).toContain("add column if not exists billing_frequency text");
+    expect(sql).toContain("add column if not exists billing_period_key text");
+    expect(sql).toContain("billable_task_entries_billing_group_idx");
+    expect(sql).not.toContain("drop table");
+    expect(sql).not.toMatch(/alter table [^\n]+ drop column/i);
+  });
 });

@@ -246,11 +246,26 @@ const employeeDocumentSchema = z.object({
 const employeeDocumentsResponseSchema = z.object({ documents: z.array(employeeDocumentSchema) });
 export type EmployeeDocumentRecipientOption = z.infer<typeof employeeDocumentRecipientOptionSchema>;
 export type EmployeeDocumentOptions = z.infer<typeof employeeDocumentOptionsSchema>;
+const tenantFinanceInvoiceItemSchema = z.object({
+  description: z.string(),
+  quantity: z.coerce.number(),
+  unitRate: z.coerce.number(),
+  grossAmount: z.coerce.number(),
+  discountAmount: z.coerce.number(),
+  netAmount: z.coerce.number(),
+  taskDueOn: z.string().nullable().optional().default(null),
+});
 const tenantFinanceInvoiceSchema = z.object({
   id: z.string(),
   clientId: z.string(),
   client: z.string(),
   taskTitle: z.string().nullable(),
+  serviceName: z.string().nullable().optional().default(null),
+  billingLabel: z.string().nullable().optional().default(null),
+  itemCount: z.coerce.number().optional().default(0),
+  subtotalAmount: z.coerce.number().optional().default(0),
+  discountAmount: z.coerce.number().optional().default(0),
+  items: z.array(tenantFinanceInvoiceItemSchema).optional().default([]),
   invoiceNumber: z.string(),
   issuedOn: z.string(),
   dueOn: z.string().nullable(),
@@ -275,6 +290,37 @@ const tenantBillableTaskEntrySchema = z.object({
   netAmount: z.number(),
 });
 const tenantBillableTaskEntriesResponseSchema = z.object({ entries: z.array(tenantBillableTaskEntrySchema) });
+const tenantBillingGroupChargeSchema = z.object({
+  id: z.string(),
+  taskId: z.string(),
+  taskTitle: z.string(),
+  taskDueOn: z.string().nullable(),
+  status: z.enum(["ready", "awaiting"]),
+  grossAmount: z.number(),
+  currency: z.string().length(3),
+});
+const tenantBillingGroupSchema = z.object({
+  id: z.string(),
+  clientId: z.string(),
+  clientName: z.string(),
+  serviceId: z.string(),
+  serviceName: z.string(),
+  engagementId: z.string().nullable(),
+  billingFrequency: z.enum(["monthly", "quarterly", "annually", "one_time"]),
+  billingPeriodKey: z.string(),
+  billingPeriodLabel: z.string(),
+  billingLabel: z.string(),
+  currency: z.string().length(3),
+  financialYearId: z.string(),
+  financialYearLabel: z.string().nullable(),
+  status: z.enum(["waiting", "ready"]),
+  expectedCount: z.number(),
+  readyCount: z.number(),
+  expectedAmount: z.number(),
+  readyAmount: z.number(),
+  charges: z.array(tenantBillingGroupChargeSchema),
+});
+const tenantBillingGroupsResponseSchema = z.object({ groups: z.array(tenantBillingGroupSchema) });
 const tenantAdminTaskSchema = z.object({
   id: z.string(),
   title: z.string(),
@@ -434,6 +480,7 @@ export type CreateTenantAdminTaskInput = {
       };
 };
 export type TenantBillableTaskEntry = z.infer<typeof tenantBillableTaskEntrySchema>;
+export type TenantBillingGroup = z.infer<typeof tenantBillingGroupSchema>;
 const employeeId = "emp-riley";
 const managerId = "mgr-avery";
 const clientId = "northstar";
@@ -539,6 +586,16 @@ function mapTenantFinanceInvoice(invoice: TenantFinanceInvoice): SharedInvoice {
     uploadedById: "tenant-admin",
     managerId: "",
     activity: [{ id: `${invoice.id}-created`, action: "Created", actor: invoice.uploadedBy, at: invoice.updatedOn }],
+    items: invoice.items.map((item) => ({
+      description: item.description,
+      quantity: item.quantity,
+      unitRate: item.unitRate,
+      grossAmount: item.grossAmount,
+      discountAmount: item.discountAmount,
+      netAmount: item.netAmount,
+      taskDueOn: item.taskDueOn,
+      amount: item.netAmount,
+    })),
   };
 }
 
@@ -555,6 +612,21 @@ export async function listSharedInvoices(workspace: Workspace) {
       clientId,
       client: "Client account",
       taskTitle: invoice.taskTitle,
+      serviceName: invoice.serviceName,
+      billingLabel: invoice.billingLabel,
+      itemCount: invoice.itemCount,
+      subtotalAmount: invoice.totalAmount,
+      discountAmount: 0,
+      items: invoice.items.map((item) => ({
+        description: item.description,
+        quantity: 1,
+        unitRate: item.netAmount,
+        grossAmount: item.netAmount,
+        discountAmount: 0,
+        netAmount: item.netAmount,
+        taskDueOn: null,
+        amount: item.netAmount,
+      })),
       invoiceNumber: invoice.invoiceNumber,
       engagement: null,
       issuedOn: invoice.issuedOn,
@@ -1028,6 +1100,11 @@ export async function listTenantBillableTaskEntries(): Promise<TenantBillableTas
   return tenantBillableTaskEntriesResponseSchema.parse(await parseJsonResponse(response)).entries;
 }
 
+export async function listTenantBillingGroups(): Promise<TenantBillingGroup[]> {
+  const response = await fetch("/api/tenant-admin/finance/billing-groups", { cache: "no-store" });
+  return tenantBillingGroupsResponseSchema.parse(await parseJsonResponse(response)).groups;
+}
+
 export async function createInvoiceFromTask(input: {
   billableTaskEntryId: string;
   invoiceNumber: string;
@@ -1037,6 +1114,22 @@ export async function createInvoiceFromTask(input: {
   discountValue?: number;
 }) {
   const response = await fetch("/api/tenant-admin/finance/invoices/from-task", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  return mapTenantFinanceInvoice(tenantFinanceInvoiceSchema.parse(await parseJsonResponse(response)));
+}
+
+export async function createInvoiceFromEntries(input: {
+  billableTaskEntryIds: readonly string[];
+  invoiceNumber: string;
+  issuedOn: string;
+  dueOn: string;
+  discountType?: "percentage" | "fixed";
+  discountValue?: number;
+}) {
+  const response = await fetch("/api/tenant-admin/finance/invoices/from-entries", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(input),

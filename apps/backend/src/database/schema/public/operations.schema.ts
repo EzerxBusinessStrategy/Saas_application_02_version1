@@ -792,6 +792,8 @@ export const billableTaskEntries = pgTable(
     taxAmount: numeric("tax_amount", { precision: 18, scale: 2 }).default("0").notNull(),
     netAmount: numeric("net_amount", { precision: 18, scale: 2 }).notNull(),
     status: text("status").default("pending_review").notNull(),
+    billingFrequency: text("billing_frequency"),
+    billingPeriodKey: text("billing_period_key"),
     approvedBy: uuid("approved_by"),
     approvedAt: timestamp("approved_at", { withTimezone: true }),
     invoiceItemId: uuid("invoice_item_id"),
@@ -808,6 +810,13 @@ export const billableTaskEntries = pgTable(
       table.clientId,
       table.status,
       table.id,
+    ),
+    billingGroupIndex: index("billable_task_entries_billing_group_idx").on(
+      table.tenantId,
+      table.clientId,
+      table.billingFrequency,
+      table.billingPeriodKey,
+      table.status,
     ),
   }),
 );

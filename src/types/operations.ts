@@ -188,12 +188,29 @@ export const documentUploadInputSchema = sharedDocumentSchema
 export type DocumentUploadInput = z.infer<typeof documentUploadInputSchema>;
 export type DocumentUploadWithFileInput = DocumentUploadInput & { readonly file: File };
 
+export const sharedInvoiceItemSchema = z.object({
+  description: z.string(),
+  quantity: z.number(),
+  unitRate: z.number(),
+  grossAmount: z.number().optional().default(0),
+  discountAmount: z.number().optional().default(0),
+  netAmount: z.number(),
+  taskDueOn: z.string().nullable().optional().default(null),
+  amount: z.number().optional(),
+});
+
 export const sharedInvoiceSchema = z.object({
   id: z.string(),
   tenantId: z.string(),
   clientId: z.string(),
   client: z.string(),
   taskTitle: z.string().nullable().optional(),
+  serviceName: z.string().nullable().optional().default(null),
+  billingLabel: z.string().nullable().optional().default(null),
+  itemCount: z.number().int().nonnegative().optional().default(0),
+  subtotalAmount: z.number().nonnegative().optional().default(0),
+  discountAmount: z.number().nonnegative().optional().default(0),
+  items: z.array(sharedInvoiceItemSchema).optional().default([]),
   invoiceNumber: z.string().min(1).max(64),
   engagement: z.string().nullable(),
   issuedOn: z.string(),

@@ -17,9 +17,15 @@ describe("Client portal deliverables", () => {
       resolve(__dirname, "../../src/platform/client-portal-deliverables.repository.ts"),
       "utf8",
     );
+    const serviceSource = readFileSync(
+      resolve(__dirname, "../../src/platform/client-portal-deliverables.service.ts"),
+      "utf8",
+    );
 
     expect(source).toContain("and d.category <> 'invoice'");
     expect(source).toContain("getInvoiceDownloadableDocument");
+    expect(source).toContain("'amount', ii.net_amount");
+    expect(serviceSource).toContain("items: document.items");
   });
 
   test("blocks expired agreement downloads and decisions in the client portal", () => {

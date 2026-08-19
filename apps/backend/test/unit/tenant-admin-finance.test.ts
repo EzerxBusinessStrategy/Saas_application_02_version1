@@ -2,7 +2,7 @@ import { ConflictException } from "@nestjs/common";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, test, vi } from "vitest";
-import { createTenantDocumentSchema } from "../../src/platform/tenant-admin-finance.dto";
+import { createTenantDocumentSchema, createEntriesInvoiceSchema } from "../../src/platform/tenant-admin-finance.dto";
 import { TenantAdminFinanceRepository } from "../../src/platform/tenant-admin-finance.repository";
 
 describe("TenantAdminFinanceRepository document delivery", () => {
@@ -241,5 +241,36 @@ describe("TenantAdminFinanceRepository document delivery", () => {
     ).resolveDownloadableDocument.bind(repository);
 
     await expect(resolveDownloadableDocument(client, "tenant-1", "membership-1", "missing")).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  test("creates grouped invoices from approved charges in one transaction", () => {
+    const source = readFileSync(resolve(__dirname, "../../src/platform/tenant-admin-finance.repository.ts"), "utf8");
+    const dtoSource = readFileSync(resolve(__dirname, "../../src/platform/tenant-admin-finance.dto.ts"), "utf8");
+    const controllerSource = readFileSync(resolve(__dirname, "../../src/platform/tenant-admin-finance.controller.ts"), "utf8");
+
+    expect(controllerSource).toContain('Post("invoices/from-entries")');
+    expect(controllerSource).toContain('Get("billing-groups")');
+    expect(dtoSource).toContain("billableTaskEntryIds");
+    expect(source).toContain("for update of bte");
+    expect(source).toContain("BILLING_GROUP_INCOMPLETE");
+    expect(source).toContain("BILLING_GROUP_MISMATCH");
+    expect(source).toContain("INVOICE_CREATED_FROM_ENTRIES");
+    expect(source).toContain("and t.status <> 'cancelled'");
+    expect(source).toContain("approved_for_invoice");
+    expect(source).toContain("BILLABLE_TASK_NOT_AVAILABLE");
+    expect(source).toContain("isUniqueViolation");
+  });
+
+  test("rejects duplicate charge ids on grouped invoice creation", () => {
+    const parsed = createEntriesInvoiceSchema.safeParse({
+      billableTaskEntryIds: [
+        "11111111-1111-4111-8111-111111111111",
+        "11111111-1111-4111-8111-111111111111",
+      ],
+      invoiceNumber: "INV-1",
+      issuedOn: "2026-08-19",
+      dueOn: "2026-09-03",
+    });
+    expect(parsed.success).toBe(false);
   });
 });

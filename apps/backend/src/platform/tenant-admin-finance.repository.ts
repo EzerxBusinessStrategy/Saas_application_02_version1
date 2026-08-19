@@ -3,8 +3,22 @@ import { Pool, PoolClient } from "pg";
 import { databaseNotConfigured } from "../auth/auth-errors";
 import { DATABASE_POOL } from "../database/database.tokens";
 import { withDatabaseTransaction } from "../database/transaction-context";
+import {
+  billingGroupId,
+  billingGroupLabel,
+  billingGroupStatus,
+  billingPeriodDisplayLabel,
+  toBillingFrequency,
+  type BillingFrequency,
+} from "./billing-charge-period";
+import { calculateDiscount, distributeDiscount, roundMoney } from "./invoice-discount";
 import { TenantAdminRequestContext } from "./tenant-admin-context";
-import { CreateTaskInvoiceRequest, CreateTenantDocumentRequest, CreateTenantInvoiceRequest } from "./tenant-admin-finance.dto";
+import {
+  CreateEntriesInvoiceRequest,
+  CreateTaskInvoiceRequest,
+  CreateTenantDocumentRequest,
+  CreateTenantInvoiceRequest,
+} from "./tenant-admin-finance.dto";
 import type { StoredDocumentObject } from "./tenant-document-storage.service";
 
 export type TenantDocumentRow = {
@@ -29,11 +43,27 @@ export type TenantDocumentRow = {
   readonly storageKey: string | null;
 };
 
+export type TenantInvoiceItemRow = {
+  readonly description: string;
+  readonly quantity: number;
+  readonly unitRate: number;
+  readonly grossAmount: number;
+  readonly discountAmount: number;
+  readonly netAmount: number;
+  readonly taskDueOn: string | null;
+};
+
 export type TenantInvoiceRow = {
   readonly id: string;
   readonly clientId: string;
   readonly client: string;
   readonly taskTitle: string | null;
+  readonly serviceName: string | null;
+  readonly billingLabel: string | null;
+  readonly itemCount: number;
+  readonly subtotalAmount: number;
+  readonly discountAmount: number;
+  readonly items: readonly TenantInvoiceItemRow[];
   readonly invoiceNumber: string;
   readonly issuedOn: string;
   readonly dueOn: string | null;
@@ -57,6 +87,38 @@ export type TenantBillableTaskEntryRow = {
   readonly netAmount: number;
 };
 
+export type TenantBillingGroupChargeRow = {
+  readonly id: string;
+  readonly taskId: string;
+  readonly taskTitle: string;
+  readonly taskDueOn: string | null;
+  readonly status: "ready" | "awaiting";
+  readonly grossAmount: number;
+  readonly currency: string;
+};
+
+export type TenantBillingGroupRow = {
+  readonly id: string;
+  readonly clientId: string;
+  readonly clientName: string;
+  readonly serviceId: string;
+  readonly serviceName: string;
+  readonly engagementId: string | null;
+  readonly billingFrequency: BillingFrequency;
+  readonly billingPeriodKey: string;
+  readonly billingPeriodLabel: string;
+  readonly billingLabel: string;
+  readonly currency: string;
+  readonly financialYearId: string;
+  readonly financialYearLabel: string | null;
+  readonly status: "waiting" | "ready";
+  readonly expectedCount: number;
+  readonly readyCount: number;
+  readonly expectedAmount: number;
+  readonly readyAmount: number;
+  readonly charges: readonly TenantBillingGroupChargeRow[];
+};
+
 export type TenantDownloadableDocument =
   | { readonly kind: "stored"; readonly object: StoredDocumentObject }
   | {
@@ -67,9 +129,14 @@ export type TenantDownloadableDocument =
       readonly invoiceNumber: string;
       readonly clientName: string;
       readonly taskTitle: string | null;
+      readonly serviceName: string | null;
+      readonly billingLabel: string | null;
+      readonly items: readonly TenantInvoiceItemRow[];
       readonly issuedOn: string;
       readonly dueOn: string | null;
       readonly currency: string;
+      readonly subtotalAmount: number;
+      readonly discountAmount: number;
       readonly amount: number;
     };
 
@@ -289,6 +356,10 @@ export class TenantAdminFinanceRepository {
     return this.withContext(context, (client) => this.getBillableTaskEntries(client, context.tenantId));
   }
 
+  async listBillingGroups(context: TenantAdminRequestContext): Promise<readonly TenantBillingGroupRow[]> {
+    return this.withContext(context, (client) => this.getBillingGroups(client, context.tenantId));
+  }
+
   async createInvoiceFromTask(context: TenantAdminRequestContext, input: CreateTaskInvoiceRequest): Promise<TenantInvoiceRow> {
     return this.withContext(context, async (client) => {
       const entryResult = await client.query<{
@@ -346,6 +417,223 @@ export class TenantAdminFinanceRepository {
       await client.query(
         "select audit.write_audit_event('INVOICE_CREATED_FROM_TASK', 'invoice', $1::uuid, 'succeeded', null, $2::jsonb)",
         [invoiceId, JSON.stringify({ taskId: entry.task_id, billableTaskEntryId: entry.id, discountAmount, totalAmount })],
+      );
+      return this.getInvoiceOrThrow(client, context.tenantId, invoiceId);
+    });
+  }
+
+  async createInvoiceFromEntries(context: TenantAdminRequestContext, input: CreateEntriesInvoiceRequest): Promise<TenantInvoiceRow> {
+    return this.withContext(context, async (client) => {
+      const entryIds = input.billableTaskEntryIds;
+      const locked = await client.query<{
+        id: string;
+        task_id: string;
+        task_title: string;
+        task_due_on: string | null;
+        client_id: string;
+        service_id: string;
+        engagement_id: string | null;
+        billing_frequency: string | null;
+        billing_period_key: string | null;
+        currency_code: string;
+        financial_year_id: string;
+        gross_amount: string;
+        quantity: string;
+        unit_rate: string;
+        status: string;
+      }>(
+        `
+          select
+            bte.id::text,
+            bte.task_id::text,
+            t.title as task_title,
+            t.planned_due_at::date::text as task_due_on,
+            bte.client_id::text,
+            t.service_id::text,
+            t.engagement_id::text,
+            bte.billing_frequency,
+            bte.billing_period_key,
+            bte.currency_code,
+            t.financial_year_id::text,
+            bte.gross_amount,
+            bte.quantity,
+            bte.unit_rate,
+            bte.status
+          from public.billable_task_entries bte
+          join public.tasks t on t.id = bte.task_id and t.tenant_id = bte.tenant_id
+          where bte.tenant_id = $1
+            and bte.id = any($2::uuid[])
+          order by t.planned_due_at nulls last, t.title, bte.id
+          for update of bte
+        `,
+        [context.tenantId, entryIds],
+      );
+      if (locked.rows.length !== entryIds.length) {
+        throw new ConflictException({
+          code: "BILLABLE_TASK_NOT_AVAILABLE",
+          message: "One or more charges are no longer available for invoicing.",
+        });
+      }
+      if (locked.rows.some((row) => row.status !== "approved_for_invoice")) {
+        throw new ConflictException({
+          code: "BILLABLE_TASK_NOT_AVAILABLE",
+          message: "This billing group is no longer available for invoicing.",
+        });
+      }
+
+      const first = locked.rows[0];
+      if (!first) {
+        throw new ConflictException({
+          code: "BILLABLE_TASK_NOT_AVAILABLE",
+          message: "This billing group is no longer available for invoicing.",
+        });
+      }
+      const frequency = toBillingFrequency(first.billing_frequency);
+      const periodKey = first.billing_period_key || first.task_id;
+      const sameGroup = locked.rows.every((row) =>
+        row.client_id === first.client_id &&
+        row.service_id === first.service_id &&
+        (row.engagement_id ?? null) === (first.engagement_id ?? null) &&
+        toBillingFrequency(row.billing_frequency) === frequency &&
+        (row.billing_period_key || row.task_id) === periodKey &&
+        row.currency_code === first.currency_code &&
+        row.financial_year_id === first.financial_year_id,
+      );
+      if (!sameGroup) {
+        throw new ConflictException({
+          code: "BILLING_GROUP_MISMATCH",
+          message: "Selected charges must share the same client, service, engagement, period, currency and financial year.",
+        });
+      }
+
+      const sibling = await client.query<{ remaining: string }>(
+        `
+          select count(*)::text as remaining
+          from public.billable_task_entries bte
+          join public.tasks t on t.id = bte.task_id and t.tenant_id = bte.tenant_id
+          where bte.tenant_id = $1
+            and bte.client_id = $2
+            and t.service_id = $3
+            and t.engagement_id is not distinct from $4::uuid
+            and coalesce(bte.billing_frequency, 'one_time') = $5
+            and coalesce(bte.billing_period_key, bte.task_id::text) = $6
+            and bte.currency_code = $7
+            and t.financial_year_id = $8
+            and bte.status in ('pending_review', 'approved_for_invoice')
+            and t.status <> 'cancelled'
+            and not (bte.id = any($9::uuid[]))
+        `,
+        [
+          context.tenantId,
+          first.client_id,
+          first.service_id,
+          first.engagement_id,
+          frequency,
+          periodKey,
+          first.currency_code,
+          first.financial_year_id,
+          entryIds,
+        ],
+      );
+      if (Number(sibling.rows[0]?.remaining ?? 0) > 0) {
+        throw new ConflictException({
+          code: "BILLING_GROUP_INCOMPLETE",
+          message: "Wait until every charge in this billing group is approved before creating the invoice.",
+        });
+      }
+
+      const grossAmounts = locked.rows.map((row) => Number(row.gross_amount));
+      const subtotalAmount = roundMoney(grossAmounts.reduce((sum, amount) => sum + amount, 0));
+      const discountTotal = calculateDiscount(subtotalAmount, input.discountType, input.discountValue);
+      const itemDiscounts = distributeDiscount(grossAmounts, discountTotal);
+      const totalAmount = roundMoney(subtotalAmount - discountTotal);
+
+      const invoiceResult = await client.query<{ id: string }>(
+        `insert into public.invoices (
+           tenant_id, client_id, financial_year_id, invoice_number, issued_on, due_on,
+           subtotal_amount, discount_amount, tax_amount, total_amount, currency_code, status, created_by
+         ) values ($1, $2, $3, $4, $5, $6, $7, $8, 0, $9, $10, 'draft', $11)
+         returning id::text`,
+        [
+          context.tenantId,
+          first.client_id,
+          first.financial_year_id,
+          input.invoiceNumber,
+          input.issuedOn,
+          input.dueOn,
+          subtotalAmount,
+          discountTotal,
+          totalAmount,
+          first.currency_code,
+          context.membershipId,
+        ],
+      ).catch((error: unknown) => {
+        if (isUniqueViolation(error)) throw new ConflictException({ code: "INVOICE_NUMBER_EXISTS", message: "This invoice number already exists." });
+        throw error;
+      });
+      const invoiceId = invoiceResult.rows[0]?.id;
+      if (!invoiceId) throw new ConflictException({ code: "INVOICE_CREATE_FAILED", message: "Invoice could not be created." });
+
+      for (const [index, entry] of locked.rows.entries()) {
+        const itemDiscount = itemDiscounts[index] ?? 0;
+        const itemNet = roundMoney(Number(entry.gross_amount) - itemDiscount);
+        const itemResult = await client.query<{ id: string }>(
+          `insert into public.invoice_items (
+             tenant_id, invoice_id, task_id, billable_task_entry_id, service_id, description,
+             quantity, unit_rate, gross_amount, discount_amount, tax_amount, net_amount
+           ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 0, $11)
+           returning id::text`,
+          [
+            context.tenantId,
+            invoiceId,
+            entry.task_id,
+            entry.id,
+            entry.service_id,
+            entry.task_title,
+            entry.quantity,
+            entry.unit_rate,
+            entry.gross_amount,
+            itemDiscount,
+            itemNet,
+          ],
+        ).catch((error: unknown) => {
+          if (isUniqueViolation(error)) {
+            throw new ConflictException({
+              code: "BILLABLE_TASK_NOT_AVAILABLE",
+              message: "One or more charges are no longer available for invoicing.",
+            });
+          }
+          throw error;
+        });
+        const invoiceItemId = itemResult.rows[0]?.id;
+        if (!invoiceItemId) {
+          throw new ConflictException({ code: "INVOICE_ITEM_CREATE_FAILED", message: "Invoice item could not be created." });
+        }
+        await client.query(
+          `update public.billable_task_entries
+           set discount_type = $3, discount_value = $4, discount_amount = $5, net_amount = $6,
+               status = 'invoiced', invoice_item_id = $7, updated_at = now()
+           where tenant_id = $1 and id = $2`,
+          [
+            context.tenantId,
+            entry.id,
+            input.discountType ?? null,
+            input.discountValue || null,
+            itemDiscount,
+            itemNet,
+            invoiceItemId,
+          ],
+        );
+      }
+
+      await client.query(
+        "select audit.write_audit_event('INVOICE_CREATED_FROM_ENTRIES', 'invoice', $1::uuid, 'succeeded', null, $2::jsonb)",
+        [invoiceId, JSON.stringify({
+          billableTaskEntryIds: entryIds,
+          chargeCount: locked.rows.length,
+          discountAmount: discountTotal,
+          totalAmount,
+        })],
       );
       return this.getInvoiceOrThrow(client, context.tenantId, invoiceId);
     });
@@ -482,32 +770,94 @@ export class TenantAdminFinanceRepository {
 
   private async getInvoices(client: PoolClient, tenantId: string, clientId?: string): Promise<readonly TenantInvoiceRow[]> {
     const result = await client.query<{
-      id: string; client_id: string; client: string; task_title: string | null; invoice_number: string; issued_on: string; due_on: string | null; currency_code: string; total_amount: string; status: string; uploaded_by: string; updated_on: string;
+      id: string;
+      client_id: string;
+      client: string;
+      task_title: string | null;
+      service_name: string | null;
+      billing_frequency: string | null;
+      billing_period_key: string | null;
+      item_count: string;
+      items: unknown;
+      invoice_number: string;
+      issued_on: string;
+      due_on: string | null;
+      currency_code: string;
+      subtotal_amount: string;
+      discount_amount: string;
+      total_amount: string;
+      status: string;
+      uploaded_by: string;
+      updated_on: string;
     }>(
       `
-        select i.id::text, i.client_id::text, c.display_name as client, task_item.task_title, i.invoice_number,
-               i.issued_on::text, i.due_on::text, i.currency_code, i.total_amount,
+        select i.id::text, i.client_id::text, c.display_name as client, item_data.task_title,
+               item_data.service_name, item_data.billing_frequency, item_data.billing_period_key,
+               item_data.item_count, item_data.items, i.invoice_number,
+               i.issued_on::text, i.due_on::text, i.currency_code, i.subtotal_amount, i.discount_amount, i.total_amount,
                i.status, coalesce(tm.display_name, 'System') as uploaded_by, i.updated_at::text as updated_on
         from public.invoices i
         join public.clients c on c.id = i.client_id and c.tenant_id = i.tenant_id
         left join public.tenant_memberships tm on tm.id = i.created_by and tm.tenant_id = i.tenant_id
         left join lateral (
-          select string_agg(t.title, ', ' order by t.title) as task_title
+          select
+            string_agg(t.title, ', ' order by t.title) as task_title,
+            min(s.name) as service_name,
+            min(bte.billing_frequency) as billing_frequency,
+            min(bte.billing_period_key) as billing_period_key,
+            count(ii.id)::text as item_count,
+            coalesce(
+              json_agg(
+                json_build_object(
+                  'description', ii.description,
+                  'quantity', ii.quantity,
+                  'unitRate', ii.unit_rate,
+                  'grossAmount', ii.gross_amount,
+                  'discountAmount', ii.discount_amount,
+                  'netAmount', ii.net_amount,
+                  'taskDueOn', t.planned_due_at::date
+                )
+                order by t.planned_due_at nulls last, t.title, ii.id
+              ) filter (where ii.id is not null),
+              '[]'::json
+            ) as items
           from public.invoice_items ii
-          join public.tasks t on t.tenant_id = ii.tenant_id and t.id = ii.task_id
+          left join public.tasks t on t.tenant_id = ii.tenant_id and t.id = ii.task_id
+          left join public.services s on s.tenant_id = ii.tenant_id and s.id = coalesce(ii.service_id, t.service_id)
+          left join public.billable_task_entries bte on bte.tenant_id = ii.tenant_id and bte.id = ii.billable_task_entry_id
           where ii.tenant_id = i.tenant_id and ii.invoice_id = i.id
-        ) task_item on true
+        ) item_data on true
         where i.tenant_id = $1
           and ($2::uuid is null or i.client_id = $2)
         order by i.issued_on desc, i.created_at desc
       `,
       [tenantId, clientId ?? null],
     );
-    return result.rows.map((row) => ({
-      id: row.id, clientId: row.client_id, client: row.client, taskTitle: row.task_title, invoiceNumber: row.invoice_number,
-      issuedOn: row.issued_on, dueOn: row.due_on, currency: row.currency_code, amount: Number(row.total_amount),
-      status: row.status, visibility: "client", uploadedBy: row.uploaded_by, updatedOn: row.updated_on,
-    }));
+    return result.rows.map((row) => {
+      const items = parseInvoiceItems(row.items);
+      const frequency = toBillingFrequency(row.billing_frequency);
+      return {
+        id: row.id,
+        clientId: row.client_id,
+        client: row.client,
+        taskTitle: row.task_title,
+        serviceName: row.service_name,
+        billingLabel: row.billing_period_key ? billingGroupLabel(frequency, row.billing_period_key) : null,
+        itemCount: Number(row.item_count) || items.length,
+        subtotalAmount: Number(row.subtotal_amount),
+        discountAmount: Number(row.discount_amount),
+        items,
+        invoiceNumber: row.invoice_number,
+        issuedOn: row.issued_on,
+        dueOn: row.due_on,
+        currency: row.currency_code,
+        amount: Number(row.total_amount),
+        status: row.status,
+        visibility: "client",
+        uploadedBy: row.uploaded_by,
+        updatedOn: row.updated_on,
+      };
+    });
   }
 
   private async getEmployeeRecipientMembershipIds(client: PoolClient, tenantId: string, employeeIds: readonly string[]): Promise<readonly string[]> {
@@ -579,6 +929,137 @@ export class TenantAdminFinanceRepository {
       id: row.id, taskId: row.task_id, taskTitle: row.task_title, clientId: row.client_id, client: row.client,
       currency: row.currency_code, grossAmount: Number(row.gross_amount), discountAmount: Number(row.discount_amount), netAmount: Number(row.net_amount),
     }));
+  }
+
+  private async getBillingGroups(client: PoolClient, tenantId: string): Promise<readonly TenantBillingGroupRow[]> {
+    const result = await client.query<{
+      id: string;
+      task_id: string;
+      task_title: string;
+      task_due_on: string | null;
+      charge_status: string;
+      client_id: string;
+      client_name: string;
+      service_id: string;
+      service_name: string;
+      engagement_id: string | null;
+      billing_frequency: string;
+      billing_period_key: string;
+      currency_code: string;
+      financial_year_id: string;
+      financial_year_label: string | null;
+      gross_amount: string;
+    }>(
+      `
+        with charges as (
+          select
+            bte.id::text,
+            bte.task_id::text,
+            t.title as task_title,
+            t.planned_due_at::date::text as task_due_on,
+            bte.status as charge_status,
+            bte.client_id::text,
+            c.display_name as client_name,
+            t.service_id::text,
+            s.name as service_name,
+            t.engagement_id::text,
+            coalesce(bte.billing_frequency, 'one_time') as billing_frequency,
+            coalesce(bte.billing_period_key, bte.task_id::text) as billing_period_key,
+            bte.currency_code,
+            t.financial_year_id::text,
+            fy.label as financial_year_label,
+            bte.gross_amount
+          from public.billable_task_entries bte
+          join public.tasks t on t.id = bte.task_id and t.tenant_id = bte.tenant_id
+          join public.clients c on c.id = bte.client_id and c.tenant_id = bte.tenant_id
+          join public.services s on s.id = t.service_id and s.tenant_id = bte.tenant_id
+          left join public.tenant_financial_years fy
+            on fy.id = t.financial_year_id and fy.tenant_id = bte.tenant_id
+          where bte.tenant_id = $1
+            and bte.status in ('pending_review', 'approved_for_invoice')
+            and t.status <> 'cancelled'
+        )
+        select charges.*
+        from charges
+        where exists (
+          select 1
+          from charges as ready
+          where ready.client_id = charges.client_id
+            and ready.service_id = charges.service_id
+            and ready.engagement_id is not distinct from charges.engagement_id
+            and ready.billing_frequency = charges.billing_frequency
+            and ready.billing_period_key = charges.billing_period_key
+            and ready.currency_code = charges.currency_code
+            and ready.financial_year_id = charges.financial_year_id
+            and ready.charge_status = 'approved_for_invoice'
+        )
+        order by charges.client_name, charges.service_name, charges.billing_frequency, charges.billing_period_key,
+                 charges.task_due_on nulls last, charges.task_title
+      `,
+      [tenantId],
+    );
+
+    const groups = new Map<string, TenantBillingGroupRow>();
+    for (const row of result.rows) {
+      const frequency = toBillingFrequency(row.billing_frequency);
+      const id = billingGroupId({
+        clientId: row.client_id,
+        serviceId: row.service_id,
+        engagementId: row.engagement_id,
+        billingFrequency: frequency,
+        billingPeriodKey: row.billing_period_key,
+        currency: row.currency_code,
+        financialYearId: row.financial_year_id,
+      });
+      const existing = groups.get(id);
+      const charge: TenantBillingGroupChargeRow = {
+        id: row.id,
+        taskId: row.task_id,
+        taskTitle: row.task_title,
+        taskDueOn: row.task_due_on,
+        status: row.charge_status === "approved_for_invoice" ? "ready" : "awaiting",
+        grossAmount: Number(row.gross_amount),
+        currency: row.currency_code,
+      };
+      if (!existing) {
+        groups.set(id, {
+          id,
+          clientId: row.client_id,
+          clientName: row.client_name,
+          serviceId: row.service_id,
+          serviceName: row.service_name,
+          engagementId: row.engagement_id,
+          billingFrequency: frequency,
+          billingPeriodKey: row.billing_period_key,
+          billingPeriodLabel: billingPeriodDisplayLabel(frequency, row.billing_period_key),
+          billingLabel: billingGroupLabel(frequency, row.billing_period_key),
+          currency: row.currency_code,
+          financialYearId: row.financial_year_id,
+          financialYearLabel: row.financial_year_label,
+          status: "waiting",
+          expectedCount: 1,
+          readyCount: charge.status === "ready" ? 1 : 0,
+          expectedAmount: charge.grossAmount,
+          readyAmount: charge.status === "ready" ? charge.grossAmount : 0,
+          charges: [charge],
+        });
+        continue;
+      }
+      groups.set(id, {
+        ...existing,
+        expectedCount: existing.expectedCount + 1,
+        readyCount: existing.readyCount + (charge.status === "ready" ? 1 : 0),
+        expectedAmount: roundMoney(existing.expectedAmount + charge.grossAmount),
+        readyAmount: roundMoney(existing.readyAmount + (charge.status === "ready" ? charge.grossAmount : 0)),
+        charges: [...existing.charges, charge],
+      });
+    }
+
+    return [...groups.values()].flatMap((group) => {
+      const status = billingGroupStatus(group.readyCount, group.expectedCount);
+      if (status === "hidden") return [];
+      return [{ ...group, status }];
+    });
   }
 
   private async notifyClientInvoiceSent(client: PoolClient, context: TenantAdminRequestContext, invoiceId: string, clientId: string, invoiceNumber: string): Promise<void> {
@@ -654,9 +1135,15 @@ export class TenantAdminFinanceRepository {
       invoice_number: string | null;
       client_name: string | null;
       task_title: string | null;
+      service_name: string | null;
+      billing_frequency: string | null;
+      billing_period_key: string | null;
+      items: unknown;
       issued_on: string | null;
       due_on: string | null;
       currency: string | null;
+      subtotal_amount: string | null;
+      discount_amount: string | null;
       amount: number | null;
     }>(
       `
@@ -669,20 +1156,16 @@ export class TenantAdminFinanceRepository {
           i.id::text as invoice_id,
           i.invoice_number,
           c.display_name as client_name,
-          (
-            select t.title
-            from public.invoice_items ii
-            left join public.tasks t
-              on t.tenant_id = ii.tenant_id
-             and t.id = ii.task_id
-            where ii.tenant_id = i.tenant_id
-              and ii.invoice_id = i.id
-            order by ii.created_at asc
-            limit 1
-          ) as task_title,
+          item_data.task_title,
+          item_data.service_name,
+          item_data.billing_frequency,
+          item_data.billing_period_key,
+          item_data.items,
           i.issued_on::text,
           i.due_on::text,
           i.currency_code as currency,
+          i.subtotal_amount::text,
+          i.discount_amount::text,
           i.total_amount as amount
         from public.tenant_documents d
         left join public.clients c
@@ -695,6 +1178,35 @@ export class TenantAdminFinanceRepository {
              then (d.metadata->>'invoiceId')::uuid
            else null
          end
+        left join lateral (
+          select
+            string_agg(t.title, ', ' order by t.title) as task_title,
+            min(s.name) as service_name,
+            min(bte.billing_frequency) as billing_frequency,
+            min(bte.billing_period_key) as billing_period_key,
+            coalesce(
+              json_agg(
+                json_build_object(
+                  'description', ii.description,
+                  'quantity', ii.quantity,
+                  'unitRate', ii.unit_rate,
+                  'grossAmount', ii.gross_amount,
+                  'discountAmount', ii.discount_amount,
+                  'netAmount', ii.net_amount,
+                  'taskDueOn', t.planned_due_at::date
+                )
+                order by t.planned_due_at nulls last, t.title, ii.id
+              ) filter (where ii.id is not null),
+              '[]'::json
+            ) as items
+          from public.invoice_items ii
+          left join public.tasks t on t.tenant_id = ii.tenant_id and t.id = ii.task_id
+          left join public.services s on s.tenant_id = ii.tenant_id and s.id = coalesce(ii.service_id, t.service_id)
+          left join public.billable_task_entries bte on bte.tenant_id = ii.tenant_id and bte.id = ii.billable_task_entry_id
+          where i.id is not null
+            and ii.tenant_id = i.tenant_id
+            and ii.invoice_id = i.id
+        ) item_data on true
         where d.tenant_id = $1
           and d.id = $2
           and d.status = 'active'
@@ -741,9 +1253,16 @@ export class TenantAdminFinanceRepository {
         invoiceNumber: document.invoice_number,
         clientName: document.client_name,
         taskTitle: document.task_title,
+        serviceName: document.service_name ?? null,
+        billingLabel: document.billing_period_key
+          ? billingGroupLabel(toBillingFrequency(document.billing_frequency), document.billing_period_key)
+          : null,
+        items: parseInvoiceItems(document.items),
         issuedOn: document.issued_on,
         dueOn: document.due_on,
         currency: document.currency,
+        subtotalAmount: Number(document.subtotal_amount ?? document.amount),
+        discountAmount: Number(document.discount_amount ?? 0),
         amount: Number(document.amount),
       };
     }
@@ -820,8 +1339,22 @@ function isPermissionDenied(error: unknown): boolean {
   return typeof error === "object" && error !== null && "code" in error && error.code === "42501";
 }
 
-function calculateDiscount(grossAmount: number, type: "percentage" | "fixed" | undefined, value: number): number {
-  if (!type || value <= 0) return 0;
-  const amount = type === "percentage" ? grossAmount * (value / 100) : value;
-  return Math.min(grossAmount, Math.round(amount * 100) / 100);
+function parseInvoiceItems(value: unknown): TenantInvoiceItemRow[] {
+  const rows = typeof value === "string" ? (JSON.parse(value) as unknown) : value;
+  if (!Array.isArray(rows)) return [];
+  return rows.flatMap((row) => {
+    if (!row || typeof row !== "object") return [];
+    const record = row as Record<string, unknown>;
+    const description = typeof record.description === "string" ? record.description : "";
+    if (!description) return [];
+    return [{
+      description,
+      quantity: Number(record.quantity ?? 1),
+      unitRate: Number(record.unitRate ?? 0),
+      grossAmount: Number(record.grossAmount ?? 0),
+      discountAmount: Number(record.discountAmount ?? 0),
+      netAmount: Number(record.netAmount ?? record.grossAmount ?? 0),
+      taskDueOn: typeof record.taskDueOn === "string" ? record.taskDueOn : null,
+    }];
+  });
 }

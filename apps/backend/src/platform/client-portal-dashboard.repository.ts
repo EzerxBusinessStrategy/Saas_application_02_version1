@@ -56,6 +56,11 @@ type InvoiceRow = {
   id: string;
   invoice_number: string;
   task_title: string | null;
+  service_name: string | null;
+  billing_frequency: string | null;
+  billing_period_key: string | null;
+  item_count: string;
+  items: unknown;
   status: string;
   issued_on: string;
   due_on: string | null;
@@ -444,7 +449,12 @@ export class ClientPortalDashboardRepository {
         select
           i.id::text,
           i.invoice_number,
-          task_item.task_title,
+          item_data.task_title,
+          item_data.service_name,
+          item_data.billing_frequency,
+          item_data.billing_period_key,
+          item_data.item_count,
+          item_data.items,
           i.status,
           i.issued_on::text,
           i.due_on::text,
@@ -457,16 +467,35 @@ export class ClientPortalDashboardRepository {
           on p.invoice_id = i.id
          and p.tenant_id = i.tenant_id
         left join lateral (
-          select string_agg(t.title, ', ' order by t.title) as task_title
+          select
+            string_agg(t.title, ', ' order by t.title) as task_title,
+            min(s.name) as service_name,
+            min(bte.billing_frequency) as billing_frequency,
+            min(bte.billing_period_key) as billing_period_key,
+            count(ii.id)::text as item_count,
+            coalesce(
+              json_agg(
+                json_build_object(
+                  'description', ii.description,
+                  'netAmount', ii.net_amount
+                )
+                order by t.planned_due_at nulls last, t.title, ii.id
+              ) filter (where ii.id is not null),
+              '[]'::json
+            ) as items
           from public.invoice_items ii
-          join public.tasks t on t.tenant_id = ii.tenant_id and t.id = ii.task_id
+          left join public.tasks t on t.tenant_id = ii.tenant_id and t.id = ii.task_id
+          left join public.services s on s.tenant_id = ii.tenant_id and s.id = coalesce(ii.service_id, t.service_id)
+          left join public.billable_task_entries bte on bte.tenant_id = ii.tenant_id and bte.id = ii.billable_task_entry_id
           where ii.tenant_id = i.tenant_id and ii.invoice_id = i.id
-        ) task_item on true
+        ) item_data on true
         where i.tenant_id = $1
           and i.client_id = $2
           and i.status not in ('draft', 'cancelled', 'void')
           and i.issued_on between $3::date and $4::date
-        group by i.id, i.invoice_number, task_item.task_title, i.status, i.issued_on, i.due_on, i.currency_code, i.total_amount
+        group by i.id, i.invoice_number, item_data.task_title, item_data.service_name, item_data.billing_frequency,
+                 item_data.billing_period_key, item_data.item_count, item_data.items, i.status, i.issued_on, i.due_on,
+                 i.currency_code, i.total_amount
         order by i.issued_on desc, i.created_at desc
         limit 8
       `,

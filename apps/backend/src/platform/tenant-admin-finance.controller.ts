@@ -13,10 +13,13 @@ import {
   createTenantInvoiceSchema,
   CreateTenantDocumentUploadUrlRequest,
   createTaskInvoiceSchema,
+  createEntriesInvoiceSchema,
   CreateTenantDocumentRequest,
   CreateTenantInvoiceRequest,
   CreateTaskInvoiceRequest,
+  CreateEntriesInvoiceRequest,
   TenantBillableTaskEntriesResponseDto,
+  TenantBillingGroupsResponseDto,
   listTenantFinanceQuerySchema,
   ListTenantFinanceQuery,
   TenantDocumentDto,
@@ -109,6 +112,14 @@ export class TenantAdminFinanceController {
     return this.service.listBillableTaskEntries(context);
   }
 
+  @Get("billing-groups")
+  @RequirePermissions("invoice.create")
+  @ApiOperation({ summary: "Return tenant-scoped billing groups with approved charges." })
+  @ApiOkResponse({ type: TenantBillingGroupsResponseDto })
+  listBillingGroups(@CurrentRequestContext() context: RequestContext): Promise<TenantBillingGroupsResponseDto> {
+    return this.service.listBillingGroups(context);
+  }
+
   @Post("invoices/from-task")
   @RequirePermissions("invoice.create")
   @ApiOperation({ summary: "Create a draft invoice from one tenant-scoped task charge." })
@@ -118,6 +129,17 @@ export class TenantAdminFinanceController {
     @Body(new ZodValidationPipe(createTaskInvoiceSchema)) body: CreateTaskInvoiceRequest,
   ): Promise<TenantInvoiceDto> {
     return this.service.createInvoiceFromTask(context, body);
+  }
+
+  @Post("invoices/from-entries")
+  @RequirePermissions("invoice.create")
+  @ApiOperation({ summary: "Create one draft invoice from a complete billing group of approved charges." })
+  @ApiOkResponse({ type: TenantInvoiceDto })
+  createInvoiceFromEntries(
+    @CurrentRequestContext() context: RequestContext,
+    @Body(new ZodValidationPipe(createEntriesInvoiceSchema)) body: CreateEntriesInvoiceRequest,
+  ): Promise<TenantInvoiceDto> {
+    return this.service.createInvoiceFromEntries(context, body);
   }
 
   @Post("invoices/:invoiceId/send")

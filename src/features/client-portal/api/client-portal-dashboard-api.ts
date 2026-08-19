@@ -64,6 +64,13 @@ const clientPortalDashboardSchema = z.object({
       id: z.string(),
       invoiceNumber: z.string(),
       taskTitle: z.string().nullable(),
+      serviceName: z.string().nullable().optional().default(null),
+      billingLabel: z.string().nullable().optional().default(null),
+      itemCount: z.number().optional().default(0),
+      items: z.array(z.object({
+        description: z.string(),
+        netAmount: z.number(),
+      })).optional().default([]),
       status: z.string(),
       issuedOn: z.string(),
       dueOn: z.string().nullable(),

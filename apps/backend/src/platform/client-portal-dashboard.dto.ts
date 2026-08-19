@@ -49,10 +49,20 @@ export class ClientPortalDashboardRequestDto {
   @ApiProperty({ type: String }) updatedAt!: string;
 }
 
+export class ClientPortalDashboardInvoiceItemDto {
+  @ApiProperty({ type: String }) description!: string;
+  @ApiProperty({ type: Number }) netAmount!: number;
+}
+
 export class ClientPortalDashboardInvoiceDto {
   @ApiProperty({ type: String }) id!: string;
   @ApiProperty({ type: String }) invoiceNumber!: string;
   @ApiPropertyOptional({ type: String, nullable: true }) taskTitle!: string | null;
+  @ApiPropertyOptional({ type: String, nullable: true }) serviceName!: string | null;
+  @ApiPropertyOptional({ type: String, nullable: true }) billingLabel!: string | null;
+  @ApiProperty({ type: Number }) itemCount!: number;
+  @ApiProperty({ type: () => ClientPortalDashboardInvoiceItemDto, isArray: true })
+  items!: readonly ClientPortalDashboardInvoiceItemDto[];
   @ApiProperty({ type: String }) status!: string;
   @ApiProperty({ type: String }) issuedOn!: string;
   @ApiPropertyOptional({ type: String, nullable: true }) dueOn!: string | null;

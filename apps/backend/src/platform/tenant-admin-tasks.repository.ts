@@ -1987,10 +1987,12 @@ export class TenantAdminTasksRepository {
           tax_amount,
           net_amount,
           status,
+          billing_frequency,
+          billing_period_key,
           approved_by,
           approved_at
         )
-        values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 0, $12, 'pending_review', null, null)
+        values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 0, $12, 'pending_review', 'one_time', $2::text, null, null)
       `,
       [
         tenantId,

@@ -5,7 +5,9 @@ import {
   CreateTenantDocumentRequest,
   CreateTenantInvoiceRequest,
   CreateTaskInvoiceRequest,
+  CreateEntriesInvoiceRequest,
   TenantBillableTaskEntriesResponseDto,
+  TenantBillingGroupsResponseDto,
   TenantDocumentsResponseDto,
   TenantDocumentDto,
   TenantInvoicesResponseDto,
@@ -44,7 +46,25 @@ export class TenantAdminFinanceService {
       return { url: await this.storage.createSignedDownloadUrl(document.object) };
     }
 
-    const content = createInvoicePdf(document);
+    const content = createInvoicePdf({
+      invoiceNumber: document.invoiceNumber,
+      clientName: document.clientName,
+      serviceName: document.serviceName,
+      billingLabel: document.billingLabel,
+      taskTitle: document.taskTitle,
+      items: document.items.map((item) => ({
+        description: item.description,
+        quantity: item.quantity,
+        unitRate: item.unitRate,
+        amount: item.netAmount,
+      })),
+      issuedOn: document.issuedOn,
+      dueOn: document.dueOn,
+      currency: document.currency,
+      subtotalAmount: document.subtotalAmount,
+      discountAmount: document.discountAmount,
+      amount: document.amount,
+    });
     const object = await this.storage.storeGeneratedInvoice({
       tenantId: scoped.tenantId,
       clientId: document.clientId,
@@ -74,8 +94,16 @@ export class TenantAdminFinanceService {
     return { entries: await this.repository.listBillableTaskEntries(requireTenantAdminContext(context)) };
   }
 
+  async listBillingGroups(context: RequestContext): Promise<TenantBillingGroupsResponseDto> {
+    return { groups: await this.repository.listBillingGroups(requireTenantAdminContext(context)) };
+  }
+
   async createInvoiceFromTask(context: RequestContext, input: CreateTaskInvoiceRequest): Promise<TenantInvoiceDto> {
     return this.repository.createInvoiceFromTask(requireTenantAdminContext(context), input);
+  }
+
+  async createInvoiceFromEntries(context: RequestContext, input: CreateEntriesInvoiceRequest): Promise<TenantInvoiceDto> {
+    return this.repository.createInvoiceFromEntries(requireTenantAdminContext(context), input);
   }
 
   async sendInvoice(context: RequestContext, invoiceId: string): Promise<TenantInvoiceDto> {

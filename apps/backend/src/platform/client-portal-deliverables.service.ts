@@ -52,7 +52,20 @@ export class ClientPortalDeliverablesService {
       return { url: await this.storage.createSignedDownloadUrl(document.object) };
     }
 
-    const content = createInvoicePdf(document);
+    const content = createInvoicePdf({
+      invoiceNumber: document.invoiceNumber,
+      clientName: document.clientName,
+      serviceName: document.serviceName,
+      billingLabel: document.billingLabel,
+      taskTitle: document.taskTitle,
+      items: document.items,
+      issuedOn: document.issuedOn,
+      dueOn: document.dueOn,
+      currency: document.currency,
+      subtotalAmount: document.subtotalAmount,
+      discountAmount: document.discountAmount,
+      amount: document.amount,
+    });
     const object = await this.storage.storeGeneratedInvoice({
       tenantId: scoped.tenantId,
       clientId: document.clientId,

@@ -407,7 +407,7 @@ describe("TenantAdminTasksRepository", () => {
       { rateCardItemId: "rate-1", quantity: 1, unitRate: 1500, currencyCode: "INR" },
     );
 
-    expect(queries.join("\n")).toContain("'pending_review', null, null");
+    expect(queries.join("\n")).toContain("'pending_review', 'one_time', $2::text, null, null");
     expect(parameterCounts).toEqual([12]);
   });
 

@@ -142,3 +142,13 @@ Design status: Pending Figma verification.
   employee, or both. Related client is optional for ordinary documents and
   still required for agreements. Reuses Dialog, Input, Select, and Button.
   Figma MCP was not used.
+
+## Grouped invoicing
+
+Design status: Pending Figma verification.
+
+- Tenant Admin Invoices now shows Ready to bill group cards (Ready / Waiting)
+  and a right-side Review & create drawer. Invoice list summaries use
+  Service · N items. The client invoice list shows the same grouped summary
+  and line items. Reuses PageHeader, Card, Dialog, Badge, Button, Input,
+  Select, and DatePicker. Figma MCP was not used.

@@ -1,4 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
+import { billingGroupLabel, toBillingFrequency } from "./billing-charge-period";
 import { RequestContext } from "../auth/request-context";
 import { requireClientPortalContext } from "./client-portal-context";
 import {
@@ -84,6 +85,12 @@ export class ClientPortalDashboardService {
         id: invoice.id,
         invoiceNumber: invoice.invoice_number,
         taskTitle: invoice.task_title,
+        serviceName: invoice.service_name,
+        billingLabel: invoice.billing_period_key
+          ? billingGroupLabel(toBillingFrequency(invoice.billing_frequency), invoice.billing_period_key)
+          : null,
+        itemCount: Number(invoice.item_count) || parseInvoiceItems(invoice.items).length,
+        items: parseInvoiceItems(invoice.items),
         status: invoice.status,
         issuedOn: invoice.issued_on,
         dueOn: invoice.due_on,
@@ -94,6 +101,18 @@ export class ClientPortalDashboardService {
       })),
     };
   }
+}
+
+function parseInvoiceItems(value: unknown): Array<{ description: string; netAmount: number }> {
+  const rows = typeof value === "string" ? (JSON.parse(value) as unknown) : value;
+  if (!Array.isArray(rows)) return [];
+  return rows.flatMap((row) => {
+    if (!row || typeof row !== "object") return [];
+    const record = row as Record<string, unknown>;
+    const description = typeof record.description === "string" ? record.description : "";
+    if (!description) return [];
+    return [{ description, netAmount: Number(record.netAmount ?? 0) }];
+  });
 }
 
 function parseServiceTasks(value: unknown): ClientPortalDashboardServiceTaskDto[] {

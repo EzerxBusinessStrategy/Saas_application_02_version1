@@ -1,4 +1,6 @@
 import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { ConflictException } from "@nestjs/common";
 import { describe, expect, it, vi } from "vitest";
 import { TenantAdminClientServiceActivationRepository } from "../../src/platform/tenant-admin-client-service-activation.repository";
@@ -166,5 +168,12 @@ describe("TenantAdminClientServiceActivationRepository", () => {
     expect(sql).toContain("begin");
     expect(sql).toContain("e.client_id = $3");
     expect(sql).toContain("esc.tenant_id = $1");
+  });
+
+  it("stores billing frequency and period key on generated charges", () => {
+    const source = readFileSync(resolve(__dirname, "../../src/platform/tenant-admin-client-service-activation.repository.ts"), "utf8");
+    expect(source).toContain("billing_frequency, billing_period_key");
+    expect(source).toContain("resolveBillingPeriodKey");
+    expect(source).toContain("financialYearLabel: financialYear.label");
   });
 });

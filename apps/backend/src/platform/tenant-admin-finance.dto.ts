@@ -114,6 +114,22 @@ export const createTaskInvoiceSchema = z.object({
 }).and(invoiceDiscountSchema);
 export type CreateTaskInvoiceRequest = z.infer<typeof createTaskInvoiceSchema>;
 
+export const createEntriesInvoiceSchema = z.object({
+  billableTaskEntryIds: z.array(z.string().uuid()).min(1).max(100),
+  invoiceNumber: z.string().trim().min(1).max(64),
+  issuedOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  dueOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+}).and(invoiceDiscountSchema).superRefine((value, ctx) => {
+  if (new Set(value.billableTaskEntryIds).size !== value.billableTaskEntryIds.length) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["billableTaskEntryIds"],
+      message: "Each charge can appear only once on an invoice.",
+    });
+  }
+});
+export type CreateEntriesInvoiceRequest = z.infer<typeof createEntriesInvoiceSchema>;
+
 export const listTenantFinanceQuerySchema = z.object({
   clientId: optionalUuid,
 });
@@ -146,11 +162,27 @@ export class TenantDocumentsResponseDto {
   documents!: readonly TenantDocumentDto[];
 }
 
+export class TenantInvoiceItemDto {
+  @ApiProperty({ type: String }) description!: string;
+  @ApiProperty({ type: Number }) quantity!: number;
+  @ApiProperty({ type: Number }) unitRate!: number;
+  @ApiProperty({ type: Number }) grossAmount!: number;
+  @ApiProperty({ type: Number }) discountAmount!: number;
+  @ApiProperty({ type: Number }) netAmount!: number;
+  @ApiPropertyOptional({ type: String, nullable: true }) taskDueOn!: string | null;
+}
+
 export class TenantInvoiceDto {
   @ApiProperty({ type: String }) id!: string;
   @ApiProperty({ type: String }) clientId!: string;
   @ApiProperty({ type: String }) client!: string;
   @ApiPropertyOptional({ type: String, nullable: true }) taskTitle!: string | null;
+  @ApiPropertyOptional({ type: String, nullable: true }) serviceName!: string | null;
+  @ApiPropertyOptional({ type: String, nullable: true }) billingLabel!: string | null;
+  @ApiProperty({ type: Number }) itemCount!: number;
+  @ApiProperty({ type: Number }) subtotalAmount!: number;
+  @ApiProperty({ type: Number }) discountAmount!: number;
+  @ApiProperty({ type: () => TenantInvoiceItemDto, isArray: true }) items!: readonly TenantInvoiceItemDto[];
   @ApiProperty({ type: String }) invoiceNumber!: string;
   @ApiProperty({ type: String }) issuedOn!: string;
   @ApiPropertyOptional({ type: String, nullable: true }) dueOn!: string | null;
@@ -182,4 +214,43 @@ export class TenantBillableTaskEntryDto {
 export class TenantBillableTaskEntriesResponseDto {
   @ApiProperty({ type: () => TenantBillableTaskEntryDto, isArray: true })
   entries!: readonly TenantBillableTaskEntryDto[];
+}
+
+export class TenantBillingGroupChargeDto {
+  @ApiProperty({ type: String }) id!: string;
+  @ApiProperty({ type: String }) taskId!: string;
+  @ApiProperty({ type: String }) taskTitle!: string;
+  @ApiPropertyOptional({ type: String, nullable: true }) taskDueOn!: string | null;
+  @ApiProperty({ type: String, enum: ["ready", "awaiting"] }) status!: "ready" | "awaiting";
+  @ApiProperty({ type: Number }) grossAmount!: number;
+  @ApiProperty({ type: String }) currency!: string;
+}
+
+export class TenantBillingGroupDto {
+  @ApiProperty({ type: String }) id!: string;
+  @ApiProperty({ type: String }) clientId!: string;
+  @ApiProperty({ type: String }) clientName!: string;
+  @ApiProperty({ type: String }) serviceId!: string;
+  @ApiProperty({ type: String }) serviceName!: string;
+  @ApiPropertyOptional({ type: String, nullable: true }) engagementId!: string | null;
+  @ApiProperty({ type: String, enum: ["monthly", "quarterly", "annually", "one_time"] })
+  billingFrequency!: "monthly" | "quarterly" | "annually" | "one_time";
+  @ApiProperty({ type: String }) billingPeriodKey!: string;
+  @ApiProperty({ type: String }) billingPeriodLabel!: string;
+  @ApiProperty({ type: String }) billingLabel!: string;
+  @ApiProperty({ type: String }) currency!: string;
+  @ApiProperty({ type: String }) financialYearId!: string;
+  @ApiPropertyOptional({ type: String, nullable: true }) financialYearLabel!: string | null;
+  @ApiProperty({ type: String, enum: ["waiting", "ready"] }) status!: "waiting" | "ready";
+  @ApiProperty({ type: Number }) expectedCount!: number;
+  @ApiProperty({ type: Number }) readyCount!: number;
+  @ApiProperty({ type: Number }) expectedAmount!: number;
+  @ApiProperty({ type: Number }) readyAmount!: number;
+  @ApiProperty({ type: () => TenantBillingGroupChargeDto, isArray: true })
+  charges!: readonly TenantBillingGroupChargeDto[];
+}
+
+export class TenantBillingGroupsResponseDto {
+  @ApiProperty({ type: () => TenantBillingGroupDto, isArray: true })
+  groups!: readonly TenantBillingGroupDto[];
 }

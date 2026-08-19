@@ -4,6 +4,7 @@ import { databaseNotConfigured } from "../auth/auth-errors";
 import { DATABASE_POOL } from "../database/database.tokens";
 import { withDatabaseTransaction } from "../database/transaction-context";
 import { AGREEMENT_EXPIRED_MESSAGE } from "./agreement-expiry";
+import { billingGroupLabel, toBillingFrequency } from "./billing-charge-period";
 import { ClientPortalRequestContext, ClientPortalScope, resolveClientPortalScope } from "./client-portal-context";
 import { DecideClientPortalDeliverableRequest } from "./client-portal-deliverables.dto";
 import type { StoredDocumentObject } from "./tenant-document-storage.service";
@@ -18,9 +19,19 @@ export type ClientDownloadableDocument =
       readonly invoiceNumber: string;
       readonly clientName: string;
       readonly taskTitle: string | null;
+      readonly serviceName: string | null;
+      readonly billingLabel: string | null;
+      readonly items: readonly {
+        readonly description: string;
+        readonly quantity: number;
+        readonly unitRate: number;
+        readonly amount: number;
+      }[];
       readonly issuedOn: string;
       readonly dueOn: string | null;
       readonly currency: string;
+      readonly subtotalAmount: number;
+      readonly discountAmount: number;
       readonly amount: number;
     };
 
@@ -92,9 +103,15 @@ export class ClientPortalDeliverablesRepository {
         invoice_number: string | null;
         client_name: string | null;
         task_title: string | null;
+        service_name: string | null;
+        billing_frequency: string | null;
+        billing_period_key: string | null;
+        items: unknown;
         issued_on: string | null;
         due_on: string | null;
         currency: string | null;
+        subtotal_amount: string | null;
+        discount_amount: string | null;
         amount: number | null;
         valid_until: string | null;
       }>(
@@ -108,20 +125,16 @@ export class ClientPortalDeliverablesRepository {
             i.id::text as invoice_id,
             i.invoice_number,
             c.display_name as client_name,
-            (
-              select t.title
-              from public.invoice_items ii
-              left join public.tasks t
-                on t.tenant_id = ii.tenant_id
-               and t.id = ii.task_id
-              where ii.tenant_id = i.tenant_id
-                and ii.invoice_id = i.id
-              order by ii.created_at asc
-              limit 1
-            ) as task_title,
+            item_data.task_title,
+            item_data.service_name,
+            item_data.billing_frequency,
+            item_data.billing_period_key,
+            item_data.items,
             i.issued_on::text,
             i.due_on::text,
             i.currency_code as currency,
+            i.subtotal_amount::text,
+            i.discount_amount::text,
             i.total_amount as amount,
             nullif(d.metadata->>'validUntil', '') as valid_until
           from public.tenant_documents d
@@ -135,6 +148,32 @@ export class ClientPortalDeliverablesRepository {
                then (d.metadata->>'invoiceId')::uuid
              else null
            end
+          left join lateral (
+            select
+              string_agg(t.title, ', ' order by t.title) as task_title,
+              min(s.name) as service_name,
+              min(bte.billing_frequency) as billing_frequency,
+              min(bte.billing_period_key) as billing_period_key,
+              coalesce(
+                json_agg(
+                  json_build_object(
+                    'description', ii.description,
+                    'quantity', ii.quantity,
+                    'unitRate', ii.unit_rate,
+                    'amount', ii.net_amount
+                  )
+                  order by t.planned_due_at nulls last, t.title, ii.id
+                ) filter (where ii.id is not null),
+                '[]'::json
+              ) as items
+            from public.invoice_items ii
+            left join public.tasks t on t.tenant_id = ii.tenant_id and t.id = ii.task_id
+            left join public.services s on s.tenant_id = ii.tenant_id and s.id = coalesce(ii.service_id, t.service_id)
+            left join public.billable_task_entries bte on bte.tenant_id = ii.tenant_id and bte.id = ii.billable_task_entry_id
+            where i.id is not null
+              and ii.tenant_id = i.tenant_id
+              and ii.invoice_id = i.id
+          ) item_data on true
           where d.tenant_id = $1
             and d.client_id = $2
             and d.id = $3
@@ -180,9 +219,16 @@ export class ClientPortalDeliverablesRepository {
           invoiceNumber: document.invoice_number,
           clientName: document.client_name,
           taskTitle: document.task_title,
+          serviceName: document.service_name ?? null,
+          billingLabel: document.billing_period_key
+            ? billingGroupLabel(toBillingFrequency(document.billing_frequency), document.billing_period_key)
+            : null,
+          items: parseClientInvoicePdfItems(document.items),
           issuedOn: document.issued_on,
           dueOn: document.due_on,
           currency: document.currency,
+          subtotalAmount: Number(document.subtotal_amount ?? document.amount),
+          discountAmount: Number(document.discount_amount ?? 0),
           amount: Number(document.amount),
         };
       }
@@ -428,4 +474,26 @@ export class ClientPortalDeliverablesRepository {
       return work(client, scope);
     });
   }
+}
+
+function parseClientInvoicePdfItems(value: unknown): Array<{
+  description: string;
+  quantity: number;
+  unitRate: number;
+  amount: number;
+}> {
+  const rows = typeof value === "string" ? (JSON.parse(value) as unknown) : value;
+  if (!Array.isArray(rows)) return [];
+  return rows.flatMap((row) => {
+    if (!row || typeof row !== "object") return [];
+    const record = row as Record<string, unknown>;
+    const description = typeof record.description === "string" ? record.description : "";
+    if (!description) return [];
+    return [{
+      description,
+      quantity: Number(record.quantity ?? 1),
+      unitRate: Number(record.unitRate ?? 0),
+      amount: Number(record.amount ?? 0),
+    }];
+  });
 }

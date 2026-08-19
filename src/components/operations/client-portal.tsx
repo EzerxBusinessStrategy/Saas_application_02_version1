@@ -366,8 +366,22 @@ function ClientInvoices({
                 <div>
                   <p className="font-medium">{invoice.invoiceNumber}</p>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    {invoice.taskTitle ?? "Invoice"} · Issued {invoice.issuedOn}
+                    {invoice.serviceName
+                      ? `${invoice.serviceName}${invoice.billingLabel ? ` · ${invoice.billingLabel}` : ""}${invoice.itemCount > 1 ? ` · ${invoice.itemCount} items` : ""}`
+                      : (invoice.taskTitle ?? "Invoice")}
+                    {" · Due "}
+                    {invoice.dueOn ?? invoice.issuedOn}
                   </p>
+                  {invoice.items.length > 1 ? (
+                    <ul className="mt-2 grid gap-1 text-sm text-muted-foreground">
+                      {invoice.items.map((item) => (
+                        <li key={item.description} className="flex justify-between gap-3">
+                          <span>{item.description}</span>
+                          <span>{formatClientMoney(item.netAmount, invoice.currencyCode)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
                   <p className="mt-1 text-sm text-muted-foreground">
                     {formatClientMoney(invoice.totalAmount, invoice.currencyCode)} · Outstanding {formatClientMoney(invoice.outstandingAmount, invoice.currencyCode)}
                   </p>

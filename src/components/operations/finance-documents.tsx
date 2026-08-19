@@ -10,15 +10,15 @@ import {
   createSharedDocument,
   createSharedInvoice,
   getPrivateDocumentDownloadUrl,
-  createInvoiceFromTask,
+  createInvoiceFromEntries,
   listEmployeeDocumentOptions,
-  listTenantBillableTaskEntries,
+  listTenantBillingGroups,
   listTenantAdminTaskOptions,
   listSharedDocuments,
   listSharedInvoices,
   sendTenantInvoice,
   type EmployeeDocumentOptions,
-  type TenantBillableTaskEntry,
+  type TenantBillingGroup,
   type TenantAdminTaskOptions,
 } from "@/features/operations/api/operations-api";
 import { listClients } from "@/features/administration/api/administration-api";
@@ -181,7 +181,7 @@ function InvoicesWorkspace({ workspace }: { workspace: "admin" | "client" }) {
   const visible = (invoices ?? []).filter((invoice) => !search || [invoice.invoiceNumber, invoice.client, invoice.taskTitle, invoice.uploadedBy].filter(Boolean).join(" ").toLowerCase().includes(search.toLowerCase()));
   const columns: ColumnDef<SharedInvoice, unknown>[] = [
     { accessorKey: "invoiceNumber", header: "Invoice", cell: ({ row }) => <button className="text-left font-medium hover:text-primary" onClick={() => setSelected(row.original)}>{row.original.invoiceNumber}<span className="mt-1 block text-xs text-muted-foreground">{row.original.fileType} · {row.original.fileName}</span></button> },
-    { accessorKey: "client", header: "Client", cell: ({ row }) => <div><p className="font-medium">{row.original.client}</p><InvoiceTaskName taskTitle={row.original.taskTitle} /></div> },
+    { accessorKey: "client", header: "Client", cell: ({ row }) => <div><p className="font-medium">{row.original.client}</p><InvoiceSummary invoice={row.original} /></div> },
     { id: "amount", header: "Amount", cell: ({ row }) => rupees.format(row.original.amount) },
     { accessorKey: "dueOn", header: "Due date" },
     { accessorKey: "uploadedBy", header: "Uploaded by" },
@@ -189,11 +189,11 @@ function InvoicesWorkspace({ workspace }: { workspace: "admin" | "client" }) {
     { id: "status", header: "Invoice status", cell: ({ row }) => row.original.status === "draft" ? <Button size="sm" onClick={() => setSelected(row.original)}>Review and send</Button> : <div className="flex items-center gap-2"><StatusBadge status={row.original.status === "paid" ? "complete" : row.original.status === "overdue" ? "at-risk" : "on-track"} /><Button size="sm" variant="outline" onClick={() => downloadInvoicePdf(row.original)}><Download data-icon="inline-start" />Download</Button></div> },
   ];
   return <div className="flex flex-col gap-[30px]">
-    <PageHeader eyebrow="Finance" title="Invoices" description="Create task invoices, track them, and share them with clients." actions={workspace === "admin" ? <Button onClick={() => setUploadOpen(true)}><Upload data-icon="inline-start" />Upload invoice</Button> : undefined} />
+    <PageHeader eyebrow="Finance" title="Invoices" description="Create, review and share invoices with clients." actions={workspace === "admin" ? <Button onClick={() => setUploadOpen(true)}><Upload data-icon="inline-start" />Upload invoice</Button> : undefined} />
     <MetricStrip metrics={[{ label: "Total invoices", value: String(invoices?.length ?? 0) }, { label: "Outstanding", value: rupees.format((invoices ?? []).filter((item) => item.status !== "paid").reduce((total, item) => total + item.amount, 0)) }, { label: "Overdue", value: String((invoices ?? []).filter((item) => item.status === "overdue").length) }]} />
-    {workspace === "admin" ? <TaskBillingQueue onInvoiceCreated={(invoice) => { setInvoices((current) => [invoice, ...(current ?? [])]); setSelected(invoice); void refresh(); }} /> : null}
+    {workspace === "admin" ? <BillingQueue onInvoiceCreated={(invoice) => { setInvoices((current) => [invoice, ...(current ?? [])]); setSelected(invoice); void refresh(); }} /> : null}
     <FilterToolbar search={{ value: search, onChange: setSearch, label: "Search invoices", placeholder: "Search invoice number, client, task or uploader" }} />
-    <Card><CardContent className="pt-0"><div className="hidden md:block"><DataTable caption="Authorised invoices" columns={columns} data={visible} emptyTitle="No invoices yet" emptyDescription="Upload an invoice to begin managing client finance documents." /></div><div className="md:hidden">{visible.map((invoice) => <MobileEntityCard key={invoice.id} title={invoice.invoiceNumber} identifier={invoice.fileName} leading={<ReceiptText className="size-5 text-primary" />} status={<StatusBadge status={invoice.status === "paid" ? "complete" : "pending"} />} metadata={<><dt className="text-muted-foreground">Client</dt><dd>{invoice.client}<InvoiceTaskName taskTitle={invoice.taskTitle} /></dd><dt className="text-muted-foreground">Amount</dt><dd>{rupees.format(invoice.amount)}</dd></>} primaryAction={<Button size="sm" variant="outline" onClick={() => setSelected(invoice)}>View details</Button>} />)}</div></CardContent></Card>
+    <Card><CardContent className="pt-0"><div className="hidden md:block"><DataTable caption="Authorised invoices" columns={columns} data={visible} emptyTitle="No invoices yet" emptyDescription="Upload an invoice to begin managing client finance documents." /></div><div className="md:hidden">{visible.map((invoice) => <MobileEntityCard key={invoice.id} title={invoice.invoiceNumber} identifier={invoice.fileName} leading={<ReceiptText className="size-5 text-primary" />} status={<StatusBadge status={invoice.status === "paid" ? "complete" : "pending"} />} metadata={<><dt className="text-muted-foreground">Client</dt><dd>{invoice.client}<InvoiceSummary invoice={invoice} /></dd><dt className="text-muted-foreground">Amount</dt><dd>{rupees.format(invoice.amount)}</dd></>} primaryAction={<Button size="sm" variant="outline" onClick={() => setSelected(invoice)}>View details</Button>} />)}</div></CardContent></Card>
     <InvoiceDialog invoice={selected} open={Boolean(selected)} onOpenChange={(open) => !open && setSelected(null)} onSent={() => void refresh()} />
     {workspace === "admin" ? <InvoiceUploadDialog workspace={workspace} clients={clientOptions} open={uploadOpen} onOpenChange={setUploadOpen} onCreated={(invoice) => { setInvoices((current) => [invoice, ...(current ?? [])]); setUploadOpen(false); toast.success("Invoice saved."); }} /> : null}
   </div>;
@@ -284,9 +284,18 @@ function RecipientSummary({ document }: { document: SharedDocument }) {
   const groups = [["Tenant Admin", document.recipientTenantAdminIds.length], ["Employee", document.recipientEmployeeIds.length], ["Manager", document.recipientManagerIds.length], ["Client", document.recipientClientIds.length]].filter(([, count]) => Number(count));
   return <span className="text-sm text-muted-foreground">{groups.map(([role, count]) => `${role} ${count}`).join(" · ") || "Owner only"}</span>;
 }
-function InvoiceTaskName({ taskTitle, className = "" }: { taskTitle?: string | null; className?: string }) {
-  if (!taskTitle) return null;
-  return <span className={`invoice-task-name mt-1 block text-xs text-muted-foreground ${className}`}>Task: {taskTitle}</span>;
+function InvoiceSummary({ invoice }: { invoice: SharedInvoice }) {
+  if (invoice.serviceName) {
+    const count = invoice.itemCount || invoice.items.length;
+    return (
+      <span className="mt-1 block text-xs text-muted-foreground">
+        {invoice.serviceName}
+        {count > 0 ? ` · ${count} item${count === 1 ? "" : "s"}` : ""}
+      </span>
+    );
+  }
+  if (!invoice.taskTitle) return null;
+  return <span className="invoice-task-name mt-1 block text-xs text-muted-foreground">Task: {invoice.taskTitle}</span>;
 }
 
 function DocumentDialog({
@@ -384,7 +393,7 @@ function InvoiceDialog({ invoice, open, onOpenChange, onSent }: { invoice: Share
       setSending(false);
     }
   };
-  return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent title={invoice.invoiceNumber} description="Review the invoice PDF before sending it to the client." className="max-w-3xl"><div className="grid gap-5 pr-8"><dl className="grid gap-4 text-sm sm:grid-cols-2"><Detail label="Client" value={invoice.client} />{invoice.taskTitle ? <Detail label="Task" value={invoice.taskTitle} /> : null}<Detail label="Amount" value={rupees.format(invoice.amount)} /><Detail label="Due date" value={invoice.dueOn} /><Detail label="Visibility" value={invoice.visibility} /><Detail label="Uploaded by" value={invoice.uploadedBy} /></dl><InvoicePdfPreview invoice={invoice} /><div className="flex justify-end gap-2"><Button variant="outline" onClick={() => downloadInvoicePdf(invoice)}><Download data-icon="inline-start" />Download PDF</Button>{invoice.status === "draft" ? <Button disabled={sending} onClick={() => void send()}>{sending ? "Sending..." : "Send to client"}</Button> : null}</div></div></DialogContent></Dialog>;
+  return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent title={invoice.invoiceNumber} description="Review the invoice PDF before sending it to the client." className="max-w-3xl"><div className="grid gap-5 pr-8"><dl className="grid gap-4 text-sm sm:grid-cols-2"><Detail label="Client" value={invoice.client} />{invoice.serviceName ? <Detail label="Service" value={`${invoice.serviceName}${invoice.itemCount ? ` · ${invoice.itemCount} items` : ""}`} /> : invoice.taskTitle ? <Detail label="Task" value={invoice.taskTitle} /> : null}<Detail label="Amount" value={rupees.format(invoice.amount)} /><Detail label="Invoice date" value={invoice.issuedOn} /><Detail label="Payment due" value={invoice.dueOn} /><Detail label="Uploaded by" value={invoice.uploadedBy} /></dl>{invoice.items.length > 1 ? <ul className="grid gap-2 text-sm">{invoice.items.map((item) => <li key={item.description} className="flex justify-between gap-3"><span>{item.description}</span><span className="font-medium">{formatCurrency(item.netAmount, invoice.currency)}</span></li>)}</ul> : null}<InvoicePdfPreview invoice={invoice} /><div className="flex justify-end gap-2"><Button variant="outline" onClick={() => downloadInvoicePdf(invoice)}><Download data-icon="inline-start" />Download PDF</Button>{invoice.status === "draft" ? <Button disabled={sending} onClick={() => void send()}>{sending ? "Sending..." : "Send to client"}</Button> : null}</div></div></DialogContent></Dialog>;
 }
 
 function InvoicePdfPreview({ invoice }: { invoice: SharedInvoice }) {
@@ -397,23 +406,287 @@ function InvoicePdfPreview({ invoice }: { invoice: SharedInvoice }) {
   return <div className="overflow-hidden rounded-[var(--radius-control)] border bg-muted/20"><div className="border-b px-3 py-2 text-sm font-medium">PDF preview</div>{url ? <iframe title={`Invoice ${invoice.invoiceNumber} PDF preview`} src={url} className="h-96 w-full bg-white" /> : <div className="grid h-96 place-items-center text-sm text-muted-foreground">Preparing PDF preview...</div>}</div>;
 }
 
-function TaskBillingQueue({ onInvoiceCreated }: { onInvoiceCreated: (invoice: SharedInvoice) => void }) {
-  const queue = useQuery({ queryKey: ["tenant-billable-task-entries"], queryFn: listTenantBillableTaskEntries });
+function BillingQueue({ onInvoiceCreated }: { onInvoiceCreated: (invoice: SharedInvoice) => void }) {
+  const queue = useQuery({ queryKey: ["tenant-billing-groups"], queryFn: listTenantBillingGroups });
+  const [tab, setTab] = useState<"ready" | "waiting">("ready");
+  const [search, setSearch] = useState("");
   const [selectedClientId, setSelectedClientId] = useState("");
-  const [selected, setSelected] = useState<TenantBillableTaskEntry | null>(null);
-  if (queue.isPending) return <Card><CardContent className="py-5 text-sm text-muted-foreground">Loading task billing queue...</CardContent></Card>;
-  if (queue.isError) return <Card><CardContent className="flex items-center justify-between gap-3 py-5 text-sm text-destructive"><span>Task billing queue could not load.</span><Button size="sm" variant="outline" onClick={() => void queue.refetch()}>Retry</Button></CardContent></Card>;
-  const clients = [...new Map((queue.data ?? []).map((entry) => [entry.clientId, { id: entry.clientId, name: entry.client }])).values()];
-  const entries = selectedClientId ? (queue.data ?? []).filter((entry) => entry.clientId === selectedClientId) : queue.data ?? [];
-  return <><label className="block max-w-sm text-sm font-medium">Client<Select className="mt-1" value={selectedClientId} onChange={(event) => setSelectedClientId(event.target.value)}><option value="">All clients</option>{clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}</Select></label><Card><CardContent className="py-5"><div className="flex flex-wrap items-start justify-between gap-4"><div><h2 className="font-semibold">Ready to invoice</h2><p className="mt-1 text-sm text-muted-foreground">Task rates are locked at creation and become invoice-ready only after final Tenant Admin approval.</p></div><span className="text-sm text-muted-foreground">{entries.length} task{entries.length === 1 ? "" : "s"}</span></div>{entries.length ? <ul className="mt-4 divide-y border-t">{entries.map((entry) => <li key={entry.id} className="flex flex-wrap items-center justify-between gap-3 py-3"><div><p className="font-medium">{entry.taskTitle}</p><p className="mt-1 text-sm text-muted-foreground">{entry.client} · {formatCurrency(entry.grossAmount, entry.currency)}</p></div><Button size="sm" onClick={() => setSelected(entry)}>Generate invoice</Button></li>)}</ul> : <p className="mt-4 text-sm text-muted-foreground">No approved task charges match this client.</p>}</CardContent></Card><TaskInvoiceDialog entry={selected} onOpenChange={(open) => !open && setSelected(null)} onCreated={(invoice) => { setSelected(null); void queue.refetch(); onInvoiceCreated(invoice); }} /></>;
+  const [selectedPeriod, setSelectedPeriod] = useState("");
+  const [selected, setSelected] = useState<TenantBillingGroup | null>(null);
+  if (queue.isPending) return <Card><CardContent className="py-5 text-sm text-muted-foreground">Loading billing groups...</CardContent></Card>;
+  if (queue.isError) {
+    return (
+      <Card>
+        <CardContent className="flex items-center justify-between gap-3 py-5 text-sm text-destructive">
+          <span>Billing groups could not load.</span>
+          <Button size="sm" variant="outline" onClick={() => void queue.refetch()}>Retry</Button>
+        </CardContent>
+      </Card>
+    );
+  }
+  const groups = queue.data ?? [];
+  const readyGroups = groups.filter((group) => group.status === "ready");
+  const waitingGroups = groups.filter((group) => group.status === "waiting");
+  const clients = [...new Map(groups.map((group) => [group.clientId, { id: group.clientId, name: group.clientName }])).values()];
+  const periods = [...new Map(groups.map((group) => [group.billingPeriodKey, group.billingPeriodLabel])).entries()];
+  const filtered = (tab === "ready" ? readyGroups : waitingGroups).filter((group) => {
+    const haystack = [group.clientName, group.serviceName, group.billingLabel, ...group.charges.map((charge) => charge.taskTitle)].join(" ").toLowerCase();
+    return (!search || haystack.includes(search.toLowerCase())) &&
+      (!selectedClientId || group.clientId === selectedClientId) &&
+      (!selectedPeriod || group.billingPeriodKey === selectedPeriod);
+  });
+  return (
+    <Card>
+      <CardContent className="py-5">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h2 className="font-semibold">Ready to bill</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Approved charges wait in a billing group until every compatible charge is ready. Invoices are created only after you review the group.
+            </p>
+          </div>
+          <span className="text-sm text-muted-foreground">{groups.length} group{groups.length === 1 ? "" : "s"}</span>
+        </div>
+        <div className="mt-4">
+          <ResponsiveTabs
+            label="Billing group status"
+            value={tab}
+            onValueChange={(value) => setTab(value === "waiting" ? "waiting" : "ready")}
+            tabs={[
+              { value: "ready", label: `Ready ${readyGroups.length}` },
+              { value: "waiting", label: `Waiting ${waitingGroups.length}` },
+            ]}
+          />
+        </div>
+        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+          <label className="text-sm font-medium">
+            Search billing
+            <Input className="mt-1" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search billing..." />
+          </label>
+          <label className="text-sm font-medium">
+            Client
+            <Select className="mt-1" value={selectedClientId} onChange={(event) => setSelectedClientId(event.target.value)}>
+              <option value="">All clients</option>
+              {clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}
+            </Select>
+          </label>
+          <label className="text-sm font-medium">
+            Period
+            <Select className="mt-1" value={selectedPeriod} onChange={(event) => setSelectedPeriod(event.target.value)}>
+              <option value="">All periods</option>
+              {periods.map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+            </Select>
+          </label>
+        </div>
+        {filtered.length ? (
+          <ul className="mt-4 grid gap-3">
+            {filtered.map((group) => (
+              <li key={group.id}>
+                <BillingGroupCard group={group} onSelect={() => setSelected(group)} />
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="mt-4 text-sm text-muted-foreground">
+            {tab === "ready" ? "No complete billing groups are ready yet." : "No billing groups are waiting on remaining charges."}
+          </p>
+        )}
+      </CardContent>
+      <BillingGroupDrawer
+        group={selected}
+        onOpenChange={(open) => { if (!open) setSelected(null); }}
+        onCreated={(invoice) => {
+          setSelected(null);
+          void queue.refetch();
+          onInvoiceCreated(invoice);
+        }}
+      />
+    </Card>
+  );
 }
 
-function TaskInvoiceDialog({ entry, onOpenChange, onCreated }: { entry: TenantBillableTaskEntry | null; onOpenChange: (open: boolean) => void; onCreated: (invoice: SharedInvoice) => void }) {
-  const [invoiceNumber, setInvoiceNumber] = useState(""); const [dueOn, setDueOn] = useState(""); const [discountType, setDiscountType] = useState<"" | "percentage" | "fixed">(""); const [discountValue, setDiscountValue] = useState(""); const [saving, setSaving] = useState(false);
-  if (!entry) return null;
-  const discount = discountType === "percentage" ? Math.min(entry.grossAmount, entry.grossAmount * (Number(discountValue || 0) / 100)) : discountType === "fixed" ? Math.min(entry.grossAmount, Number(discountValue || 0)) : 0;
-  const submit = async () => { if (!invoiceNumber.trim() || !dueOn) return; setSaving(true); try { const invoice = await createInvoiceFromTask({ billableTaskEntryId: entry.id, invoiceNumber: invoiceNumber.trim(), issuedOn: new Date().toISOString().slice(0, 10), dueOn, discountType: discountType || undefined, discountValue: Number(discountValue || 0) }); toast.success("Invoice generated. Review and send it to the client."); onCreated(invoice); } catch (error) { toast.error(error instanceof Error ? error.message : "Invoice could not be created."); } finally { setSaving(false); } };
-  return <Dialog open onOpenChange={onOpenChange}><DialogContent title="Generate invoice" description="The final amount is calculated on the server."><div className="grid gap-4 pr-8"><p className="font-medium">{entry.taskTitle}</p><p className="text-sm text-muted-foreground">{entry.client} · {formatCurrency(entry.grossAmount, entry.currency)}</p><label className="text-sm font-medium">Invoice number<Input className="mt-1" value={invoiceNumber} onChange={(event) => setInvoiceNumber(event.target.value)} /></label><label className="text-sm font-medium">Due date<DatePicker className="mt-1" value={dueOn} onChange={setDueOn} aria-label="Due date" /></label><div className="grid gap-4 sm:grid-cols-2"><label className="text-sm font-medium">Discount<Select className="mt-1" value={discountType} onChange={(event) => setDiscountType(event.target.value as typeof discountType)}><option value="">No discount</option><option value="percentage">Percentage</option><option value="fixed">Fixed amount</option></Select></label><label className="text-sm font-medium">Discount value<Input className="mt-1" type="number" min="0" max={discountType === "percentage" ? "100" : undefined} disabled={!discountType} value={discountValue} onChange={(event) => setDiscountValue(event.target.value)} /></label></div><dl className="grid grid-cols-2 gap-3 rounded-[var(--radius-control)] border p-3 text-sm"><div><dt className="text-muted-foreground">Gross amount</dt><dd className="mt-1 font-medium">{formatCurrency(entry.grossAmount, entry.currency)}</dd></div><div><dt className="text-muted-foreground">After discount</dt><dd className="mt-1 font-medium">{formatCurrency(entry.grossAmount - discount, entry.currency)}</dd></div></dl><div className="flex justify-end gap-2"><Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button><Button disabled={saving || !invoiceNumber.trim() || !dueOn} onClick={() => void submit()}>{saving ? "Generating..." : "Generate invoice"}</Button></div></div></DialogContent></Dialog>;
+function BillingGroupCard({ group, onSelect }: { group: TenantBillingGroup; onSelect: () => void }) {
+  const readyNames = group.charges.filter((charge) => charge.status === "ready").map((charge) => charge.taskTitle);
+  return (
+    <div className="rounded-[var(--radius-card)] border p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="font-semibold">{group.clientName}</p>
+          <p className="mt-1 text-sm">{group.serviceName}</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            <Badge tone="info">{group.billingFrequency === "annually" ? "Annual" : group.billingFrequency === "one_time" ? "One-time" : group.billingFrequency === "quarterly" ? "Quarterly" : "Monthly"}</Badge>
+            <span className="ml-2">{group.billingPeriodLabel}</span>
+          </p>
+        </div>
+        <Badge tone={group.status === "ready" ? "success" : "warning"}>{group.status === "ready" ? "Ready" : "Waiting"}</Badge>
+      </div>
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-sm">
+        <span>{group.readyCount} / {group.expectedCount} charges ready</span>
+        <span className="font-medium">{formatCurrency(group.status === "ready" ? group.readyAmount : group.expectedAmount, group.currency)}</span>
+      </div>
+      {group.status === "ready" ? (
+        <p className="mt-2 text-sm text-muted-foreground">{readyNames.join(" · ")}</p>
+      ) : (
+        <ul className="mt-3 grid gap-2 text-sm">
+          {group.charges.map((charge) => (
+            <li key={charge.id} className="flex flex-wrap items-start justify-between gap-2">
+              <span>
+                {charge.status === "ready" ? "✓" : "○"} {charge.taskTitle}
+                {charge.status === "awaiting" ? <span className="mt-0.5 block text-xs text-muted-foreground">Awaiting completion / approval</span> : null}
+              </span>
+              <span className="font-medium">{formatCurrency(charge.grossAmount, charge.currency)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {group.status === "waiting" ? (
+        <p className="mt-3 text-sm text-muted-foreground">
+          {formatCurrency(group.readyAmount, group.currency)} ready · {formatCurrency(group.expectedAmount, group.currency)} expected
+        </p>
+      ) : null}
+      <div className="mt-4 flex justify-end">
+        <Button size="sm" variant={group.status === "ready" ? "default" : "outline"} onClick={onSelect}>
+          {group.status === "ready" ? "Review & create" : "View details"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function BillingGroupDrawer({
+  group,
+  onOpenChange,
+  onCreated,
+}: {
+  group: TenantBillingGroup | null;
+  onOpenChange: (open: boolean) => void;
+  onCreated: (invoice: SharedInvoice) => void;
+}) {
+  const [invoiceNumber, setInvoiceNumber] = useState("");
+  const [issuedOn, setIssuedOn] = useState("");
+  const [dueOn, setDueOn] = useState("");
+  const [discountType, setDiscountType] = useState<"" | "percentage" | "fixed">("");
+  const [discountValue, setDiscountValue] = useState("");
+  const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    setInvoiceNumber("");
+    setIssuedOn(new Date().toISOString().slice(0, 10));
+    setDueOn("");
+    setDiscountType("");
+    setDiscountValue("");
+  }, [group?.id]);
+  if (!group) return null;
+  const canCreate = group.status === "ready";
+  const subtotal = group.readyAmount;
+  const discount = discountType === "percentage"
+    ? Math.min(subtotal, subtotal * (Number(discountValue || 0) / 100))
+    : discountType === "fixed"
+      ? Math.min(subtotal, Number(discountValue || 0))
+      : 0;
+  const submit = async () => {
+    if (!canCreate || !invoiceNumber.trim() || !issuedOn || !dueOn) return;
+    setSaving(true);
+    try {
+      const invoice = await createInvoiceFromEntries({
+        billableTaskEntryIds: group.charges.filter((charge) => charge.status === "ready").map((charge) => charge.id),
+        invoiceNumber: invoiceNumber.trim(),
+        issuedOn,
+        dueOn,
+        discountType: discountType || undefined,
+        discountValue: Number(discountValue || 0),
+      });
+      toast.success("Invoice generated. Review and send it to the client.");
+      onCreated(invoice);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Invoice could not be created.");
+    } finally {
+      setSaving(false);
+    }
+  };
+  return (
+    <Dialog open onOpenChange={onOpenChange}>
+      <DialogContent
+        title={canCreate ? "Create invoice" : "Billing group"}
+        description={`${group.clientName} · ${group.serviceName}`}
+        className="left-auto right-0 top-0 h-full max-h-none w-full max-w-md translate-x-0 translate-y-0 overflow-y-auto rounded-none"
+      >
+        <div className="grid gap-4 pr-8">
+          <div>
+            <p className="font-medium">{group.clientName}</p>
+            <p className="mt-1 text-sm">{group.serviceName}</p>
+            <p className="mt-1 text-sm text-muted-foreground">{group.billingLabel}</p>
+            <p className="mt-2 text-sm">{group.readyCount} / {group.expectedCount} charges ready</p>
+          </div>
+          <div>
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Invoice items</p>
+            <ul className="mt-2 divide-y border-t">
+              {group.charges.map((charge) => (
+                <li key={charge.id} className="flex flex-wrap items-start justify-between gap-3 py-3">
+                  <div>
+                    <p className="font-medium">{charge.taskTitle}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {charge.status === "ready" ? `Task due: ${formatTaskDue(charge.taskDueOn)}` : "Awaiting completion / approval"}
+                    </p>
+                  </div>
+                  <p className="font-medium">{formatCurrency(charge.grossAmount, charge.currency)}</p>
+                </li>
+              ))}
+            </ul>
+          </div>
+          <dl className="grid gap-2 text-sm">
+            <div className="flex justify-between gap-3"><dt className="text-muted-foreground">Subtotal</dt><dd className="font-medium">{formatCurrency(subtotal, group.currency)}</dd></div>
+            {canCreate && discount > 0 ? <div className="flex justify-between gap-3"><dt className="text-muted-foreground">Discount</dt><dd className="font-medium">{formatCurrency(discount, group.currency)}</dd></div> : null}
+            <div className="flex justify-between gap-3"><dt className="text-muted-foreground">Total</dt><dd className="font-medium">{formatCurrency(subtotal - discount, group.currency)}</dd></div>
+          </dl>
+          {canCreate ? (
+            <>
+              <label className="text-sm font-medium">
+                Discount
+                <Select className="mt-1" value={discountType} onChange={(event) => setDiscountType(event.target.value as typeof discountType)}>
+                  <option value="">No discount</option>
+                  <option value="percentage">Percentage</option>
+                  <option value="fixed">Fixed amount</option>
+                </Select>
+              </label>
+              <label className="text-sm font-medium">
+                Discount value
+                <Input className="mt-1" type="number" min="0" max={discountType === "percentage" ? "100" : undefined} disabled={!discountType} value={discountValue} onChange={(event) => setDiscountValue(event.target.value)} />
+              </label>
+              <label className="text-sm font-medium">
+                Invoice number
+                <Input className="mt-1" value={invoiceNumber} onChange={(event) => setInvoiceNumber(event.target.value)} placeholder="INV/26-27/0042" />
+              </label>
+              <label className="text-sm font-medium">
+                Invoice date
+                <DatePicker className="mt-1" value={issuedOn} onChange={setIssuedOn} aria-label="Invoice date" />
+              </label>
+              <label className="text-sm font-medium">
+                Payment due
+                <DatePicker className="mt-1" value={dueOn} onChange={setDueOn} aria-label="Payment due" />
+              </label>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+                <Button disabled={saving || !invoiceNumber.trim() || !issuedOn || !dueOn} onClick={() => void submit()}>
+                  {saving ? "Generating..." : "Generate draft"}
+                </Button>
+              </div>
+            </>
+          ) : (
+            <div className="flex justify-end">
+              <Button variant="outline" onClick={() => onOpenChange(false)}>Close</Button>
+            </div>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function formatTaskDue(value: string | null) {
+  if (!value) return "Not set";
+  const date = new Date(`${value}T00:00:00.000Z`);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
 }
 
 function formatCurrency(amount: number, currency: string) { return new Intl.NumberFormat("en-IN", { style: "currency", currency: /^[A-Z]{3}$/.test(currency) ? currency : "INR", maximumFractionDigits: 2 }).format(amount); }
