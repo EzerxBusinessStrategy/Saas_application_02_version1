@@ -57,7 +57,7 @@ export function employeesForServiceAllocation<T extends { name: string; skills: 
   serviceName: string,
 ): T[] {
   const needle = serviceName.trim().toLowerCase();
-  return employees.toSorted((left, right) => {
+  return [...employees].sort((left, right) => {
     const leftMatch = needle ? left.skills.some((skill) => skill.toLowerCase() === needle) : false;
     const rightMatch = needle ? right.skills.some((skill) => skill.toLowerCase() === needle) : false;
     if (leftMatch !== rightMatch) return leftMatch ? -1 : 1;

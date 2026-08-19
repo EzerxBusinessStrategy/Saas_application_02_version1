@@ -1,6 +1,8 @@
 "use client";
 
 import { Select } from "@/components/ui/select";
+import { cn } from "@/lib/utils";
+import type { ServiceOnboardingAssignee } from "@/features/administration/api/service-onboarding-api";
 import { specializationLabel } from "@/components/tenant-administration/employee-specialization-picker";
 
 export function ServiceEmployeeSelector({

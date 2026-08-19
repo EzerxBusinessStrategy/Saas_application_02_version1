@@ -364,8 +364,8 @@ export class TenantAdminTasksRepository {
       const specializationIds = await resolveServiceIdsForSpecialization(
         client,
         context.tenantId,
-        input.serviceIds,
-        input.skills,
+        input.serviceIds ?? [],
+        input.skills ?? [],
       );
       await replaceEmployeeSpecialization(client, context.tenantId, employee.id, specializationIds);
       if (input.isManager) {

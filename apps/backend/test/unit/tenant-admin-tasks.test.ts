@@ -133,7 +133,7 @@ describe("TenantAdminTasksService", () => {
 
     await service.createEmployee(context, {
       name: "Employee One", email: " Employee@Example.com ", password: "employee-password", employeeCode: "EMP001",
-      isManager: false, skills: [], weeklyCapacityHours: 40,
+      isManager: false, skills: [], serviceIds: [], weeklyCapacityHours: 40,
     });
 
     expect(passwords.hash).toHaveBeenCalledWith("employee-password");
