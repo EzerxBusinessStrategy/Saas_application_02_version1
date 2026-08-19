@@ -18,6 +18,15 @@ const mockPlatformConfigurationApi = vi.hoisted(() => ({
 
 vi.mock("@/features/platform/api/super-admin-dashboard-api", () => mockDashboardApi);
 vi.mock("@/features/platform/api/super-admin-platform-configuration-api", () => mockPlatformConfigurationApi);
+vi.mock("@/features/identity/api/current-user-api", () => ({
+  useCurrentUser: () => ({
+    data: { user: { displayName: "Platform Administrator", email: "admin@example.com" }, roles: ["SUPER_ADMIN"] },
+    isPending: false,
+  }),
+  currentUserQueryKey: (portal: string) => ["me", portal],
+  uploadCurrentUserAvatar: vi.fn(),
+  removeCurrentUserAvatar: vi.fn(),
+}));
 
 afterEach(() => {
   cleanup();

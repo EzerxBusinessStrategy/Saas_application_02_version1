@@ -25,6 +25,7 @@ test("client dashboard queries use the authenticated account's business client s
   expect(source).toContain("csr.status = 'submitted'");
   expect(source).toContain("csr.submitted_at::date between $3::date and $4::date");
   expect(source).toContain("i.issued_on between $3::date and $4::date");
+  expect(source).toContain("limit 200");
   expect(source).toContain("period.from");
   expect(source).toContain("period.to");
   expect(source).not.toContain("context.clientAccountId");

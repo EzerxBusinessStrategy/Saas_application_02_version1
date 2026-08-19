@@ -39,10 +39,22 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { ErrorState } from "@/components/shared/error-state";
 import { DashboardGreetingBanner } from "@/components/shared/dashboard-greeting-banner";
 import { FilterToolbar } from "@/components/shared/filter-toolbar";
+import { SearchableFilterSelect } from "@/components/shared/searchable-filter-select";
+import {
+  clientDeliverableAccessOptions,
+  clientDeliverableDecisionOptions,
+  clientInvoiceBalanceFilterOptions,
+  clientRequestStatusFilterOptions,
+  matchesClientDeliverableListFilters,
+  matchesClientInvoiceListFilters,
+  matchesClientRequestListFilters,
+  uniqueNamedOptions,
+} from "@/components/operations/client-portal-list-filters";
 import { LoadingState } from "@/components/shared/loading-state";
 import { ConfirmationDialog } from "@/components/shared/confirmation-dialog";
 import { MetricCard } from "@/components/shared/metric-card";
 import { PageHeader } from "@/components/shared/page-header";
+import { ProfilePhotoEditor } from "@/components/shared/profile-photo-editor";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
@@ -356,58 +368,108 @@ function ClientInvoices({
 }: {
   invoices: Awaited<ReturnType<typeof getClientPortalDashboard>>["invoices"];
 }) {
+  const [search, setSearch] = useState("");
+  const [balance, setBalance] = useState("");
+  const [status, setStatus] = useState("");
+  const statusOptions = uniqueNamedOptions(invoices.map((invoice) => invoice.status));
+  const visible = invoices.filter((invoice) =>
+    matchesClientInvoiceListFilters(invoice, { search, balance, status }),
+  );
+  const activeFilterCount = (search ? 1 : 0) + (balance ? 1 : 0) + (status ? 1 : 0);
+
   return (
-    <Card>
-      <CardContent className="pt-[30px]">
-        {invoices.length ? (
-          <ul className="flex flex-col divide-y">
-            {invoices.map((invoice) => (
-              <li key={invoice.id} className="flex flex-wrap items-center justify-between gap-4 py-4 first:pt-0">
-                <div>
-                  <p className="font-medium">{invoice.invoiceNumber}</p>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    {invoice.serviceName
-                      ? `${invoice.serviceName}${invoice.billingLabel ? ` · ${invoice.billingLabel}` : ""}${invoice.itemCount > 1 ? ` · ${invoice.itemCount} items` : ""}`
-                      : (invoice.taskTitle ?? "Invoice")}
-                    {" · Due "}
-                    {invoice.dueOn ?? invoice.issuedOn}
-                  </p>
-                  {invoice.items.length > 1 ? (
-                    <ul className="mt-2 grid gap-1 text-sm text-muted-foreground">
-                      {invoice.items.map((item) => (
-                        <li key={item.description} className="flex justify-between gap-3">
-                          <span>{item.description}</span>
-                          <span>{formatClientMoney(item.netAmount, invoice.currencyCode)}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : null}
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    {formatClientMoney(invoice.totalAmount, invoice.currencyCode)} · Outstanding {formatClientMoney(invoice.outstandingAmount, invoice.currencyCode)}
-                  </p>
-                </div>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() =>
-                    void openSignedDownloadUrl(() => getClientPortalInvoiceDownloadUrl(invoice.id)).catch((error) =>
-                      toast.error(error instanceof Error ? error.message : "Invoice download could not be started."),
-                    )
-                  }
-                >
-                  Download invoice
-                </Button>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <EmptyState
-            title="No invoices"
-            description="Issued invoices for this client account will appear here."
-          />
-        )}
-      </CardContent>
-    </Card>
+    <div className="flex flex-col gap-5">
+      <FilterToolbar
+        search={{
+          value: search,
+          onChange: setSearch,
+          label: "Search invoices",
+          placeholder: "Search invoice number or service...",
+        }}
+        activeFilterCount={activeFilterCount}
+        onClear={() => {
+          setSearch("");
+          setBalance("");
+          setStatus("");
+        }}
+        filterGridClassName="grid gap-2 sm:grid-cols-2"
+      >
+        <SearchableFilterSelect
+          label="Balance"
+          ariaLabel="Filter invoices by balance"
+          value={balance}
+          onChange={setBalance}
+          options={clientInvoiceBalanceFilterOptions}
+          emptyLabel="All balances"
+          placeholder="Search balance..."
+        />
+        <SearchableFilterSelect
+          label="Status"
+          ariaLabel="Filter invoices by status"
+          value={status}
+          onChange={setStatus}
+          options={statusOptions}
+          emptyLabel="All statuses"
+          placeholder="Search status..."
+        />
+      </FilterToolbar>
+      <Card>
+        <CardContent className="pt-[30px]">
+          {visible.length ? (
+            <ul className="flex flex-col divide-y">
+              {visible.map((invoice) => (
+                <li key={invoice.id} className="flex flex-wrap items-center justify-between gap-4 py-4 first:pt-0">
+                  <div>
+                    <p className="font-medium">{invoice.invoiceNumber}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {invoice.serviceName
+                        ? `${invoice.serviceName}${invoice.billingLabel ? ` · ${invoice.billingLabel}` : ""}${invoice.itemCount > 1 ? ` · ${invoice.itemCount} items` : ""}`
+                        : (invoice.taskTitle ?? "Invoice")}
+                      {" · Due "}
+                      {invoice.dueOn ?? invoice.issuedOn}
+                    </p>
+                    {invoice.items.length > 1 ? (
+                      <ul className="mt-2 grid gap-1 text-sm text-muted-foreground">
+                        {invoice.items.map((item) => (
+                          <li key={item.description} className="flex justify-between gap-3">
+                            <span>{item.description}</span>
+                            <span>{formatClientMoney(item.netAmount, invoice.currencyCode)}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : null}
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {formatClientMoney(invoice.totalAmount, invoice.currencyCode)} · Outstanding {formatClientMoney(invoice.outstandingAmount, invoice.currencyCode)}
+                      {invoice.status ? ` · ${humanizeClientStatus(invoice.status)}` : ""}
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() =>
+                      void openSignedDownloadUrl(() => getClientPortalInvoiceDownloadUrl(invoice.id)).catch((error) =>
+                        toast.error(error instanceof Error ? error.message : "Invoice download could not be started."),
+                      )
+                    }
+                  >
+                    Download invoice
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <EmptyState
+              title={invoices.length ? "No invoices match these filters" : "No invoices"}
+              description={
+                invoices.length
+                  ? "Clear filters to see invoices issued in the selected period."
+                  : "Issued invoices for this client account will appear here."
+              }
+            />
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 
@@ -490,6 +552,9 @@ function ClientRequests({
   const [title, setTitle] = useState("");
   const [comment, setComment] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [search, setSearch] = useState("");
+  const [status, setStatus] = useState("");
+  const [submittedScope, setSubmittedScope] = useState<"all" | "period">("all");
   const catalogueQuery = useQuery({
     queryKey: ["client-service-catalogue"],
     queryFn: getClientServiceCatalogue,
@@ -523,9 +588,18 @@ function ClientRequests({
           .map((request) => ({ ...request, comment: undefined as string | undefined })),
       ];
   const visible = listed.filter((item) => {
-    const day = item.submittedAt.slice(0, 10);
-    return day >= period.from && day <= period.to;
+    if (!compact && submittedScope === "period") {
+      const day = item.submittedAt.slice(0, 10);
+      if (day < period.from || day > period.to) return false;
+    }
+    if (compact) {
+      const day = item.submittedAt.slice(0, 10);
+      if (day < period.from || day > period.to) return false;
+      return true;
+    }
+    return matchesClientRequestListFilters(item, { search, status });
   });
+  const requestFilterCount = (search ? 1 : 0) + (status ? 1 : 0) + (submittedScope === "period" ? 1 : 0);
   const timeline = compact
     ? [...visible]
         .sort((left, right) => Date.parse(right.updatedAt) - Date.parse(left.updatedAt))
@@ -591,6 +665,44 @@ function ClientRequests({
 
   return (
     <>
+    {!compact ? (
+      <FilterToolbar
+        search={{
+          value: search,
+          onChange: setSearch,
+          label: "Search requests",
+          placeholder: "Search title or service...",
+        }}
+        activeFilterCount={requestFilterCount}
+        onClear={() => {
+          setSearch("");
+          setStatus("");
+          setSubmittedScope("all");
+        }}
+        filterGridClassName="grid gap-2 sm:grid-cols-2"
+      >
+        <SearchableFilterSelect
+          label="Status"
+          ariaLabel="Filter requests by status"
+          value={status}
+          onChange={setStatus}
+          options={clientRequestStatusFilterOptions}
+          emptyLabel="All statuses"
+          placeholder="Search status..."
+        />
+        <label className="flex flex-col gap-1 text-sm font-medium">
+          Submitted
+          <Select
+            aria-label="Filter requests by submitted date"
+            value={submittedScope}
+            onChange={(event) => setSubmittedScope(event.target.value as "all" | "period")}
+          >
+            <option value="all">All dates</option>
+            <option value="period">In selected period</option>
+          </Select>
+        </label>
+      </FilterToolbar>
+    ) : null}
     <Card>
       <CardHeader>
         <div className="flex items-start justify-between gap-4">
@@ -652,11 +764,13 @@ function ClientRequests({
           </ul>
         ) : (
           <EmptyState
-            title={compact ? "No active requests" : "No requests"}
+            title={compact ? "No active requests" : listed.length ? "No requests match these filters" : "No requests"}
             description={
               compact
                 ? "Need another service? Browse your available service catalogue."
-                : "Tick the services you need, or send a custom request, then wait for the tenant to accept."
+                : listed.length
+                  ? "Clear filters to see every request again."
+                  : "Tick the services you need, or send a custom request, then wait for the tenant to accept."
             }
           />
         )}
@@ -840,6 +954,16 @@ function ClientDeliverablesList({
   } | null>(null);
   const [comment, setComment] = useState("");
   const [saving, setSaving] = useState(false);
+  const [search, setSearch] = useState("");
+  const [decision, setDecision] = useState("");
+  const [category, setCategory] = useState("");
+  const [access, setAccess] = useState("");
+  const categoryOptions = uniqueNamedOptions(deliverables.map((item) => item.category));
+  const visible = deliverables.filter((item) =>
+    matchesClientDeliverableListFilters(item, { search, decision, category, access }),
+  );
+  const activeFilterCount =
+    (search ? 1 : 0) + (decision ? 1 : 0) + (category ? 1 : 0) + (access ? 1 : 0);
 
   async function submit() {
     if (!selected) return;
@@ -868,11 +992,55 @@ function ClientDeliverablesList({
 
   return (
     <>
+      <FilterToolbar
+        search={{
+          value: search,
+          onChange: setSearch,
+          label: "Search deliverables",
+          placeholder: "Search title or file name...",
+        }}
+        activeFilterCount={activeFilterCount}
+        onClear={() => {
+          setSearch("");
+          setDecision("");
+          setCategory("");
+          setAccess("");
+        }}
+        filterGridClassName="grid gap-2 sm:grid-cols-2 xl:grid-cols-3"
+      >
+        <SearchableFilterSelect
+          label="Decision"
+          ariaLabel="Filter deliverables by decision"
+          value={decision}
+          onChange={setDecision}
+          options={clientDeliverableDecisionOptions}
+          emptyLabel="All decisions"
+          placeholder="Search decision..."
+        />
+        <SearchableFilterSelect
+          label="Category"
+          ariaLabel="Filter deliverables by category"
+          value={category}
+          onChange={setCategory}
+          options={categoryOptions}
+          emptyLabel="All categories"
+          placeholder="Search category..."
+        />
+        <SearchableFilterSelect
+          label="Access"
+          ariaLabel="Filter deliverables by access"
+          value={access}
+          onChange={setAccess}
+          options={clientDeliverableAccessOptions}
+          emptyLabel="All access"
+          placeholder="Search access..."
+        />
+      </FilterToolbar>
       <Card>
         <CardContent className="pt-[30px]">
-          {deliverables.length ? (
+          {visible.length ? (
             <ul className="flex flex-col divide-y">
-              {deliverables.map((item) => {
+              {visible.map((item) => {
                 const isExpiredAgreement =
                   item.category === "agreement" && item.accessStatus === "expired";
 
@@ -976,8 +1144,12 @@ function ClientDeliverablesList({
             </ul>
           ) : (
             <EmptyState
-              title="No deliverables"
-              description="Documents shared by your tenant for this client account will appear here."
+              title={deliverables.length ? "No deliverables match these filters" : "No deliverables"}
+              description={
+                deliverables.length
+                  ? "Clear filters to see every document shared with this account."
+                  : "Documents shared by your tenant for this client account will appear here."
+              }
             />
           )}
         </CardContent>
@@ -1070,6 +1242,7 @@ function ClientProfile() {
         title="Profile"
         description="Customise your portal name and colours."
       />
+      <ProfilePhotoEditor portal="client" />
       {query.isPending ? <LoadingState label="Loading profile" rows={2} /> : null}
       {query.isError ? <ErrorState title="Profile could not load" onRetry={() => void query.refetch()} /> : null}
       {profile ? (

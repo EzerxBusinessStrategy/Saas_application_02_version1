@@ -432,7 +432,7 @@ export class ClientPortalDashboardRepository {
             and csr.submitted_at::date between $3::date and $4::date
         ) requests
         order by updated_at desc, id desc
-        limit 8
+        limit 200
       `,
       [context.tenantId, context.clientId, period.from, period.to],
     );
@@ -497,7 +497,7 @@ export class ClientPortalDashboardRepository {
                  item_data.billing_period_key, item_data.item_count, item_data.items, i.status, i.issued_on, i.due_on,
                  i.currency_code, i.total_amount
         order by i.issued_on desc, i.created_at desc
-        limit 8
+        limit 200
       `,
       [context.tenantId, context.clientId, period.from, period.to],
     );

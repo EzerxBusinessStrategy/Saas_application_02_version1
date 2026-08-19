@@ -379,4 +379,29 @@ describe("database migrations", () => {
     expect(sql).toContain("- 'passwordHash'");
     expect(sql).not.toContain("drop table");
   });
+
+  test("adds user avatar path storage and a private avatars bucket", () => {
+    expect(migrationNames).toContain("0075_user_avatars.sql");
+    expect(migrationNames.indexOf("0075_user_avatars.sql")).toBeGreaterThan(
+      migrationNames.indexOf("0074_audit_event_operational_context.sql"),
+    );
+
+    const sql = readFileSync(
+      resolve(__dirname, "../../drizzle/migrations/0075_user_avatars.sql"),
+      "utf8",
+    );
+
+    expect(sql).toContain("add column if not exists avatar_path text");
+    expect(sql).toContain("add column if not exists avatar_updated_at timestamptz");
+    expect(sql).toContain("grant update (avatar_path, avatar_updated_at, updated_at) on public.users to app_runtime");
+    expect(sql).toContain("users_update_own_avatar");
+    expect(sql).toContain("id = private.current_user_id()");
+    expect(sql).toContain("'avatars'");
+    expect(sql).toContain("file_size_limit");
+    expect(sql).toContain("5242880");
+    expect(sql).toContain("image/webp");
+    expect(sql).toContain("public = false");
+    expect(sql).not.toContain("drop table");
+    expect(sql).not.toMatch(/alter table [^\n]+ drop column/i);
+  });
 });

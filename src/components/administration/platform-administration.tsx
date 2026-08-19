@@ -27,6 +27,7 @@ import { ErrorState } from "@/components/shared/error-state";
 import { FilterToolbar } from "@/components/shared/filter-toolbar";
 import { LoadingState } from "@/components/shared/loading-state";
 import { PageHeader } from "@/components/shared/page-header";
+import { ProfilePhotoEditor } from "@/components/shared/profile-photo-editor";
 import { Pagination } from "@/components/shared/pagination";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
@@ -555,6 +556,7 @@ export function PlatformConfiguration() {
         title="Platform configuration"
         description="Set constrained platform identity, branding, and email defaults."
       />
+      <ProfilePhotoEditor portal="super-admin" />
       <form
         className="flex flex-col gap-[30px]"
         onSubmit={form.handleSubmit(publish)}

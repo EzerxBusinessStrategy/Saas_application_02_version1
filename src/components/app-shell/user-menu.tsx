@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { ChevronDown, LogOut, UserRound } from "lucide-react";
 import {
   DropdownMenu,
@@ -11,17 +11,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { UserAvatar } from "@/components/shared/user-avatar";
+import { useCurrentUser, type CurrentUserPortal } from "@/features/identity/api/current-user-api";
 import type { Workspace } from "@/types/domain";
-
-type PortalKey = "super-admin" | "tenant" | "employee" | "client";
-
-type AuthenticatedProfile = {
-  readonly user: {
-    readonly displayName: string;
-    readonly email: string;
-  };
-  readonly roles: readonly string[];
-};
 
 const roleLabels: Record<string, string> = {
   SUPER_ADMIN: "Super Admin",
@@ -34,7 +26,7 @@ const roleLabels: Record<string, string> = {
   CLIENT_USER: "Client",
 };
 
-const portalForWorkspace: Record<Workspace, PortalKey> = {
+const portalForWorkspace: Record<Workspace, CurrentUserPortal> = {
   "super-admin": "super-admin",
   admin: "tenant",
   manager: "employee",
@@ -57,28 +49,12 @@ export function UserMenu({
   workspace: Workspace;
   open?: boolean;
 }) {
-  const [profile, setProfile] = useState<AuthenticatedProfile | null>(null);
-  const [loadingProfile, setLoadingProfile] = useState(true);
   const [signingOut, setSigningOut] = useState(false);
   const [signOutError, setSignOutError] = useState<string | null>(null);
   const portal = portalForWorkspace[workspace];
-
-  useEffect(() => {
-    const controller = new AbortController();
-    void fetch(`/api/me?portal=${portal}`, { cache: "no-store", signal: controller.signal })
-      .then(async (response) => {
-        if (!response.ok) return null;
-        return (await response.json()) as AuthenticatedProfile;
-      })
-      .then((response) => {
-        if (response) setProfile(response);
-      })
-      .catch(() => undefined)
-      .finally(() => {
-        if (!controller.signal.aborted) setLoadingProfile(false);
-      });
-    return () => controller.abort();
-  }, [portal]);
+  const profileQuery = useCurrentUser(portal);
+  const profile = profileQuery.data;
+  const loadingProfile = profileQuery.isPending;
 
   const identity = useMemo(() => {
     const name = profile?.user.displayName || "Account";
@@ -87,7 +63,7 @@ export function UserMenu({
     return {
       name,
       email: profile?.user.email || "",
-      initials: initialsFor(name),
+      avatarUrl: profile?.user.avatarUrl,
       role: roleLabels[role] ?? role.replaceAll("_", " "),
     };
   }, [portal, profile]);
@@ -126,9 +102,7 @@ export function UserMenu({
           aria-label={`Open user menu for ${identity.name}`}
           title={`Open user menu for ${identity.name}`}
         >
-          <span className="grid size-9 shrink-0 place-items-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
-            {identity.initials}
-          </span>
+          <UserAvatar name={identity.name} src={identity.avatarUrl} size="md" />
           <span
             className="hidden min-w-0 flex-1 truncate text-sm font-medium text-foreground sm:block"
             title={identity.name}
@@ -192,18 +166,8 @@ function UserMenuSkeleton() {
   );
 }
 
-function initialsFor(name: string): string {
-  return name
-    .split(" ")
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0])
-    .join("")
-    .toUpperCase();
-}
-
-function roleForPortal(roles: readonly string[], portal: PortalKey): string {
-  const preference: Record<PortalKey, readonly string[]> = {
+function roleForPortal(roles: readonly string[], portal: CurrentUserPortal): string {
+  const preference: Record<CurrentUserPortal, readonly string[]> = {
     "super-admin": ["SUPER_ADMIN"],
     tenant: ["TENANT_OWNER", "TENANT_ADMIN", "FINANCE_USER", "HR_OPERATIONS_USER"],
     employee: ["MANAGER", "EMPLOYEE"],
@@ -212,11 +176,19 @@ function roleForPortal(roles: readonly string[], portal: PortalKey): string {
   return preference[portal].find((role) => roles.includes(role)) ?? roles[0] ?? defaultRoleForPortal(portal);
 }
 
-function defaultRoleForPortal(portal: PortalKey): string {
-  return {
-    "super-admin": "SUPER_ADMIN",
-    tenant: "TENANT_ADMIN",
-    employee: "EMPLOYEE",
-    client: "CLIENT_USER",
-  }[portal];
+function defaultRoleForPortal(portal: CurrentUserPortal): string {
+  switch (portal) {
+    case "super-admin":
+      return "SUPER_ADMIN";
+    case "tenant":
+      return "TENANT_ADMIN";
+    case "employee":
+      return "EMPLOYEE";
+    case "client":
+      return "CLIENT_USER";
+    default: {
+      const exhaustive: never = portal;
+      return exhaustive;
+    }
+  }
 }

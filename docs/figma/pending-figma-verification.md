@@ -157,3 +157,10 @@ Design status: Pending Figma verification.
   Service · N items. The client invoice list shows the same grouped summary
   and line items. Reuses PageHeader, Card, Dialog, Badge, Button, Input,
   Select, and DatePicker. Figma MCP was not used.
+
+## Shared profile photo editor
+
+Design status: Pending Figma verification.
+
+- Profile photo crop, header avatar, and account photo controls were composed
+  from the existing TailAdmin system. Figma MCP was not used.

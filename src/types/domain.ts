@@ -60,6 +60,7 @@ export type User = {
   name: string;
   email: string;
   initials: string;
+  avatarUrl?: string;
   role: Role;
   roles?: Role[];
   permissions: Permission[];

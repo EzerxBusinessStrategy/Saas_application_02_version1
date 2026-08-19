@@ -1,5 +1,4 @@
 "use client";
-/* eslint-disable @next/next/no-img-element -- tenant API avatars may use a configured external CDN. */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -15,6 +14,7 @@ import { MobileEntityCard } from "@/components/shared/mobile-entity-card";
 import { Pagination } from "@/components/shared/pagination";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatusBadge } from "@/components/shared/status-badge";
+import { UserAvatar } from "@/components/shared/user-avatar";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -44,27 +44,11 @@ import type { Employee, EmployeeDirectoryFilters } from "@/types/workforce";
 
 const labelFor = (value: string) =>
   value.replaceAll("-", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
-const initialsFor = (name: string) =>
-  name
-    .split(" ")
-    .map((part) => part[0])
-    .join("")
-    .slice(0, 2);
 
 function EmployeeIdentity({ employee }: { employee: Employee }) {
   return (
     <div className="flex min-w-44 items-center gap-3">
-      <span className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-full bg-primary/10 text-xs font-semibold text-primary">
-        {employee.avatarUrl ? (
-          <img
-            src={employee.avatarUrl}
-            alt=""
-            className="size-full object-cover"
-          />
-        ) : (
-          initialsFor(employee.name)
-        )}
-      </span>
+      <UserAvatar name={employee.name} src={employee.avatarUrl} size="md" className="bg-primary/10 text-primary" />
       <span>
         <span className="block font-medium">{employee.name}</span>
         <span className="block text-xs text-muted-foreground">
@@ -100,17 +84,7 @@ function EmployeeCard({
       title={employee.name}
       identifier={employee.code}
       leading={
-        <span className="grid size-10 place-items-center overflow-hidden rounded-full bg-primary/10 text-xs font-semibold text-primary">
-          {employee.avatarUrl ? (
-            <img
-              src={employee.avatarUrl}
-              alt=""
-              className="size-full object-cover"
-            />
-          ) : (
-            initialsFor(employee.name)
-          )}
-        </span>
+        <UserAvatar name={employee.name} src={employee.avatarUrl} size="md" className="bg-primary/10 text-primary" />
       }
       status={<StatusBadge status={employee.employmentStatus} />}
       metadata={

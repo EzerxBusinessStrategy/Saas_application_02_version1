@@ -7,6 +7,7 @@ import { getTenantProfile, updateTenantProfile } from "@/features/operations/api
 import { ErrorState } from "@/components/shared/error-state";
 import { LoadingState } from "@/components/shared/loading-state";
 import { PageHeader } from "@/components/shared/page-header";
+import { ProfilePhotoEditor } from "@/components/shared/profile-photo-editor";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -41,6 +42,7 @@ export function TenantSettingsPage() {
         title="Profile and preferences"
         description="Update the organisation name shown in the tenant workspace."
       />
+      <ProfilePhotoEditor portal="tenant" />
       {query.isPending ? <LoadingState label="Loading organisation profile" rows={2} /> : null}
       {query.isError ? <ErrorState title="Organisation profile could not load" onRetry={() => void query.refetch()} /> : null}
       {profile ? (

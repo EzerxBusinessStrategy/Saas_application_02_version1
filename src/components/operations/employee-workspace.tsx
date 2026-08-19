@@ -25,6 +25,7 @@ import { ErrorState } from "@/components/shared/error-state";
 import { BoxBuildLoader } from "@/components/shared/box-build-loader";
 import { LoadingState } from "@/components/shared/loading-state";
 import { PageHeader } from "@/components/shared/page-header";
+import { ProfilePhotoEditor } from "@/components/shared/profile-photo-editor";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { DatePicker } from "@/components/shared/date-picker";
 import {
@@ -564,11 +565,36 @@ function EmployeeInfo({ section }: { section: "notifications" | "profile" }) {
     );
   }
 
-  if (profile.isLoading) return <LoadingState label="Loading profile" rows={3} />;
-  if (profile.isError || !profile.data) return <ErrorState title="Employee profile could not load" onRetry={() => void profile.refetch()} />;
-  const data = profile.data;
-
-  return <div className="flex flex-col gap-[30px]"><PageHeader eyebrow="Employee" title="Profile" description="Your work identity." /><Card><CardContent className="pt-[30px]"><p className="font-medium">{data.name}</p><p className="mt-2 text-sm text-muted-foreground">{data.role} - {data.tenantName}</p><dl className="mt-6 grid gap-4 text-sm sm:grid-cols-2 lg:grid-cols-3"><ProfileDetail label="Email" value={data.email} /><ProfileDetail label="Employee code" value={data.employeeCode} /><ProfileDetail label="Status" value={data.status} /><ProfileDetail label="Department" value={data.department ?? "Not set"} /><ProfileDetail label="Experience" value={data.experienceLevel ?? "Not set"} /><ProfileDetail label="Weekly capacity" value={data.weeklyCapacityHours === null ? "Not set" : `${data.weeklyCapacityHours}h`} /></dl><div className="mt-6"><p className="text-sm font-medium">Work groups</p><p className="mt-2 text-sm text-muted-foreground">{data.workGroups.length ? data.workGroups.join(", ") : "No active work group"}</p></div></CardContent></Card></div>;
+  return (
+    <div className="flex flex-col gap-[30px]">
+      <PageHeader eyebrow="Employee" title="Profile" description="Your work identity." />
+      <ProfilePhotoEditor portal="employee" />
+      {profile.isLoading ? <LoadingState label="Loading profile" rows={3} /> : null}
+      {profile.isError || (!profile.isLoading && !profile.data) ? (
+        <ErrorState title="Employee profile could not load" onRetry={() => void profile.refetch()} />
+      ) : null}
+      {profile.data ? (
+        <Card>
+          <CardContent className="pt-[30px]">
+            <p className="font-medium">{profile.data.name}</p>
+            <p className="mt-2 text-sm text-muted-foreground">{profile.data.role} - {profile.data.tenantName}</p>
+            <dl className="mt-6 grid gap-4 text-sm sm:grid-cols-2 lg:grid-cols-3">
+              <ProfileDetail label="Email" value={profile.data.email} />
+              <ProfileDetail label="Employee code" value={profile.data.employeeCode} />
+              <ProfileDetail label="Status" value={profile.data.status} />
+              <ProfileDetail label="Department" value={profile.data.department ?? "Not set"} />
+              <ProfileDetail label="Experience" value={profile.data.experienceLevel ?? "Not set"} />
+              <ProfileDetail label="Weekly capacity" value={profile.data.weeklyCapacityHours === null ? "Not set" : `${profile.data.weeklyCapacityHours}h`} />
+            </dl>
+            <div className="mt-6">
+              <p className="text-sm font-medium">Work groups</p>
+              <p className="mt-2 text-sm text-muted-foreground">{profile.data.workGroups.length ? profile.data.workGroups.join(", ") : "No active work group"}</p>
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
+    </div>
+  );
 }
 
 function ProfileDetail({ label, value }: { label: string; value: string }) {

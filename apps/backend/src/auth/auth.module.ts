@@ -11,6 +11,8 @@ import { PortalSessionGuard } from "./guards/portal-session.guard";
 import { MeController } from "./me.controller";
 import { MeService } from "./me.service";
 import { RequestContextResolver } from "./request-context-resolver.service";
+import { UserAvatarRepository } from "./user-avatar.repository";
+import { UserAvatarStorageService } from "./user-avatar-storage.service";
 import { UserPreferencesRepository } from "./user-preferences.repository";
 import { OpaqueSessionTokenService } from "./core/opaque-session-token.service";
 import { PasswordService } from "./core/password.service";
@@ -35,6 +37,8 @@ import { PortalAuthController } from "./portal-auth.controller";
     RequestContextResolver,
     PortalSessionGuard,
     UserPreferencesRepository,
+    UserAvatarRepository,
+    UserAvatarStorageService,
     MeService,
   ],
   exports: [

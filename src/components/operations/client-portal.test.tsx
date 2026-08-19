@@ -196,3 +196,183 @@ test("overview compact mode hides comments and the task accordion", async () => 
   expect(screen.queryByLabelText("Comment on demo")).not.toBeInTheDocument();
   expect(screen.queryByText("On track")).not.toBeInTheDocument();
 });
+
+test("filters client requests by status and keeps older rows when all dates is selected", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/api/client-portal/dashboard")) {
+        return Response.json(dashboard);
+      }
+      if (url.includes("/api/client-portal/service-requests")) {
+        return Response.json({
+          requests: [
+            {
+              id: "req-old",
+              kind: "custom",
+              title: "Payroll setup",
+              description: "Need payroll",
+              status: "submitted",
+              clientId: "client-1",
+              clientName: "Acme",
+              countryCode: "IN",
+              currencyCode: "INR",
+              estimatedTotal: 0,
+              reviewRemarks: null,
+              replayed: false,
+              submittedAt: "2020-01-02T00:00:00.000Z",
+              updatedAt: "2020-01-02T00:00:00.000Z",
+              reviewedAt: null,
+              services: [{ serviceId: "svc-p", serviceName: "Payroll", assignedEmployeeId: null, estimatedTotal: 0, tasks: [] }],
+            },
+            {
+              id: "req-accepted",
+              kind: "custom",
+              title: "Books closed",
+              description: "Done",
+              status: "accepted",
+              clientId: "client-1",
+              clientName: "Acme",
+              countryCode: "IN",
+              currencyCode: "INR",
+              estimatedTotal: 0,
+              reviewRemarks: null,
+              replayed: false,
+              submittedAt: "2026-08-10T00:00:00.000Z",
+              updatedAt: "2026-08-10T00:00:00.000Z",
+              reviewedAt: "2026-08-11T00:00:00.000Z",
+              services: [{ serviceId: "svc-b", serviceName: "Bookkeeping", assignedEmployeeId: null, estimatedTotal: 0, tasks: [] }],
+            },
+          ],
+        });
+      }
+      return Response.json({ message: "Not found" }, { status: 404 });
+    }),
+  );
+
+  renderWithQuery(<ClientPortal section="requests" />);
+
+  expect(await screen.findByText("Payroll setup")).toBeInTheDocument();
+  expect(screen.getByText("Books closed")).toBeInTheDocument();
+  fireEvent.click(screen.getByLabelText("Filter requests by status"));
+  fireEvent.click(screen.getByRole("button", { name: "Waiting" }));
+  expect(screen.getByText("Payroll setup")).toBeInTheDocument();
+  expect(screen.queryByText("Books closed")).not.toBeInTheDocument();
+});
+
+test("filters client invoices by outstanding balance and stored status", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/api/client-portal/dashboard")) {
+        return Response.json({
+          ...dashboard,
+          invoices: [
+            {
+              id: "inv-1",
+              invoiceNumber: "INV-104",
+              taskTitle: "GSTR-3B",
+              serviceName: "GST Compliance",
+              billingLabel: null,
+              itemCount: 1,
+              items: [{ description: "GSTR-3B", netAmount: 12000 }],
+              status: "issued",
+              issuedOn: "2026-08-01",
+              dueOn: "2026-08-15",
+              currencyCode: "INR",
+              totalAmount: 12000,
+              paidAmount: 0,
+              outstandingAmount: 12000,
+            },
+            {
+              id: "inv-2",
+              invoiceNumber: "INV-105",
+              taskTitle: "Monthly books",
+              serviceName: "Bookkeeping",
+              billingLabel: null,
+              itemCount: 1,
+              items: [{ description: "Monthly books", netAmount: 8000 }],
+              status: "paid",
+              issuedOn: "2026-08-02",
+              dueOn: "2026-08-16",
+              currencyCode: "INR",
+              totalAmount: 8000,
+              paidAmount: 8000,
+              outstandingAmount: 0,
+            },
+          ],
+        });
+      }
+      return Response.json({ message: "Not found" }, { status: 404 });
+    }),
+  );
+
+  renderWithQuery(<ClientPortal section="invoices" />);
+
+  expect(await screen.findByText("INV-104")).toBeInTheDocument();
+  expect(screen.getByText("INV-105")).toBeInTheDocument();
+  fireEvent.click(screen.getByLabelText("Filter invoices by balance"));
+  fireEvent.click(screen.getByRole("button", { name: "Outstanding" }));
+  expect(screen.getByText("INV-104")).toBeInTheDocument();
+  expect(screen.queryByText("INV-105")).not.toBeInTheDocument();
+});
+
+test("filters client deliverables by pending decision and expired access", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/api/client-portal/deliverables")) {
+        return Response.json({
+          deliverables: [
+            {
+              id: "doc-1",
+              title: "FY agreement",
+              fileName: "agreement.pdf",
+              fileType: "pdf",
+              sizeBytes: 1200,
+              category: "agreement",
+              uploadedBy: "Tenant Admin",
+              updatedOn: "2026-08-01T00:00:00.000Z",
+              clientDecisionStatus: "pending",
+              clientDecisionAt: null,
+              clientDecisionComment: null,
+              validUntil: "2026-01-01T00:00:00.000Z",
+              accessStatus: "expired",
+            },
+            {
+              id: "doc-2",
+              title: "Work papers",
+              fileName: "papers.pdf",
+              fileType: "pdf",
+              sizeBytes: 800,
+              category: "supporting",
+              uploadedBy: "Tenant Admin",
+              updatedOn: "2026-08-02T00:00:00.000Z",
+              clientDecisionStatus: "approved",
+              clientDecisionAt: "2026-08-03T00:00:00.000Z",
+              clientDecisionComment: null,
+              validUntil: null,
+              accessStatus: "active",
+            },
+          ],
+        });
+      }
+      return Response.json({ message: "Not found" }, { status: 404 });
+    }),
+  );
+
+  renderWithQuery(<ClientPortal section="deliverables" />);
+
+  expect(await screen.findByText("FY agreement")).toBeInTheDocument();
+  expect(screen.getByText("Work papers")).toBeInTheDocument();
+  fireEvent.click(screen.getByLabelText("Filter deliverables by decision"));
+  fireEvent.click(screen.getByRole("button", { name: "Pending" }));
+  fireEvent.click(screen.getByLabelText("Filter deliverables by access"));
+  fireEvent.click(screen.getByRole("button", { name: "Expired" }));
+  expect(screen.getByText("FY agreement")).toBeInTheDocument();
+  expect(screen.queryByText("Work papers")).not.toBeInTheDocument();
+});
+

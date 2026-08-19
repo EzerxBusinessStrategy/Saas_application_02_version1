@@ -15,6 +15,21 @@ export const updateMyPreferencesSchema = z.object({
 
 export type UpdateMyPreferencesRequest = z.infer<typeof updateMyPreferencesSchema>;
 
+export const updateMyAvatarSchema = z.object({
+  contentType: z.literal("image/webp"),
+  data: z.string().min(24).max(1_400_000),
+});
+
+export type UpdateMyAvatarRequest = z.infer<typeof updateMyAvatarSchema>;
+
+export class UpdateMyAvatarDto {
+  @ApiProperty({ enum: ["image/webp"] })
+  contentType!: "image/webp";
+
+  @ApiProperty({ type: String, description: "Base64-encoded 512x512 WebP image." })
+  data!: string;
+}
+
 export class UpdateMyProfileDto {
   @ApiProperty({ type: String, example: "Platform Owner" })
   displayName!: string;
@@ -51,6 +66,9 @@ export class MeUserDto {
 
   @ApiProperty({ enum: ["active"] })
   status!: "active";
+
+  @ApiPropertyOptional({ type: String, nullable: true })
+  avatarUrl!: string | null;
 }
 
 export class MeTenantDto {

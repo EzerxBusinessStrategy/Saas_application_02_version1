@@ -33,7 +33,7 @@ const rolesForWorkspace: Record<Workspace, readonly Role[]> = {
 };
 
 type MeResponse = {
-  readonly user?: { readonly displayName?: unknown; readonly email?: unknown };
+  readonly user?: { readonly displayName?: unknown; readonly email?: unknown; readonly avatarUrl?: unknown };
   readonly roles?: unknown;
   readonly preferences?: { readonly locale?: unknown; readonly timezone?: unknown };
 };
@@ -76,10 +76,15 @@ export const getAuthenticatedWorkspaceUser = cache(async (workspaceInput: Worksp
     ? profile.user.displayName.trim()
     : email || "Account";
 
+  const avatarUrl = typeof profile.user?.avatarUrl === "string" && profile.user.avatarUrl.trim()
+    ? profile.user.avatarUrl.trim()
+    : undefined;
+
   return {
     name,
     email,
     initials: initialsFor(name),
+    avatarUrl,
     role,
     roles: activeRoles,
     permissions: [...new Set(activeRoles.flatMap((activeRole) => rolePermissions[activeRole]))],

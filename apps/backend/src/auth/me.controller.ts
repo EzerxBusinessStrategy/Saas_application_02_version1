@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Inject, Patch, UseGuards } from "@nestjs/common";
+import { Body, Controller, Delete, Get, HttpCode, Inject, Patch, Post, UseGuards } from "@nestjs/common";
 import {
   ApiBody,
   ApiBearerAuth,
@@ -17,9 +17,11 @@ import { PermissionGuard } from "./guards/permission.guard";
 import { PortalSessionGuard } from "./guards/portal-session.guard";
 import {
   MeResponseDto,
+  UpdateMyAvatarDto,
   UpdateMyPreferencesDto,
   UpdateMyProfileDto,
   UserPreferencesDto,
+  updateMyAvatarSchema,
   updateMyPreferencesSchema,
   updateMyProfileSchema,
 } from "./me.dto";
@@ -79,5 +81,30 @@ export class MeController {
     @Body(new ZodValidationPipe(updateMyPreferencesSchema)) body: UpdateMyPreferencesDto,
   ): Promise<{ preferences: UserPreferencesDto }> {
     return this.meService.updatePreferences(context, body);
+  }
+
+  @Post("avatar")
+  @HttpCode(200)
+  @ApiOperation({ summary: "Upload the authenticated user's square profile photo." })
+  @ApiBody({ type: UpdateMyAvatarDto })
+  @ApiOkResponse({ type: MeResponseDto })
+  @ApiUnauthorizedResponse({ type: ApiErrorResponseDto })
+  @ApiForbiddenResponse({ type: ApiErrorResponseDto })
+  @ApiServiceUnavailableResponse({ type: ApiErrorResponseDto })
+  updateAvatar(
+    @CurrentRequestContext() context: RequestContext,
+    @Body(new ZodValidationPipe(updateMyAvatarSchema)) body: UpdateMyAvatarDto,
+  ): Promise<MeResponseDto> {
+    return this.meService.updateAvatar(context, body.data);
+  }
+
+  @Delete("avatar")
+  @HttpCode(200)
+  @ApiOperation({ summary: "Remove the authenticated user's profile photo." })
+  @ApiOkResponse({ type: MeResponseDto })
+  @ApiUnauthorizedResponse({ type: ApiErrorResponseDto })
+  @ApiForbiddenResponse({ type: ApiErrorResponseDto })
+  removeAvatar(@CurrentRequestContext() context: RequestContext): Promise<MeResponseDto> {
+    return this.meService.removeAvatar(context);
   }
 }

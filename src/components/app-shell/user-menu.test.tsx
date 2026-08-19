@@ -1,10 +1,17 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, render, screen } from "@testing-library/react";
+import type { ReactElement } from "react";
 import { afterEach, expect, test, vi } from "vitest";
 import { UserMenu } from "@/components/app-shell/user-menu";
 
+function renderMenu(ui: ReactElement) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(<QueryClientProvider client={client}>{ui}</QueryClientProvider>);
+}
+
 test("shows a profile skeleton until the authenticated profile is available", () => {
   vi.stubGlobal("fetch", vi.fn(() => new Promise(() => undefined)));
-  render(<UserMenu workspace="super-admin" open />);
+  renderMenu(<UserMenu workspace="super-admin" open />);
   expect(screen.getByRole("status", { name: "Loading account profile" })).toBeInTheDocument();
   expect(screen.queryByText("Jordan Lee")).not.toBeInTheDocument();
 });
@@ -17,7 +24,7 @@ test("shows identity, email, profile actions, and a sign-out action", async () =
       roles: ["SUPER_ADMIN"],
     }),
   }));
-  render(<UserMenu workspace="super-admin" open />);
+  renderMenu(<UserMenu workspace="super-admin" open />);
   expect(await screen.findAllByText("Platform Administrator")).toHaveLength(2);
   expect(screen.getByText("admin@example.com")).toBeInTheDocument();
   expect(screen.getByRole("menuitem", { name: "Profile" })).toHaveAttribute(
@@ -45,7 +52,7 @@ test("uses the authenticated portal profile when it is available", async () => {
   });
   vi.stubGlobal("fetch", fetchMock);
 
-  render(<UserMenu workspace="employee" open />);
+  renderMenu(<UserMenu workspace="employee" open />);
 
   expect(await screen.findAllByText("Aindrilaa Das")).toHaveLength(2);
   expect(screen.getByText("aindrilaa@example.com")).toBeInTheDocument();
@@ -66,7 +73,7 @@ test.each([
   const fetchMock = vi.fn().mockResolvedValue({ ok: false });
   vi.stubGlobal("fetch", fetchMock);
 
-  render(<UserMenu workspace={workspace} open />);
+  renderMenu(<UserMenu workspace={workspace} open />);
 
   await vi.waitFor(() => {
     expect(fetchMock).toHaveBeenCalledWith(
