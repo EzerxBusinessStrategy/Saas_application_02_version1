@@ -53,6 +53,7 @@ import {
 } from "@/features/platform/api/super-admin-platform-configuration-api";
 import { cn } from "@/lib/utils";
 import { formatIndiaDateTime } from "@/lib/india-time";
+import { humaniseAuditAction, parseAuditEventDetail } from "@/lib/audit-event-detail";
 import { getSuperAdminDashboard } from "@/features/platform/api/super-admin-dashboard-api";
 import {
   type AuditRecord,
@@ -181,6 +182,21 @@ export function PlatformReports() {
   );
 }
 
+function AuditEventFields({ detail }: { detail: string }) {
+  const fields = parseAuditEventDetail(detail);
+  if (!fields.length) return <span>No extra detail recorded</span>;
+  return (
+    <dl className="grid gap-2">
+      {fields.map((field) => (
+        <div key={field.key}>
+          <dt className="text-xs text-muted-foreground">{field.label}</dt>
+          <dd className="break-words font-medium">{field.value}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
 export function GlobalAuditLog({ tenantName }: { tenantName?: string }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -210,7 +226,7 @@ export function GlobalAuditLog({ tenantName }: { tenantName?: string }) {
   };
   const recordsQuery = useQuery({
     queryKey: ["audit-log", tenantName, request],
-      queryFn: () => listAuditRecords(request),
+    queryFn: () => listAuditRecords(request),
   });
   const records = recordsQuery.data?.items ?? [];
   useEffect(() => {
@@ -224,8 +240,29 @@ export function GlobalAuditLog({ tenantName }: { tenantName?: string }) {
   const columns: ColumnDef<AuditRecord>[] = [
     { accessorKey: "actor", header: "Actor" },
     { accessorKey: "tenant", header: "Tenant" },
-    { accessorKey: "action", header: "Action" },
-    { accessorKey: "resource", header: "Resource" },
+    {
+      id: "action",
+      header: "Action",
+      cell: ({ row }) => (
+        <div className="min-w-48">
+          <p className="font-medium">{humaniseAuditAction(row.original.action)}</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">{row.original.resource}</p>
+        </div>
+      ),
+    },
+    {
+      id: "summary",
+      header: "Details",
+      cell: ({ row }) => (
+        <p className="max-w-md text-sm">
+          {row.original.summary ||
+            [row.original.clientName, row.original.resourceLabel, row.original.employeeName, row.original.managerName]
+              .filter(Boolean)
+              .join(" · ") ||
+            "No extra detail recorded"}
+        </p>
+      ),
+    },
     {
       id: "timestamp",
       header: "Timestamp",
@@ -293,7 +330,7 @@ export function GlobalAuditLog({ tenantName }: { tenantName?: string }) {
         description={
           tenantName
             ? "Review administrative actions recorded for your tenant workspace."
-            : "Review administrative actions with actor, tenant, resource, result, and event details."
+            : "Review tenant, client, invoice, document, employee, and task activity with actor, manager, and employee names."
         }
       />
       <Card className={cn(!tenantName && "super-admin-surface")}>
@@ -310,7 +347,7 @@ export function GlobalAuditLog({ tenantName }: { tenantName?: string }) {
               value: searchValue,
               onChange: setSearchValue,
               label: "Search global audit logs",
-              placeholder: "Search actor, tenant, action, or resource",
+              placeholder: "Search actor, tenant, client, employee, manager, or action",
             }}
             trailing={
               <Select
@@ -406,7 +443,26 @@ export function GlobalAuditLog({ tenantName }: { tenantName?: string }) {
                 <div>
                   <dt className="text-muted-foreground">Action and result</dt>
                   <dd className="mt-1 font-medium">
-                    {selected.action} · {selected.result}
+                    {humaniseAuditAction(selected.action)} · {selected.result}
+                  </dd>
+                  <p className="mt-1 text-xs text-muted-foreground">{selected.action}</p>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">People</dt>
+                  <dd className="mt-1">
+                    {[
+                      selected.employeeName ? `Employee: ${selected.employeeName}` : null,
+                      selected.managerName ? `Manager: ${selected.managerName}` : null,
+                      selected.clientName ? `Client: ${selected.clientName}` : null,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ") || "No employee, manager, or client name recorded"}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Resource</dt>
+                  <dd className="mt-1 font-medium">
+                    {selected.resourceLabel || selected.resource}
                   </dd>
                 </div>
                 <div>
@@ -417,8 +473,10 @@ export function GlobalAuditLog({ tenantName }: { tenantName?: string }) {
                   ) : null}
                 </div>
                 <div>
-                  <dt className="text-muted-foreground">Detail</dt>
-                  <dd className="mt-1">{selected.detail}</dd>
+                  <dt className="text-muted-foreground">Event fields</dt>
+                  <dd className="mt-1">
+                    <AuditEventFields detail={selected.detail} />
+                  </dd>
                 </div>
                 <div>
                   <dt className="text-muted-foreground">Network context</dt>

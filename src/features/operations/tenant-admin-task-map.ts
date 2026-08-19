@@ -1,5 +1,6 @@
 import type { TenantAdminTask } from "@/features/operations/api/operations-api";
 import type { AllocatedWorkTask } from "@/features/tenant-admin/api/open-tasks-api";
+import { formatIndiaCompactDateTime } from "@/lib/india-time";
 import type { OperationalTask } from "@/types/operations";
 
 const tenantAdminStatuses: ReadonlySet<TenantAdminTask["status"]> = new Set([
@@ -62,7 +63,7 @@ export function mapTenantAdminTask(task: TenantAdminTask): OperationalTask {
     engagement: task.serviceName,
     workGroup: task.workGroupName ?? "No work group",
     managerId: "",
-    manager: "Manager not assigned",
+    manager: task.managerName?.trim() || "Manager not assigned",
     assigneeId: task.assignees[0]?.id ?? "",
     assignee: task.assigneeCount > 1 ? `${task.assigneeCount} employees` : assignee,
     title: task.title,
@@ -71,7 +72,7 @@ export function mapTenantAdminTask(task: TenantAdminTask): OperationalTask {
     complexity: "standard",
     status: mapTenantAdminTaskFeatureStatus(task),
     sla: task.slaStatus === "near_breach" || task.slaStatus === "breached" ? "at-risk" : "on-track",
-    dueDate: task.plannedDueAt ? formatTaskDate(task.plannedDueAt) : "No due date",
+    dueDate: task.plannedDueAt ? formatIndiaCompactDateTime(task.plannedDueAt) || "No due date" : "No due date",
     checklist: [],
     dependencyIds: [],
     attachmentCount: 0,
@@ -138,11 +139,4 @@ function mapTaskStatus(status: TenantAdminTask["status"]): OperationalTask["stat
   if (status === "returned") return "rejected";
   if (status === "completed") return "done";
   return "to-do";
-}
-
-function formatTaskDate(value: string) {
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(value));
 }

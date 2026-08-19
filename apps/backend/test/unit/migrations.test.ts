@@ -356,4 +356,27 @@ describe("database migrations", () => {
     expect(sql).not.toContain("drop table");
     expect(sql).not.toMatch(/alter table [^\n]+ drop column/i);
   });
+
+  test("enriches audit events with tenant, actor, employee, manager, and client names", () => {
+    expect(migrationNames).toContain("0074_audit_event_operational_context.sql");
+    expect(migrationNames.indexOf("0074_audit_event_operational_context.sql")).toBeGreaterThan(
+      migrationNames.indexOf("0073_billable_entry_billing_period.sql"),
+    );
+
+    const sql = readFileSync(
+      resolve(__dirname, "../../drizzle/migrations/0074_audit_event_operational_context.sql"),
+      "utf8",
+    );
+
+    expect(sql).toContain("create or replace function audit.enrich_event_metadata");
+    expect(sql).toContain("audit.enrich_event_metadata(tenant_id, actor_user_id, resource_type, resource_id, metadata)");
+    expect(sql).toContain("'employeeName'");
+    expect(sql).toContain("'managerName'");
+    expect(sql).toContain("'clientName'");
+    expect(sql).toContain("'resourceLabel'");
+    expect(sql).toContain("select wg.name, c.display_name");
+    expect(sql).toContain("from public.engagements e");
+    expect(sql).toContain("- 'passwordHash'");
+    expect(sql).not.toContain("drop table");
+  });
 });

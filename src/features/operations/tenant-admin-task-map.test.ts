@@ -26,6 +26,7 @@ function task(overrides: Partial<TenantAdminTask> = {}): TenantAdminTask {
     assignees: [{ id: "employee-1", name: "Rahul" }],
     latestSubmissionStatus: "submitted",
     latestReviewRemarks: null,
+    managerName: "Anita",
     ...overrides,
   };
 }
@@ -53,6 +54,7 @@ describe("tenant admin task review mapping", () => {
     expect(mapped.reviewStatus).toBe("pending");
     expect(mapped.approvalStatus).toBe("pending");
     expect(mapped.assignee).toBe("Rahul");
+    expect(mapped.manager).toBe("Anita");
   });
 
   test("marks allocated work as at-risk from the register flag", () => {

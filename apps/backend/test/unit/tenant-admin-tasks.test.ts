@@ -312,6 +312,7 @@ describe("TenantAdminTasksRepository", () => {
     expect(sql).toContain("wg.tenant_id = t.tenant_id");
     expect(sql).toContain("ta.tenant_id = t.tenant_id");
     expect(sql).toContain("e.tenant_id = ta.tenant_id");
+    expect(sql).toContain("mwgm.group_role = 'manager'");
     expect(params[0]).toEqual(["tenant-1", "client-1", null]);
     expect(result[0]).toMatchObject({
       id: "task-1",

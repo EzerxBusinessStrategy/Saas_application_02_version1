@@ -2,17 +2,24 @@
 
 import { useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
-import { format, parseISO } from "date-fns";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { RefreshCw } from "lucide-react";
+import { toast } from "sonner";
 import type { ColumnDef } from "@tanstack/react-table";
 import {
   listTenantAdminAllocatedWork,
   type AllocatedWorkStatusGroup,
   type AllocatedWorkTask,
 } from "@/features/tenant-admin/api/open-tasks-api";
-import { listTenantAdminTaskOptions } from "@/features/operations/api/operations-api";
-import { mapAllocatedWorkToOperationalTask } from "@/features/operations/tenant-admin-task-map";
+import {
+  decideTenantTaskApproval,
+  getTenantAdminTaskReviewDetail,
+  listTenantAdminTaskOptions,
+} from "@/features/operations/api/operations-api";
+import {
+  mapAllocatedWorkToOperationalTask,
+  mapTenantAdminTask,
+} from "@/features/operations/tenant-admin-task-map";
 import {
   parseAllocatedWorkFilters,
   serializeAllocatedWorkFilters,
@@ -31,18 +38,40 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select } from "@/components/ui/select";
-import type { OperationalTask } from "@/types/operations";
+import { formatIndiaCompactDateTime } from "@/lib/india-time";
+import { cn } from "@/lib/utils";
 
-function formatDateTime(value: string | null | undefined): string {
-  if (!value) return "Not set";
-  const date = parseISO(value);
-  if (Number.isNaN(date.getTime())) return "Not set";
-  return format(date, "MMM d, yyyy h:mm a");
+function CompactDateTime({ value }: { value: string | null | undefined }) {
+  const label = value ? formatIndiaCompactDateTime(value) : "";
+  if (!label) {
+    return <span className="whitespace-nowrap text-muted-foreground">Not set</span>;
+  }
+  return (
+    <time className="whitespace-nowrap tabular-nums" dateTime={value ?? undefined}>
+      {label}
+    </time>
+  );
 }
 
-function formatIp(value: string | null | undefined): string {
+function CompactText({
+  value,
+  empty = false,
+  className,
+}: {
+  value: string;
+  empty?: boolean;
+  className?: string;
+}) {
+  return (
+    <p className={cn("max-w-48 truncate", empty && "text-muted-foreground", className)} title={value}>
+      {value}
+    </p>
+  );
+}
+
+function formatIp(value: string | null | undefined): { label: string; empty: boolean } {
   const trimmed = value?.trim();
-  return trimmed ? trimmed : "Not recorded";
+  return trimmed ? { label: trimmed, empty: false } : { label: "Not recorded", empty: true };
 }
 
 function humanise(value: string): string {
@@ -68,46 +97,73 @@ const columns: ColumnDef<AllocatedWorkTask>[] = [
   {
     header: "Client",
     accessorKey: "clientName",
-    cell: ({ row }) => <p className="min-w-[140px] font-medium">{row.original.clientName}</p>,
+    cell: ({ row }) => <CompactText className="font-medium" value={row.original.clientName} />,
   },
   {
     header: "Assigned employee",
     id: "assignees",
-    cell: ({ row }) => <p className="min-w-[160px]">{assigneeSummary(row.original)}</p>,
+    cell: ({ row }) => {
+      const summary = assigneeSummary(row.original);
+      return <CompactText value={summary} empty={summary === "Unassigned"} />;
+    },
   },
   {
     header: "Assigned",
     accessorKey: "assignedAt",
-    cell: ({ row }) => formatDateTime(row.original.assignedAt ?? row.original.assignees[0]?.assignedAt),
+    cell: ({ row }) => (
+      <CompactDateTime value={row.original.assignedAt ?? row.original.assignees[0]?.assignedAt} />
+    ),
   },
   {
     header: "Due",
     accessorKey: "plannedDueAt",
-    cell: ({ row }) => formatDateTime(row.original.plannedDueAt),
+    cell: ({ row }) => <CompactDateTime value={row.original.plannedDueAt} />,
   },
   {
     header: "Client IP",
     id: "clientPublicIp",
-    cell: ({ row }) => <p className="min-w-[120px] font-mono text-xs">{formatIp(row.original.clientPublicIp)}</p>,
+    cell: ({ row }) => {
+      const ip = formatIp(row.original.clientPublicIp);
+      return (
+        <span
+          className={cn("whitespace-nowrap font-mono text-xs tabular-nums", ip.empty && "text-muted-foreground")}
+        >
+          {ip.label}
+        </span>
+      );
+    },
   },
   {
     header: "Employee IP",
     id: "employeePublicIp",
-    cell: ({ row }) => <p className="min-w-[120px] font-mono text-xs">{formatIp(row.original.employeePublicIp)}</p>,
+    cell: ({ row }) => {
+      const ip = formatIp(row.original.employeePublicIp);
+      return (
+        <span
+          className={cn("whitespace-nowrap font-mono text-xs tabular-nums", ip.empty && "text-muted-foreground")}
+        >
+          {ip.label}
+        </span>
+      );
+    },
   },
   {
     header: "Service",
     accessorKey: "serviceName",
-    cell: ({ row }) => <p className="min-w-[140px]">{row.original.serviceName}</p>,
+    cell: ({ row }) => <CompactText value={row.original.serviceName} />,
   },
   {
     header: "Task",
     accessorKey: "title",
     cell: ({ row }) => (
-      <div className="min-w-[200px]">
-        <p className="font-medium">{row.original.title}</p>
+      <div className="max-w-64">
+        <p className="truncate font-medium" title={row.original.title}>
+          {row.original.title}
+        </p>
         {row.original.atRisk ? (
-          <p className="mt-1 text-xs text-destructive">{row.original.atRiskReasons.join(" ")}</p>
+          <p className="mt-0.5 truncate text-xs text-destructive" title={row.original.atRiskReasons.join(" ")}>
+            {row.original.atRiskReasons.join(" ")}
+          </p>
         ) : null}
       </div>
     ),
@@ -161,7 +217,8 @@ export function AllocatedWorkPage() {
   const router = useRouter();
   const pathname = usePathname();
   const filters = parseAllocatedWorkFilters(searchParams);
-  const [selected, setSelected] = useState<OperationalTask | null>(null);
+  const queryClient = useQueryClient();
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
 
   function commitFilters(next: Partial<AllocatedWorkPageFilters>) {
     const query = serializeAllocatedWorkFilters({ ...filters, ...next });
@@ -197,6 +254,46 @@ export function AllocatedWorkPage() {
   const optionsQuery = useQuery({
     queryKey: ["tenant-admin-task-options"],
     queryFn: listTenantAdminTaskOptions,
+  });
+  const selectedListTask = query.data?.tasks.find((task) => task.id === selectedTaskId) ?? null;
+  const detailQuery = useQuery({
+    queryKey: ["tenant-admin-task-review-detail", selectedTaskId],
+    queryFn: () => getTenantAdminTaskReviewDetail(selectedTaskId!),
+    enabled: Boolean(selectedTaskId),
+  });
+  const drawerTask = useMemo(() => {
+    if (!selectedTaskId) return null;
+    if (detailQuery.data?.task) {
+      const mapped = mapTenantAdminTask(detailQuery.data.task);
+      return selectedListTask?.atRisk ? { ...mapped, sla: "at-risk" as const } : mapped;
+    }
+    return selectedListTask ? mapAllocatedWorkToOperationalTask(selectedListTask) : null;
+  }, [detailQuery.data, selectedListTask, selectedTaskId]);
+  const approvalMutation = useMutation({
+    mutationFn: ({
+      taskId,
+      decision,
+      remarks,
+    }: {
+      taskId: string;
+      decision: "approve" | "return";
+      remarks?: string;
+    }) => decideTenantTaskApproval(taskId, decision, remarks),
+    onSuccess: async (_result, variables) => {
+      toast.success(
+        variables.decision === "approve"
+          ? "Tenant approval recorded. The task is complete."
+          : "Task returned to the employee for rework.",
+      );
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["tenant-admin-allocated-work"] }),
+        queryClient.invalidateQueries({ queryKey: ["tenant-admin-task-review-detail", variables.taskId] }),
+      ]);
+    },
+    onError: (error) =>
+      toast.error(
+        error instanceof Error ? error.message : "The tenant approval decision could not be saved.",
+      ),
   });
 
   const activeFilterCount = useMemo(() => {
@@ -332,23 +429,37 @@ export function AllocatedWorkPage() {
               caption={heading.title}
               columns={columns}
               data={tasks}
+              density="compact"
               emptyTitle="No allocated work"
               emptyDescription="No matching tasks were found."
-              onRowClick={(task) => setSelected(mapAllocatedWorkToOperationalTask(task))}
+              onRowClick={(task) => setSelectedTaskId(task.id)}
             />
           )}
         </CardContent>
       </Card>
 
       <TaskDetailsDrawer
-        task={selected}
-        open={Boolean(selected)}
+        task={drawerTask}
+        open={Boolean(selectedTaskId)}
         onOpenChange={(open) => {
-          if (!open) setSelected(null);
+          if (!open) setSelectedTaskId(null);
         }}
         workLogs={[]}
         canUpdate={false}
+        canChangeStatus={false}
+        canManageAssignment={false}
+        canTenantApprove={Boolean(drawerTask && drawerTask.status === "review")}
+        onTenantApproval={async (task, decision, remarks) => {
+          await approvalMutation.mutateAsync({ taskId: task.id, decision, remarks });
+          return true;
+        }}
         onUpdate={() => undefined}
+        reviewDetail={detailQuery.data}
+        isReviewDetailLoading={detailQuery.isLoading}
+        isReviewDetailError={detailQuery.isError}
+        onRetryReviewDetail={() => void detailQuery.refetch()}
+        layout="status-review"
+        decisionHeading="Tenant approval"
       />
     </div>
   );

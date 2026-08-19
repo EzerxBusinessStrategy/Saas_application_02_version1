@@ -119,6 +119,7 @@ export type TenantAdminTaskRow = {
   readonly assignees: readonly { readonly id: string; readonly name: string }[];
   readonly latestSubmissionStatus: "submitted" | "returned" | "manager_approved" | "tenant_approved" | "cancelled" | null;
   readonly latestReviewRemarks: string | null;
+  readonly managerName: string | null;
 };
 
 export type TaskReviewDetailRow = {
@@ -2573,8 +2574,9 @@ export class TenantAdminTasksRepository {
       planned_due_at: Date | null;
       assignee_count: number;
         assignees: Array<{ id: string; name: string }> | null;
-        latest_submission_status: TenantAdminTaskRow["latestSubmissionStatus"];
-        latest_review_remarks: string | null;
+      latest_submission_status: TenantAdminTaskRow["latestSubmissionStatus"];
+      latest_review_remarks: string | null;
+      manager_name: string | null;
     }>(
       `
         select
@@ -2589,10 +2591,11 @@ export class TenantAdminTasksRepository {
           wg.name as work_group_name,
           t.priority,
           t.status,
-           t.sla_status,
-           t.planned_due_at,
-           latest_submission.status as latest_submission_status,
-           latest_approval.remarks as latest_review_remarks,
+          t.sla_status,
+          t.planned_due_at,
+          latest_submission.status as latest_submission_status,
+          latest_approval.remarks as latest_review_remarks,
+          work_group_manager.manager_name,
           count(distinct ta.employee_id)::int as assignee_count,
           coalesce(
             jsonb_agg(
@@ -2638,6 +2641,23 @@ export class TenantAdminTasksRepository {
           order by a.decided_at desc, a.id desc
           limit 1
         ) latest_approval on true
+        left join lateral (
+          select coalesce(mtm.display_name, me.employee_code) as manager_name
+          from public.work_group_memberships mwgm
+          join public.employees me
+            on me.id = mwgm.employee_id
+           and me.tenant_id = mwgm.tenant_id
+           and me.employment_status = 'active'
+          join public.tenant_memberships mtm
+            on mtm.id = me.membership_id
+           and mtm.tenant_id = me.tenant_id
+          where mwgm.tenant_id = t.tenant_id
+            and mwgm.work_group_id = t.work_group_id
+            and mwgm.status = 'active'
+            and mwgm.group_role = 'manager'
+          order by mwgm.joined_at asc
+          limit 1
+        ) work_group_manager on true
         where t.tenant_id = $1
           and ($2::uuid is null or t.client_id = $2::uuid)
           and ($3::uuid is null or t.id = $3::uuid)
@@ -2657,6 +2677,7 @@ export class TenantAdminTasksRepository {
            t.planned_due_at,
            latest_submission.status,
            latest_approval.remarks,
+           work_group_manager.manager_name,
            t.created_at
         order by coalesce(t.planned_due_at, t.created_at) desc
         limit 100
@@ -2682,6 +2703,7 @@ export class TenantAdminTasksRepository {
        assignees: row.assignees ?? [],
        latestSubmissionStatus: row.latest_submission_status,
        latestReviewRemarks: row.latest_review_remarks,
+       managerName: row.manager_name,
      }));
   }
 

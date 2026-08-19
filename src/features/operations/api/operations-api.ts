@@ -339,6 +339,7 @@ const tenantAdminTaskSchema = z.object({
   assignees: z.array(taskOptionSchema),
   latestSubmissionStatus: z.enum(["submitted", "returned", "manager_approved", "tenant_approved", "cancelled"]).nullable(),
   latestReviewRemarks: z.string().nullable(),
+  managerName: z.string().nullable().optional(),
 });
 const tenantAdminTasksResponseSchema = z.object({
   tasks: z.array(tenantAdminTaskSchema),

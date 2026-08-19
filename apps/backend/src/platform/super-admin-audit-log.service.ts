@@ -44,5 +44,10 @@ function mapAuditRow(row: AuditLogRow) {
             ? "failed"
             : "pending",
     detail: row.detail ?? "",
+    summary: row.summary ?? "",
+    employeeName: row.employee_name ?? "",
+    managerName: row.manager_name ?? "",
+    clientName: row.client_name ?? "",
+    resourceLabel: row.resource_label ?? "",
   } as const;
 }

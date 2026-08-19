@@ -32,7 +32,10 @@ export function TaskDetailsDrawer({
   onUpdate,
   reviewDetail,
   isReviewDetailLoading = false,
+  isReviewDetailError = false,
+  onRetryReviewDetail,
   decisionHeading = "Tenant approval",
+  layout = "full",
 }: {
   task: OperationalTask | null;
   open: boolean;
@@ -50,7 +53,10 @@ export function TaskDetailsDrawer({
   onUpdate: (task: OperationalTask) => void;
   reviewDetail?: TaskReviewDetail;
   isReviewDetailLoading?: boolean;
+  isReviewDetailError?: boolean;
+  onRetryReviewDetail?: () => void;
   decisionHeading?: string;
+  layout?: "full" | "status-review";
 }) {
   const [showReturnComment, setShowReturnComment] = useState(false);
   const [returnComment, setReturnComment] = useState("");
@@ -102,6 +108,19 @@ export function TaskDetailsDrawer({
           <p className="mt-5 text-sm text-muted-foreground">
             {task.description}
           </p>
+          {isReviewDetailLoading ? (
+            <p className="mt-4 text-sm text-muted-foreground">Loading live task details...</p>
+          ) : null}
+          {isReviewDetailError ? (
+            <div className="mt-4 flex flex-wrap items-center gap-3 text-sm">
+              <p className="text-destructive">Live task details could not be loaded.</p>
+              {onRetryReviewDetail ? (
+                <Button type="button" size="sm" variant="outline" onClick={onRetryReviewDetail}>
+                  Try again
+                </Button>
+              ) : null}
+            </div>
+          ) : null}
           <dl className="mt-6 grid gap-4 text-sm sm:grid-cols-2">
             <div>
               <dt className="text-muted-foreground">Assignee</dt>
@@ -266,6 +285,8 @@ export function TaskDetailsDrawer({
               )}
             </div>
           </section>
+          {layout === "full" ? (
+          <>
           <section className="mt-7">
             <h3 className="font-semibold">Assignment and delivery controls</h3>
             <div className="mt-3 grid gap-3 sm:grid-cols-2">
@@ -426,6 +447,8 @@ export function TaskDetailsDrawer({
               <CheckCircle2 className="size-4" />
               Depends on {task.dependencyIds.join(", ")}
             </p>
+          ) : null}
+          </>
           ) : null}
         </div>
       </DialogContent>

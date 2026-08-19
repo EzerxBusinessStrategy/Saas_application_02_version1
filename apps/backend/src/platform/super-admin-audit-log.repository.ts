@@ -18,6 +18,11 @@ export type AuditLogRow = {
   readonly reason_source: "explicit" | "auto_generated";
   readonly result: string;
   readonly detail: string | null;
+  readonly summary: string | null;
+  readonly employee_name: string | null;
+  readonly manager_name: string | null;
+  readonly client_name: string | null;
+  readonly resource_label: string | null;
 };
 
 @Injectable()
@@ -43,8 +48,8 @@ export class SuperAdminAuditLogRepository {
         `
         select
           ae.id::text,
-          actor.display_name as actor,
-          tenant.display_name as tenant,
+          coalesce(nullif(ae.metadata ->> 'actorName', ''), actor.display_name) as actor,
+          coalesce(nullif(ae.metadata ->> 'tenantName', ''), tenant.display_name) as tenant,
           ae.action,
           ae.resource_type as resource,
           ae.created_at as timestamp,
@@ -52,7 +57,18 @@ export class SuperAdminAuditLogRepository {
           ae.reason,
           ae.reason_source,
           ae.result,
-          coalesce(ae.metadata::text, '') as detail
+          ae.metadata::text as detail,
+          concat_ws(
+            ' · ',
+            nullif(ae.metadata ->> 'clientName', ''),
+            nullif(ae.metadata ->> 'resourceLabel', ''),
+            nullif(ae.metadata ->> 'employeeName', ''),
+            nullif(ae.metadata ->> 'managerName', '')
+          ) as summary,
+          nullif(ae.metadata ->> 'employeeName', '') as employee_name,
+          nullif(ae.metadata ->> 'managerName', '') as manager_name,
+          nullif(ae.metadata ->> 'clientName', '') as client_name,
+          nullif(ae.metadata ->> 'resourceLabel', '') as resource_label
         from audit.audit_events ae
         left join public.users actor on actor.id = ae.actor_user_id
         left join public.tenants tenant on tenant.id = ae.tenant_id
@@ -86,6 +102,7 @@ function auditWhere(query: AuditLogQuery, params: unknown[]): string {
       or ae.action ilike '%' || ${value} || '%'
       or ae.resource_type ilike '%' || ${value} || '%'
       or ae.reason ilike '%' || ${value} || '%'
+      or ae.metadata::text ilike '%' || ${value} || '%'
     )`);
   }
   return conditions.join(" and ");

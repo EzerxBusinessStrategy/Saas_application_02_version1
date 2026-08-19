@@ -24,6 +24,17 @@ export function formatIndiaTimestamp(value: string | Date): string {
   });
 }
 
+export function formatIndiaCompactDateTime(value: string | Date): string {
+  return formatIndiaParts(value, {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+}
+
 function formatIndiaParts(value: string | Date, options: Intl.DateTimeFormatOptions): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";

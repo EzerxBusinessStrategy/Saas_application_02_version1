@@ -59,6 +59,21 @@ export class AuditLogRecordDto {
 
   @ApiProperty({ type: String })
   detail!: string;
+
+  @ApiProperty({ type: String })
+  summary!: string;
+
+  @ApiProperty({ type: String })
+  employeeName!: string;
+
+  @ApiProperty({ type: String })
+  managerName!: string;
+
+  @ApiProperty({ type: String })
+  clientName!: string;
+
+  @ApiProperty({ type: String })
+  resourceLabel!: string;
 }
 
 export class AuditLogResponseDto {

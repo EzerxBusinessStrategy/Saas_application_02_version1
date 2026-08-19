@@ -409,6 +409,9 @@ export class TenantAdminTaskItemDto {
 
   @ApiPropertyOptional({ type: String, nullable: true })
   latestReviewRemarks!: string | null;
+
+  @ApiPropertyOptional({ type: String, nullable: true })
+  managerName!: string | null;
 }
 
 export class TenantAdminTasksResponseDto {

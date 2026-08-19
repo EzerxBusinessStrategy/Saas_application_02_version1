@@ -1162,6 +1162,7 @@ export function TenantDetail({ tenantId }: { tenantId: string }) {
                     <p className="font-medium">{record.action}</p>
                     <p className="mt-1 text-muted-foreground">
                       {record.actor} ·{" "}
+                      {record.summary ? `${record.summary} · ` : ""}
                       {formatIndiaDateTime(record.timestamp)} ·{" "}
                       {record.result}
                     </p>

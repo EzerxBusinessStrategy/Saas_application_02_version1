@@ -16,6 +16,7 @@ export function DataTable<TData>({
   emptyTitle,
   emptyDescription,
   className,
+  density = "default",
   onRowClick,
 }: {
   caption: string;
@@ -24,6 +25,7 @@ export function DataTable<TData>({
   emptyTitle: string;
   emptyDescription: string;
   className?: string;
+  density?: "default" | "compact";
   onRowClick?: (row: TData) => void;
 }) {
   const table = useReactTable({
@@ -35,7 +37,7 @@ export function DataTable<TData>({
     return <EmptyState title={emptyTitle} description={emptyDescription} />;
   return (
     <div className={cn("overflow-x-auto", className)}>
-      <table className="w-full text-left text-sm">
+      <table className="min-w-full w-max text-left text-sm">
         <caption className="sr-only">{caption}</caption>
         <thead className="border-y text-sm text-muted-foreground">
           {table.getHeaderGroups().map((headerGroup) => (
@@ -44,7 +46,10 @@ export function DataTable<TData>({
                 <th
                   key={header.id}
                   scope="col"
-                  className="px-4 py-4 font-medium"
+                  className={cn(
+                    "whitespace-nowrap text-left font-medium",
+                    density === "compact" ? "px-3 py-2" : "px-4 py-4",
+                  )}
                 >
                   {header.isPlaceholder
                     ? null
@@ -79,7 +84,13 @@ export function DataTable<TData>({
               tabIndex={onRowClick ? 0 : undefined}
             >
               {row.getVisibleCells().map((cell) => (
-                <td key={cell.id} className="px-4 py-5">
+                <td
+                  key={cell.id}
+                  className={cn(
+                    "align-middle text-left",
+                    density === "compact" ? "px-3 py-2" : "px-4 py-5",
+                  )}
+                >
                   {flexRender(cell.column.columnDef.cell, cell.getContext())}
                 </td>
               ))}
