@@ -7,10 +7,10 @@ const requestTaskSchema = z.object({
   frequency: z.string(),
   dueRule: z.object({
     type: z.string(),
-    day: z.number().optional(),
-    month: z.number().optional(),
-    days: z.number().optional(),
-    date: z.string().optional(),
+    day: z.number().nullish(),
+    month: z.number().nullish(),
+    days: z.number().nullish(),
+    date: z.string().nullish(),
   }),
   unitType: z.string(),
   rateAmount: z.number(),
@@ -61,10 +61,22 @@ const requestSchema = z.object({
 
 export type TenantServiceRequest = z.infer<typeof requestSchema>;
 
+export function tenantServiceRequestErrorMessage(body: unknown, fallback = "Service request failed."): string {
+  if (!body || typeof body !== "object") return fallback;
+  const record = body as { message?: unknown; error?: { message?: unknown } };
+  if (typeof record.error?.message === "string" && record.error.message.trim()) {
+    return record.error.message;
+  }
+  if (typeof record.message === "string" && record.message.trim()) {
+    return record.message;
+  }
+  return fallback;
+}
+
 async function parseBody(response: Response) {
   const body = await response.json().catch(() => null);
   if (!response.ok) {
-    throw new Error(typeof body?.message === "string" ? body.message : "Service request failed.");
+    throw new Error(tenantServiceRequestErrorMessage(body));
   }
   return body;
 }

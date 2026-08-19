@@ -273,6 +273,43 @@ describe("ClientServiceRequestsRepository", () => {
     expect(accepted.status).toBe("accepted");
   });
 
+  it("rejects a submitted request without selecting existing notifications under RLS", async () => {
+    const { repository, client } = createRepository(async (sql) => {
+      if (sql.includes("for update of csr")) {
+        return { rows: [requestRow("submitted")], rowCount: 1 };
+      }
+      if (sql.includes("from public.client_service_requests csr") && sql.includes("csr.id = $2")) {
+        return { rows: [requestRow("rejected")], rowCount: 1 };
+      }
+      if (sql.includes("from public.client_service_request_items")) {
+        return {
+          rows: [
+            {
+              service_id: serviceId,
+              service_name: "GST",
+              assigned_employee_id: null,
+              task_snapshot: { tasks: catalogueInput.services[0]!.tasks },
+            },
+          ],
+          rowCount: 1,
+        };
+      }
+      return { rows: [], rowCount: 0 };
+    });
+
+    const rejected = await repository.reject(tenantContext, requestId, { remarks: "hi" });
+    expect(rejected.status).toBe("rejected");
+    const notifyCall = client.query.mock.calls.find(
+      (call) =>
+        String(call[0]).includes("insert into public.notifications") && String(call[0]).includes("/client/requests"),
+    );
+    expect(notifyCall?.[0]).toContain("from inserted");
+    expect(notifyCall?.[0]).not.toContain("union all");
+    expect(notifyCall?.[1]).toEqual(
+      expect.arrayContaining(["CLIENT_SERVICE_REQUEST_REJECTED", "Service request rejected"]),
+    );
+  });
+
   it("lists tenant requests with client, employee, task name and request-content filters", async () => {
     const queries: string[] = [];
     const params: unknown[][] = [];

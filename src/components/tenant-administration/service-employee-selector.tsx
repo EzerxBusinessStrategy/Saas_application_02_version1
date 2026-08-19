@@ -48,7 +48,6 @@ export function ServiceEmployeeSelector({
       {selected ? (
         <p className="mt-3 text-sm text-muted-foreground">
           {selected.departmentName ? `${selected.departmentName} department. ` : ""}
-          {selected.serviceCapable ? "Specialist for this service." : "Not a specialist for this service; still available to allocate."}{" "}
           Skills: {specializationLabel(selected.skills)}.{" "}
           {selected.activeTasks} open tasks, {selected.weeklyCapacityHours}h weekly capacity.
         </p>

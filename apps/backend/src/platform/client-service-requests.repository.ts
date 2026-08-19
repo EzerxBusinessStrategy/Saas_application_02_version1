@@ -461,7 +461,7 @@ export class ClientServiceRequestsRepository {
     return {
       idempotencyKey: request.id,
       countryCode: request.country_code,
-      currencyCode: request.currency_code as ActivateClientServicesRequest["currencyCode"],
+      currencyCode: asCurrencyCode(request.currency_code),
       discountPercent: input.discountPercent,
       services: mapped.services.map((service) => {
         const assignedEmployeeId = assignmentByService.get(service.serviceId);
@@ -477,9 +477,9 @@ export class ClientServiceRequestsRepository {
           tasks: service.tasks.map((task) => ({
             taskType: task.taskType,
             title: task.title,
-            frequency: task.frequency as ActivateClientServicesRequest["services"][number]["tasks"][number]["frequency"],
-            dueRule: task.dueRule,
-            unitType: task.unitType as ActivateClientServicesRequest["services"][number]["tasks"][number]["unitType"],
+            frequency: asTaskFrequency(task.frequency, service.serviceName),
+            dueRule: asDueRule(task.dueRule),
+            unitType: asBillingUnit(task.unitType, service.serviceName),
             rateAmount: task.rateAmount,
             taxCode: task.taxCode ?? "",
             enabled: task.enabled !== false,
@@ -848,16 +848,10 @@ export class ClientServiceRequestsRepository {
           )
           on conflict (idempotency_key) where idempotency_key is not null do nothing
           returning id
-        ),
-        notification_row as (
-          select id from inserted
-          union all
-          select id from public.notifications where idempotency_key = $8
-          limit 1
         )
         insert into public.notification_recipients (notification_id, recipient_user_id)
-        select notification_row.id, cpa.user_id
-        from notification_row
+        select inserted.id, cpa.user_id
+        from inserted
         join public.client_portal_accounts cpa
           on cpa.tenant_id = $1 and cpa.client_id = $7::uuid and cpa.status = 'active'
         on conflict (notification_id, recipient_user_id) do nothing
@@ -909,6 +903,58 @@ function occurrenceCount(frequency: string): number {
     return yearlyOccurrenceCount(frequency satisfies ServiceBlueprintFrequency);
   }
   return 1;
+}
+
+function asCurrencyCode(value: string): ActivateClientServicesRequest["currencyCode"] {
+  if (value === "INR" || value === "USD" || value === "GBP") return value;
+  return "INR";
+}
+
+function asTaskFrequency(
+  value: string,
+  serviceName: string,
+): ActivateClientServicesRequest["services"][number]["tasks"][number]["frequency"] {
+  if (value === "monthly" || value === "quarterly" || value === "annually" || value === "one_time") {
+    return value;
+  }
+  throw new BadRequestException({
+    code: "CLIENT_SERVICE_REQUEST_TASK_INVALID",
+    message: `${serviceName} has an unsupported task frequency.`,
+  });
+}
+
+function asBillingUnit(
+  value: string,
+  serviceName: string,
+): ActivateClientServicesRequest["services"][number]["tasks"][number]["unitType"] {
+  if (value === "per_task" || value === "per_hour" || value === "per_filing" || value === "per_unit") {
+    return value;
+  }
+  throw new BadRequestException({
+    code: "CLIENT_SERVICE_REQUEST_TASK_INVALID",
+    message: `${serviceName} has an unsupported billing unit.`,
+  });
+}
+
+function asDueRule(
+  dueRule: ClientServiceRequestDto["services"][number]["tasks"][number]["dueRule"],
+): ActivateClientServicesRequest["services"][number]["tasks"][number]["dueRule"] {
+  const date =
+    dueRule.date && /^\d{4}-\d{2}-\d{2}/.test(dueRule.date) ? dueRule.date.slice(0, 10) : undefined;
+  const type =
+    dueRule.type === "fixed_day_of_month" ||
+    dueRule.type === "fixed_month_day" ||
+    dueRule.type === "days_after_period_end" ||
+    dueRule.type === "quarterly_due_date"
+      ? dueRule.type
+      : "fixed_day_of_month";
+  return {
+    type,
+    ...(typeof dueRule.day === "number" ? { day: dueRule.day } : {}),
+    ...(typeof dueRule.month === "number" ? { month: dueRule.month } : {}),
+    ...(typeof dueRule.days === "number" ? { days: dueRule.days } : {}),
+    ...(date ? { date } : {}),
+  };
 }
 
 function requestFingerprint(clientId: string, input: CreateClientServiceRequest): string {

@@ -771,16 +771,10 @@ export class TenantAdminClientServiceActivationRepository {
           from details
           on conflict (idempotency_key) where idempotency_key is not null do nothing
           returning id
-        ),
-        notification_row as (
-          select id from inserted_notification
-          union all
-          select id from public.notifications where idempotency_key = 'client-service-activated:' || $4::uuid::text
-          limit 1
         )
         insert into public.notification_recipients (notification_id, recipient_user_id)
-        select notification_row.id, cpa.user_id
-        from notification_row
+        select inserted_notification.id, cpa.user_id
+        from inserted_notification
         join public.client_portal_accounts cpa
           on cpa.tenant_id = $1 and cpa.client_id = $2::uuid and cpa.status = 'active'
         on conflict (notification_id, recipient_user_id) do nothing
@@ -808,16 +802,10 @@ export class TenantAdminClientServiceActivationRepository {
           )
           on conflict (idempotency_key) where idempotency_key is not null do nothing
           returning id
-        ),
-        notification_row as (
-          select id from inserted_notification
-          union all
-          select id from public.notifications where idempotency_key = 'employee-service-assigned:' || $4::uuid::text
-          limit 1
         )
         insert into public.notification_recipients (notification_id, recipient_user_id)
-        select notification_row.id, tm.user_id
-        from notification_row
+        select inserted_notification.id, tm.user_id
+        from inserted_notification
         join public.employees e on e.tenant_id = $1 and e.id = $2::uuid
         join public.tenant_memberships tm on tm.id = e.membership_id and tm.tenant_id = e.tenant_id
         on conflict (notification_id, recipient_user_id) do nothing
@@ -889,8 +877,8 @@ export class TenantAdminClientServiceActivationRepository {
     return {
       id: result.rows[0].id,
       label: result.rows[0].label,
-      startsOn: result.rows[0].starts_on,
-      endsOn: result.rows[0].ends_on,
+      startsOn: result.rows[0].starts_on.slice(0, 10),
+      endsOn: result.rows[0].ends_on.slice(0, 10),
     };
   }
 
