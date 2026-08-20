@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, expect, test, vi } from "vitest";
 import { PlatformOverviewDashboard } from "@/components/dashboard/platform-overview-dashboard";
@@ -26,6 +26,7 @@ vi.mock("@/components/ui/dropdown-menu", () => ({
 }));
 
 afterEach(() => {
+  cleanup();
   vi.clearAllMocks();
 });
 
@@ -152,6 +153,10 @@ test("renders live Super Admin turnover dashboard sections", async () => {
   expect(screen.getByLabelText("Page context: Super Admin")).toBeInTheDocument();
   expect(screen.getByLabelText("Actions for ABC Technologies")).toBeInTheDocument();
   expect(screen.getByText("View tenant")).toBeInTheDocument();
+  fireEvent.click(screen.getByText("View tenant"));
+  expect(await screen.findByText("Tenant details")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Suspend" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Remove" })).toBeInTheDocument();
 });
 
 test("submits tenant search only after the search action and shows a no-results message", async () => {

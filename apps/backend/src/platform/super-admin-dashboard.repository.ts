@@ -285,15 +285,18 @@ export class SuperAdminDashboardRepository {
         group by tenant_id
       ),
       tenant_administrator_logins as (
-        select tm.tenant_id, max(c.last_login_at) as last_login_at
+        select
+          tm.tenant_id,
+          max(greatest(c.last_login_at, u.last_login_at, tm.last_access_at, s.last_seen_at)) as last_login_at
         from filtered_tenants ft
         join public.tenant_memberships tm on tm.tenant_id = ft.id and tm.status = 'active'
+        join public.users u on u.id = tm.user_id
         join public.membership_roles mr on mr.tenant_id = tm.tenant_id and mr.membership_id = tm.id and mr.status = 'active'
         join public.roles r on r.id = mr.role_id and r.code = 'TENANT_ADMIN'
-        left join authn.credentials c
-          on c.tenant_id = tm.tenant_id
-         and c.user_id = tm.user_id
-         and c.portal_type = 'TENANT'
+        left join authn.credentials c on c.user_id = tm.user_id
+        left join authn.sessions s
+          on s.user_id = tm.user_id
+         and (s.tenant_id = tm.tenant_id or s.tenant_id is null)
         group by tm.tenant_id
       )
       select

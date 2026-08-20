@@ -21,9 +21,10 @@ describe("SuperAdminDashboardRepository", () => {
     });
 
     const sql = String(query.mock.calls[0]?.[0]);
-    expect(sql).toContain("max(c.last_login_at) as last_login_at");
-    expect(sql).toContain("left join authn.credentials c");
-    expect(sql).toContain("c.portal_type = 'TENANT'");
+    expect(sql).toContain("max(greatest(c.last_login_at, u.last_login_at, tm.last_access_at, s.last_seen_at)) as last_login_at");
+    expect(sql).toContain("left join authn.credentials c on c.user_id = tm.user_id");
+    expect(sql).toContain("left join authn.sessions s");
+    expect(sql).not.toContain("c.portal_type = 'TENANT'");
     expect(sql).not.toContain("TENANT_ADMIN_LOGGED_IN");
   });
 });

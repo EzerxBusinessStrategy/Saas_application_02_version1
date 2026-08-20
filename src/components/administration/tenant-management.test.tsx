@@ -137,6 +137,49 @@ test("stores country and financial-year filters in URL search parameters", async
   });
 });
 
+test("opens tenant details in a dialog from View tenant", async () => {
+  renderWithQuery(<TenantDirectory />);
+  await screen.findAllByText("Northstar Labs");
+  fireEvent.click(screen.getAllByText("View tenant")[0]);
+  expect(await screen.findByText("Tenant details")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Suspend" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Remove" })).toBeInTheDocument();
+  expect(push).not.toHaveBeenCalled();
+});
+
+test("shows administrator access as active when a login timestamp exists", async () => {
+  mockAdministrationApi.listTenants.mockResolvedValue({
+    items: [{
+      id: "tenant-1",
+      name: "Northstar Labs",
+      code: "NS001",
+      owner: { name: "Nora Admin", email: "nora@example.com" },
+      status: "pending_activation",
+      employeeCount: 1,
+      clientCount: 0,
+      createdAt: "2026-07-31T00:00:00.000Z",
+      usagePercent: 0,
+      tenantAdministrator: {
+        membershipId: "mem-1",
+        name: "Nora Admin",
+        email: "nora@example.com",
+        membershipStatus: "active",
+        lastLoginAt: "2026-08-20T05:00:00.000Z",
+        lastLogoutAt: null,
+        passwordChangedAt: null,
+      },
+    }],
+    page: 1,
+    pageSize: 5,
+    pageCount: 1,
+    totalItems: 1,
+  });
+  renderWithQuery(<TenantDirectory />);
+  await screen.findAllByText("Northstar Labs");
+  expect(screen.getAllByText("Active").length).toBeGreaterThan(0);
+  expect(screen.queryByText("Not logged in")).not.toBeInTheDocument();
+});
+
 test("does not offer lifecycle actions for a cancelled tenant", async () => {
   mockAdministrationApi.listTenants.mockResolvedValue({
     items: [{

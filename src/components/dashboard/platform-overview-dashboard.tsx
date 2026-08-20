@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Bar,
   BarChart,
@@ -21,6 +21,18 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
+import { ConfirmationDialog } from "@/components/shared/confirmation-dialog";
+import { TenantPreviewDialog } from "@/components/administration/tenant-preview-dialog";
+import {
+  canReactivateTenant,
+  canRevokeTenant,
+  canSuspendTenant,
+  suspensionDurations,
+  type SuspensionDuration,
+} from "@/components/administration/tenant-lifecycle";
+import { updateTenantStatus } from "@/features/administration/api/administration-api";
+import { tenantStatuses, type Tenant } from "@/types/administration";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -29,7 +41,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { DatePicker } from "@/components/shared/date-picker";
-import { Select } from "@/components/ui/select";
 import { MetricCard } from "@/components/shared/metric-card";
 import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -51,10 +62,44 @@ import type {
   TurnoverTrendPoint,
 } from "@/types/platform-overview";
 
+function healthRowToTenant(row: TenantTurnoverHealthRow): Tenant {
+  const status = (tenantStatuses as readonly string[]).includes(row.tenantStatus)
+    ? (row.tenantStatus as Tenant["status"])
+    : "pending_activation";
+  return {
+    id: row.tenantId,
+    name: row.tenantName,
+    code: "",
+    owner: { name: "Not assigned", email: "" },
+    status,
+    employeeCount: row.activeUsers,
+    clientCount: 0,
+    createdAt: "",
+    usagePercent: 0,
+    tenantAdministrator: {
+      membershipId: row.tenantId,
+      name: "Not assigned",
+      email: "",
+      membershipStatus: "active",
+      lastLoginAt: row.tenantAdministratorLastLoginAt ?? null,
+      lastLogoutAt: null,
+      passwordChangedAt: null,
+    },
+  };
+}
+
 export function PlatformOverviewDashboard() {
+  const queryClient = useQueryClient();
   const [filters, setFilters] = useState<SuperAdminDashboardFilters>({});
   const [tenantSearch, setTenantSearch] = useState("");
   const [selectedTenantId, setSelectedTenantId] = useState("");
+  const [previewRow, setPreviewRow] = useState<TenantTurnoverHealthRow | null>(null);
+  const [lifecycleTarget, setLifecycleTarget] = useState<Tenant | null>(null);
+  const [revokeTarget, setRevokeTarget] = useState<Tenant | null>(null);
+  const [showFinalRevokeWarning, setShowFinalRevokeWarning] = useState(false);
+  const [revokeAcknowledged, setRevokeAcknowledged] = useState(false);
+  const [suspensionDuration, setSuspensionDuration] = useState<SuspensionDuration>("24h");
+  const previewTenant = previewRow ? healthRowToTenant(previewRow) : null;
   const query = useQuery({
     queryKey: ["super-admin-dashboard", filters],
     queryFn: () => getSuperAdminDashboard(filters),
@@ -83,6 +128,27 @@ export function PlatformOverviewDashboard() {
     }));
   const submitTenantSearch = () =>
     setFilters((current) => ({ ...current, search: tenantSearch.trim() || undefined }));
+  const lifecycleMutation = useMutation({
+    mutationFn: ({
+      tenantId,
+      status,
+      duration,
+      revokeConfirmation,
+    }: {
+      tenantId: string;
+      status: "active" | "suspended" | "revoked";
+      duration?: SuspensionDuration;
+      revokeConfirmation?: "REVOKE";
+    }) => updateTenantStatus(tenantId, status, { suspensionDuration: duration, revokeConfirmation }),
+    onSuccess: () => {
+      setLifecycleTarget(null);
+      setRevokeTarget(null);
+      setShowFinalRevokeWarning(false);
+      setRevokeAcknowledged(false);
+      void queryClient.invalidateQueries({ queryKey: ["super-admin-dashboard"] });
+      void queryClient.invalidateQueries({ queryKey: ["tenants"] });
+    },
+  });
   if (query.isLoading) {
     return <LoadingState label="Loading Super Admin dashboard" rows={6} />;
   }
@@ -112,7 +178,10 @@ export function PlatformOverviewDashboard() {
         data={data}
         filters={filters}
         onFilter={setFilter}
-        onTenant={setSelectedTenantId}
+        onPreview={(row) => {
+          setSelectedTenantId(row.tenantId);
+          setPreviewRow(row);
+        }}
         searchValue={tenantSearch}
         onSearchChange={setTenantSearch}
         onSearch={submitTenantSearch}
@@ -129,6 +198,115 @@ export function PlatformOverviewDashboard() {
       />
 
       <ActivityCard items={data.recentActivity} />
+      <TenantPreviewDialog
+        tenant={previewTenant}
+        open={Boolean(previewRow)}
+        onOpenChange={(open) => !open && setPreviewRow(null)}
+        onSuspend={() => {
+          if (previewTenant) setLifecycleTarget(previewTenant);
+        }}
+        onRemove={() => {
+          if (previewTenant) setRevokeTarget(previewTenant);
+        }}
+      >
+        {previewRow ? (
+          <>
+            <div>
+              <dt className="text-muted-foreground">Country</dt>
+              <dd className="mt-1">{previewRow.country ?? "Not set"}</dd>
+            </div>
+            <div>
+              <dt className="text-muted-foreground">Turnover</dt>
+              <dd className="mt-1">{formatMoney(previewRow.turnover, previewRow.currencyCode)}</dd>
+            </div>
+            <div>
+              <dt className="text-muted-foreground">Health</dt>
+              <dd className="mt-1">{previewRow.healthLabel}</dd>
+            </div>
+          </>
+        ) : null}
+      </TenantPreviewDialog>
+      <ConfirmationDialog
+        open={Boolean(lifecycleTarget)}
+        onOpenChange={(open) => !open && setLifecycleTarget(null)}
+        title={
+          lifecycleTarget?.status === "suspended"
+            ? "Reactivate tenant"
+            : "Suspend tenant"
+        }
+        description={
+          lifecycleTarget?.status === "suspended"
+            ? "The organisation will be able to sign in again."
+            : "Suspending blocks all tenant portal access for the selected period."
+        }
+        confirmLabel={
+          lifecycleTarget?.status === "suspended"
+            ? "Reactivate tenant"
+            : "Suspend tenant"
+        }
+        isConfirming={lifecycleMutation.isPending}
+        onConfirm={() => {
+          if (lifecycleTarget && (canSuspendTenant(lifecycleTarget) || canReactivateTenant(lifecycleTarget))) {
+            lifecycleMutation.mutate({
+              tenantId: lifecycleTarget.id,
+              status: lifecycleTarget.status === "suspended" ? "active" : "suspended",
+              duration: lifecycleTarget.status !== "suspended" ? suspensionDuration : undefined,
+            });
+          }
+        }}
+      >
+        {lifecycleTarget && lifecycleTarget.status !== "suspended" ? (
+          <label className="flex flex-col gap-1 text-sm font-medium">
+            Suspension period
+            <Select
+              aria-label="Suspension period"
+              value={suspensionDuration}
+              onChange={(event) => setSuspensionDuration(event.target.value as SuspensionDuration)}
+            >
+              {suspensionDurations.map((duration) => (
+                <option key={duration.value} value={duration.value}>{duration.label}</option>
+              ))}
+            </Select>
+          </label>
+        ) : null}
+        {lifecycleMutation.isError ? <p className="text-sm text-danger" role="alert">Tenant status could not be updated.</p> : null}
+      </ConfirmationDialog>
+      <ConfirmationDialog
+        open={Boolean(revokeTarget) && !showFinalRevokeWarning}
+        onOpenChange={(open) => !open && setRevokeTarget(null)}
+        title="Caution: remove tenant access"
+        description="Removing blocks this organisation and every member immediately. Existing records are kept."
+        confirmLabel="Continue"
+        warning
+        onConfirm={() => setShowFinalRevokeWarning(true)}
+      />
+      <ConfirmationDialog
+        open={Boolean(revokeTarget) && showFinalRevokeWarning}
+        onOpenChange={(open) => {
+          if (!open) {
+            setShowFinalRevokeWarning(false);
+            setRevokeTarget(null);
+            setRevokeAcknowledged(false);
+          }
+        }}
+        title="Remove tenant permanently"
+        description="This cannot be undone through the application. The tenant and its records are retained only for audit and recovery review."
+        confirmLabel="Remove tenant"
+        destructive
+        confirmDisabled={!revokeAcknowledged}
+        isConfirming={lifecycleMutation.isPending}
+        onConfirm={() => {
+          if (revokeTarget && canRevokeTenant(revokeTarget)) {
+            lifecycleMutation.mutate({ tenantId: revokeTarget.id, status: "revoked", revokeConfirmation: "REVOKE" });
+          }
+        }}
+      >
+        <label className="flex items-center gap-2 text-sm font-medium">
+          <input type="checkbox" checked={revokeAcknowledged} onChange={(event) => setRevokeAcknowledged(event.target.checked)} />
+          I understand that removal cannot be undone here.
+        </label>
+        {lifecycleMutation.isError ? <p className="text-sm text-danger" role="alert">Tenant could not be removed.</p> : null}
+      </ConfirmationDialog>
     </div>
   );
 }
@@ -245,7 +423,7 @@ function TenantTurnoverHealthSection({
   data,
   filters,
   onFilter,
-  onTenant,
+  onPreview,
   searchValue,
   onSearchChange,
   onSearch,
@@ -256,7 +434,7 @@ function TenantTurnoverHealthSection({
     key: Key,
     value: SuperAdminDashboardFilters[Key] | "",
   ) => void;
-  onTenant: (tenantId: string) => void;
+  onPreview: (tenant: TenantTurnoverHealthRow) => void;
   searchValue: string;
   onSearchChange: (value: string) => void;
   onSearch: () => void;
@@ -301,7 +479,7 @@ function TenantTurnoverHealthSection({
             <TopTenantsByCountry tenants={data.tenantHealth} selectedCountry={filters.country ?? null} />
             <TenantHealthTable
               tenants={data.tenantHealth}
-              onTenant={onTenant}
+              onPreview={onPreview}
             />
           </div>
         ) : (
@@ -637,10 +815,10 @@ function HealthChips({
 
 function TenantHealthTable({
   tenants,
-  onTenant,
+  onPreview,
 }: {
   tenants: readonly TenantTurnoverHealthRow[];
-  onTenant: (tenantId: string) => void;
+  onPreview: (tenant: TenantTurnoverHealthRow) => void;
 }) {
   return (
     <div className="overflow-x-auto">
@@ -693,7 +871,7 @@ function TenantHealthTable({
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
-                    <DropdownMenuItem onSelect={() => onTenant(tenant.tenantId)}>
+                    <DropdownMenuItem onSelect={() => onPreview(tenant)}>
                       View tenant
                     </DropdownMenuItem>
                   </DropdownMenuContent>

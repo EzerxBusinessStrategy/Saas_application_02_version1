@@ -83,6 +83,7 @@ export const migrationNames = [
   "0074_audit_event_operational_context.sql",
   "0075_user_avatars.sql",
   "0076_tenant_membership_self_access.sql",
+  "0077_super_admin_tenant_login_from_sessions.sql",
 ] as const;
 
 export async function runMigrations(

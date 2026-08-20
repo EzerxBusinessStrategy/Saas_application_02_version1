@@ -19,7 +19,9 @@ components. They are not claimed to be pixel-perfect or Figma-verified.
 
 Design status: Pending Figma verification.
 
-- Super Admin tenant management, tenant detail, tenant creation, reports,
+- Super Admin tenant list View tenant now opens a TailAdmin dialog with
+  suspend and remove actions. Design status: Pending Figma verification.
+
   global audit logs, and platform configuration
   use the existing TailAdmin system and the previously recorded NEATLAB
   hierarchy only. Audit sort and pagination remain a TailAdmin-based inferred

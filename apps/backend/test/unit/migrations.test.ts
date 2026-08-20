@@ -426,4 +426,24 @@ describe("database migrations", () => {
     expect(sql).not.toContain("drop table");
     expect(sql).not.toMatch(/alter table [^\n]+ drop column/i);
   });
+
+  test("derives Super Admin tenant login status from credentials, sessions, and user last login", () => {
+    expect(migrationNames).toContain("0077_super_admin_tenant_login_from_sessions.sql");
+    expect(migrationNames.indexOf("0077_super_admin_tenant_login_from_sessions.sql")).toBeGreaterThan(
+      migrationNames.indexOf("0076_tenant_membership_self_access.sql"),
+    );
+
+    const sql = readFileSync(
+      resolve(__dirname, "../../drizzle/migrations/0077_super_admin_tenant_login_from_sessions.sql"),
+      "utf8",
+    );
+
+    expect(sql).toContain("list_super_admin_tenant_administrator_access");
+    expect(sql).toContain("u.last_login_at");
+    expect(sql).toContain("authn.sessions");
+    expect(sql).toContain("authn.credentials");
+    expect(sql).toContain("s.last_seen_at");
+    expect(sql).not.toContain("drop table");
+    expect(sql).not.toMatch(/alter table [^\n]+ drop column/i);
+  });
 });

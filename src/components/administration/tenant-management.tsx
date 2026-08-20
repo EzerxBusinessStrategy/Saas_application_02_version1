@@ -54,6 +54,15 @@ import {
 } from "@/features/administration/api/administration-api";
 import { formatIndiaDateTime } from "@/lib/india-time";
 import {
+  canReactivateTenant,
+  canRevokeTenant,
+  canSuspendTenant,
+  suspensionDurations,
+  tenantLifecycleStatus,
+  type SuspensionDuration,
+} from "@/components/administration/tenant-lifecycle";
+import { TenantPreviewDialog } from "@/components/administration/tenant-preview-dialog";
+import {
   legacyCreateTenantSchema,
   type LegacyCreateTenantInput,
   type Tenant,
@@ -76,28 +85,6 @@ const tenantTabs = [
 ];
 
 type TenantCreateFormInput = z.input<typeof legacyCreateTenantSchema>;
-const suspensionDurations = [
-  { value: "24h", label: "24 hours" },
-  { value: "48h", label: "48 hours" },
-  { value: "72h", label: "72 hours" },
-  { value: "96h", label: "96 hours" },
-  { value: "1w", label: "1 week" },
-  { value: "1m", label: "1 month" },
-  { value: "6m", label: "6 months" },
-] as const;
-type SuspensionDuration = (typeof suspensionDurations)[number]["value"];
-const canSuspendTenant = (tenant: Tenant) =>
-  tenant.status === "active" || tenant.status === "pending_activation";
-const canReactivateTenant = (tenant: Tenant) => tenant.status === "suspended";
-const canRevokeTenant = (tenant: Tenant) =>
-  tenant.status === "active" || tenant.status === "suspended" || tenant.status === "pending_activation";
-
-function tenantLifecycleStatus(tenant: Tenant): Tenant["status"] | "not_logged_in" {
-  if (tenant.status === "active" || tenant.status === "pending_activation") {
-    return tenant.tenantAdministrator?.lastLoginAt ? "active" : "not_logged_in";
-  }
-  return tenant.status;
-}
 
 const previewState = (value: string | null) =>
   value === "loading" || value === "error" || value === "empty" ? value : null;
@@ -206,6 +193,7 @@ export function TenantDirectory() {
     () => searchParams.get("query") ?? "",
   );
   const [submittedQuery, setSubmittedQuery] = useState(searchValue);
+  const [previewTarget, setPreviewTarget] = useState<Tenant | null>(null);
   const [lifecycleTarget, setLifecycleTarget] = useState<Tenant | null>(null);
   const [revokeTarget, setRevokeTarget] = useState<Tenant | null>(null);
   const [showFinalRevokeWarning, setShowFinalRevokeWarning] = useState(false);
@@ -309,9 +297,7 @@ export function TenantDirectory() {
           <button
             type="button"
             className="font-medium text-primary hover:underline"
-            onClick={() =>
-              router.push(`/super-admin/tenants/${row.original.id}`)
-            }
+            onClick={() => setPreviewTarget(row.original)}
           >
             {row.original.name}
           </button>
@@ -409,11 +395,7 @@ export function TenantDirectory() {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem
-              onSelect={() =>
-                router.push(`/super-admin/tenants/${row.original.id}`)
-              }
-            >
+            <DropdownMenuItem onSelect={() => setPreviewTarget(row.original)}>
               View tenant
             </DropdownMenuItem>
             {canSuspendTenant(row.original) || canReactivateTenant(row.original) ? (
@@ -587,9 +569,7 @@ export function TenantDirectory() {
                   <TenantCard
                     key={tenant.id}
                     tenant={tenant}
-                    onOpen={() =>
-                      router.push(`/super-admin/tenants/${tenant.id}`)
-                    }
+                    onOpen={() => setPreviewTarget(tenant)}
                     onManageLifecycle={() => setLifecycleTarget(tenant)}
                     onRevoke={() => setRevokeTarget(tenant)}
                   />
@@ -610,6 +590,17 @@ export function TenantDirectory() {
           )}
         </CardContent>
       </Card>
+      <TenantPreviewDialog
+        tenant={previewTarget}
+        open={Boolean(previewTarget)}
+        onOpenChange={(open) => !open && setPreviewTarget(null)}
+        onSuspend={() => {
+          if (previewTarget) setLifecycleTarget(previewTarget);
+        }}
+        onRemove={() => {
+          if (previewTarget) setRevokeTarget(previewTarget);
+        }}
+      />
       <ConfirmationDialog
         open={Boolean(lifecycleTarget)}
         onOpenChange={(open) => !open && setLifecycleTarget(null)}
