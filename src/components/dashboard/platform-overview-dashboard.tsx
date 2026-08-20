@@ -91,7 +91,7 @@ export function PlatformOverviewDashboard() {
     return (
       <ErrorState
         title="Dashboard could not load"
-        description="Check the backend connection and sign in again if needed."
+        description="Try again in a moment, or sign in again if needed."
         onRetry={() => void query.refetch()}
       />
     );
@@ -166,7 +166,7 @@ function PlatformOverviewSection({
           metric={{
             label: "Total tenants",
             value: formatCount(data.metrics.totalTenants),
-            change: "Country scoped",
+            change: "Filtered by country",
             trend: "flat",
           }}
           className="super-admin-surface rounded-none border-y-0 border-l-0 shadow-none last:border-r-0"
@@ -178,7 +178,7 @@ function PlatformOverviewSection({
           metric={{
             label: "Low-health tenants",
             value: formatCount(data.metrics.lowHealthTenants),
-            change: "Financial period scoped",
+            change: "For the selected period",
             trend: data.metrics.lowHealthTenants ? "down" : "flat",
           }}
           className="super-admin-surface rounded-none border-y-0 border-l-0 shadow-none last:border-r-0"

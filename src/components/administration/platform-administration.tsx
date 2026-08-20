@@ -27,7 +27,6 @@ import { ErrorState } from "@/components/shared/error-state";
 import { FilterToolbar } from "@/components/shared/filter-toolbar";
 import { LoadingState } from "@/components/shared/loading-state";
 import { PageHeader } from "@/components/shared/page-header";
-import { ProfilePhotoEditor } from "@/components/shared/profile-photo-editor";
 import { Pagination } from "@/components/shared/pagination";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
@@ -80,7 +79,7 @@ export function PlatformReports() {
     return (
       <ErrorState
         title="Global reports could not load"
-        description="Check the backend connection and try again."
+        description="Try again in a moment."
         onRetry={() => void reportsQuery.refetch()}
       />
     );
@@ -338,8 +337,7 @@ export function GlobalAuditLog({ tenantName }: { tenantName?: string }) {
         <CardHeader>
           <CardTitle>Audit activity</CardTitle>
           <CardDescription>
-            Audit visibility is read-only in the frontend. Server-side tenant
-            scoping and access control remain required.
+            Review recorded actions. This list cannot be edited.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-5">
@@ -556,7 +554,6 @@ export function PlatformConfiguration() {
         title="Platform configuration"
         description="Set constrained platform identity, branding, and email defaults."
       />
-      <ProfilePhotoEditor portal="super-admin" />
       <form
         className="flex flex-col gap-[30px]"
         onSubmit={form.handleSubmit(publish)}
@@ -566,7 +563,7 @@ export function PlatformConfiguration() {
             <CardContent className="p-[30px]">
               <p className="font-medium">Platform configuration saved</p>
               <p className="mt-1 text-sm text-muted-foreground">
-                Saved to the platform database and applied to the Super Admin shell.
+                Your platform defaults have been saved.
               </p>
             </CardContent>
           </Card>
@@ -582,7 +579,7 @@ export function PlatformConfiguration() {
           <CardHeader>
             <CardTitle>Platform identity and branding</CardTitle>
             <CardDescription>
-              Branding is limited to the approved design-token palette.
+              Choose a platform name, brand colour, and email sender name.
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-5 md:grid-cols-2">

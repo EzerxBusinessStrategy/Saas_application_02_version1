@@ -66,6 +66,11 @@ const defaultValues: CreateTenantInput = {
     password: "",
     phone: "",
   },
+  administratorMode: "another_person",
+  selfAccess: {
+    roles: ["TENANT_ADMIN", "MANAGER", "EMPLOYEE"],
+    displayTitle: "Founder",
+  },
   confirm: false,
 };
 
@@ -83,6 +88,7 @@ export function TenantCreatePageForm() {
   const incorporationDate = form.watch("company.incorporationDate");
   const fySource = form.watch("financialYear.source");
   const adminEmail = form.watch("tenantAdministrator.email");
+  const administratorMode = form.watch("administratorMode");
   const normalizedAdminEmail = adminEmail.trim().toLowerCase();
   const adminEmailLooksValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedAdminEmail);
   const [emailToCheck, setEmailToCheck] = useState("");
@@ -107,10 +113,13 @@ export function TenantCreatePageForm() {
   });
   const emailUnavailable = emailToCheck === normalizedAdminEmail && emailAvailability.data?.available === false;
   const emailCheckPending =
+    administratorMode === "another_person" &&
     adminEmailLooksValid &&
     (emailToCheck !== normalizedAdminEmail || emailAvailability.isFetching);
-  const blockCreate = mutation.isPending || emailUnavailable || emailCheckPending;
-  const blockContinue = step === 2 && (emailUnavailable || emailCheckPending);
+  const blockCreate =
+    mutation.isPending ||
+    (administratorMode === "another_person" && (emailUnavailable || emailCheckPending));
+  const blockContinue = step === 2 && administratorMode === "another_person" && (emailUnavailable || emailCheckPending);
 
   // Track previous countryCode so we can detect changes
   const prevCountryRef = useRef(countryCode);
@@ -157,13 +166,13 @@ export function TenantCreatePageForm() {
   }, [displayName, form]);
 
   useEffect(() => {
-    if (!adminEmailLooksValid) {
+    if (administratorMode !== "another_person" || !adminEmailLooksValid) {
       setEmailToCheck("");
       return;
     }
     const timeout = window.setTimeout(() => setEmailToCheck(normalizedAdminEmail), 500);
     return () => window.clearTimeout(timeout);
-  }, [adminEmailLooksValid, normalizedAdminEmail]);
+  }, [administratorMode, adminEmailLooksValid, normalizedAdminEmail]);
 
   useEffect(() => {
     const emailError = form.formState.errors.tenantAdministrator?.email;
@@ -195,10 +204,28 @@ export function TenantCreatePageForm() {
         "financialYear.startsOn",
         "financialYear.endsOn",
       ],
-      ["tenantAdministrator.fullName", "tenantAdministrator.email", "tenantAdministrator.password", "tenantAdministrator.phone"],
-      ["tenantAdministrator.email", "tenantAdministrator.password", "tenantAdministrator.phone", "confirm"],
+      [
+        administratorMode === "myself"
+          ? "selfAccess.roles"
+          : "tenantAdministrator.fullName",
+        ...(administratorMode === "myself"
+          ? (["selfAccess.displayTitle"] as const)
+          : ([
+              "tenantAdministrator.email",
+              "tenantAdministrator.password",
+              "tenantAdministrator.phone",
+            ] as const)),
+      ],
+      administratorMode === "myself"
+        ? (["selfAccess.roles", "confirm"] as const)
+        : ([
+            "tenantAdministrator.email",
+            "tenantAdministrator.password",
+            "tenantAdministrator.phone",
+            "confirm",
+          ] as const),
     ],
-    [],
+    [administratorMode],
   );
 
   async function continueStep() {
@@ -242,7 +269,7 @@ export function TenantCreatePageForm() {
               </div>
             ) : (
               <Button type="submit" form="create-tenant-form" disabled={blockCreate}>
-                {mutation.isPending ? "Creating..." : "Create tenant and administrator account"}
+                {mutation.isPending ? "Creating..." : administratorMode === "myself" ? "Create tenant" : "Create tenant and administrator account"}
               </Button>
             )}
           </div>
@@ -317,7 +344,7 @@ export function TenantCreatePageForm() {
           </div>
         ) : (
           <Button type="submit" form="create-tenant-form" disabled={blockCreate}>
-            {mutation.isPending ? "Creating..." : "Create tenant and administrator account"}
+            {mutation.isPending ? "Creating..." : administratorMode === "myself" ? "Create tenant" : "Create tenant and administrator account"}
           </Button>
         )}
       </div>
@@ -486,7 +513,7 @@ function FinancialStep({
       <CardHeader>
         <CardTitle>Financial setup for {countryName}</CardTitle>
         <CardDescription>
-          Confirm the authoritative financial year saved for this {countryName} tenant.
+          Confirm the financial year for this {countryName} organisation.
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-5">
@@ -637,43 +664,125 @@ function AdminStep({
   form: ReturnType<typeof useForm<CreateTenantInput>>;
   isCheckingEmail: boolean;
 }) {
+  const administratorMode = form.watch("administratorMode");
+  const selectedRoles = form.watch("selfAccess.roles");
+  const toggleRole = (role: "TENANT_ADMIN" | "MANAGER" | "EMPLOYEE", checked: boolean) => {
+    const current = new Set(form.getValues("selfAccess.roles"));
+    if (checked) {
+      current.add(role);
+      if (role === "MANAGER") current.add("EMPLOYEE");
+    } else {
+      current.delete(role);
+      if (role === "EMPLOYEE") current.delete("MANAGER");
+    }
+    form.setValue("selfAccess.roles", [...current], { shouldValidate: true });
+  };
+
   return (
     <Card>
       <CardHeader>
         <CardTitle>Tenant Administrator</CardTitle>
         <CardDescription>
-          Create the Tenant Administrator sign-in account. No invitation email is sent.
+          Assign another person, or attach your Super Admin account to this organisation. Do not create a second sign-in for the same email.
         </CardDescription>
       </CardHeader>
-      <CardContent className="grid gap-5 md:grid-cols-2">
-        <Field
-          label="Full name"
-          required
-          error={form.formState.errors.tenantAdministrator?.fullName?.message}
-        >
-          <Input required aria-label="Full name" aria-invalid={Boolean(form.formState.errors.tenantAdministrator?.fullName)} data-field-label="Full name" {...form.register("tenantAdministrator.fullName")} />
-        </Field>
-        <Field
-          label="Work email"
-          required
-          hint={isCheckingEmail ? "Checking availability" : undefined}
-          error={form.formState.errors.tenantAdministrator?.email?.message}
-        >
-          <Input required aria-label="Work email" aria-invalid={Boolean(form.formState.errors.tenantAdministrator?.email)} data-field-label="Work email" type="email" {...form.register("tenantAdministrator.email")} />
-        </Field>
-        <Field
-          label="Initial password"
-          required
-          error={form.formState.errors.tenantAdministrator?.password?.message}
-        >
-          <PasswordInput required aria-label="Initial password" aria-invalid={Boolean(form.formState.errors.tenantAdministrator?.password)} data-field-label="Initial password" {...form.register("tenantAdministrator.password")} />
-        </Field>
-        <Field label="Phone number" required error={form.formState.errors.tenantAdministrator?.phone?.message}>
-          <Input required aria-label="Phone number" aria-invalid={Boolean(form.formState.errors.tenantAdministrator?.phone)} data-field-label="Phone number" type="tel" autoComplete="tel" {...form.register("tenantAdministrator.phone")} />
-        </Field>
-        <Field label="Role">
-          <Input readOnly value="Tenant Administrator" />
-        </Field>
+      <CardContent className="grid gap-5">
+        <fieldset className="grid gap-3">
+          <legend className="text-sm font-medium">Tenant Administrator</legend>
+          <label className="rounded-md border p-4">
+            <span className="flex items-start gap-3">
+              <input type="radio" value="another_person" {...form.register("administratorMode")} />
+              <span>
+                <span className="block font-medium">Another person</span>
+                <span className="mt-1 block text-sm text-muted-foreground">
+                  Create a Tenant Administrator sign-in account. No invitation email is sent.
+                </span>
+              </span>
+            </span>
+          </label>
+          <label className="rounded-md border p-4">
+            <span className="flex items-start gap-3">
+              <input type="radio" value="myself" {...form.register("administratorMode")} />
+              <span>
+                <span className="block font-medium">Myself</span>
+                <span className="mt-1 block text-sm text-muted-foreground">
+                  Keep your Super Admin sign-in and add organisation roles on this tenant.
+                </span>
+              </span>
+            </span>
+          </label>
+        </fieldset>
+        {administratorMode === "myself" ? (
+          <div className="grid gap-5 md:grid-cols-2">
+            <fieldset className="md:col-span-2 grid gap-3">
+              <legend className="text-sm font-medium">Roles in this organisation</legend>
+              <label className="flex items-start gap-3 text-sm">
+                <input
+                  type="checkbox"
+                  className="mt-1"
+                  checked={selectedRoles.includes("TENANT_ADMIN")}
+                  onChange={(event) => toggleRole("TENANT_ADMIN", event.target.checked)}
+                />
+                <span>Tenant Admin</span>
+              </label>
+              <label className="flex items-start gap-3 text-sm">
+                <input
+                  type="checkbox"
+                  className="mt-1"
+                  checked={selectedRoles.includes("MANAGER")}
+                  onChange={(event) => toggleRole("MANAGER", event.target.checked)}
+                />
+                <span>Manager</span>
+              </label>
+              <label className="flex items-start gap-3 text-sm">
+                <input
+                  type="checkbox"
+                  className="mt-1"
+                  checked={selectedRoles.includes("EMPLOYEE")}
+                  onChange={(event) => toggleRole("EMPLOYEE", event.target.checked)}
+                />
+                <span>Employee</span>
+              </label>
+              {form.formState.errors.selfAccess?.roles ? (
+                <p className="text-sm text-danger">{form.formState.errors.selfAccess.roles.message}</p>
+              ) : null}
+            </fieldset>
+            <Field label="Display title" error={form.formState.errors.selfAccess?.displayTitle?.message}>
+              <Input aria-label="Display title" data-field-label="Display title" {...form.register("selfAccess.displayTitle")} />
+            </Field>
+          </div>
+        ) : (
+          <div className="grid gap-5 md:grid-cols-2">
+            <Field
+              label="Full name"
+              required
+              error={form.formState.errors.tenantAdministrator?.fullName?.message}
+            >
+              <Input required aria-label="Full name" aria-invalid={Boolean(form.formState.errors.tenantAdministrator?.fullName)} data-field-label="Full name" {...form.register("tenantAdministrator.fullName")} />
+            </Field>
+            <Field
+              label="Work email"
+              required
+              hint={isCheckingEmail ? "Checking availability" : undefined}
+              error={form.formState.errors.tenantAdministrator?.email?.message}
+            >
+              <Input required aria-label="Work email" aria-invalid={Boolean(form.formState.errors.tenantAdministrator?.email)} data-field-label="Work email" type="email" {...form.register("tenantAdministrator.email")} />
+            </Field>
+            <Field
+              label="Initial password"
+              required
+              error={form.formState.errors.tenantAdministrator?.password?.message}
+            >
+              <PasswordInput required aria-label="Initial password" aria-invalid={Boolean(form.formState.errors.tenantAdministrator?.password)} data-field-label="Initial password" {...form.register("tenantAdministrator.password")} />
+            </Field>
+            <Field label="Phone number" required error={form.formState.errors.tenantAdministrator?.phone?.message}>
+              <Input required aria-label="Phone number" aria-invalid={Boolean(form.formState.errors.tenantAdministrator?.phone)} data-field-label="Phone number" type="tel" autoComplete="tel" {...form.register("tenantAdministrator.phone")} />
+            </Field>
+            <Field label="Role">
+              <Input readOnly value="Tenant Administrator" />
+            </Field>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
@@ -691,7 +800,7 @@ function ReviewStep({
     <Card>
       <CardHeader>
         <CardTitle>Review and create</CardTitle>
-        <CardDescription>Confirm the tenant before creating it in PostgreSQL.</CardDescription>
+        <CardDescription>Confirm the organisation details before creating the tenant.</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-5">
         <dl className="grid gap-4 text-sm md:grid-cols-3">
@@ -705,19 +814,27 @@ function ReviewStep({
           />
           <Summary
             label="Tenant Administrator"
-            value={`${values.tenantAdministrator.fullName || "-"} · ${values.tenantAdministrator.email || "-"}`}
+            value={
+              values.administratorMode === "myself"
+                ? `Myself · ${values.selfAccess.roles.join(" · ") || "No roles"} · ${values.selfAccess.displayTitle || "No title"}`
+                : `${values.tenantAdministrator.fullName || "-"} · ${values.tenantAdministrator.email || "-"}`
+            }
           />
         </dl>
-        <Field
-          label="Tenant Administrator email"
-          required
-          error={form.formState.errors.tenantAdministrator?.email?.message}
-        >
-          <Input required aria-label="Tenant Administrator email" aria-invalid={Boolean(form.formState.errors.tenantAdministrator?.email)} data-field-label="Tenant Administrator email" type="email" {...form.register("tenantAdministrator.email")} />
-        </Field>
-        <Field label="Temporary password" required error={form.formState.errors.tenantAdministrator?.password?.message}>
-          <PasswordInput required aria-label="Temporary password" aria-invalid={Boolean(form.formState.errors.tenantAdministrator?.password)} data-field-label="Temporary password" {...form.register("tenantAdministrator.password")} />
-        </Field>
+        {values.administratorMode === "another_person" ? (
+          <>
+            <Field
+              label="Tenant Administrator email"
+              required
+              error={form.formState.errors.tenantAdministrator?.email?.message}
+            >
+              <Input required aria-label="Tenant Administrator email" aria-invalid={Boolean(form.formState.errors.tenantAdministrator?.email)} data-field-label="Tenant Administrator email" type="email" {...form.register("tenantAdministrator.email")} />
+            </Field>
+            <Field label="Temporary password" required error={form.formState.errors.tenantAdministrator?.password?.message}>
+              <PasswordInput required aria-label="Temporary password" aria-invalid={Boolean(form.formState.errors.tenantAdministrator?.password)} data-field-label="Temporary password" {...form.register("tenantAdministrator.password")} />
+            </Field>
+          </>
+        ) : null}
         <label className="flex items-start gap-3 text-sm">
           <input required data-field-label="tenant details" type="checkbox" className="mt-1" {...form.register("confirm")} />
           <span>

@@ -56,6 +56,22 @@ export class AccessAdminService {
       throw permissionDenied();
     }
     await this.validateTenantCreation(context, request);
+    const administratorMode = request.administratorMode ?? "another_person";
+    if (administratorMode === "myself") {
+      const created = await this.createSelfAccessTenantOrThrowConflict(context, request);
+      return {
+        tenantId: created.tenant_id,
+        financialYearId: created.financial_year_id,
+        membershipId: created.membership_id,
+        tenantStatus: "active" as const,
+      };
+    }
+    if (!request.tenantAdministrator) {
+      throw new BadRequestException({
+        code: "TENANT_ADMINISTRATOR_REQUIRED",
+        message: "Enter the Tenant Administrator details.",
+      });
+    }
     const normalizedEmail = normalizeEmail(request.tenantAdministrator.email);
     if (await this.isTenantAdminEmailTaken(context, normalizedEmail)) throw emailAlreadyExists();
     const passwordHash = await this.passwords.hash(request.tenantAdministrator.password);
@@ -147,6 +163,29 @@ export class AccessAdminService {
         code: "FINANCIAL_YEAR_TOO_LONG",
         message: `Financial-year period exceeds the ${template.maximum_period_days}-day limit for ${template.country_code}.`,
       });
+    }
+  }
+
+  private async createSelfAccessTenantOrThrowConflict(
+    context: RequestContext,
+    request: CreateTenantWithOwnerInvitationRequest,
+  ) {
+    try {
+      return await this.repository.createTenantForCurrentUser(context, request);
+    } catch (error) {
+      if (isPgUniqueError(error)) {
+        throw new ConflictException({
+          code: "TENANT_CREATE_CONFLICT",
+          message: "Tenant code, slug, or pending administrator invitation already exists.",
+        });
+      }
+      if (isPgCheckError(error)) {
+        throw new BadRequestException({
+          code: "TENANT_CREATE_INVALID",
+          message: "Tenant creation details are invalid.",
+        });
+      }
+      throw error;
     }
   }
 

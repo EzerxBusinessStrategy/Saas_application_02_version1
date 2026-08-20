@@ -4,6 +4,9 @@ import { appLocales, appTimezones } from "./user-preferences.types";
 
 export const updateMyProfileSchema = z.object({
   displayName: z.string().trim().min(1).max(160),
+  phone: z.string().trim().max(30).optional().or(z.literal("")),
+  displayTitle: z.string().trim().max(80).optional().or(z.literal("")),
+  membershipId: z.string().uuid().optional(),
 });
 
 export type UpdateMyProfileRequest = z.infer<typeof updateMyProfileSchema>;
@@ -33,6 +36,15 @@ export class UpdateMyAvatarDto {
 export class UpdateMyProfileDto {
   @ApiProperty({ type: String, example: "Platform Owner" })
   displayName!: string;
+
+  @ApiPropertyOptional({ type: String, example: "+919876543210" })
+  phone?: string;
+
+  @ApiPropertyOptional({ type: String, example: "Founder" })
+  displayTitle?: string;
+
+  @ApiPropertyOptional({ type: String, format: "uuid" })
+  membershipId?: string;
 }
 
 export class UpdateMyPreferencesDto {
@@ -69,6 +81,9 @@ export class MeUserDto {
 
   @ApiPropertyOptional({ type: String, nullable: true })
   avatarUrl!: string | null;
+
+  @ApiPropertyOptional({ type: String, nullable: true })
+  phone!: string | null;
 }
 
 export class MeTenantDto {
@@ -129,4 +144,35 @@ export class MeResponseDto {
 
   @ApiProperty({ type: String })
   requestId!: string;
+}
+
+export class MeContextDto {
+  @ApiProperty({ enum: ["platform", "tenant"] })
+  type!: "platform" | "tenant";
+
+  @ApiPropertyOptional({ type: String })
+  label?: string;
+
+  @ApiPropertyOptional({ type: String, format: "uuid" })
+  tenantId?: string;
+
+  @ApiPropertyOptional({ type: String })
+  tenantName?: string;
+
+  @ApiPropertyOptional({ type: String, format: "uuid" })
+  membershipId?: string;
+
+  @ApiProperty({ type: [String] })
+  roles!: readonly string[];
+
+  @ApiPropertyOptional({ type: String, nullable: true })
+  displayTitle?: string | null;
+
+  @ApiPropertyOptional({ type: Boolean })
+  hasEmployee?: boolean;
+}
+
+export class MeContextsResponseDto {
+  @ApiProperty({ type: () => [MeContextDto] })
+  contexts!: readonly MeContextDto[];
 }

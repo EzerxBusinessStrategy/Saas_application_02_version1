@@ -25,6 +25,7 @@ export class PortalSessionGuard implements CanActivate {
       audience: ["portal-session"],
       expiresAt: session.expires_at,
       portalType: session.portal_type,
+      tenantId: session.tenant_id ?? undefined,
     };
     resolveRequestId(request.headers[REQUEST_ID_HEADER], request.id);
     return true;

@@ -19,6 +19,17 @@ export type CredentialRecord = {
   readonly tenant_status: string | null;
 };
 
+export type UserContextRow = {
+  readonly context_type: "platform" | "tenant";
+  readonly tenant_id: string | null;
+  readonly tenant_code: string | null;
+  readonly tenant_name: string | null;
+  readonly membership_id: string | null;
+  readonly display_title: string | null;
+  readonly roles: readonly string[];
+  readonly has_employee: boolean;
+};
+
 export type ActiveSessionRecord = {
   readonly id: string;
   readonly portal_type: PortalType;
@@ -95,7 +106,17 @@ export class PortalAuthRepository {
     await this.recordLoginAudit(client, credential.portal_type, credential.email_normalized, "INVALID_CREDENTIALS", credential.id, metadata);
   }
 
-  async createSession(client: PoolClient, credential: CredentialRecord, tokenHash: string, expiresAt: Date, idleExpiresAt: Date | undefined, metadata: RequestMetadata): Promise<string> {
+  async createSession(
+    client: PoolClient,
+    credential: CredentialRecord,
+    tokenHash: string,
+    expiresAt: Date,
+    idleExpiresAt: Date | undefined,
+    metadata: RequestMetadata,
+    sessionTarget?: { portalType: PortalType; tenantId: string | null },
+  ): Promise<string> {
+    const portalType = sessionTarget?.portalType ?? credential.portal_type;
+    const tenantId = sessionTarget ? sessionTarget.tenantId : credential.tenant_id;
     await client.query(
       `update authn.credentials set failed_login_attempts = 0, locked_until = null, last_login_at = now() where id = $1`,
       [credential.id],
@@ -104,19 +125,40 @@ export class PortalAuthRepository {
     const result = await client.query<{ id: string }>(
       `insert into authn.sessions (portal_type, credential_id, user_id, tenant_id, token_hash, expires_at, idle_expires_at, ip_address, user_agent)
        values ($1, $2::uuid, $3::uuid, $4::uuid, $5, $6, $7, nullif($8, '')::inet, nullif($9, '')) returning id`,
-      [credential.portal_type, credential.id, credential.user_id, credential.tenant_id, tokenHash, expiresAt, idleExpiresAt ?? null, metadata.ipAddress ?? "", metadata.userAgent ?? ""],
+      [portalType, credential.id, credential.user_id, tenantId, tokenHash, expiresAt, idleExpiresAt ?? null, metadata.ipAddress ?? "", metadata.userAgent ?? ""],
     );
-    await this.recordLoginAudit(client, credential.portal_type, credential.email_normalized, "SUCCESS", credential.id, metadata);
+    await this.recordLoginAudit(client, portalType, credential.email_normalized, "SUCCESS", credential.id, metadata);
     const sessionId = result.rows[0]!.id;
     await this.recordPortalSessionAudit(client, {
       sessionId,
-      portalType: credential.portal_type,
+      portalType,
       userId: credential.user_id,
-      tenantId: credential.tenant_id,
+      tenantId,
       event: "LOGIN",
       metadata,
     });
     return sessionId;
+  }
+
+  async findActiveCredentialByUserId(client: PoolClient, userId: string): Promise<CredentialRecord | undefined> {
+    const result = await client.query<CredentialRecord>(
+      `select c.id, c.portal_type, c.user_id, c.tenant_id, c.email_normalized, c.password_hash, c.status,
+              c.failed_login_attempts, c.locked_until, u.status as user_status, t.status as tenant_status
+       from authn.credentials c
+       join public.users u on u.id = c.user_id
+       left join public.tenants t on t.id = c.tenant_id
+       where c.user_id = $1::uuid and c.status = 'ACTIVE'
+       for update of c`,
+      [userId],
+    );
+    return result.rows[0];
+  }
+
+  async listCurrentUserContexts(client: PoolClient): Promise<readonly UserContextRow[]> {
+    const result = await client.query<UserContextRow>(
+      "select * from private.list_current_user_contexts()",
+    );
+    return result.rows;
   }
 
   async findActiveSession(portalType: PortalType, tokenHash: string): Promise<ActiveSessionRecord | undefined> {

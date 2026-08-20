@@ -223,7 +223,7 @@ test("searches tenants only after clicking the input button or pressing Enter", 
 
 test("shows tenant creation validation and retains the form", async () => {
   render(<TenantCreateForm />);
-  expect(screen.getByLabelText("Tenant provisioning steps")).toHaveTextContent("1. Company");
+  expect(screen.getByLabelText("Tenant setup steps")).toHaveTextContent("1. Company");
   fireEvent.click(
     screen.getByRole("button", { name: "Prepare tenant request" }),
   );

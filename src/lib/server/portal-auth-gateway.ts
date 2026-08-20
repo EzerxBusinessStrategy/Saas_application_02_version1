@@ -119,3 +119,59 @@ function requestMetadataHeaders(request: Request, headers: HeadersInit): Headers
   }
   return forwarded;
 }
+
+export async function switchPortalContext(sourcePortal: PortalKey, request: Request): Promise<NextResponse> {
+  const token = (await cookies()).get(sessionCookieForPortal(sourcePortal))?.value;
+  if (!token) return NextResponse.json({ message: "Sign in to switch workspace." }, { status: 401 });
+  try {
+    const backend = await fetch(`${backendApiBaseUrl()}/auth/switch-context`, {
+      method: "POST",
+      headers: requestMetadataHeaders(request, {
+        "content-type": request.headers.get("content-type") ?? "application/json",
+        cookie: `${sessionCookieForPortal(sourcePortal)}=${encodeURIComponent(token)}`,
+        "x-portal": portalHeader[sourcePortal],
+      }),
+      body: await request.text(),
+      cache: "no-store",
+    });
+    const payload = parseBackendJson(backend.status, await backend.text());
+    if (!isSwitchContextResponse(payload)) {
+      return NextResponse.json(payload, { status: backend.status });
+    }
+    const targetPortal = portalKeyFromBackend(payload.portalType);
+    const response = NextResponse.json({ redirect: payload.redirect });
+    response.cookies.set(sessionCookieForPortal(targetPortal), payload.token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      expires: new Date(payload.expiresAt),
+    });
+    return response;
+  } catch {
+    return NextResponse.json({ message: "Workspace switching is unavailable." }, { status: 503 });
+  }
+}
+
+function isSwitchContextResponse(
+  value: unknown,
+): value is { token: string; expiresAt: string; redirect: string; portalType: string } {
+  if (!isLoginResponse(value) || typeof value !== "object" || value === null) return false;
+  const record = value as Record<string, unknown>;
+  return typeof record.portalType === "string";
+}
+
+function portalKeyFromBackend(portalType: string): PortalKey {
+  switch (portalType) {
+    case "SUPER_ADMIN":
+      return "super-admin";
+    case "TENANT":
+      return "tenant";
+    case "EMPLOYEE":
+      return "employee";
+    case "CLIENT":
+      return "client";
+    default:
+      return "super-admin";
+  }
+}

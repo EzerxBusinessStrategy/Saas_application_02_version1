@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import dynamic from "next/dynamic";
 import type { ComponentType } from "react";
+import { SuperAdminAccountPage } from "@/components/administration/super-admin-account";
 import { FeatureBoundary } from "@/components/shared/feature-boundary";
 import { SectionSkeleton } from "@/components/shared/section-skeleton";
 import { ManagerDirectory } from "@/components/tenant-administration/workforce-administration";
@@ -235,11 +236,7 @@ export default async function Section({
     return <TenantSettingsPage />;
   }
   if (section === "account" && workspace === "super-admin") {
-    return (
-      <FeatureBoundary role={user.role} permissions={["platform.configuration.update"]}>
-        <PlatformConfiguration />
-      </FeatureBoundary>
-    );
+    return <SuperAdminAccountPage />;
   }
   notFound();
 }

@@ -88,7 +88,7 @@ export function TenantActivityPage() {
             <CardTitle>
               {total} {total === 1 ? "event" : "events"}
             </CardTitle>
-            <CardDescription>Tenant-scoped activity for the selected period.</CardDescription>
+            <CardDescription>Activity for the selected period.</CardDescription>
           </div>
           <Select
             className="h-8 w-[10.5rem] min-h-8 px-2 text-xs"

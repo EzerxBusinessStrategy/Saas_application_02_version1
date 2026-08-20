@@ -50,14 +50,14 @@ export function PortalLoginForm({ portal }: { portal: PortalKey }) {
           body?.error?.message ??
             body?.message ??
             (response.status === 503
-              ? "The API is starting up. Wait about 30 seconds and sign in again."
+              ? "The service is starting. Wait about 30 seconds and sign in again."
               : "Unable to sign in."),
         );
         return;
       }
       window.location.assign(body.redirect);
     } catch {
-      setError("Unable to reach the authentication service.");
+      setError("Unable to sign in right now. Try again.");
     } finally {
       setSubmitting(false);
     }

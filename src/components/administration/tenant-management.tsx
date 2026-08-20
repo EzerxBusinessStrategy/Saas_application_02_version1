@@ -368,7 +368,7 @@ export function TenantDirectory() {
     },
     {
       id: "lifecycle",
-      header: "Tenant lifecycle",
+      header: "Status",
       cell: ({ row }) => (
         <StatusBadge
           status={tenantLifecycleStatus(row.original)}
@@ -438,7 +438,7 @@ export function TenantDirectory() {
     return (
       <ErrorState
         title="Tenant list could not load"
-        description="Try again to retrieve the platform tenant directory."
+        description="Try again in a moment."
         onRetry={() => {
           void query.refetch();
           setParam("state", "");
@@ -452,7 +452,7 @@ export function TenantDirectory() {
         eyebrow="Super Admin"
         eyebrowIcon={ShieldCheck}
         title="Tenant list"
-        description="Tenant registry with lifecycle, administrator access, and activity timestamps."
+        description="Organisations with status, administrator access, and recent activity."
         actions={
           <div className="flex items-center gap-2">
             {createTenantPending ? <TenantCreateLoader /> : null}
@@ -471,7 +471,7 @@ export function TenantDirectory() {
         <CardHeader>
           <CardTitle>Tenant registry</CardTitle>
           <CardDescription>
-            Searchable tenant records from the platform database.
+            Search organisations by name, code, or status.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-5">
@@ -620,7 +620,7 @@ export function TenantDirectory() {
         }
         description={
           lifecycleTarget?.status === "suspended"
-            ? "The tenant will be able to sign in again. Record the supporting business approval in the backend audit log."
+            ? "The organisation will be able to sign in again."
             : "Suspending blocks all tenant portal access for the selected period."
         }
         confirmLabel={
@@ -654,13 +654,13 @@ export function TenantDirectory() {
             </Select>
           </label>
         ) : null}
-        {lifecycleMutation.isError ? <p className="text-sm text-danger" role="alert">Tenant lifecycle could not be updated.</p> : null}
+        {lifecycleMutation.isError ? <p className="text-sm text-danger" role="alert">Tenant status could not be updated.</p> : null}
       </ConfirmationDialog>
       <ConfirmationDialog
         open={Boolean(revokeTarget) && !showFinalRevokeWarning}
         onOpenChange={(open) => !open && setRevokeTarget(null)}
         title="Caution: revoke tenant access"
-        description="Revoking blocks this tenant and every tenant member immediately. Tenant data will remain in the database."
+        description="Revoking blocks this organisation and every member immediately. Existing records are kept."
         confirmLabel="Continue"
         warning
         onConfirm={() => setShowFinalRevokeWarning(true)}
@@ -733,7 +733,7 @@ export function TenantCreateForm() {
         eyebrow="Super Admin"
         eyebrowIcon={ShieldCheck}
         title="Create tenant"
-        description="Prepare a tenant provisioning request. This validated form uses mock data only; it does not create a live tenant."
+        description="Enter organisation details to prepare a tenant request."
         actions={
           <Button
             variant="outline"
@@ -754,9 +754,8 @@ export function TenantCreateForm() {
               Tenant request prepared
             </CardTitle>
             <CardDescription>
-              {prepared.name} ({prepared.code}) is ready for a future
-              provisioning API. The Tenant Administrator account and initial
-              configuration are included in the typed request.
+              {prepared.name} ({prepared.code}) is ready, including the Tenant
+              Administrator and initial settings.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -766,7 +765,7 @@ export function TenantCreateForm() {
           </CardContent>
         </Card>
       ) : null}
-      <ol className="grid grid-cols-3 gap-2 text-xs sm:grid-cols-6" aria-label="Tenant provisioning steps">
+      <ol className="grid grid-cols-3 gap-2 text-xs sm:grid-cols-6" aria-label="Tenant setup steps">
         {[
           "Company",
           "Administrator",
@@ -900,7 +899,7 @@ export function TenantCreateForm() {
           <CardHeader>
             <CardTitle>Subscription and limits</CardTitle>
             <CardDescription>
-              These selected limits are a typed frontend request. A backend must enforce every plan and module rule.
+              Choose the plan, billing cycle, user limit, and modules for this organisation.
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-5 md:grid-cols-2">
@@ -914,8 +913,7 @@ export function TenantCreateForm() {
           <CardHeader>
             <CardTitle>Branding and initial configuration</CardTitle>
             <CardDescription>
-              Defaults are constrained to the TailAdmin token system; arbitrary
-              inaccessible styling is not allowed.
+              Set brand colours, theme, and time zone for this organisation.
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-5 md:grid-cols-2">
@@ -955,17 +953,17 @@ export function TenantCreateForm() {
                   Send the owner invitation
                 </span>
                 <span className="block text-muted-foreground">
-                  The backend will issue a time-limited invitation after
-                  provisioning.
+                  A time-limited invitation is sent after the organisation is
+                  created.
                 </span>
               </span>
             </label>
-            <div className="rounded-[var(--radius-control)] border border-dashed border-border p-4 text-sm text-muted-foreground md:col-span-2"><p className="font-medium text-foreground">Logo upload is unavailable</p><p className="mt-1">Private tenant-scoped logo storage must be connected before files can be accepted.</p></div>
+            <div className="rounded-[var(--radius-control)] border border-dashed border-border p-4 text-sm text-muted-foreground md:col-span-2"><p className="font-medium text-foreground">Logo upload is unavailable</p><p className="mt-1">Logo files cannot be uploaded yet.</p></div>
           </CardContent>
         </Card>
         <Card>
-          <CardHeader><CardTitle>Domain and access</CardTitle><CardDescription>Use the current path-based routing model. Custom-domain verification requires infrastructure.</CardDescription></CardHeader>
-          <CardContent className="grid gap-5 md:grid-cols-2"><label className="text-sm font-medium">Tenant portal slug<Input className={inputClass} aria-describedby="portal-slug-help" {...form.register("portalSlug")} />{form.formState.errors.portalSlug ? <span className="mt-1 block text-xs text-danger">{form.formState.errors.portalSlug.message}</span> : <span id="portal-slug-help" className="mt-1 block text-xs text-muted-foreground">Portal URL: platform.example/{form.watch("portalSlug") || "tenant-slug"}</span>}</label><div className="rounded-[var(--radius-control)] border border-border p-4 text-sm text-muted-foreground">The Tenant Administrator account is created directly. Passwords are handled only by the identity provider.</div></CardContent>
+          <CardHeader><CardTitle>Domain and access</CardTitle><CardDescription>Set the portal address people will use to sign in.</CardDescription></CardHeader>
+          <CardContent className="grid gap-5 md:grid-cols-2"><label className="text-sm font-medium">Tenant portal slug<Input className={inputClass} aria-describedby="portal-slug-help" {...form.register("portalSlug")} />{form.formState.errors.portalSlug ? <span className="mt-1 block text-xs text-danger">{form.formState.errors.portalSlug.message}</span> : <span id="portal-slug-help" className="mt-1 block text-xs text-muted-foreground">Portal URL: platform.example/{form.watch("portalSlug") || "tenant-slug"}</span>}</label><div className="rounded-[var(--radius-control)] border border-border p-4 text-sm text-muted-foreground">The Tenant Administrator account is created with this organisation. The password cannot be viewed after it is saved.</div></CardContent>
         </Card>
         <Card>
           <CardHeader>
@@ -1000,8 +998,7 @@ export function TenantCreateForm() {
                 {...form.register("confirm")}
               />
               <span>
-                I confirm these details are ready for controlled tenant
-                provisioning.
+                I confirm these details are correct.
               </span>
             </label>
             {form.formState.errors.confirm ? (
@@ -1056,7 +1053,7 @@ export function TenantDetail({ tenantId }: { tenantId: string }) {
         <Card>
           <CardHeader>
             <CardTitle>Tenant health</CardTitle>
-            <CardDescription>Usage and lifecycle indicators.</CardDescription>
+            <CardDescription>Usage and status for this organisation.</CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
             <StatusBadge status={tenant.status} />
@@ -1097,8 +1094,7 @@ export function TenantDetail({ tenantId }: { tenantId: string }) {
         <CardHeader>
           <CardTitle>Tenant users</CardTitle>
           <CardDescription>
-            Current frontend summary; user administration requires the future
-            tenant-scoped API.
+            People currently counted for this organisation.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -1150,7 +1146,7 @@ export function TenantDetail({ tenantId }: { tenantId: string }) {
       <Card>
         <CardHeader>
           <CardTitle>Tenant audit logs</CardTitle>
-          <CardDescription>Actions scoped to this tenant.</CardDescription>
+          <CardDescription>Recorded actions for this organisation.</CardDescription>
         </CardHeader>
         <CardContent>
           {audit.isPending ? (
@@ -1182,7 +1178,7 @@ export function TenantDetail({ tenantId }: { tenantId: string }) {
         <CardHeader>
           <CardTitle>Tenant configuration</CardTitle>
           <CardDescription>
-            Configuration is guarded by controlled platform defaults.
+            Settings currently applied to this organisation.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -1192,17 +1188,17 @@ export function TenantDetail({ tenantId }: { tenantId: string }) {
               <dd className="mt-1 font-medium">{tenant.code}</dd>
             </div>
             <div>
-              <dt className="text-muted-foreground">Brand token</dt>
-              <dd className="mt-1 font-medium">Primary TailAdmin blue</dd>
+              <dt className="text-muted-foreground">Brand colour</dt>
+              <dd className="mt-1 font-medium">Primary blue</dd>
             </div>
             <div>
               <dt className="text-muted-foreground">Time zone</dt>
               <dd className="mt-1 font-medium">Asia/Kolkata</dd>
             </div>
             <div>
-              <dt className="text-muted-foreground">Feature defaults</dt>
+              <dt className="text-muted-foreground">Default features</dt>
               <dd className="mt-1 font-medium">
-                Controlled by platform configuration
+                Set in platform settings
               </dd>
             </div>
           </dl>
@@ -1214,7 +1210,7 @@ export function TenantDetail({ tenantId }: { tenantId: string }) {
       <EntityHeader
         eyebrow="Tenant management"
         title={tenant.name}
-        description={`${tenant.code} · platform tenant record`}
+        description={tenant.code}
         metadata={
           <>
             <StatusBadge status={tenant.status} />

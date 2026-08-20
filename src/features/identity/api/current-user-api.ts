@@ -7,6 +7,7 @@ export type CurrentUserProfile = {
     readonly displayName: string;
     readonly email: string;
     readonly avatarUrl?: string | null;
+    readonly phone?: string | null;
   };
   readonly roles: readonly string[];
 };
@@ -19,6 +20,42 @@ export async function fetchCurrentUser(portal: CurrentUserPortal): Promise<Curre
     throw new Error("Your profile could not be loaded.");
   }
   return (await response.json()) as CurrentUserProfile;
+}
+
+export type WorkspaceContext = {
+  readonly type: "platform" | "tenant";
+  readonly label?: string;
+  readonly tenantId?: string;
+  readonly tenantName?: string;
+  readonly membershipId?: string;
+  readonly roles: readonly string[];
+  readonly displayTitle?: string | null;
+  readonly hasEmployee?: boolean;
+};
+
+export async function fetchCurrentUserContexts(portal: CurrentUserPortal): Promise<readonly WorkspaceContext[]> {
+  const response = await fetch(`/api/me/contexts?portal=${portal}`, { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error("Your workspaces could not be loaded.");
+  }
+  const payload = (await response.json()) as { contexts?: readonly WorkspaceContext[] };
+  return payload.contexts ?? [];
+}
+
+export async function switchWorkspace(
+  portal: CurrentUserPortal,
+  input: { workspace: "super-admin" | "admin" | "employee"; tenantId?: string },
+): Promise<{ redirect: string }> {
+  const response = await fetch(`/api/auth/switch-context?portal=${portal}`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => null)) as { message?: string; error?: { message?: string } } | null;
+    throw new Error(payload?.error?.message ?? payload?.message ?? "That workspace could not be opened.");
+  }
+  return (await response.json()) as { redirect: string };
 }
 
 export async function uploadCurrentUserAvatar(

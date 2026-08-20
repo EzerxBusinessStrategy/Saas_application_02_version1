@@ -114,6 +114,8 @@ test("creates a tenant with its Tenant Administrator account", async () => {
       password: "temporary-password",
       phone: "+919876543210",
     },
+    administratorMode: "another_person",
+    selfAccess: { roles: ["TENANT_ADMIN"], displayTitle: "" },
     confirm: true,
   });
 

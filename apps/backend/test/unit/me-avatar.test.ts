@@ -37,6 +37,10 @@ describe("MeService avatars", () => {
   const repository = {
     findByApplicationUserId: vi.fn(),
     updateDisplayName: vi.fn(),
+    getUserPhone: vi.fn(),
+    listCurrentUserContexts: vi.fn(),
+    updateOwnProfile: vi.fn(),
+    updateOwnMembershipDisplayTitle: vi.fn(),
   };
   const preferences = {
     getOrCreate: vi.fn(),
@@ -58,6 +62,7 @@ describe("MeService avatars", () => {
     preferences.getOrCreate.mockResolvedValue({ locale: "en", timezone: "Asia/Kolkata" });
     avatars.getPath.mockResolvedValue(null);
     storage.createSignedUrl.mockResolvedValue("https://signed.example/avatar.webp");
+    repository.getUserPhone.mockResolvedValue(null);
   });
 
   it("returns a signed avatar URL from /me when a path is stored", async () => {

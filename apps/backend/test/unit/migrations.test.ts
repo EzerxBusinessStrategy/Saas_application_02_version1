@@ -404,4 +404,26 @@ describe("database migrations", () => {
     expect(sql).not.toContain("drop table");
     expect(sql).not.toMatch(/alter table [^\n]+ drop column/i);
   });
+
+  test("adds tenant membership display titles and Super Admin self-access provisioning", () => {
+    expect(migrationNames).toContain("0076_tenant_membership_self_access.sql");
+    expect(migrationNames.indexOf("0076_tenant_membership_self_access.sql")).toBeGreaterThan(
+      migrationNames.indexOf("0075_user_avatars.sql"),
+    );
+
+    const sql = readFileSync(
+      resolve(__dirname, "../../drizzle/migrations/0076_tenant_membership_self_access.sql"),
+      "utf8",
+    );
+
+    expect(sql).toContain("add column if not exists display_title text");
+    expect(sql).toContain("provision_portal_tenant_for_current_user");
+    expect(sql).toContain("list_current_user_contexts");
+    expect(sql).toContain("update_own_membership_display_title");
+    expect(sql).toContain("insert into public.employees");
+    expect(sql).toContain("'MANAGER'");
+    expect(sql).toContain("'EMPLOYEE'");
+    expect(sql).not.toContain("drop table");
+    expect(sql).not.toMatch(/alter table [^\n]+ drop column/i);
+  });
 });

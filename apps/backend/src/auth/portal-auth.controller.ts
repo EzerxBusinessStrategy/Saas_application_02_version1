@@ -3,11 +3,12 @@ import { ApiTags } from "@nestjs/swagger";
 import { FastifyRequest } from "fastify";
 import { ZodValidationPipe } from "../common/validation/zod-validation.pipe";
 import { PortalAuthService } from "./core/portal-auth.service";
-import { portalLoginSchema, PortalLoginRequest } from "./core/portal-auth.dto";
+import { portalLoginSchema, PortalLoginRequest, switchContextSchema, SwitchContextRequest } from "./core/portal-auth.dto";
 import { PortalType } from "./core/portal-auth.types";
 import { portalSessionCookieName } from "./auth-cookie-names";
 import { PortalSessionGuard } from "./guards/portal-session.guard";
 import { AuthenticatedRequest } from "./request-context";
+import { authenticationRequired } from "./auth-errors";
 
 @ApiTags("portal-auth")
 @Controller("auth")
@@ -69,6 +70,18 @@ export class PortalAuthController {
   @HttpCode(204)
   @UseGuards(PortalSessionGuard)
   logoutClient(@Req() request: FastifyRequest) { return this.logout("CLIENT", request); }
+
+  @Post("switch-context")
+  @HttpCode(200)
+  @UseGuards(PortalSessionGuard)
+  switchContext(
+    @Req() request: FastifyRequest & AuthenticatedRequest,
+    @Body(new ZodValidationPipe(switchContextSchema)) body: SwitchContextRequest,
+  ) {
+    const userId = request.verifiedAuthUser?.authUserId;
+    if (!userId) throw authenticationRequired();
+    return this.auth.switchContext(userId, body, requestMetadata(request));
+  }
 
   private login(portalType: PortalType, request: FastifyRequest, body: PortalLoginRequest) {
     return this.auth.login(portalType, body, requestMetadata(request));

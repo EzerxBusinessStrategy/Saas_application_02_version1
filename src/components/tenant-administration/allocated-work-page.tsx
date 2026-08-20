@@ -183,19 +183,19 @@ function headingForStatus(status: AllocatedWorkStatusGroup): { title: string; de
       return {
         title: "Open tasks",
         description:
-          "Design status: Pending Figma verification. Tasks that are not completed or cancelled in the selected period.",
+          "Tasks that are not completed or cancelled in the selected period.",
       };
     case "completed":
       return {
         title: "Completed tasks",
         description:
-          "Design status: Pending Figma verification. Tasks completed in the selected period, with client, assignment, due date, employee, and IP details.",
+          "Tasks completed in the selected period, with client, assignment, due date, employee, and IP details.",
       };
     case "overdue":
       return {
         title: "Overdue tasks",
         description:
-          "Design status: Pending Figma verification. Open tasks whose due date has passed, with client, assignment, due date, employee, and IP details.",
+          "Open tasks whose due date has passed, with client, assignment, due date, employee, and IP details.",
       };
     case "all":
     case "in_progress":
@@ -203,7 +203,7 @@ function headingForStatus(status: AllocatedWorkStatusGroup): { title: string; de
       return {
         title: "Allocated work",
         description:
-          "Design status: Pending Figma verification. Client, assigned employee, assignment time, due time, and IP details for allotted tasks.",
+          "Client, assigned employee, assignment time, due time, and IP details for allotted tasks.",
       };
     default: {
       const exhaustive: never = status;

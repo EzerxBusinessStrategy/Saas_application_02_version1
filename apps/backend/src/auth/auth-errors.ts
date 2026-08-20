@@ -118,6 +118,13 @@ export function forbiddenPortal(): ForbiddenException {
   });
 }
 
+export function workspaceNotAvailable(): ForbiddenException {
+  return new ForbiddenException({
+    code: "WORKSPACE_NOT_AVAILABLE",
+    message: "That workspace is not available for this account.",
+  });
+}
+
 export function roleNotAssigned(): ForbiddenException {
   return new ForbiddenException({
     code: "ROLE_NOT_ASSIGNED",

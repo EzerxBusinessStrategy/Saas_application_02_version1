@@ -22,7 +22,7 @@ describe("PortalSessionGuard", () => {
     await expect(guard.canActivate(contextFor(request))).resolves.toBe(true);
     expect(resolveSession).toHaveBeenCalledWith("TENANT", "opaque-tenant-token");
     expect(request).toMatchObject({
-      verifiedAuthUser: { authUserId: "user-1", sessionId: "session-1", portalType: "TENANT" },
+      verifiedAuthUser: { authUserId: "user-1", sessionId: "session-1", portalType: "TENANT", tenantId: "tenant-1" },
     });
   });
 

@@ -405,7 +405,7 @@ export function ClientDirectory() {
         <CardHeader>
           <CardTitle>Client directory</CardTitle>
           <CardDescription>
-            Tenant-scoped clients with billing totals, contacts, services, and deadlines.
+            Clients with billing totals, contacts, services, and deadlines.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-5">
@@ -572,7 +572,7 @@ export function ClientDirectory() {
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent
           title="Create client"
-          description="Create a tenant-scoped client record and primary contact."
+          description="Add a client organisation and their primary contact."
         >
           <CreateClientForm onClose={() => setCreateOpen(false)} onSave={saveClient} />
         </DialogContent>
@@ -1651,7 +1651,7 @@ export function WorkGroupDirectory() {
         <CardHeader>
           <CardTitle>Work group directory</CardTitle>
           <CardDescription>
-            Tenant-scoped work groups from the database.
+            Work groups in this organisation.
           </CardDescription>
         </CardHeader>
         <CardContent>

@@ -264,19 +264,45 @@ export const createTenantSchema = z.object({
     templateId: z.string().uuid().optional().or(z.literal("")),
     overrideReason: z.string().trim().max(500).optional().or(z.literal("")),
   }),
+  administratorMode: z.enum(["another_person", "myself"]).default("another_person"),
   tenantAdministrator: z.object({
-    fullName: z.string().trim().min(2, "Enter the Tenant Administrator name."),
-    email: z.string().trim().email("Enter a valid work email."),
-    password: z.string().min(8, "Use at least 8 characters for the temporary password."),
-    phone: z.string().trim().min(1, "Enter the Tenant Administrator phone number.").max(30),
+    fullName: z.string().trim(),
+    email: z.string().trim(),
+    password: z.string(),
+    phone: z.string().trim(),
+  }),
+  selfAccess: z.object({
+    roles: z.array(z.enum(["TENANT_ADMIN", "MANAGER", "EMPLOYEE"])),
+    displayTitle: z.string().trim().max(80).optional().or(z.literal("")),
   }),
   confirm: z.boolean().refine((value) => value, "Confirm the tenant details before creating."),
-}).superRefine(({ company }, context) => {
-  if (company.countryCode === "GB" && !company.incorporationDate) {
+}).superRefine((value, context) => {
+  if (value.company.countryCode === "GB" && !value.company.incorporationDate) {
     context.addIssue({
       code: z.ZodIssueCode.custom,
       path: ["company", "incorporationDate"],
       message: "Enter the incorporation date for this United Kingdom company.",
+    });
+  }
+  if (value.administratorMode === "another_person") {
+    if (value.tenantAdministrator.fullName.trim().length < 2) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ["tenantAdministrator", "fullName"], message: "Enter the Tenant Administrator name." });
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.tenantAdministrator.email.trim())) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ["tenantAdministrator", "email"], message: "Enter a valid work email." });
+    }
+    if (value.tenantAdministrator.password.length < 8) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ["tenantAdministrator", "password"], message: "Use at least 8 characters for the temporary password." });
+    }
+    if (!value.tenantAdministrator.phone.trim()) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ["tenantAdministrator", "phone"], message: "Enter the Tenant Administrator phone number." });
+    }
+  }
+  if (value.administratorMode === "myself" && value.selfAccess.roles.length === 0) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["selfAccess", "roles"],
+      message: "Select at least one organisation role.",
     });
   }
 });

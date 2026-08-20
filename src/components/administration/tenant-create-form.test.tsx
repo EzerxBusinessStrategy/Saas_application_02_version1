@@ -76,7 +76,12 @@ test("updates incorporation guidance and financial setup when the country change
   expect(screen.getByLabelText("Incorporation date")).toHaveAttribute("aria-invalid", "true");
   expect(screen.queryByText("Financial setup for United Kingdom")).not.toBeInTheDocument();
 
-  fireEvent.change(screen.getByLabelText("Incorporation date"), { target: { value: "2026-04-15" } });
+  fireEvent.click(screen.getByLabelText("Incorporation date"));
+  fireEvent.click(screen.getByRole("button", { name: "Previous month" }));
+  fireEvent.click(screen.getByRole("button", { name: "Previous month" }));
+  fireEvent.click(screen.getByRole("button", { name: "Previous month" }));
+  fireEvent.click(screen.getByRole("button", { name: "Previous month" }));
+  fireEvent.click(screen.getByRole("button", { name: "April 15, 2026" }));
   fireEvent.click(screen.getAllByRole("button", { name: "Save and continue" })[0]);
 
   await waitFor(() => expect(screen.getByText("Financial setup for United Kingdom")).toBeInTheDocument());
@@ -124,4 +129,21 @@ test("shows an inline country loader instead of a blank selector while options l
 
   await waitFor(() => expect(screen.queryByRole("status", { name: "Loading country details" })).not.toBeInTheDocument());
     expect(screen.getByRole("combobox")).not.toBeDisabled();
+});
+
+test("lets a Super Admin attach themselves instead of creating another administrator", async () => {
+  renderWithQuery(<TenantCreatePageForm />);
+
+  fireEvent.change(screen.getByLabelText("Company display name"), { target: { value: "ABC Consultancy" } });
+  fireEvent.change(screen.getByLabelText("Legal company name"), { target: { value: "ABC Consultancy Ltd" } });
+  fireEvent.click(screen.getAllByRole("button", { name: "Save and continue" })[0]);
+  expect(await screen.findByText("Financial setup for India")).toBeInTheDocument();
+  fireEvent.click(screen.getAllByRole("button", { name: "Save and continue" })[0]);
+
+  expect(await screen.findByText("Myself")).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("radio", { name: /Myself/ }));
+  expect(screen.getByLabelText("Display title")).toHaveValue("Founder");
+  expect(screen.getByRole("checkbox", { name: "Tenant Admin" })).toBeChecked();
+  expect(screen.getByRole("checkbox", { name: "Manager" })).toBeChecked();
+  expect(screen.getByRole("checkbox", { name: "Employee" })).toBeChecked();
 });

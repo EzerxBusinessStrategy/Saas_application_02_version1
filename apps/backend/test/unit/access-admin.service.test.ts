@@ -137,4 +137,56 @@ describe("AccessAdminService", () => {
 
     expect(repository.createTenantWithDirectTenantAdministrator).not.toHaveBeenCalled();
   });
+
+  test("provisions the authenticated Super Admin into the tenant without a second credential", async () => {
+    const repository = {
+      listTenantCreationTemplates: vi.fn().mockResolvedValue([]),
+      userEmailExists: vi.fn(),
+      createTenantWithDirectTenantAdministrator: vi.fn(),
+      createTenantForCurrentUser: vi.fn().mockResolvedValue({
+        tenant_id: "11111111-1111-4111-8111-111111111111",
+        financial_year_id: "22222222-2222-4222-8222-222222222222",
+        user_id: context.userId,
+        membership_id: "44444444-4444-4444-8444-444444444444",
+      }),
+    };
+    const passwords = { hash: vi.fn() } as unknown as PasswordService;
+    const service = new AccessAdminService(repository as unknown as AccessAdminRepository, passwords);
+
+    const result = await service.createTenantWithOwnerInvitation(context, {
+      company: {
+        displayName: "ABC",
+        legalName: "ABC Private Limited",
+        tenantCode: "ABC001",
+        slug: "abc",
+        countryCode: "IN",
+        reportingCurrencyCode: "INR",
+        timezone: "Asia/Kolkata",
+      },
+      financialYear: {
+        source: "CUSTOM_CONFIRMED",
+        label: "FY 2026",
+        startsOn: "2026-04-01",
+        endsOn: "2027-03-31",
+        overrideReason: "Company policy",
+      },
+      administratorMode: "myself",
+      selfAccess: {
+        roles: ["TENANT_ADMIN", "MANAGER"],
+        displayTitle: "Founder",
+      },
+    });
+
+    expect(passwords.hash).not.toHaveBeenCalled();
+    expect(repository.userEmailExists).not.toHaveBeenCalled();
+    expect(repository.createTenantWithDirectTenantAdministrator).not.toHaveBeenCalled();
+    expect(repository.createTenantForCurrentUser).toHaveBeenCalledWith(
+      context,
+      expect.objectContaining({
+        administratorMode: "myself",
+        selfAccess: { roles: ["TENANT_ADMIN", "MANAGER"], displayTitle: "Founder" },
+      }),
+    );
+    expect(result.membershipId).toBe("44444444-4444-4444-8444-444444444444");
+  });
 });

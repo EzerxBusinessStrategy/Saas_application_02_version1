@@ -89,12 +89,24 @@ export async function createTenant(input: CreateTenantInput) {
       templateId: input.financialYear.templateId || undefined,
       overrideReason: input.financialYear.overrideReason || undefined,
     },
-    tenantAdministrator: {
-      fullName: input.tenantAdministrator.fullName,
-      email: input.tenantAdministrator.email,
-      password: input.tenantAdministrator.password,
-      phone: input.tenantAdministrator.phone || undefined,
-    },
+    administratorMode: input.administratorMode ?? "another_person",
+    ...(input.administratorMode === "myself"
+      ? {
+          selfAccess: {
+            roles: input.selfAccess.roles.includes("MANAGER") && !input.selfAccess.roles.includes("EMPLOYEE")
+              ? [...input.selfAccess.roles, "EMPLOYEE" as const]
+              : input.selfAccess.roles,
+            displayTitle: input.selfAccess.displayTitle || undefined,
+          },
+        }
+      : {
+          tenantAdministrator: {
+            fullName: input.tenantAdministrator.fullName,
+            email: input.tenantAdministrator.email,
+            password: input.tenantAdministrator.password,
+            phone: input.tenantAdministrator.phone || undefined,
+          },
+        }),
   };
 
   const response = await fetch("/api/super-admin/tenants", {

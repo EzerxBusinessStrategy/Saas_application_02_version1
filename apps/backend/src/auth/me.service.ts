@@ -1,8 +1,8 @@
 import { BadRequestException, Inject, Injectable } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
 import { AuthContextRepository, AuthContextRow } from "./auth-context.repository";
-import { applicationUserNotFound, forbiddenPortal } from "./auth-errors";
-import { MeMembershipDto, MeResponseDto } from "./me.dto";
+import { forbiddenPortal } from "./auth-errors";
+import { MeContextDto, MeMembershipDto, MeResponseDto } from "./me.dto";
 import { RequestContext } from "./request-context";
 import { UserAvatarRepository } from "./user-avatar.repository";
 import { UserAvatarStorageService } from "./user-avatar-storage.service";
@@ -31,9 +31,10 @@ export class MeService {
     if (context.membershipId && (!active || !active.tenant_id || !active.membership_id)) {
       throw new Error("Resolved request context no longer matches membership data.");
     }
-    const [preferences, avatarUrl] = await Promise.all([
+    const [preferences, avatarUrl, phone] = await Promise.all([
       this.userPreferencesRepository.getOrCreate(context),
       this.signedAvatarUrl(context),
+      this.repository.getUserPhone(context.userId),
     ]);
 
     return {
@@ -44,6 +45,7 @@ export class MeService {
         displayName: userRow.user_display_name,
         status: "active",
         avatarUrl,
+        phone,
       },
       preferences,
       availableMemberships: rows
@@ -60,13 +62,46 @@ export class MeService {
     };
   }
 
-  async updateProfile(context: RequestContext, displayName: string): Promise<MeResponseDto> {
-    if (!context.isPlatformAdmin || context.tenantId || context.membershipId) {
+  async updateProfile(
+    context: RequestContext,
+    input: { displayName: string; phone?: string; displayTitle?: string; membershipId?: string },
+  ): Promise<MeResponseDto> {
+    if (!context.isPlatformAdmin) {
       throw forbiddenPortal();
     }
-    const updated = await this.repository.updateDisplayName(context.userId, displayName);
-    if (!updated) throw applicationUserNotFound();
+    await this.repository.updateOwnProfile(context, input.displayName, input.phone);
+    if (input.membershipId !== undefined) {
+      await this.repository.updateOwnMembershipDisplayTitle(
+        context,
+        input.membershipId,
+        input.displayTitle ?? "",
+      );
+    }
     return this.getMe(context);
+  }
+
+  async listContexts(context: RequestContext): Promise<{ contexts: readonly MeContextDto[] }> {
+    const rows = await this.repository.listCurrentUserContexts(context);
+    return {
+      contexts: rows.map((row) => {
+        if (row.context_type === "platform") {
+          return {
+            type: "platform",
+            label: "Platform Admin",
+            roles: row.roles,
+          };
+        }
+        return {
+          type: "tenant",
+          tenantId: row.tenant_id ?? undefined,
+          tenantName: row.tenant_name ?? undefined,
+          membershipId: row.membership_id ?? undefined,
+          roles: row.roles,
+          displayTitle: row.display_title,
+          hasEmployee: row.has_employee,
+        };
+      }),
+    };
   }
 
   async updateAvatar(context: RequestContext, data: string): Promise<MeResponseDto> {

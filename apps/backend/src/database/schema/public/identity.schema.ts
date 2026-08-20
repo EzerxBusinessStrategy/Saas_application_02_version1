@@ -48,6 +48,7 @@ export const tenantMemberships = pgTable(
       .references(() => users.id),
     status: text("status").notNull().default("active"),
     displayName: text("display_name").notNull(),
+    displayTitle: text("display_title"),
     timezone: text("timezone").notNull().default("UTC"),
     joinedAt: timestamp("joined_at", { withTimezone: true }).defaultNow().notNull(),
     lastActiveAt: timestamp("last_active_at", { withTimezone: true }),

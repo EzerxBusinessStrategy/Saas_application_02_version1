@@ -147,7 +147,7 @@ export function DepartmentDirectory() {
       <Card>
         <CardHeader>
           <CardTitle>Department directory</CardTitle>
-          <CardDescription>Employee counts and assignments are read directly from this tenant&apos;s workforce records.</CardDescription>
+          <CardDescription>Employee counts and assignments for each department.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <FilterToolbar

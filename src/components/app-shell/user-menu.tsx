@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { ChevronDown, LogOut, UserRound } from "lucide-react";
+import { Check, ChevronDown, LogOut, UserRound } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,7 +13,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { UserAvatar } from "@/components/shared/user-avatar";
-import { useCurrentUser, type CurrentUserPortal } from "@/features/identity/api/current-user-api";
+import {
+  fetchCurrentUserContexts,
+  switchWorkspace,
+  useCurrentUser,
+  type CurrentUserPortal,
+  type WorkspaceContext,
+} from "@/features/identity/api/current-user-api";
 import type { Workspace } from "@/types/domain";
 
 const roleLabels: Record<string, string> = {
@@ -50,23 +57,32 @@ export function UserMenu({
   open?: boolean;
 }) {
   const [signingOut, setSigningOut] = useState(false);
+  const [switching, setSwitching] = useState(false);
   const [signOutError, setSignOutError] = useState<string | null>(null);
   const portal = portalForWorkspace[workspace];
   const profileQuery = useCurrentUser(portal);
+  const contextsQuery = useQuery({
+    queryKey: ["me-contexts", portal],
+    queryFn: () => fetchCurrentUserContexts(portal),
+  });
   const profile = profileQuery.data;
+  const contexts = contextsQuery.data ?? [];
   const loadingProfile = profileQuery.isPending;
 
   const identity = useMemo(() => {
     const name = profile?.user.displayName || "Account";
     const roles = profile?.roles ?? [];
     const role = roleForPortal(roles, portal);
+    const title =
+      contexts.find((context) => context.type === "tenant" && context.displayTitle)?.displayTitle ??
+      (roleLabels[role] ?? role.replaceAll("_", " "));
     return {
       name,
       email: profile?.user.email || "",
       avatarUrl: profile?.user.avatarUrl,
-      role: roleLabels[role] ?? role.replaceAll("_", " "),
+      role: title,
     };
-  }, [portal, profile]);
+  }, [contexts, portal, profile]);
 
   const signOut = async () => {
     if (signingOut) return;
@@ -85,6 +101,18 @@ export function UserMenu({
       window.location.assign("/login");
     } finally {
       setSigningOut(false);
+    }
+  };
+
+  const openWorkspace = async (input: { workspace: "super-admin" | "admin" | "employee"; tenantId?: string }) => {
+    if (switching) return;
+    setSwitching(true);
+    try {
+      const result = await switchWorkspace(portal, input);
+      window.location.assign(result.redirect);
+    } catch (error) {
+      setSignOutError(error instanceof Error ? error.message : "That workspace could not be opened.");
+      setSwitching(false);
     }
   };
 
@@ -115,7 +143,7 @@ export function UserMenu({
           />
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" sideOffset={8} className="w-56">
+      <DropdownMenuContent align="end" sideOffset={8} className="w-72">
         <div className="px-2 py-2">
           <DropdownMenuLabel className="truncate p-0 text-sm font-semibold text-foreground" title={identity.name}>
             {identity.name}
@@ -127,11 +155,23 @@ export function UserMenu({
             </p>
           ) : null}
         </div>
+        {contexts.length > 0 ? (
+          <>
+            <DropdownMenuSeparator />
+            <p className="px-2 pb-1 text-xs font-medium text-muted-foreground">Switch workspace</p>
+            <WorkspaceSwitcher
+              contexts={contexts}
+              currentWorkspace={workspace}
+              disabled={switching}
+              onSelect={(input) => void openWorkspace(input)}
+            />
+          </>
+        ) : null}
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
           <Link href={accountHref}>
             <UserRound className="size-4 text-muted-foreground" aria-hidden="true" />
-            Profile
+            My profile
           </Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
@@ -162,6 +202,71 @@ function UserMenuSkeleton() {
       <span className="size-9 shrink-0 animate-pulse rounded-full bg-muted" />
       <span className="hidden h-4 w-24 animate-pulse rounded bg-muted sm:block" />
       <span className="size-4 shrink-0" aria-hidden="true" />
+    </div>
+  );
+}
+
+function WorkspaceSwitcher({
+  contexts,
+  currentWorkspace,
+  disabled,
+  onSelect,
+}: {
+  contexts: readonly WorkspaceContext[];
+  currentWorkspace: Workspace;
+  disabled: boolean;
+  onSelect: (input: { workspace: "super-admin" | "admin" | "employee"; tenantId?: string }) => void;
+}) {
+  const platform = contexts.find((context) => context.type === "platform");
+  const tenants = contexts.filter((context) => context.type === "tenant");
+  return (
+    <div className="px-1 pb-1">
+      {platform ? (
+        <DropdownMenuItem
+          disabled={disabled}
+          onSelect={(event) => {
+            event.preventDefault();
+            onSelect({ workspace: "super-admin" });
+          }}
+        >
+          {currentWorkspace === "super-admin" ? <Check className="size-4" aria-hidden="true" /> : <span className="size-4" />}
+          Platform Admin
+        </DropdownMenuItem>
+      ) : null}
+      {tenants.map((tenant) => {
+        const canAdmin = tenant.roles.some((role) =>
+          ["TENANT_ADMIN", "TENANT_OWNER", "FINANCE_USER", "HR_OPERATIONS_USER"].includes(role),
+        );
+        const canEmployee = tenant.roles.some((role) => role === "EMPLOYEE" || role === "MANAGER");
+        const managerLabel = tenant.roles.includes("MANAGER") ? " · Manager" : "";
+        return (
+          <div key={tenant.tenantId} className="px-2 py-1">
+            <p className="text-sm font-medium">{tenant.tenantName}</p>
+            {canAdmin ? (
+              <DropdownMenuItem
+                disabled={disabled}
+                onSelect={(event) => {
+                  event.preventDefault();
+                  onSelect({ workspace: "admin", tenantId: tenant.tenantId });
+                }}
+              >
+                Admin workspace
+              </DropdownMenuItem>
+            ) : null}
+            {canEmployee ? (
+              <DropdownMenuItem
+                disabled={disabled}
+                onSelect={(event) => {
+                  event.preventDefault();
+                  onSelect({ workspace: "employee", tenantId: tenant.tenantId });
+                }}
+              >
+                {`My workspace${managerLabel}`}
+              </DropdownMenuItem>
+            ) : null}
+          </div>
+        );
+      })}
     </div>
   );
 }

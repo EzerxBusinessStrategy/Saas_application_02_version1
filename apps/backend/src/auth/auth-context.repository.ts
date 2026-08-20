@@ -60,4 +60,99 @@ export class AuthContextRepository {
     );
     return result.rowCount === 1;
   }
+
+  async getUserPhone(userId: string): Promise<string | null> {
+    if (!this.pool) throw databaseNotConfigured();
+    const client = await this.pool.connect();
+    try {
+      await client.query("begin");
+      await setTrustedDatabaseContext(client, { userId });
+      const result = await client.query<{ phone: string | null }>(
+        "select phone from public.users where id = $1::uuid",
+        [userId],
+      );
+      await client.query("commit");
+      return result.rows[0]?.phone ?? null;
+    } catch (error) {
+      await client.query("rollback");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async listCurrentUserContexts(context: {
+    readonly userId: string;
+    readonly isPlatformAdmin?: boolean;
+  }): Promise<readonly CurrentUserContextRow[]> {
+    if (!this.pool) throw databaseNotConfigured();
+    const client = await this.pool.connect();
+    try {
+      await client.query("begin");
+      await setTrustedDatabaseContext(client, context);
+      const result = await client.query<CurrentUserContextRow>(
+        "select * from private.list_current_user_contexts()",
+      );
+      await client.query("commit");
+      return result.rows;
+    } catch (error) {
+      await client.query("rollback");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async updateOwnProfile(context: { readonly userId: string }, displayName: string, phone?: string): Promise<void> {
+    if (!this.pool) throw databaseNotConfigured();
+    const client = await this.pool.connect();
+    try {
+      await client.query("begin");
+      await setTrustedDatabaseContext(client, context);
+      await client.query("select private.update_own_user_profile($1::text, $2::text)", [
+        displayName,
+        phone ?? null,
+      ]);
+      await client.query("commit");
+    } catch (error) {
+      await client.query("rollback");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async updateOwnMembershipDisplayTitle(
+    context: { readonly userId: string },
+    membershipId: string,
+    displayTitle: string,
+  ): Promise<void> {
+    if (!this.pool) throw databaseNotConfigured();
+    const client = await this.pool.connect();
+    try {
+      await client.query("begin");
+      await setTrustedDatabaseContext(client, context);
+      await client.query("select private.update_own_membership_display_title($1::uuid, $2::text)", [
+        membershipId,
+        displayTitle,
+      ]);
+      await client.query("commit");
+    } catch (error) {
+      await client.query("rollback");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
 }
+
+export type CurrentUserContextRow = {
+  readonly context_type: "platform" | "tenant";
+  readonly tenant_id: string | null;
+  readonly tenant_code: string | null;
+  readonly tenant_name: string | null;
+  readonly membership_id: string | null;
+  readonly display_title: string | null;
+  readonly roles: readonly string[];
+  readonly has_employee: boolean;
+};

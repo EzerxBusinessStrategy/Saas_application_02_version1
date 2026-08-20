@@ -33,7 +33,7 @@ export function TenantPasswordPage() {
 
   if (tenantsQuery.isLoading) return <LoadingState label="Loading tenants" rows={3} />;
   if (!tenantsQuery.data) {
-    return <ErrorState title="Tenant passwords could not load" description="Check the backend connection and try again." onRetry={() => void tenantsQuery.refetch()} />;
+    return <ErrorState title="Tenant passwords could not load" description="Try again in a moment." onRetry={() => void tenantsQuery.refetch()} />;
   }
 
   return (
@@ -42,7 +42,7 @@ export function TenantPasswordPage() {
       <Card className="w-full">
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><KeyRound className="size-5" aria-hidden="true" />Set Tenant Administrator password</CardTitle>
-          <CardDescription>The password is stored only as an Argon2id hash and cannot be viewed after saving.</CardDescription>
+          <CardDescription>The new password cannot be viewed after it is saved.</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="mb-5 flex gap-2">

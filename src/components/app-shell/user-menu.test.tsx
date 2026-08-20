@@ -17,17 +17,26 @@ test("shows a profile skeleton until the authenticated profile is available", ()
 });
 
 test("shows identity, email, profile actions, and a sign-out action", async () => {
-  vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
-    ok: true,
-    json: vi.fn().mockResolvedValue({
-      user: { displayName: "Platform Administrator", email: "admin@example.com" },
-      roles: ["SUPER_ADMIN"],
-    }),
+  vi.stubGlobal("fetch", vi.fn((input: RequestInfo) => {
+    const url = String(input);
+    if (url.includes("/api/me/contexts")) {
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ contexts: [{ type: "platform", label: "Platform Admin", roles: ["SUPER_ADMIN"] }] }),
+      });
+    }
+    return Promise.resolve({
+      ok: true,
+      json: () => Promise.resolve({
+        user: { displayName: "Platform Administrator", email: "admin@example.com" },
+        roles: ["SUPER_ADMIN"],
+      }),
+    });
   }));
   renderMenu(<UserMenu workspace="super-admin" open />);
   expect(await screen.findAllByText("Platform Administrator")).toHaveLength(2);
   expect(screen.getByText("admin@example.com")).toBeInTheDocument();
-  expect(screen.getByRole("menuitem", { name: "Profile" })).toHaveAttribute(
+  expect(screen.getByRole("menuitem", { name: "My profile" })).toHaveAttribute(
     "href",
     "/super-admin/account",
   );
@@ -43,12 +52,21 @@ afterEach(() => {
 });
 
 test("uses the authenticated portal profile when it is available", async () => {
-  const fetchMock = vi.fn().mockResolvedValue({
-    ok: true,
-    json: vi.fn().mockResolvedValue({
-      user: { displayName: "Aindrilaa Das", email: "aindrilaa@example.com" },
-      roles: ["EMPLOYEE"],
-    }),
+  const fetchMock = vi.fn((input: RequestInfo) => {
+    const url = String(input);
+    if (url.includes("/api/me/contexts")) {
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ contexts: [] }),
+      });
+    }
+    return Promise.resolve({
+      ok: true,
+      json: () => Promise.resolve({
+        user: { displayName: "Aindrilaa Das", email: "aindrilaa@example.com" },
+        roles: ["EMPLOYEE"],
+      }),
+    });
   });
   vi.stubGlobal("fetch", fetchMock);
 

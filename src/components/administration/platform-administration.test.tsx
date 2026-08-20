@@ -100,7 +100,7 @@ test("persists platform configuration through the API", async () => {
   );
 
   expect(
-    await screen.findByText(/Saved to the platform database/),
+    await screen.findByText(/Your platform defaults have been saved/),
   ).toBeInTheDocument();
   expect(
     mockPlatformConfigurationApi.updatePlatformConfiguration,

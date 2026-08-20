@@ -1250,7 +1250,7 @@ function ClientProfile() {
           <Card>
             <CardHeader>
               <CardTitle>Profile settings</CardTitle>
-              <CardDescription>Saved to your client account and loaded from the backend.</CardDescription>
+              <CardDescription>These details appear on your client portal.</CardDescription>
             </CardHeader>
             <CardContent className="grid gap-5">
               <label className="text-sm font-medium">

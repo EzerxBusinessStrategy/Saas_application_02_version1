@@ -26,11 +26,15 @@ export type CreateTenantWithOwnerInvitationInput = {
     readonly templateId?: string;
     readonly overrideReason?: string;
   };
-  readonly tenantAdministrator: {
+  readonly tenantAdministrator?: {
     readonly fullName: string;
     readonly email: string;
     readonly password: string;
     readonly phone?: string;
+  };
+  readonly selfAccess?: {
+    readonly roles: readonly ("TENANT_ADMIN" | "MANAGER" | "EMPLOYEE")[];
+    readonly displayTitle?: string;
   };
 };
 
@@ -258,6 +262,10 @@ export class AccessAdminRepository {
     input: CreateTenantWithOwnerInvitationInput,
     passwordHash: string,
   ): Promise<DirectTenantAdminCreatedRow> {
+    const administrator = input.tenantAdministrator;
+    if (!administrator) {
+      throw new Error("Tenant administrator details are required.");
+    }
     return this.withContext(context, async (client) => {
       const created = await client.query<DirectTenantAdminCreatedRow>(
         `select *
@@ -284,18 +292,57 @@ export class AccessAdminRepository {
           input.financialYear.endsOn,
           input.financialYear.templateId ?? null,
           input.financialYear.overrideReason ?? null,
-          input.tenantAdministrator.fullName,
-          input.tenantAdministrator.email,
-          input.tenantAdministrator.phone ?? null,
+          administrator.fullName,
+          administrator.email,
+          administrator.phone ?? null,
         ],
       );
       const tenant = singleRow(created.rows);
       await client.query(
         `insert into authn.credentials (portal_type, user_id, tenant_id, email, email_normalized, password_hash, status, password_changed_at)
          values ('TENANT', $1::uuid, $2::uuid, $3, lower($3), $4, 'ACTIVE', now())`,
-        [tenant.user_id, tenant.tenant_id, input.tenantAdministrator.email, passwordHash],
+        [tenant.user_id, tenant.tenant_id, administrator.email, passwordHash],
       );
       return tenant;
+    });
+  }
+
+  async createTenantForCurrentUser(
+    context: RequestContext,
+    input: CreateTenantWithOwnerInvitationInput,
+  ): Promise<DirectTenantAdminCreatedRow> {
+    const roles = input.selfAccess?.roles ?? [];
+    return this.withContext(context, async (client) => {
+      const created = await client.query<DirectTenantAdminCreatedRow>(
+        `select *
+         from private.provision_portal_tenant_for_current_user(
+           $1::text, $2::text, $3::text, $4::text, $5::text,
+           $6::text, $7::text, $8::text, $9::text, $10::text,
+           $11::text, $12::text, $13::date, $14::date, $15::uuid,
+           $16::text, $17::text[], $18::text
+         )`,
+        [
+          input.company.displayName,
+          input.company.legalName,
+          input.company.tenantCode,
+          input.company.slug,
+          input.company.countryCode,
+          input.company.reportingCurrencyCode,
+          input.company.timezone,
+          input.company.industry ?? null,
+          input.company.registrationNumber ?? null,
+          input.company.taxIdentifier ?? null,
+          input.financialYear.source,
+          input.financialYear.label,
+          input.financialYear.startsOn,
+          input.financialYear.endsOn,
+          input.financialYear.templateId ?? null,
+          input.financialYear.overrideReason ?? null,
+          roles,
+          input.selfAccess?.displayTitle ?? null,
+        ],
+      );
+      return singleRow(created.rows);
     });
   }
 

@@ -1,5 +1,5 @@
 export const backendStartingMessage =
-  "The API is starting up. Wait about 30 seconds and sign in again.";
+  "The service is starting. Wait about 30 seconds and sign in again.";
 
 export function isBackendStartingResponse(status: number, bodyText: string): boolean {
   if (status === 502 || status === 503 || status === 504) return true;
@@ -14,13 +14,13 @@ export function isBackendStartingResponse(status: number, bodyText: string): boo
 
 export function parseBackendJson(status: number, bodyText: string): unknown {
   if (status === 204) return {};
-  if (!bodyText.trim()) return { message: "Backend returned an empty response." };
+  if (!bodyText.trim()) return { message: "The service returned an empty response." };
   try {
     return JSON.parse(bodyText);
   } catch {
     if (isBackendStartingResponse(status, bodyText)) {
       return { message: backendStartingMessage };
     }
-    return { message: "Backend returned an invalid response." };
+    return { message: "The service returned an invalid response." };
   }
 }

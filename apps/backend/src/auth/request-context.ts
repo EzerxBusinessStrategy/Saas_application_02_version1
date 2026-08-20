@@ -1,6 +1,7 @@
 export type VerifiedAuthUser = {
   readonly authUserId: string;
   readonly portalType?: "SUPER_ADMIN" | "TENANT" | "EMPLOYEE" | "CLIENT";
+  readonly tenantId?: string;
   readonly sessionId?: string;
   readonly email?: string;
   readonly issuer: string;

@@ -1,8 +1,10 @@
 import { FastifyRequest } from "fastify";
 import { invalidTenantSelectionInput } from "./auth-errors";
-import { TenantSelectionInput } from "./request-context";
+import { AuthenticatedRequest, TenantSelectionInput } from "./request-context";
 
-export function tenantSelectionFromRequest(request: FastifyRequest): TenantSelectionInput {
+export function tenantSelectionFromRequest(
+  request: FastifyRequest & AuthenticatedRequest,
+): TenantSelectionInput {
   const tenantId = optionalSingleHeader(request.headers["x-tenant-id"]);
   const tenantCode = optionalSingleHeader(request.headers["x-tenant-code"]);
   const portal = optionalSingleHeader(request.headers["x-portal"]);
@@ -24,7 +26,12 @@ export function tenantSelectionFromRequest(request: FastifyRequest): TenantSelec
     throw invalidTenantSelectionInput("x-role is invalid.");
   }
 
-  return { tenantId, tenantCode, portal, selectedRole };
+  return {
+    tenantId: tenantId ?? request.verifiedAuthUser?.tenantId,
+    tenantCode,
+    portal,
+    selectedRole,
+  };
 }
 
 function optionalSingleHeader(value: string | string[] | undefined): string | undefined {

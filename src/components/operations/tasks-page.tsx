@@ -115,7 +115,7 @@ export function TasksPage({
   };
   const updateTask = (next: OperationalTask) => {
     syncTask(next);
-    toast.success("Task change saved for this mock session.");
+    toast.success("Task change saved.");
   };
   const refreshTaskWorkflow = () => {
     void queryClient.invalidateQueries({ queryKey: ["operational-tasks"] });
@@ -436,7 +436,7 @@ function ActiveTaskTimer({ tasks }: { tasks: OperationalTask[] }) {
         <div>
           <p className="font-medium">Active task timer</p>
           <p className="mt-1 text-sm text-muted-foreground">
-            Worked time comes from saved backend work segments.
+            Time is saved as you work on the task.
           </p>
         </div>
         <div className="flex flex-wrap gap-3">

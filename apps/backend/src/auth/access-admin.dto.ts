@@ -21,6 +21,8 @@ const optionalFutureIsoDate = z
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const nullableText = z.string().trim().max(160).optional().or(z.literal(""));
 
+export const selfAccessRoleCodes = ["TENANT_ADMIN", "MANAGER", "EMPLOYEE"] as const;
+
 export const createTenantWithOwnerInvitationSchema = z.object({
   company: z.object({
     displayName: z.string().trim().min(2).max(160),
@@ -43,18 +45,38 @@ export const createTenantWithOwnerInvitationSchema = z.object({
     templateId: z.string().uuid().optional(),
     overrideReason: z.string().trim().max(500).optional().or(z.literal("")),
   }),
+  administratorMode: z.enum(["another_person", "myself"]).optional(),
   tenantAdministrator: z.object({
     fullName: z.string().trim().min(2).max(160),
     email: z.string().trim().email().max(320).toLowerCase(),
     password: z.string().min(8).max(128),
     phone: z.string().trim().min(1).max(30),
-  }),
-}).superRefine(({ company }, context) => {
-  if (company.countryCode === "GB" && !company.incorporationDate) {
+  }).optional(),
+  selfAccess: z.object({
+    roles: z.array(z.enum(selfAccessRoleCodes)).min(1),
+    displayTitle: z.string().trim().max(80).optional().or(z.literal("")),
+  }).optional(),
+}).superRefine((value, context) => {
+  if (value.company.countryCode === "GB" && !value.company.incorporationDate) {
     context.addIssue({
       code: z.ZodIssueCode.custom,
       path: ["company", "incorporationDate"],
       message: "Enter the incorporation date for this United Kingdom company.",
+    });
+  }
+  const mode = value.administratorMode ?? "another_person";
+  if (mode === "another_person" && !value.tenantAdministrator) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["tenantAdministrator"],
+      message: "Enter the Tenant Administrator details.",
+    });
+  }
+  if (mode === "myself" && (!value.selfAccess || value.selfAccess.roles.length === 0)) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["selfAccess", "roles"],
+      message: "Select at least one organisation role.",
     });
   }
 });
@@ -222,6 +244,14 @@ export class TenantAdministratorInfoDto {
 
 }
 
+export class SelfAccessDto {
+  @ApiProperty({ enum: selfAccessRoleCodes, isArray: true })
+  roles!: Array<(typeof selfAccessRoleCodes)[number]>;
+
+  @ApiPropertyOptional({ type: String, example: "Founder" })
+  displayTitle?: string;
+}
+
 export class CreateTenantWithOwnerInvitationDto {
   @ApiProperty({ type: () => CompanyInfoDto })
   company!: CompanyInfoDto;
@@ -229,8 +259,14 @@ export class CreateTenantWithOwnerInvitationDto {
   @ApiProperty({ type: () => FinancialYearInfoDto })
   financialYear!: FinancialYearInfoDto;
 
-  @ApiProperty({ type: () => TenantAdministratorInfoDto })
-  tenantAdministrator!: TenantAdministratorInfoDto;
+  @ApiPropertyOptional({ enum: ["another_person", "myself"] })
+  administratorMode?: "another_person" | "myself";
+
+  @ApiPropertyOptional({ type: () => TenantAdministratorInfoDto })
+  tenantAdministrator?: TenantAdministratorInfoDto;
+
+  @ApiPropertyOptional({ type: () => SelfAccessDto })
+  selfAccess?: SelfAccessDto;
 }
 
 export class CreateInvitationDto {

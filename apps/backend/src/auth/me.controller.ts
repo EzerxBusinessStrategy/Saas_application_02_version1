@@ -16,6 +16,7 @@ import { ActiveRequestContextGuard } from "./guards/active-request-context.guard
 import { PermissionGuard } from "./guards/permission.guard";
 import { PortalSessionGuard } from "./guards/portal-session.guard";
 import {
+  MeContextsResponseDto,
   MeResponseDto,
   UpdateMyAvatarDto,
   UpdateMyPreferencesDto,
@@ -54,6 +55,15 @@ export class MeController {
     return this.meService.getMe(context);
   }
 
+  @Get("contexts")
+  @ApiOperation({ summary: "Return workspaces available to the authenticated user." })
+  @ApiOkResponse({ type: MeContextsResponseDto })
+  @ApiUnauthorizedResponse({ type: ApiErrorResponseDto })
+  @ApiForbiddenResponse({ type: ApiErrorResponseDto })
+  listContexts(@CurrentRequestContext() context: RequestContext): Promise<MeContextsResponseDto> {
+    return this.meService.listContexts(context);
+  }
+
   @Patch("profile")
   @HttpCode(200)
   @ApiOperation({ summary: "Update the current platform administrator profile." })
@@ -66,7 +76,7 @@ export class MeController {
     @CurrentRequestContext() context: RequestContext,
     @Body(new ZodValidationPipe(updateMyProfileSchema)) body: UpdateMyProfileDto,
   ): Promise<MeResponseDto> {
-    return this.meService.updateProfile(context, body.displayName);
+    return this.meService.updateProfile(context, body);
   }
 
   @Patch("preferences")
