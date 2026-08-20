@@ -264,7 +264,7 @@ export const createTenantSchema = z.object({
     templateId: z.string().uuid().optional().or(z.literal("")),
     overrideReason: z.string().trim().max(500).optional().or(z.literal("")),
   }),
-  administratorMode: z.enum(["another_person", "myself"]).default("another_person"),
+  administratorMode: z.enum(["another_person", "myself"]),
   tenantAdministrator: z.object({
     fullName: z.string().trim(),
     email: z.string().trim(),
